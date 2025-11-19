@@ -1,34 +1,63 @@
 <?php
 /**
- * Stock Order Plugin – Phase 3 (Simple ID Mapping + 90vh Height)
+ * Stock Order Plugin – Phase 3/4 – Forecast Core & Debug UI
  *
- * - Core forecast engine (demand/day, lead time, buffer, max-per-month cap).
+ * - Core forecast engine (demand per day, lead time, buffer, max-per-month cap).
+ * - Uses Phase 1/2 helpers:
+ *     - sop_supplier_get_by_id(), sop_supplier_get_all()
+ *     - sop_get_supplier_effective_buffer_months()
+ *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
- * - Supplier dropdown uses Name [ID: X].
- * - Products mapped ONLY by supplier ID via:
- *       _sop_supplier_id = supplier ID
- *       sop_supplier_id   = supplier ID
- *   (No use of legacy "supplier" meta or supplier "code".)
- * - Sticky header inside scrollable wrapper with max-height: 90vh.
+ * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-/**
- * -------------------------------------------------------
- *  Core Engine
- * -------------------------------------------------------
- */
+// Require core helpers. If they are missing, bail quietly so we don't fatal.
+if (
+    ! function_exists( 'sop_supplier_get_by_id' ) ||
+    ! function_exists( 'sop_supplier_get_all' ) ||
+    ! function_exists( 'sop_get_supplier_effective_buffer_months' ) ||
+    ! function_exists( 'sop_get_analysis_lookback_days' )
+) {
+    return;
+}
 
 if ( ! class_exists( 'Stock_Order_Plugin_Core_Engine' ) ) :
 
+/**
+ * Core forecast engine.
+ */
 class Stock_Order_Plugin_Core_Engine {
 
+    /**
+     * Singleton instance.
+     *
+     * @var Stock_Order_Plugin_Core_Engine|null
+     */
     protected static $instance = null;
-    protected $global_settings = array();
 
+    /**
+     * Default analysis lookback days (from global settings).
+     *
+     * @var int
+     */
+    protected $default_lookback_days = 365;
+
+    /**
+     * Default order cycle in months (used for max-per-month capping).
+     *
+     * @var int
+     */
+    protected $default_order_cycle_months = 6;
+
+    /**
+     * Get singleton instance.
+     *
+     * @return Stock_Order_Plugin_Core_Engine
+     */
     public static function get_instance() {
         if ( null === self::$instance ) {
             self::$instance = new self();
@@ -36,117 +65,82 @@ class Stock_Order_Plugin_Core_Engine {
         return self::$instance;
     }
 
+    /**
+     * Constructor.
+     */
     protected function __construct() {
-        $this->global_settings = $this->load_global_settings();
-    }
-
-    protected function load_global_settings() {
-        $option = get_option( 'sop_global_settings', array() );
-
-        $defaults = array(
-            'lookback_months'    => 12,
-            'buffer_months'      => 6,
-            'order_cycle_months' => 6,
-        );
-
-        $settings = wp_parse_args( is_array( $option ) ? $option : array(), $defaults );
-
-        $settings['lookback_months']    = max( 1, absint( $settings['lookback_months'] ) );
-        $settings['buffer_months']      = max( 0, absint( $settings['buffer_months'] ) );
-        $settings['order_cycle_months'] = max( 1, absint( $settings['order_cycle_months'] ) );
-
-        return $settings;
-    }
-
-    public function get_global_settings() {
-        return $this->global_settings;
+        $this->default_lookback_days = max( 1, (int) sop_get_analysis_lookback_days() );
     }
 
     /**
-     * Supplier settings via Phase 2 helper / filters / option.
+     * Resolve supplier settings from DB and helpers.
+     *
+     * @param int $supplier_id Supplier ID.
+     * @return array
      */
     public function get_supplier_settings( $supplier_id ) {
-        $supplier_id = absint( $supplier_id );
+        $supplier_id = (int) $supplier_id;
 
-        // Phase 2 DB helper.
-        if ( function_exists( 'sop_supplier_get_by_id' ) ) {
-            $row = sop_supplier_get_by_id( $supplier_id );
-            if ( $row ) {
-                return array(
-                    'id'                => (int) $row->id,
-                    'name'              => $row->name,
-                    'lead_time_weeks'   => isset( $row->lead_time_weeks ) ? (int) $row->lead_time_weeks : 16,
-                    'holiday_extra_days'=> isset( $row->holiday_extra_days ) ? (int) $row->holiday_extra_days : 0,
-                    'buffer_months'     => ( $row->buffer_months === '' ? null : (int) $row->buffer_months ),
-                    'currency'          => ! empty( $row->currency ) ? $row->currency : 'RMB',
-                );
-            }
-        }
-
-        // Custom filter.
-        $settings = apply_filters( 'sop_get_supplier_settings', null, $supplier_id );
-        if ( is_array( $settings ) ) {
-            $settings['id'] = isset( $settings['id'] ) ? (int) $settings['id'] : $supplier_id;
-            return $settings;
-        }
-
-        // Option fallback.
-        $all = get_option( 'sop_supplier_settings', array() );
-        if ( isset( $all[ $supplier_id ] ) && is_array( $all[ $supplier_id ] ) ) {
-            $base       = $all[ $supplier_id ];
-            $base['id'] = $supplier_id;
-            return $base;
-        }
-
-        // Last resort default.
-        return array(
-            'id'                => $supplier_id,
-            'name'              => 'Supplier ID: ' . $supplier_id,
-            'lead_time_weeks'   => 16,
-            'holiday_extra_days'=> 0,
-            'buffer_months'     => null,
-            'currency'          => 'RMB',
+        $base = array(
+            'id'              => $supplier_id,
+            'name'            => '',
+            'lead_time_weeks' => 0,
+            'holiday_extra_days' => 0,
+            'buffer_months'   => 0.0,
+            'currency'        => 'GBP',
         );
-    }
 
-    public function get_supplier_lead_days( array $supplier_settings ) {
-        $lead_weeks = isset( $supplier_settings['lead_time_weeks'] ) ? absint( $supplier_settings['lead_time_weeks'] ) : 0;
-        $holiday    = isset( $supplier_settings['holiday_extra_days'] ) ? absint( $supplier_settings['holiday_extra_days'] ) : 0;
-        return ( $lead_weeks * 7 ) + $holiday;
-    }
-
-    public function get_buffer_months( array $supplier_settings ) {
-        if ( isset( $supplier_settings['buffer_months'] ) && $supplier_settings['buffer_months'] !== '' ) {
-            return max( 0, absint( $supplier_settings['buffer_months'] ) );
+        $row = sop_supplier_get_by_id( $supplier_id );
+        if ( $row ) {
+            $base['name']            = isset( $row->name ) ? (string) $row->name : '';
+            $base['lead_time_weeks'] = isset( $row->lead_time_weeks ) ? (int) $row->lead_time_weeks : 0;
+            // holiday_extra_days / buffer_months may be in settings_json; for now we derive buffer via helper.
+            $base['currency']        = ! empty( $row->currency ) ? (string) $row->currency : 'GBP';
         }
-        return isset( $this->global_settings['buffer_months'] )
-            ? max( 0, absint( $this->global_settings['buffer_months'] ) )
-            : 6;
+
+        $buffer = sop_get_supplier_effective_buffer_months( $supplier_id );
+        $base['buffer_months'] = (float) $buffer;
+
+        return $base;
+    }
+
+    /**
+     * Convert supplier lead time settings to days.
+     *
+     * @param array $supplier_settings Supplier settings.
+     * @return int
+     */
+    public function get_supplier_lead_days( array $supplier_settings ) {
+        $weeks   = isset( $supplier_settings['lead_time_weeks'] ) ? (int) $supplier_settings['lead_time_weeks'] : 0;
+        $holiday = isset( $supplier_settings['holiday_extra_days'] ) ? (int) $supplier_settings['holiday_extra_days'] : 0;
+
+        return max( 0, ( $weeks * 7 ) + $holiday );
     }
 
     /**
      * Get product IDs for a supplier by simple ID meta:
-     *  - _sop_supplier_id = supplier ID
-     *  - sop_supplier_id   = supplier ID
+     * - _sop_supplier_id = supplier ID
+     * - sop_supplier_id  = supplier ID
      *
-     * No legacy "supplier" or "code" mapping here.
+     * @param int $supplier_id Supplier ID.
+     * @return int[]
      */
     public function get_supplier_product_ids( $supplier_id ) {
-        $supplier_id = absint( $supplier_id );
+        global $wpdb;
 
-        // Allow override.
-        $ids = apply_filters( 'sop_get_supplier_product_ids', null, $supplier_id );
-        if ( is_array( $ids ) ) {
-            return array_map( 'absint', $ids );
-        }
-
-        if ( ! $supplier_id ) {
+        $supplier_id = (int) $supplier_id;
+        if ( $supplier_id <= 0 ) {
             return array();
         }
 
-        global $wpdb;
+        // Allow overrides via filter, if needed.
+        $filtered = apply_filters( 'sop_get_supplier_product_ids', null, $supplier_id );
+        if ( is_array( $filtered ) ) {
+            return array_map( 'absint', $filtered );
+        }
 
         $posts_table = $wpdb->posts;
+        the_meta: // NOT REAL - remove
         $meta_table  = $wpdb->postmeta;
 
         $sql = "
@@ -154,25 +148,32 @@ class Stock_Order_Plugin_Core_Engine {
             FROM {$posts_table} p
             INNER JOIN {$meta_table} pm
                 ON pm.post_id = p.ID
-            WHERE p.post_type IN ('product','product_variation')
-              AND p.post_status IN ('publish','private')
+            WHERE p.post_type IN ( 'product', 'product_variation' )
+              AND p.post_status IN ( 'publish', 'private' )
               AND (
-                    (pm.meta_key = '_sop_supplier_id' AND pm.meta_value = %d)
-                 OR (pm.meta_key = 'sop_supplier_id'  AND pm.meta_value = %d)
+                    ( pm.meta_key = '_sop_supplier_id' AND pm.meta_value = %d )
+                 OR ( pm.meta_key = 'sop_supplier_id'  AND pm.meta_value = %d )
                   )
         ";
 
         $prepared = $wpdb->prepare( $sql, $supplier_id, $supplier_id );
-        $results  = $wpdb->get_col( $prepared );
+        $ids      = $wpdb->get_col( $prepared );
 
-        return array_map( 'absint', (array) $results );
+        return array_map( 'absint', (array) $ids );
     }
 
+    /**
+     * Get sales summary for a product (qty sold, days on sale, demand per day).
+     *
+     * @param int   $product_id Product ID.
+     * @param array $args       Optional overrides (lookback_days, date_to).
+     * @return array
+     */
     public function get_product_sales_summary( $product_id, array $args = array() ) {
         global $wpdb;
 
-        $product_id = absint( $product_id );
-        if ( ! $product_id ) {
+        $product_id = (int) $product_id;
+        if ( $product_id <= 0 ) {
             return array(
                 'qty_sold'       => 0,
                 'days_on_sale'   => 0.0,
@@ -181,16 +182,16 @@ class Stock_Order_Plugin_Core_Engine {
         }
 
         $defaults = array(
-            'lookback_months' => $this->global_settings['lookback_months'],
-            'date_to'         => current_time( 'Y-m-d' ),
+            'lookback_days' => $this->default_lookback_days,
+            'date_to'       => current_time( 'Y-m-d' ),
         );
         $args = wp_parse_args( $args, $defaults );
 
-        $lookback_months = max( 1, absint( $args['lookback_months'] ) );
-        $date_to         = $args['date_to'];
+        $lookback_days = max( 1, (int) $args['lookback_days'] );
+        $date_to       = $args['date_to'];
 
         $to_ts   = strtotime( $date_to . ' 23:59:59' );
-        $from_ts = strtotime( '-' . $lookback_months . ' months', $to_ts );
+        $from_ts = $to_ts - ( $lookback_days * DAY_IN_SECONDS );
 
         $lookup_table = $wpdb->prefix . 'wc_order_product_lookup';
         $orders_table = $wpdb->prefix . 'wc_orders';
@@ -199,7 +200,7 @@ class Stock_Order_Plugin_Core_Engine {
         $placeholders     = implode( ',', array_fill( 0, count( $allowed_statuses ), '%s' ) );
 
         $sql = "
-            SELECT COALESCE( SUM( product_qty ), 0 ) AS qty_sold
+            SELECT COALESCE( SUM( l.product_qty ), 0 ) AS qty_sold
             FROM {$lookup_table} AS l
             INNER JOIN {$orders_table} AS o
                 ON l.order_id = o.id
@@ -220,7 +221,7 @@ class Stock_Order_Plugin_Core_Engine {
         $qty_sold = (int) $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
 
         $total_days    = max( 1, ( $to_ts - $from_ts ) / DAY_IN_SECONDS );
-        $stockout_days = $this->get_product_stockout_days( $product_id, $from_ts, $to_ts ); // stub for now
+        $stockout_days = 0.0; // TODO: integrate sop_stockout_log if needed.
         $days_on_sale  = max( 1.0, $total_days - $stockout_days );
 
         $demand_per_day = $qty_sold > 0 ? ( $qty_sold / $days_on_sale ) : 0.0;
@@ -232,40 +233,46 @@ class Stock_Order_Plugin_Core_Engine {
         );
     }
 
-    protected function get_product_stockout_days( $product_id, $from_ts, $to_ts ) {
-        // Will use sop_stockout_log later.
-        return 0.0;
-    }
-
+    /**
+     * Build a forecast row for a single product.
+     *
+     * @param int   $product_id         Product ID.
+     * @param array $supplier_settings  Supplier settings.
+     * @param array $args               Optional overrides (lookback_days, order_cycle_months).
+     * @return array Empty array on failure.
+     */
     public function get_product_forecast( $product_id, array $supplier_settings = array(), array $args = array() ) {
-        $product_id = absint( $product_id );
-        $product    = wc_get_product( $product_id );
+        $product_id = (int) $product_id;
+        if ( $product_id <= 0 ) {
+            return array();
+        }
 
+        $product = wc_get_product( $product_id );
         if ( ! $product ) {
             return array();
         }
 
         $defaults = array(
-            'lookback_months'    => $this->global_settings['lookback_months'],
-            'order_cycle_months' => $this->global_settings['order_cycle_months'],
+            'lookback_days'      => $this->default_lookback_days,
+            'order_cycle_months' => $this->default_order_cycle_months,
         );
         $args = wp_parse_args( $args, $defaults );
 
-        $lookback_months    = max( 1, absint( $args['lookback_months'] ) );
-        $order_cycle_months = max( 1, absint( $args['order_cycle_months'] ) );
+        $lookback_days      = max( 1, (int) $args['lookback_days'] );
+        $order_cycle_months = max( 1, (int) $args['order_cycle_months'] );
 
-        $sales_summary = $this->get_product_sales_summary(
-            $product_id,
-            array( 'lookback_months' => $lookback_months )
-        );
+        $sales = $this->get_product_sales_summary( $product_id, array( 'lookback_days' => $lookback_days ) );
 
-        $demand_per_day = $sales_summary['demand_per_day'];
+        $demand_per_day = $sales['demand_per_day'];
 
         $lead_days     = $this->get_supplier_lead_days( $supplier_settings );
-        $buffer_months = $this->get_buffer_months( $supplier_settings );
-        $buffer_days   = $buffer_months * 30;
+        $buffer_months = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
+        if ( $buffer_months < 0 ) {
+            $buffer_months = 0.0;
+        }
 
-        $forecast_days   = $lead_days + $buffer_days;
+        $buffer_days    = $buffer_months * 30.0;
+        $forecast_days  = max( 0.0, $lead_days + $buffer_days );
         $forecast_demand = $forecast_days > 0 ? ( $demand_per_day * $forecast_days ) : 0.0;
 
         $current_stock = (int) $product->get_stock_quantity();
@@ -275,9 +282,9 @@ class Stock_Order_Plugin_Core_Engine {
 
         $suggested_raw = max( 0.0, $forecast_demand - $current_stock );
 
+        // Optional per-product max-per-month cap.
         $max_per_month = get_post_meta( $product_id, 'max_order_qty_per_month', true );
-        $max_per_month = $max_per_month !== '' ? (float) $max_per_month : 0.0;
-
+        $max_per_month = ( '' !== $max_per_month ) ? (float) $max_per_month : 0.0;
         $max_for_cycle = $max_per_month > 0 ? ( $max_per_month * $order_cycle_months ) : 0.0;
 
         $suggested_capped = ( $max_for_cycle > 0 )
@@ -285,24 +292,31 @@ class Stock_Order_Plugin_Core_Engine {
             : $suggested_raw;
 
         return array(
-            'product_id'          => $product_id,
-            'sku'                 => $product->get_sku(),
-            'name'                => $product->get_name(),
-            'current_stock'       => $current_stock,
-            'qty_sold'            => (int) $sales_summary['qty_sold'],
-            'demand_per_day'      => (float) $demand_per_day,
-            'forecast_days'       => (float) $forecast_days,
-            'forecast_demand'     => (float) $forecast_demand,
+            'product_id'        => $product_id,
+            'sku'               => $product->get_sku(),
+            'name'              => $product->get_name(),
+            'current_stock'     => $current_stock,
+            'qty_sold'          => (int) $sales['qty_sold'],
+            'demand_per_day'    => (float) $demand_per_day,
+            'forecast_days'     => (float) $forecast_days,
+            'forecast_demand'   => (float) $forecast_demand,
             'max_order_per_month' => (float) $max_per_month,
-            'max_for_cycle'       => (float) $max_for_cycle,
-            'suggested_raw'       => (float) $suggested_raw,
-            'suggested_capped'    => (float) $suggested_capped,
+            'max_for_cycle'     => (float) $max_for_cycle,
+            'suggested_raw'     => (float) $suggested_raw,
+            'suggested_capped'  => (float) $suggested_capped,
         );
     }
 
+    /**
+     * Build all forecast rows for a supplier.
+     *
+     * @param int   $supplier_id Supplier ID.
+     * @param array $args        Optional overrides.
+     * @return array[]
+     */
     public function get_supplier_forecast( $supplier_id, array $args = array() ) {
-        $supplier_id = absint( $supplier_id );
-        if ( ! $supplier_id ) {
+        $supplier_id = (int) $supplier_id;
+        if ( $supplier_id <= 0 ) {
             return array();
         }
 
@@ -323,121 +337,130 @@ class Stock_Order_Plugin_Core_Engine {
 
         return apply_filters( 'sop_supplier_forecast_rows', $rows, $supplier_id, $supplier_settings, $args );
     }
-
 }
 
+endif; // class exists.
+
+/**
+ * Helper to access the forecast engine singleton.
+ *
+ * @return Stock_Order_Plugin_Core_Engine
+ */
 function sop_core_engine() {
     return Stock_Order_Plugin_Core_Engine::get_instance();
 }
 
-endif;
-
 /**
  * -------------------------------------------------------
- *  Admin UI – Stock Order → Forecast (Debug)
+ * Admin UI – Stock Order → Forecast (Debug)
  * -------------------------------------------------------
  */
+add_action(
+    'admin_menu',
+    function () {
+        add_submenu_page(
+            'sop_stock_order',
+            __( 'Stock Order Forecast (Debug)', 'sop' ),
+            __( 'Forecast (Debug)', 'sop' ),
+            'manage_woocommerce',
+            'sop-forecast-debug',
+            'sop_render_forecast_debug_page'
+        );
+    },
+    30
+);
 
-add_action( 'admin_menu', function () {
-    add_submenu_page(
-        'sop_stock_order',
-        __( 'Stock Order Forecast (Debug)', 'sop' ),
-        __( 'Forecast (Debug)', 'sop' ),
-        'manage_woocommerce',
-        'sop-forecast-debug',
-        'sop_render_forecast_debug_page'
-    );
-}, 30);
-
+/**
+ * Render the Forecast (Debug) page.
+ */
 function sop_render_forecast_debug_page() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to access this page.', 'sop' ) );
     }
 
-    $suppliers = array();
-    if ( function_exists( 'sop_supplier_get_all' ) ) {
-        $suppliers = sop_supplier_get_all( array() );
-    }
+    $suppliers = function_exists( 'sop_supplier_get_all' ) ? sop_supplier_get_all() : array();
 
-    $supplier_id = isset( $_GET['supplier_id'] ) ? absint( $_GET['supplier_id'] ) : 0;
-    $engine      = sop_core_engine();
+    $selected_supplier_id = isset( $_GET['supplier_id'] ) ? (int) $_GET['supplier_id'] : 0;
+    $engine               = sop_core_engine();
+
+    $rows    = array();
+    $ran_run = false;
+
+    if ( $selected_supplier_id > 0 ) {
+        $rows   = $engine->get_supplier_forecast( $selected_supplier_id );
+        $ran_run = true;
+    }
     ?>
-    <div class="wrap">
+    <div class="wrap sop-forecast-debug">
         <h1><?php esc_html_e( 'Stock Order Forecast (Debug)', 'sop' ); ?></h1>
 
         <form method="get" style="margin-bottom: 1em;">
             <input type="hidden" name="page" value="sop-forecast-debug" />
-            <label for="sop_supplier_id"><strong><?php esc_html_e( 'Supplier:', 'sop' ); ?></strong></label>
-            <select name="supplier_id" id="sop_supplier_id">
+            <label for="sop_supplier_select">
+                <strong><?php esc_html_e( 'Supplier:', 'sop' ); ?></strong>
+            </label>
+            <select name="supplier_id" id="sop_supplier_select">
                 <option value="0"><?php esc_html_e( 'Select a supplier…', 'sop' ); ?></option>
-                <?php foreach ( $suppliers as $s ) : ?>
-                    <?php
-                    $sid   = (int) $s->id;
-                    $label = $s->name . ' [ID: ' . $sid . ']';
-                    ?>
-                    <option value="<?php echo esc_attr( $sid ); ?>" <?php selected( $supplier_id, $sid ); ?>>
-                        <?php echo esc_html( $label ); ?>
-                    </option>
-                <?php endforeach; ?>
+                <?php if ( ! empty( $suppliers ) ) : ?>
+                    <?php foreach ( $suppliers as $supplier ) : ?>
+                        <?php
+                        $sid   = isset( $supplier->id ) ? (int) $supplier->id : 0;
+                        $label = isset( $supplier->name ) ? (string) $supplier->name : '';
+                        ?>
+                        <option value="<?php echo esc_attr( $sid ); ?>" <?php selected( $selected_supplier_id, $sid ); ?>>
+                            <?php echo esc_html( $label ); ?>
+                        </option>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </select>
             <?php submit_button( __( 'Run Forecast', 'sop' ), 'primary', '', false, array( 'style' => 'margin-left:8px;' ) ); ?>
         </form>
-    <?php
 
-    if ( empty( $suppliers ) ) {
-        echo '<p>' . esc_html__( 'No suppliers found. Configure suppliers in the Stock Order settings first.', 'sop' ) . '</p></div>';
-        return;
-    }
+        <?php if ( ! $ran_run ) : ?>
+            <p><?php esc_html_e( 'Choose a supplier and click "Run Forecast" to see suggested quantities.', 'sop' ); ?></p>
+            </div>
+            <?php
+            return;
+        endif;
 
-    if ( ! $supplier_id ) {
-        echo '<p>' . esc_html__( 'Choose a supplier and click "Run Forecast" to see suggested quantities.', 'sop' ) . '</p></div>';
-        return;
-    }
+        if ( empty( $rows ) ) :
+            ?>
+            <p><?php esc_html_e( 'No products found for this supplier or no sales data in the selected analysis window.', 'sop' ); ?></p>
+        </div>
+        <?php
+            return;
+        endif;
 
-    $supplier_settings = $engine->get_supplier_settings( $supplier_id );
-    $rows              = $engine->get_supplier_forecast( $supplier_id );
-    $count             = count( $rows );
-
-    $lookback  = $engine->get_global_settings()['lookback_months'];
-    $buffer_m  = $engine->get_buffer_months( $supplier_settings );
-    $lead_days = $engine->get_supplier_lead_days( $supplier_settings );
-    ?>
+        // Basic summary.
+        $supplier_settings = $engine->get_supplier_settings( $selected_supplier_id );
+        $lookback_days     = max( 1, (int) sop_get_analysis_lookback_days() );
+        $lead_days         = $engine->get_supplier_lead_days( $supplier_settings );
+        $buffer_months     = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
+        ?>
         <p>
             <?php
             printf(
-                esc_html__( 'Supplier: %1$s [ID: %2$d]', 'sop' ),
+                /* translators: 1: supplier name, 2: supplier ID */
+                esc_html__( 'Forecast for %1$s (ID %2$d)', 'sop' ),
                 esc_html( $supplier_settings['name'] ),
-                absint( $supplier_settings['id'] )
+                (int) $supplier_settings['id']
             );
             ?>
             <br />
             <?php
             printf(
-                esc_html__( 'Lookback: %1$d months. Lead time: %2$d days. Buffer: %3$d months.', 'sop' ),
-                absint( $lookback ),
-                absint( $lead_days ),
-                absint( $buffer_m )
-            );
-            ?>
-            <br />
-            <?php
-            printf(
-                esc_html__( 'Found %1$d products for this supplier.', 'sop' ),
-                absint( $count )
+                /* translators: 1: days, 2: months, 3: days */
+                esc_html__( 'Lookback: %1$d days. Buffer: %2$s months. Lead time: %3$d days.', 'sop' ),
+                $lookback_days,
+                number_format_i18n( $buffer_months, 1 ),
+                $lead_days
             );
             ?>
         </p>
-    <?php
 
-    if ( empty( $rows ) ) {
-        echo '<p>' . esc_html__( 'No products with this supplier ID were found, or there is no sales data yet.', 'sop' ) . '</p></div>';
-        return;
-    }
-    ?>
         <style>
             .sop-forecast-table-wrapper {
-                max-height: 90vh;  /* you can tweak this */
-                min-height: 40vh;
+                max-height: 90vh;
                 overflow: auto;
                 border: 1px solid #ddd;
                 background: #fff;
@@ -479,19 +502,19 @@ function sop_render_forecast_debug_page() {
                             <td><?php echo esc_html( $row['name'] ); ?></td>
                             <td><?php echo esc_html( $row['current_stock'] ); ?></td>
                             <td><?php echo esc_html( $row['qty_sold'] ); ?></td>
-                            <td><?php echo esc_html( number_format( $row['demand_per_day'], 3 ) ); ?></td>
-                            <td><?php echo esc_html( number_format( $row['forecast_days'], 1 ) ); ?></td>
-                            <td><?php echo esc_html( number_format( $row['forecast_demand'], 1 ) ); ?></td>
-                            <td><?php echo esc_html( number_format( $row['max_order_per_month'], 1 ) ); ?></td>
-                            <td><?php echo esc_html( number_format( $row['max_for_cycle'], 1 ) ); ?></td>
-                            <td><?php echo esc_html( number_format( $row['suggested_raw'], 1 ) ); ?></td>
-                            <td><strong><?php echo esc_html( number_format( $row['suggested_capped'], 1 ) ); ?></strong></td>
+                            <td><?php echo esc_html( number_format_i18n( $row['demand_per_day'], 3 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( $row['forecast_days'], 1 ) ); ?></td>
+                            <td><?php echo
+ esc_html( number_format_i18n( $row['forecast_demand'], 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( $row['max_order_per_month'], 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( $row['max_for_cycle'], 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( $row['suggested_raw'], 1 ) ); ?></td>
+                            <td><strong><?php echo esc_html( number_format_i18n( $row['suggested_capped'], 1 ) ); ?></strong></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
-
     </div>
     <?php
 }

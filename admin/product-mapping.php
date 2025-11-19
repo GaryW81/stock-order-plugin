@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin – Phase 2
- * Supplier Product Mapping Screen (paginated + totals + clearer labels)
+ * Supplier Product Mapping Screen (paginated + totals)
  *
  * - Adds "Products by Supplier" submenu under Stock Order.
  * - Lets you select a supplier (or "Unassigned") and see products linked to it.
@@ -19,8 +19,8 @@ if ( ! class_exists( 'sop_DB' ) || ! function_exists( 'sop_supplier_get_all' ) )
 }
 
 /**
- * Fallback: get product supplier ID directly from meta
- * if sop_get_product_supplier_id() isn't already defined elsewhere.
+ * Fallback helper: get product's supplier ID from meta
+ * if sop_get_product_supplier_id() is not already defined elsewhere.
  */
 if ( ! function_exists( 'sop_get_product_supplier_id' ) ) {
     function sop_get_product_supplier_id( $product_id ) {
@@ -106,14 +106,8 @@ function sop_render_products_by_supplier_page() {
                 <optgroup label="<?php esc_attr_e( 'Suppliers', 'sop' ); ?>">
                     <?php foreach ( $suppliers as $supplier ) : ?>
                         <?php
-                        // sop_supplier_get_all() returns objects.
                         $sid   = (int) $supplier->id;
-                        $label = $supplier->name;
-
-                        // Show code clearly labelled to avoid confusion with counts.
-                        if ( ! empty( $supplier->supplier_code ) ) {
-                            $label .= ' [Code: ' . $supplier->supplier_code . ']';
-                        }
+                        $label = $supplier->name; // No [Code: XYZ] appended – cleaner for user.
                         ?>
                         <option value="<?php echo esc_attr( $sid ); ?>" <?php selected( $current_supplier_id, $sid ); ?>>
                             <?php echo esc_html( $label ); ?>
@@ -248,11 +242,8 @@ function sop_render_products_by_supplier_page() {
                         <td>
                             <?php
                             if ( $supplier_obj ) {
-                                $s_label = $supplier_obj->name;
-                                if ( ! empty( $supplier_obj->supplier_code ) ) {
-                                    $s_label .= ' [Code: ' . $supplier_obj->supplier_code . ']';
-                                }
-                                echo esc_html( $s_label );
+                                // Show supplier name only – no [Code: XYZ] clutter.
+                                echo esc_html( $supplier_obj->name );
                             } else {
                                 echo '<span style="color:#999;">' . esc_html__( '— Unassigned —', 'sop' ) . '</span>';
                             }
@@ -286,14 +277,16 @@ function sop_render_products_by_supplier_page() {
             );
 
             echo '<div class="tablenav"><div class="tablenav-pages">';
-            echo paginate_links( array(
-                'base'      => $base,
-                'format'    => '',
-                'current'   => $paged,
-                'total'     => $total_pages,
-                'prev_text' => '&laquo;',
-                'next_text' => '&raquo;',
-            ) );
+            echo paginate_links(
+                array(
+                    'base'      => $base,
+                    'format'    => '',
+                    'current'   => $paged,
+                    'total'     => $total_pages,
+                    'prev_text' => '&laquo;',
+                    'next_text' => '&raquo;',
+                )
+            );
             echo '</div></div>';
         }
     } else {

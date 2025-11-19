@@ -1,3 +1,4 @@
+<?php
 /**
  * Stock Order Plugin - Phase 1 (DB + Helpers)
  *
@@ -36,13 +37,13 @@ if ( ! class_exists( 'sop_DB' ) ) {
             $prefix = $wpdb->prefix;
 
             return array(
-                'suppliers'            => $prefix . 'sop_suppliers',
-                'stockout_log'         => $prefix . 'sop_stockout_log',
-                'forecast_cache'       => $prefix . 'sop_forecast_cache',
-                'forecast_cache_item'  => $prefix . 'sop_forecast_cache_items',
-                'goods_in_session'     => $prefix . 'sop_goods_in_sessions',
-                'goods_in_item'        => $prefix . 'sop_goods_in_items',
-                'supplier_layouts'     => $prefix . 'sop_supplier_layouts',
+                'suppliers'           => $prefix . 'sop_suppliers',
+                'stockout_log'        => $prefix . 'sop_stockout_log',
+                'forecast_cache'      => $prefix . 'sop_forecast_cache',
+                'forecast_cache_item' => $prefix . 'sop_forecast_cache_items',
+                'goods_in_session'    => $prefix . 'sop_goods_in_sessions',
+                'goods_in_item'       => $prefix . 'sop_goods_in_items',
+                'supplier_layouts'    => $prefix . 'sop_supplier_layouts',
             );
         }
 
@@ -233,16 +234,6 @@ if ( ! class_exists( 'sop_DB' ) ) {
          * ---------------------------------------------------------------------
          */
 
-        /**
-         * Insert a row into one of the SOP tables.
-         *
-         * - Auto-fills created_at if not provided (all SOP tables have created_at).
-         *
-         * @param string $table_key Logical table key (e.g. 'suppliers').
-         * @param array  $data      Column => value pairs.
-         * @param array|string|null $format Optional wpdb format.
-         * @return int|false Inserted row ID on success, false on failure.
-         */
         public static function insert( $table_key, array $data, $format = null ) {
             global $wpdb;
 
@@ -264,18 +255,6 @@ if ( ! class_exists( 'sop_DB' ) ) {
             return (int) $wpdb->insert_id;
         }
 
-        /**
-         * Update rows in one of the SOP tables.
-         *
-         * NOTE: Requires a non-empty $where to avoid accidental mass-updates.
-         *
-         * @param string $table_key
-         * @param array  $data
-         * @param array  $where
-         * @param array|string|null $format
-         * @param array|string|null $where_format
-         * @return int|false Number of rows affected, or false on failure.
-         */
         public static function update( $table_key, array $data, array $where, $format = null, $where_format = null ) {
             global $wpdb;
 
@@ -289,14 +268,6 @@ if ( ! class_exists( 'sop_DB' ) ) {
             return ( false === $result ) ? false : (int) $result;
         }
 
-        /**
-         * Delete rows from one of the SOP tables.
-         *
-         * @param string $table_key
-         * @param array  $where
-         * @param array|string|null $where_format
-         * @return int|false Number of rows deleted, or false on failure.
-         */
         public static function delete( $table_key, array $where, $where_format = null ) {
             global $wpdb;
 
@@ -310,17 +281,6 @@ if ( ! class_exists( 'sop_DB' ) ) {
             return ( false === $result ) ? false : (int) $result;
         }
 
-        /**
-         * Get a single row from one of the SOP tables by simple equality WHERE.
-         *
-         * Example:
-         *   sop_DB::get_row( 'suppliers', array( 'id' => 5 ) );
-         *
-         * @param string $table_key
-         * @param array  $where Column => value pairs for equality.
-         * @param string $output OBJECT, ARRAY_A, or ARRAY_N.
-         * @return mixed|null
-         */
         public static function get_row( $table_key, array $where, $output = OBJECT ) {
             global $wpdb;
 
@@ -344,17 +304,6 @@ if ( ! class_exists( 'sop_DB' ) ) {
             return $wpdb->get_row( $prepared, $output );
         }
 
-        /**
-         * Get multiple rows from one of the SOP tables by simple equality WHERE.
-         *
-         * Example:
-         *   sop_DB::get_results( 'stockout_log', array( 'product_id' => 123 ) );
-         *
-         * @param string $table_key
-         * @param array  $where   Column => value pairs (all ANDed together). Empty = no WHERE.
-         * @param string $output  OBJECT, ARRAY_A, or ARRAY_N.
-         * @return array
-         */
         public static function get_results( $table_key, array $where = array(), $output = OBJECT ) {
             global $wpdb;
 
@@ -385,55 +334,30 @@ if ( ! class_exists( 'sop_DB' ) ) {
         }
     }
 
-    /**
-     * Global convenience: get table name by key.
-     *
-     * @param string $key
-     * @return string|null
-     */
     function sop_get_table_name( $key ) {
         return sop_DB::get_table_name( $key );
     }
 
-    /**
-     * Global convenience: insert row into SOP table.
-     */
     function sop_db_insert( $table_key, array $data, $format = null ) {
         return sop_DB::insert( $table_key, $data, $format );
     }
 
-    /**
-     * Global convenience: update rows in SOP table.
-     */
     function sop_db_update( $table_key, array $data, array $where, $format = null, $where_format = null ) {
         return sop_DB::update( $table_key, $data, $where, $format, $where_format );
     }
 
-    /**
-     * Global convenience: delete rows from SOP table.
-     */
     function sop_db_delete( $table_key, array $where, $where_format = null ) {
         return sop_DB::delete( $table_key, $where, $where_format );
     }
 
-    /**
-     * Global convenience: fetch single row from SOP table.
-     */
     function sop_db_get_row( $table_key, array $where, $output = OBJECT ) {
         return sop_DB::get_row( $table_key, $where, $output );
     }
 
-    /**
-     * Global convenience: fetch multiple rows from SOP table.
-     */
     function sop_db_get_results( $table_key, array $where = array(), $output = OBJECT ) {
         return sop_DB::get_results( $table_key, $where, $output );
     }
 
-    /**
-     * Hook DB installer into admin_init so it runs on first admin page load
-     * after this snippet is activated or when VERSION changes.
-     */
     add_action( 'admin_init', function () {
         if ( current_user_can( 'manage_options' ) ) {
             sop_DB::maybe_install();
