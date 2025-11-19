@@ -1,3 +1,4 @@
+<?php
 /**
  * Stock Order Plugin – Core Helpers (buffer & analysis)
  *

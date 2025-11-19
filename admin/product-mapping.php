@@ -1,3 +1,4 @@
+<?php
 /**
  * Stock Order Plugin – Phase 2
  * Supplier Product Mapping Screen (paginated + totals + clearer labels)
@@ -9,12 +10,28 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+// Require DB + supplier helpers from previous phases.
+if ( ! class_exists( 'sop_DB' ) || ! function_exists( 'sop_supplier_get_all' ) ) {
     return;
 }
 
-// Require DB + supplier helpers + product meta helper from previous snippets.
-if ( ! class_exists( 'sop_DB' ) || ! function_exists( 'sop_supplier_get_all' ) || ! function_exists( 'sop_get_product_supplier_id' ) ) {
-    return;
+/**
+ * Fallback: get product supplier ID directly from meta
+ * if sop_get_product_supplier_id() isn't already defined elsewhere.
+ */
+if ( ! function_exists( 'sop_get_product_supplier_id' ) ) {
+    function sop_get_product_supplier_id( $product_id ) {
+        $product_id = (int) $product_id;
+        if ( $product_id <= 0 ) {
+            return 0;
+        }
+
+        $meta = get_post_meta( $product_id, '_sop_supplier_id', true );
+        return ( '' === $meta ) ? 0 : (int) $meta;
+    }
 }
 
 /**
@@ -41,7 +58,9 @@ function sop_render_products_by_supplier_page() {
     }
 
     // Selected view: supplier ID or "unassigned".
-    $selected = isset( $_GET['sop_supplier_view'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_supplier_view'] ) ) : '';
+    $selected = isset( $_GET['sop_supplier_view'] )
+        ? sanitize_text_field( wp_unslash( $_GET['sop_supplier_view'] ) )
+        : '';
 
     // Current page for pagination.
     $paged = isset( $_GET['paged'] ) ? (int) $_GET['paged'] : 1;
@@ -56,11 +75,11 @@ function sop_render_products_by_supplier_page() {
     $suppliers = sop_supplier_get_all();
 
     // Resolve current supplier object (if a numeric supplier is selected).
-    $current_supplier      = null;
-    $current_supplier_id   = 0;
-    $is_unassigned_view    = false;
+    $current_supplier    = null;
+    $current_supplier_id = 0;
+    $is_unassigned_view  = false;
 
-    if ( $selected === 'unassigned' ) {
+    if ( 'unassigned' === $selected ) {
         $is_unassigned_view = true;
     } elseif ( is_numeric( $selected ) && (int) $selected > 0 ) {
         $current_supplier_id = (int) $selected;
@@ -87,6 +106,7 @@ function sop_render_products_by_supplier_page() {
                 <optgroup label="<?php esc_attr_e( 'Suppliers', 'sop' ); ?>">
                     <?php foreach ( $suppliers as $supplier ) : ?>
                         <?php
+                        // sop_supplier_get_all() returns objects.
                         $sid   = (int) $supplier->id;
                         $label = $supplier->name;
 
@@ -214,10 +234,16 @@ function sop_render_products_by_supplier_page() {
                         </td>
                         <td>
                             <strong><?php echo esc_html( $product->get_name() ); ?></strong><br />
-                            <small>ID: <?php echo esc_html( $product_id ); ?></small>
+                            <small><?php esc_html_e( 'ID:', 'sop' ); ?> <?php echo esc_html( $product_id ); ?></small>
                         </td>
                         <td>
-                            <?php echo $sku ? esc_html( $sku ) : '<span style="color:#999;">' . esc_html__( '(no SKU)', 'sop' ) . '</span>'; ?>
+                            <?php
+                            if ( $sku ) {
+                                echo esc_html( $sku );
+                            } else {
+                                echo '<span style="color:#999;">' . esc_html__( '(no SKU)', 'sop' ) . '</span>';
+                            }
+                            ?>
                         </td>
                         <td>
                             <?php
@@ -270,7 +296,6 @@ function sop_render_products_by_supplier_page() {
             ) );
             echo '</div></div>';
         }
-
     } else {
         echo '<p><em>' . esc_html__( 'No products found for this view.', 'sop' ) . '</em></p>';
     }

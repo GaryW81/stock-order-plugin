@@ -1,3 +1,4 @@
+<?php
 /*** Stock Order Plugin – Phase 4.1 – Pre-Order Sheet Core (admin only) V10.11*
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.

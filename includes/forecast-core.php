@@ -1,3 +1,4 @@
+<?php
 /**
  * Stock Order Plugin – Phase 3 (Simple ID Mapping + 90vh Height)
  *

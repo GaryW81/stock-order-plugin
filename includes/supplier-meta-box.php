@@ -1,3 +1,4 @@
+<?php
 /**
  * Stock Order Plugin - Phase 2
  * Product → Supplier assignment meta box (fixed for sop_supplier_get_all)
@@ -8,7 +9,7 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-    return;
+    exit;
 }
 
 // Require DB + domain helpers from Phase 1.
@@ -45,10 +46,11 @@ function sop_render_product_supplier_metabox( $post ) {
     $current_supplier_id = sop_get_product_supplier_id( $post->ID );
 
     // Get active suppliers.
-    $suppliers = sop_supplier_get_all( array(
-        'is_active' => 1,
-    ) );
-
+    $suppliers = sop_supplier_get_all(
+        array(
+            'is_active' => 1,
+        )
+    );
     ?>
     <p>
         <label for="sop_supplier_id">
@@ -58,7 +60,9 @@ function sop_render_product_supplier_metabox( $post ) {
 
     <p>
         <select name="sop_supplier_id" id="sop_supplier_id" style="width:100%;">
-            <option value="0"><?php esc_html_e( '— No supplier (exclude from Stock Order) —', 'sop' ); ?></option>
+            <option value="0">
+                <?php esc_html_e( '— No supplier (exclude from Stock Order) —', 'sop' ); ?>
+            </option>
             <?php if ( ! empty( $suppliers ) ) : ?>
                 <?php foreach ( $suppliers as $supplier ) : ?>
                     <?php
@@ -139,5 +143,6 @@ function sop_get_product_supplier_id( $product_id ) {
     }
 
     $supplier_id = get_post_meta( $product_id, '_sop_supplier_id', true );
+
     return (int) $supplier_id;
 }

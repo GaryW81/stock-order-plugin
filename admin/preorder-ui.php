@@ -1,3 +1,4 @@
+<?php
 /*** Stock Order Plugin – Phase 4.1 – Pre-Order Sheet UI (admin only) V10.4 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
@@ -14,6 +15,10 @@
  *      Option: sop_preorder_lock_{supplier_id} stores lock timestamp.
  *      When locked, inputs are disabled, rounding buttons are hidden, and Save is disabled.
  */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
 
 function sop_preorder_render_admin_page() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
@@ -36,7 +41,7 @@ function sop_preorder_render_admin_page() {
     }
 
     if ( ! $supplier && ! empty( $suppliers ) ) {
-        $supplier           = $suppliers[0];
+        $supplier             = $suppliers[0];
         $selected_supplier_id = (int) $supplier['id'];
     }
 
@@ -91,7 +96,7 @@ function sop_preorder_render_admin_page() {
     // Apply 150mm pallet layer if enabled.
     $container_cbm = $base_cbm;
     if ( $pallet_layer && $floor_area > 0 ) {
-        $lost_cubic   = $floor_area * 0.15; // 150mm height.
+        $lost_cubic    = $floor_area * 0.15; // 150mm height.
         $container_cbm = max( 0.0, $container_cbm - $lost_cubic );
     }
 
@@ -173,7 +178,7 @@ function sop_preorder_render_admin_page() {
                         <option value=""><?php esc_html_e( 'None', 'sop' ); ?></option>
                         <option value="20ft" <?php selected( $container_selection, '20ft' ); ?>>20ft (33.2 CBM)</option>
                         <option value="40ft" <?php selected( $container_selection, '40ft' ); ?>>40ft (67.7 CBM)</option>
-                        <option value="40ft_hc" <?php selected( $container_selection, '40ft_hc' ); ?>>40ft HC (76.3 CBM)</option>
+                        <option value="40ft_hc" <?php selected( $container_selection, '40ft_hc' ); ?>>40ft (76.3 CBM)</option>
                     </select>
                 </label>
 
@@ -281,7 +286,7 @@ function sop_preorder_render_admin_page() {
                             <th class="column-line-cbm" data-column="line_cbm" data-sort="line_cbm" title="<?php esc_attr_e( 'Line volume in cubic metres', 'sop' ); ?>"><?php esc_html_e( 'Line CBM', 'sop' ); ?></th>
                             <th class="column-regular-unit" data-column="regular_unit" data-sort="price_ex" title="<?php esc_attr_e( 'Regular WooCommerce price per unit excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Price excl.', 'sop' ); ?></th>
                             <th class="column-regular-line" data-column="regular_line" data-sort="line_ex" title="<?php esc_attr_e( 'Regular WooCommerce line price excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Line excl.', 'sop' ); ?></th>
-                            <th class="column-notes" data-column="notes" data-sort="notes" title="<?php esc_attr_e( 'Internal notes for this product / supplier', 'sop' ); ?>"><?php esc_html_e( 'Notes', 'sop' ); ?></th>
+                            <th class="column-notes" data-column="notes" title="<?php esc_attr_e( 'Internal notes for this product / supplier', 'sop' ); ?>"><?php esc_html_e( 'Notes', 'sop' ); ?></th>
                         </tr>
                     </thead>
                     <tbody>
