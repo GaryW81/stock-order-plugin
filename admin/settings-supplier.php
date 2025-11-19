@@ -1,3 +1,4 @@
+<?php
 /**
  * Stock Order Plugin – Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
@@ -69,7 +70,7 @@ class sop_Admin_Settings {
     /**
      * Sanitize the global settings before saving.
      *
-     * @param array $input
+     * @param array $input Raw input from form.
      * @return array
      */
     public function sanitize_settings( $input ) {
@@ -85,7 +86,7 @@ class sop_Admin_Settings {
 
         // Global buffer months.
         if ( isset( $input['buffer_months_global'] ) ) {
-            $buffer = floatval( $input['buffer_months_global'] );
+            $buffer = (float) $input['buffer_months_global'];
             $output['buffer_months_global'] = ( $buffer < 0 ) ? 0 : $buffer;
         }
 
@@ -179,7 +180,6 @@ class sop_Admin_Settings {
      */
     protected function render_general_tab() {
         $settings = self::get_settings();
-
         ?>
         <form method="post" action="options.php">
             <?php settings_fields( 'sop_settings_group' ); ?>
@@ -196,6 +196,7 @@ class sop_Admin_Settings {
                                    id="sop_analysis_lookback_days"
                                    name="<?php echo esc_attr( self::OPTION_KEY ); ?>[analysis_lookback_days]"
                                    value="<?php echo esc_attr( (int) $settings['analysis_lookback_days'] ); ?>"
+
                                    min="1"
                                    class="small-text" />
                             <p class="description">
@@ -282,20 +283,20 @@ class sop_Admin_Settings {
             return;
         }
 
-        $id             = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
-        $name           = isset( $_POST['sop_supplier_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_name'] ) ) : '';
-        $slug           = isset( $_POST['sop_supplier_slug'] ) ? sanitize_title( wp_unslash( $_POST['sop_supplier_slug'] ) ) : '';
-        $currency       = isset( $_POST['sop_supplier_currency'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_currency'] ) ) : 'GBP';
-        $lead_time_weeks= isset( $_POST['sop_supplier_lead_time_weeks'] ) ? (int) $_POST['sop_supplier_lead_time_weeks'] : 0;
-        $is_active      = ! empty( $_POST['sop_supplier_is_active'] ) ? 1 : 0;
-        $supplier_code  = isset( $_POST['sop_supplier_code'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_code'] ) ) : '';
+        $id              = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
+        $name            = isset( $_POST['sop_supplier_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_name'] ) ) : '';
+        $slug            = isset( $_POST['sop_supplier_slug'] ) ? sanitize_title( wp_unslash( $_POST['sop_supplier_slug'] ) ) : '';
+        $currency        = isset( $_POST['sop_supplier_currency'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_currency'] ) ) : 'GBP';
+        $lead_time_weeks = isset( $_POST['sop_supplier_lead_time_weeks'] ) ? (int) $_POST['sop_supplier_lead_time_weeks'] : 0;
+        $is_active       = ! empty( $_POST['sop_supplier_is_active'] ) ? 1 : 0;
+        $supplier_code   = isset( $_POST['sop_supplier_code'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_code'] ) ) : '';
 
         // Per-supplier buffer override (months).
         $buffer_override_raw = isset( $_POST['sop_supplier_buffer_months_override'] )
             ? trim( wp_unslash( $_POST['sop_supplier_buffer_months_override'] ) )
             : '';
 
-        $buffer_override = ( '' === $buffer_override_raw ) ? '' : floatval( $buffer_override_raw );
+        $buffer_override = ( '' === $buffer_override_raw ) ? '' : (float) $buffer_override_raw;
         if ( is_numeric( $buffer_override ) && $buffer_override < 0 ) {
             $buffer_override = 0;
         }
@@ -340,11 +341,11 @@ class sop_Admin_Settings {
             wp_safe_redirect(
                 add_query_arg(
                     array(
-                        'page'         => 'sop_stock_order',
-                        'tab'          => 'suppliers',
-                        'updated'      => '1',
-                        'supplier_id'  => $result,
-                        'sop_edited'   => '1',
+                        'page'        => 'sop_stock_order',
+                        'tab'         => 'suppliers',
+                        'updated'     => '1',
+                        'supplier_id' => $result,
+                        'sop_edited'  => '1',
                     ),
                     admin_url( 'admin.php' )
                 )
@@ -459,14 +460,14 @@ class sop_Admin_Settings {
             </h3>
 
             <?php
-            $editing_id_val         = 0;
-            $name_val               = '';
-            $slug_val               = '';
-            $currency_val           = 'GBP';
-            $lead_time_val          = 0;
-            $active_val             = 1;
-            $supplier_code_val      = '';
-            $buffer_override_val    = '';
+            $editing_id_val      = 0;
+            $name_val            = '';
+            $slug_val            = '';
+            $currency_val        = 'GBP';
+            $lead_time_val       = 0;
+            $active_val          = 1;
+            $supplier_code_val   = '';
+            $buffer_override_val = '';
 
             if ( $editing ) {
                 $editing_id_val    = (int) $editing->id;
@@ -633,12 +634,7 @@ class sop_Admin_Settings {
     }
 }
 
-endif; // class_exists
-
-// Bootstrap the admin settings class.
-if ( is_admin() ) {
-    new sop_Admin_Settings();
-}
+endif; // end class guard.
 
 /**
  * Global helper to get Stock Order Plugin settings (with defaults).
