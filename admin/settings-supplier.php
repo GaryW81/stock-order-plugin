@@ -634,7 +634,12 @@ class sop_Admin_Settings {
     }
 }
 
-endif; // end class guard.
+endif; // class_exists
+
+// Bootstrap the admin settings class.
+if ( is_admin() ) {
+    new sop_Admin_Settings();
+}
 
 /**
  * Global helper to get Stock Order Plugin settings (with defaults).
@@ -642,6 +647,7 @@ endif; // end class guard.
  * @return array
  */
 function sop_get_settings() {
+
     if ( class_exists( 'sop_Admin_Settings' ) ) {
         return sop_Admin_Settings::get_settings();
     }
