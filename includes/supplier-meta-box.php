@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product to Supplier assignment meta box (fixed for sop_supplier_get_all)
- * File version: 1.0.1
+ * File version: 1.0.2
  *
  * - Adds a "Stock Order - Supplier" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
