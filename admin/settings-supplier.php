@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * Stock Order Plugin – Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
@@ -261,7 +261,7 @@ class sop_Admin_Settings {
                     <tr>
                         <th scope="row">
                             <label for="sop_eur_to_gbp_rate">
-                                <?php esc_html_e( 'EUR ��' GBP rate (optional)', 'sop' ); ?>
+                                <?php esc_html_e( 'EUR to GBP rate (optional)', 'sop' ); ?>
                             </label>
                         </th>
                         <td>
@@ -279,7 +279,7 @@ class sop_Admin_Settings {
                     <tr>
                         <th scope="row">
                             <label for="sop_usd_to_gbp_rate">
-                                <?php esc_html_e( 'USD ��' GBP rate (optional)', 'sop' ); ?>
+                                <?php esc_html_e( 'USD to GBP rate (optional)', 'sop' ); ?>
                             </label>
                         </th>
                         <td>
@@ -713,3 +713,4 @@ function sop_get_settings() {
         'show_suggested_vs_max'    => 1,
     );
 }
+
