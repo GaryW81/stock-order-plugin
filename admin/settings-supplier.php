@@ -2,6 +2,7 @@
 /**
  * Stock Order Plugin – Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
+ * File version: 1.5.6
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -96,6 +97,18 @@ class sop_Admin_Settings {
             $output['rmb_to_gbp_rate'] = $rate;
         }
 
+        // EUR ��' GBP rate (allow string, we'll cast when using).
+        if ( isset( $input['eur_to_gbp_rate'] ) ) {
+            $rate = trim( (string) $input['eur_to_gbp_rate'] );
+            $output['eur_to_gbp_rate'] = $rate;
+        }
+
+        // USD ��' GBP rate (allow string, we'll cast when using).
+        if ( isset( $input['usd_to_gbp_rate'] ) ) {
+            $rate = trim( (string) $input['usd_to_gbp_rate'] );
+            $output['usd_to_gbp_rate'] = $rate;
+        }
+
         // Show suggested vs max order toggle.
         $output['show_suggested_vs_max'] = ! empty( $input['show_suggested_vs_max'] ) ? 1 : 0;
 
@@ -112,6 +125,8 @@ class sop_Admin_Settings {
             'analysis_lookback_days'   => 365, // 12 months as default.
             'buffer_months_global'     => 6,   // Global stock buffer period in months.
             'rmb_to_gbp_rate'          => '',  // Optional, manual entry.
+            'eur_to_gbp_rate'          => '',  // Optional, manual entry.
+            'usd_to_gbp_rate'          => '',  // Optional, manual entry.
             'show_suggested_vs_max'    => 1,   // Show comparison by default.
         );
     }
@@ -236,6 +251,42 @@ class sop_Admin_Settings {
                                    id="sop_rmb_to_gbp_rate"
                                    name="<?php echo esc_attr( self::OPTION_KEY ); ?>[rmb_to_gbp_rate]"
                                    value="<?php echo esc_attr( $settings['rmb_to_gbp_rate'] ); ?>"
+                                   class="regular-text" />
+                            <p class="description">
+                                <?php esc_html_e( 'Optional manual exchange rate for cost comparisons. Leave blank if not needed.', 'sop' ); ?>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row">
+                            <label for="sop_eur_to_gbp_rate">
+                                <?php esc_html_e( 'EUR ��' GBP rate (optional)', 'sop' ); ?>
+                            </label>
+                        </th>
+                        <td>
+                            <input type="text"
+                                   id="sop_eur_to_gbp_rate"
+                                   name="<?php echo esc_attr( self::OPTION_KEY ); ?>[eur_to_gbp_rate]"
+                                   value="<?php echo esc_attr( $settings['eur_to_gbp_rate'] ); ?>"
+                                   class="regular-text" />
+                            <p class="description">
+                                <?php esc_html_e( 'Optional manual exchange rate for cost comparisons. Leave blank if not needed.', 'sop' ); ?>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row">
+                            <label for="sop_usd_to_gbp_rate">
+                                <?php esc_html_e( 'USD ��' GBP rate (optional)', 'sop' ); ?>
+                            </label>
+                        </th>
+                        <td>
+                            <input type="text"
+                                   id="sop_usd_to_gbp_rate"
+                                   name="<?php echo esc_attr( self::OPTION_KEY ); ?>[usd_to_gbp_rate]"
+                                   value="<?php echo esc_attr( $settings['usd_to_gbp_rate'] ); ?>"
                                    class="regular-text" />
                             <p class="description">
                                 <?php esc_html_e( 'Optional manual exchange rate for cost comparisons. Leave blank if not needed.', 'sop' ); ?>
@@ -657,6 +708,8 @@ function sop_get_settings() {
         'analysis_lookback_days'   => 365,
         'buffer_months_global'     => 6,
         'rmb_to_gbp_rate'          => '',
+        'eur_to_gbp_rate'          => '',
+        'usd_to_gbp_rate'          => '',
         'show_suggested_vs_max'    => 1,
     );
 }
