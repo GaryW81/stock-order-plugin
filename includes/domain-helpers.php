@@ -2,6 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
+ * File version: 1.0.1
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -39,7 +40,6 @@ function sop_supplier_upsert( array $args ) {
         'name'             => '',
         'slug'             => '',
         'wc_term_id'       => null,
-        'supplier_code'    => null,
         'currency'         => 'GBP',
         'lead_time_weeks'  => 0,
         'holiday_rules'    => null,
@@ -71,7 +71,6 @@ function sop_supplier_upsert( array $args ) {
         'name'             => $data['name'],
         'slug'             => $data['slug'],
         'wc_term_id'       => ( $data['wc_term_id'] !== null ) ? (int) $data['wc_term_id'] : null,
-        'supplier_code'    => $data['supplier_code'],
         'currency'         => $data['currency'],
         'lead_time_weeks'  => $data['lead_time_weeks'],
         'holiday_rules'    => $data['holiday_rules'],

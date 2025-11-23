@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin – Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.6
+ * File version: 1.5.7
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -340,7 +340,6 @@ class sop_Admin_Settings {
         $currency        = isset( $_POST['sop_supplier_currency'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_currency'] ) ) : 'GBP';
         $lead_time_weeks = isset( $_POST['sop_supplier_lead_time_weeks'] ) ? (int) $_POST['sop_supplier_lead_time_weeks'] : 0;
         $is_active       = ! empty( $_POST['sop_supplier_is_active'] ) ? 1 : 0;
-        $supplier_code   = isset( $_POST['sop_supplier_code'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_code'] ) ) : '';
 
         // Per-supplier buffer override (months).
         $buffer_override_raw = isset( $_POST['sop_supplier_buffer_months_override'] )
@@ -381,7 +380,6 @@ class sop_Admin_Settings {
             'currency'        => $currency,
             'lead_time_weeks' => $lead_time_weeks,
             'is_active'       => $is_active,
-            'supplier_code'   => $supplier_code,
             'settings_json'   => $settings_json,
         );
 
@@ -517,7 +515,6 @@ class sop_Admin_Settings {
             $currency_val        = 'GBP';
             $lead_time_val       = 0;
             $active_val          = 1;
-            $supplier_code_val   = '';
             $buffer_override_val = '';
 
             if ( $editing ) {
@@ -527,8 +524,6 @@ class sop_Admin_Settings {
                 $currency_val      = $editing->currency;
                 $lead_time_val     = (int) $editing->lead_time_weeks;
                 $active_val        = (int) $editing->is_active;
-                $supplier_code_val = $editing->supplier_code;
-
                 $settings_arr = $editing->settings_json ? json_decode( $editing->settings_json, true ) : array();
                 if ( is_array( $settings_arr ) && isset( $settings_arr['buffer_months_override'] ) ) {
                     $buffer_override_val = (float) $settings_arr['buffer_months_override'];
@@ -634,24 +629,6 @@ class sop_Admin_Settings {
                                        class="small-text" />
                                 <p class="description">
                                     <?php esc_html_e( 'Optional override for this supplier. Leave blank to use the global buffer months.', 'sop' ); ?>
-                                </p>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <th scope="row">
-                                <label for="sop_supplier_code">
-                                    <?php esc_html_e( 'Supplier code (optional)', 'sop' ); ?>
-                                </label>
-                            </th>
-                            <td>
-                                <input type="text"
-                                       id="sop_supplier_code"
-                                       name="sop_supplier_code"
-                                       value="<?php echo esc_attr( $supplier_code_val ); ?>"
-                                       class="regular-text" />
-                                <p class="description">
-                                    <?php esc_html_e( 'Optional code used on your own spreadsheets or supplier references.', 'sop' ); ?>
                                 </p>
                             </td>
                         </tr>

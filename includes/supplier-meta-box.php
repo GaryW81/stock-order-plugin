@@ -1,9 +1,10 @@
-<?php
+﻿<?php
 /**
  * Stock Order Plugin - Phase 2
- * Product → Supplier assignment meta box (fixed for sop_supplier_get_all)
+ * Product to Supplier assignment meta box (fixed for sop_supplier_get_all)
+ * File version: 1.0.1
  *
- * - Adds a "Stock Order – Supplier" meta box to WooCommerce products.
+ * - Adds a "Stock Order - Supplier" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
  * - Stores selected supplier ID in product meta: _sop_supplier_id.
  */
@@ -69,9 +70,6 @@ function sop_render_product_supplier_metabox( $post ) {
                     $sid   = (int) $supplier->id;
                     $label = $supplier->name;
 
-                    if ( ! empty( $supplier->supplier_code ) ) {
-                        $label .= ' (' . $supplier->supplier_code . ')';
-                    }
                     ?>
                     <option value="<?php echo esc_attr( $sid ); ?>" <?php selected( $current_supplier_id, $sid ); ?>>
                         <?php echo esc_html( $label ); ?>
@@ -146,3 +144,5 @@ function sop_get_product_supplier_id( $product_id ) {
 
     return (int) $supplier_id;
 }
+
+
