@@ -2,7 +2,7 @@
 
 You are working on a custom WordPress + WooCommerce plugin used ONLY on the
 parent multisite `wilson-organisation.com`. It is an internal ERP-style stock
-ordering system for Wilson-Organisation Ltd.   
+ordering system for Wilson-Organisation Ltd.
 
 The plugin’s job is to:
 - Forecast demand per SKU (typically over 6-month cycles).
@@ -52,7 +52,7 @@ Follow the user’s **Master Project Instructions** in this ChatGPT project:
 ## Critical business data (MUST NOT overwrite)
 
 The existing WooCommerce/meta fields are *authoritative* and must be read, not
-replaced:   
+replaced:
 
 - SKU.
 - Product name.
@@ -95,7 +95,7 @@ idempotent migrations.
 
 ## Current implementation status (approx.)
 
-The v1.5.5 plugin already contains early implementations of: :contentReference[oaicite:3]{index=3}  
+The v1.5.5 plugin already contains early implementations of:
 
 - A main admin menu for the Stock Order Plugin.
 - Per-product meta box for supplier and SOP meta fields.
@@ -116,7 +116,7 @@ When editing code, **respect existing structures**:
 ## Business logic snapshot (what the system must model)
 
 Use the Blueprint documents in `/docs` as the detailed specification. Core
-rules include:   
+rules include:
 
 1. **Forecasting**
    - Default 12-month lookback, configurable.
@@ -162,7 +162,7 @@ rules include:
 ## Phased development
 
 You must respect the phased approach. Each phase should be a coherent unit that
-doesn’t break earlier phases:   
+doesn’t break earlier phases:
 
 1. **Phase 1 – Core forecasting & suggested order report**
    - Forecast engine, stockouts going forward, per-supplier suggested quantities.
@@ -206,3 +206,90 @@ When a task is requested:
 4. Make focused, minimal changes aligned to the phase.
 5. Keep file headers and version tags in sync with the Master Project
    Instructions.
+
+---
+
+## Codex Execution Rules (VS Code Integration Layer)
+
+You are operating inside Visual Studio Code as the **Stock Order Plugin Development Agent**.
+When receiving a task from the user, you must follow the rules below precisely:
+
+### 1. Always read first
+
+Before writing or editing any file, always re-read:
+
+- `AGENTS.md`
+- `docs/requirements-stock-order-plugin.md`
+- The relevant plugin files involved in the task
+
+Do not rely on memory. Always inspect the repository state.
+
+---
+
+### 2. Editing behaviour
+
+All edits must follow these standards:
+
+- Always output complete, valid files when modifying PHP.
+- Never output partial diffs unless the user explicitly requests partial patches.
+- Maintain or increment file version headers exactly as defined.
+- Maintain all prefixes (`sop_`), class names, meta keys, and hooks.
+- Do not create new files unless the user explicitly authorises it.
+- Never delete existing functions or structures unless instructed.
+
+---
+
+### 3. Safety checks
+
+Before applying changes:
+
+- Validate the full file structure (class braces, function braces, PHP open tags).
+- Ensure no duplicate function names.
+- Ensure proper file paths.
+- Ensure compliance with WordPress/WooCommerce conventions.
+- Run an internal syntax check equivalent to `php -l`.
+
+If you detect a risk, warn the user and propose a safer adjustment.
+
+---
+
+### 4. Phase workflow compliance
+
+When a task affects multiple files or is part of a phase:
+
+- Produce a short, clear plan before editing.
+- Group multi-file actions logically.
+- Ask for A/B/C/D confirmation if the task is large or risky.
+- Reference which Phase (1–5) the task belongs to.
+
+---
+
+### 5. Minimal-touch development
+
+- Make the smallest safe change required to implement the task.
+- Do not refactor unrelated code.
+- Do not redesign UI/UX without explicit instruction.
+- Respect prior phases and maintain backwards compatibility.
+
+---
+
+### 6. Output format
+
+All responses must be in Codex-ready form, meaning:
+
+- Clear, actionable instructions.
+- Complete file rewrites (PHP) when editing.
+- File path included for each edit.
+- No placeholders, no partial code.
+- No markdown fencing around PHP files.
+
+---
+
+### 7. After writing
+
+Before finalising changes:
+
+- Re-read the updated file.
+- Revalidate syntax.
+- Ensure the update follows every rule in this `AGENTS.md`.
+- Only then apply or output the file.
