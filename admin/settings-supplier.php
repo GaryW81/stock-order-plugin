@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin – Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.11
+ * File version: 1.5.12
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -45,28 +45,22 @@ class sop_Admin_Settings {
     public function register_menu() {
         // Only for users who can manage WooCommerce.
         $capability = 'manage_woocommerce';
+        $menu_slug  = 'sop_stock_order';
 
         add_menu_page(
             __( 'Stock Order', 'sop' ),
             __( 'Stock Order', 'sop' ),
             $capability,
-            'sop_stock_order',
+            $menu_slug,
             array( $this, 'render_page' ),
             'dashicons-products',
             56
         );
 
-        // Explicitly register a "General Settings" submenu and remove the duplicate.
-        add_submenu_page(
-            'sop_stock_order',
-            __( 'General Settings', 'sop' ),
-            __( 'General Settings', 'sop' ),
-            $capability,
-            'sop_stock_order',
-            array( $this, 'render_page' )
-        );
-
-        remove_submenu_page( 'sop_stock_order', 'sop_stock_order' );
+        // Rename the default first submenu entry to "General Settings".
+        if ( isset( $GLOBALS['submenu'][ $menu_slug ][0] ) ) {
+            $GLOBALS['submenu'][ $menu_slug ][0][0] = __( 'General Settings', 'sop' );
+        }
     }
 
     /**
