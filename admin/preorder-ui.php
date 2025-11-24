@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin – Phase 4.1 – Pre-Order Sheet UI (admin only) V10.4 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.5 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -122,6 +122,9 @@ function sop_preorder_render_admin_page() {
     $total_cost_supplier  = 0.0;
 
     foreach ( $rows as $row ) {
+        if ( ! empty( $row['removed'] ) ) {
+            continue;
+        }
         $qty = (float) $row['manual_order_qty'];
         if ( $qty <= 0 ) {
             continue;

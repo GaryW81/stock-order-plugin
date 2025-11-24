@@ -1,13 +1,13 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.12
+ * File version: 10.14
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
  *      _sop_cost_rmb, _sop_cost_usd, _sop_cost_eur, fallback _cogs_value for GBP.
  * - Editable & persisted per product (when sheet is not locked):
- *      SKU                -> meta: _sku
+ *      Order SKU (sheet-only) -> meta: _sop_preorder_order_sku
  *      Notes              -> meta: _sop_preorder_notes
  *      Min order qty      -> meta: _sop_min_order_qty
  *      Manual order qty   -> meta: _sop_preorder_order_qty
@@ -393,10 +393,14 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         $notes = get_post_meta( $product_id, '_sop_preorder_notes', true );
         $min   = get_post_meta( $product_id, '_sop_min_order_qty', true );
         $order = get_post_meta( $product_id, '_sop_preorder_order_qty', true );
+        $order_sku_override = get_post_meta( $product_id, '_sop_preorder_order_sku', true );
+        $removed_flag       = get_post_meta( $product_id, '_sop_preorder_removed', true );
 
         $notes = is_string( $notes ) ? $notes : '';
         $min   = $min !== '' ? (float) $min : 0.0;
         $order = $order !== '' ? (float) $order : 0.0;
+        $order_sku = ( '' !== $order_sku_override ) ? (string) $order_sku_override : $sku;
+        $removed   = ! empty( $removed_flag ) ? 1 : 0;
 
         // Stock on hand via WC product object (wc_get_stock_quantity may not exist on this setup).
         $stock_on_hand = $product->get_stock_quantity();
@@ -490,9 +494,12 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             'product_id'          => $product_id,
             'name'                => $product->get_name(),
             'sku'                 => $sku,
+            'product_sku'         => $sku,
+            'order_sku'           => $order_sku,
             'notes'               => $notes,
             'min_order_qty'       => $min,
             'manual_order_qty'    => $order,
+            'removed'             => $removed,
             'stock_on_hand'       => $stock_on_hand,
             'inbound_qty'         => $inbound_qty,
             'cost_supplier'       => $cost_supplier,
@@ -554,12 +561,13 @@ function sop_preorder_handle_post() {
         return;
     }
 
-    $skus        = isset( $_POST['sop_sku'] ) && is_array( $_POST['sop_sku'] ) ? $_POST['sop_sku'] : [];
-    $notes       = isset( $_POST['sop_notes'] ) && is_array( $_POST['sop_notes'] ) ? $_POST['sop_notes'] : [];
-    $mins        = isset( $_POST['sop_min_order_qty'] ) && is_array( $_POST['sop_min_order_qty'] ) ? $_POST['sop_min_order_qty'] : [];
-    $orders      = isset( $_POST['sop_preorder_order_qty'] ) && is_array( $_POST['sop_preorder_order_qty'] ) ? $_POST['sop_preorder_order_qty'] : [];
-    $costs       = isset( $_POST['sop_cost_unit_supplier'] ) && is_array( $_POST['sop_cost_unit_supplier'] ) ? $_POST['sop_cost_unit_supplier'] : [];
-    $product_ids = isset( $_POST['sop_product_id'] ) && is_array( $_POST['sop_product_id'] ) ? $_POST['sop_product_id'] : [];
+    $skus          = isset( $_POST['sop_sku'] ) && is_array( $_POST['sop_sku'] ) ? $_POST['sop_sku'] : [];
+    $notes         = isset( $_POST['sop_notes'] ) && is_array( $_POST['sop_notes'] ) ? $_POST['sop_notes'] : [];
+    $mins          = isset( $_POST['sop_min_order_qty'] ) && is_array( $_POST['sop_min_order_qty'] ) ? $_POST['sop_min_order_qty'] : [];
+    $orders        = isset( $_POST['sop_preorder_order_qty'] ) && is_array( $_POST['sop_preorder_order_qty'] ) ? $_POST['sop_preorder_order_qty'] : [];
+    $costs         = isset( $_POST['sop_cost_unit_supplier'] ) && is_array( $_POST['sop_cost_unit_supplier'] ) ? $_POST['sop_cost_unit_supplier'] : [];
+    $removed_flags = isset( $_POST['sop_removed'] ) && is_array( $_POST['sop_removed'] ) ? $_POST['sop_removed'] : [];
+    $product_ids   = isset( $_POST['sop_product_id'] ) && is_array( $_POST['sop_product_id'] ) ? $_POST['sop_product_id'] : [];
 
     foreach ( $product_ids as $index => $raw_product_id ) {
         $product_id = (int) $raw_product_id;
@@ -567,23 +575,23 @@ function sop_preorder_handle_post() {
             continue;
         }
 
-        $sku_val   = isset( $skus[ $index ] ) ? wc_clean( wp_unslash( $skus[ $index ] ) ) : '';
-        $note_val  = isset( $notes[ $index ] ) ? wp_kses_post( wp_unslash( $notes[ $index ] ) ) : '';
-        $min_val   = isset( $mins[ $index ] ) ? (float) $mins[ $index ] : 0.0;
-        $order_val = isset( $orders[ $index ] ) ? (float) $orders[ $index ] : 0.0;
-        $cost_val  = isset( $costs[ $index ] ) ? (float) $costs[ $index ] : 0.0;
+        $sku_val     = isset( $skus[ $index ] ) ? wc_clean( wp_unslash( $skus[ $index ] ) ) : '';
+        $note_val    = isset( $notes[ $index ] ) ? wp_kses_post( wp_unslash( $notes[ $index ] ) ) : '';
+        $min_val     = isset( $mins[ $index ] ) ? (float) $mins[ $index ] : 0.0;
+        $order_val   = isset( $orders[ $index ] ) ? (float) $orders[ $index ] : 0.0;
+        $cost_val    = isset( $costs[ $index ] ) ? (float) $costs[ $index ] : 0.0;
+        $removed_val = ! empty( $removed_flags[ $index ] ) ? 1 : 0;
 
-        if ( $sku_val !== '' ) {
-            $product = wc_get_product( $product_id );
-            if ( $product ) {
-                $product->set_sku( $sku_val );
-                $product->save();
-            }
+        if ( '' !== $sku_val ) {
+            update_post_meta( $product_id, '_sop_preorder_order_sku', $sku_val );
+        } else {
+            delete_post_meta( $product_id, '_sop_preorder_order_sku' );
         }
 
         update_post_meta( $product_id, '_sop_preorder_notes', $note_val );
         update_post_meta( $product_id, '_sop_min_order_qty', $min_val );
         update_post_meta( $product_id, '_sop_preorder_order_qty', $order_val );
+        update_post_meta( $product_id, '_sop_preorder_removed', $removed_val );
 
         $ctx      = sop_preorder_resolve_supplier_params();
         $supplier = $ctx['supplier'];
