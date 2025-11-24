@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin – Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.10
+ * File version: 1.5.11
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -56,11 +56,17 @@ class sop_Admin_Settings {
             56
         );
 
-        // Rename the default first submenu entry to "General Settings".
-        if ( isset( $GLOBALS['submenu']['sop_stock_order'][0] ) ) {
-            $GLOBALS['submenu']['sop_stock_order'][0][0] = __( 'General Settings', 'sop' );
-            $GLOBALS['submenu']['sop_stock_order'][0][3] = __( 'General Settings', 'sop' );
-        }
+        // Explicitly register a "General Settings" submenu and remove the duplicate.
+        add_submenu_page(
+            'sop_stock_order',
+            __( 'General Settings', 'sop' ),
+            __( 'General Settings', 'sop' ),
+            $capability,
+            'sop_stock_order',
+            array( $this, 'render_page' )
+        );
+
+        remove_submenu_page( 'sop_stock_order', 'sop_stock_order' );
     }
 
     /**
@@ -219,7 +225,8 @@ class sop_Admin_Settings {
                                    value="<?php echo esc_attr( (int) $settings['analysis_lookback_days'] ); ?>"
                                    min="1"
                                    class="small-text"
-                                   size="20" />
+                                   size="20"
+                                   style="width: 8em;" />
                             <p class="description">
                                 <?php esc_html_e( 'Used by the forecast engine as the default lookback window (e.g. 365 = last 12 months).', 'sop' ); ?>
                             </p>
@@ -240,7 +247,8 @@ class sop_Admin_Settings {
                                    value="<?php echo esc_attr( $settings['buffer_months_global'] ); ?>"
                                    min="0"
                                    class="small-text"
-                                   size="20" />
+                                   size="20"
+                                   style="width: 8em;" />
                             <p class="description">
                                 <?php esc_html_e( 'Base buffer period used in demand projections. Individual suppliers can override this.', 'sop' ); ?>
                             </p>
@@ -259,7 +267,8 @@ class sop_Admin_Settings {
                                    name="<?php echo esc_attr( self::OPTION_KEY ); ?>[rmb_to_gbp_rate]"
                                    value="<?php echo esc_attr( $settings['rmb_to_gbp_rate'] ); ?>"
                                    class="small-text"
-                                   size="20" />
+                                   size="20"
+                                   style="width: 8em;" />
                             <p class="description">
                                 <?php esc_html_e( 'Optional manual exchange rate for cost comparisons. Leave blank if not needed.', 'sop' ); ?>
                             </p>
@@ -278,7 +287,8 @@ class sop_Admin_Settings {
                                    name="<?php echo esc_attr( self::OPTION_KEY ); ?>[eur_to_gbp_rate]"
                                    value="<?php echo esc_attr( $settings['eur_to_gbp_rate'] ); ?>"
                                    class="small-text"
-                                   size="20" />
+                                   size="20"
+                                   style="width: 8em;" />
                             <p class="description">
                                 <?php esc_html_e( 'Optional manual exchange rate for cost comparisons. Leave blank if not needed.', 'sop' ); ?>
                             </p>
@@ -297,7 +307,8 @@ class sop_Admin_Settings {
                                    name="<?php echo esc_attr( self::OPTION_KEY ); ?>[usd_to_gbp_rate]"
                                    value="<?php echo esc_attr( $settings['usd_to_gbp_rate'] ); ?>"
                                    class="small-text"
-                                   size="20" />
+                                   size="20"
+                                   style="width: 8em;" />
                             <p class="description">
                                 <?php esc_html_e( 'Optional manual exchange rate for cost comparisons. Leave blank if not needed.', 'sop' ); ?>
                             </p>
