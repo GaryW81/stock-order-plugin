@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.4
+ * File version: 1.0.5
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
@@ -122,7 +122,7 @@ function sop_render_product_supplier_metabox( $post ) {
                id="sop_cost_rmb"
                value="<?php echo esc_attr( $cost_rmb ); ?>"
                class="small-text"
-               size="10" />
+               size="20" />
         &nbsp;
         <label for="sop_cost_usd"><?php esc_html_e( 'USD', 'sop' ); ?></label>
         <input type="text"
@@ -130,7 +130,7 @@ function sop_render_product_supplier_metabox( $post ) {
                id="sop_cost_usd"
                value="<?php echo esc_attr( $cost_usd ); ?>"
                class="small-text"
-               size="10" />
+               size="20" />
         &nbsp;
         <label for="sop_cost_eur"><?php esc_html_e( 'EUR', 'sop' ); ?></label>
         <input type="text"
@@ -138,7 +138,7 @@ function sop_render_product_supplier_metabox( $post ) {
                id="sop_cost_eur"
                value="<?php echo esc_attr( $cost_eur ); ?>"
                class="small-text"
-               size="10" />
+               size="20" />
     </p>
 
     <p>

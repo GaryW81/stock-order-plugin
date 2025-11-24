@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
  * File version: 10.12
@@ -610,4 +610,3 @@ function sop_preorder_handle_post() {
         }
     }
 }
-

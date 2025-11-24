@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin – Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.9
+ * File version: 1.5.10
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -219,7 +219,7 @@ class sop_Admin_Settings {
                                    value="<?php echo esc_attr( (int) $settings['analysis_lookback_days'] ); ?>"
                                    min="1"
                                    class="small-text"
-                                   size="10" />
+                                   size="20" />
                             <p class="description">
                                 <?php esc_html_e( 'Used by the forecast engine as the default lookback window (e.g. 365 = last 12 months).', 'sop' ); ?>
                             </p>
@@ -240,7 +240,7 @@ class sop_Admin_Settings {
                                    value="<?php echo esc_attr( $settings['buffer_months_global'] ); ?>"
                                    min="0"
                                    class="small-text"
-                                   size="10" />
+                                   size="20" />
                             <p class="description">
                                 <?php esc_html_e( 'Base buffer period used in demand projections. Individual suppliers can override this.', 'sop' ); ?>
                             </p>
@@ -259,7 +259,7 @@ class sop_Admin_Settings {
                                    name="<?php echo esc_attr( self::OPTION_KEY ); ?>[rmb_to_gbp_rate]"
                                    value="<?php echo esc_attr( $settings['rmb_to_gbp_rate'] ); ?>"
                                    class="small-text"
-                                   size="10" />
+                                   size="20" />
                             <p class="description">
                                 <?php esc_html_e( 'Optional manual exchange rate for cost comparisons. Leave blank if not needed.', 'sop' ); ?>
                             </p>
@@ -278,7 +278,7 @@ class sop_Admin_Settings {
                                    name="<?php echo esc_attr( self::OPTION_KEY ); ?>[eur_to_gbp_rate]"
                                    value="<?php echo esc_attr( $settings['eur_to_gbp_rate'] ); ?>"
                                    class="small-text"
-                                   size="10" />
+                                   size="20" />
                             <p class="description">
                                 <?php esc_html_e( 'Optional manual exchange rate for cost comparisons. Leave blank if not needed.', 'sop' ); ?>
                             </p>
@@ -297,7 +297,7 @@ class sop_Admin_Settings {
                                    name="<?php echo esc_attr( self::OPTION_KEY ); ?>[usd_to_gbp_rate]"
                                    value="<?php echo esc_attr( $settings['usd_to_gbp_rate'] ); ?>"
                                    class="small-text"
-                                   size="10" />
+                                   size="20" />
                             <p class="description">
                                 <?php esc_html_e( 'Optional manual exchange rate for cost comparisons. Leave blank if not needed.', 'sop' ); ?>
                             </p>
