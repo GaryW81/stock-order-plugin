@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.7 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.8 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -354,6 +354,13 @@ function sop_preorder_render_admin_page() {
                                             class="sop-preorder-select-row"
                                             data-row-key="<?php echo esc_attr( $row_key ); ?>"
                                         />
+                                        <?php if ( ! empty( $row['removed'] ) ) : ?>
+                                            <button type="button"
+                                                    class="button-link sop-preorder-restore-row"
+                                                    data-row-key="<?php echo esc_attr( $row_key ); ?>">
+                                                <?php esc_html_e( 'Restore', 'sop' ); ?>
+                                            </button>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="column-image">
                                         <?php
@@ -433,7 +440,7 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-notes" data-column="notes">
                                         <textarea
                                             name="sop_notes[]"
-                                            rows="1"
+                                            rows="3"
                                             class="sop-preorder-notes"
                                             style="width: 100%; resize: none;"
                                             title="<?php echo esc_attr( $notes ); ?>"
@@ -445,19 +452,39 @@ function sop_preorder_render_admin_page() {
                                             value="<?php echo ! empty( $row['removed'] ) ? '1' : '0'; ?>"
                                             class="sop-preorder-removed-flag"
                                         />
-                                        <?php if ( ! empty( $row['removed'] ) ) : ?>
-                                            <button type="button"
-                                                    class="button-link sop-preorder-restore-row"
-                                                    data-row-key="<?php echo esc_attr( $row_key ); ?>">
-                                                <?php esc_html_e( 'Restore', 'sop' ); ?>
-                                            </button>
-                                        <?php endif; ?>
+                                        <button type="button"
+                                                class="button-link sop-preorder-notes-edit"
+                                                data-row-key="<?php echo esc_attr( $row_key ); ?>">
+                                            <?php esc_html_e( 'Edit', 'sop' ); ?>
+                                        </button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+
+            <div id="sop-preorder-notes-overlay" class="sop-preorder-notes-overlay" style="display:none;">
+                <div class="sop-preorder-notes-overlay-backdrop"></div>
+                <div class="sop-preorder-notes-overlay-inner">
+                    <button type="button"
+                            class="button-link sop-preorder-notes-overlay-close"
+                            aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">
+                        &times;
+                    </button>
+                    <h3 class="sop-preorder-notes-overlay-title">
+                        <?php esc_html_e( 'Pre-order notes', 'sop' ); ?>
+                    </h3>
+                    <p class="sop-preorder-notes-overlay-product"></p>
+                    <textarea class="sop-preorder-notes-overlay-textarea" rows="8"></textarea>
+                    <p>
+                        <button type="button"
+                                class="button button-primary sop-preorder-notes-overlay-save">
+                            <?php esc_html_e( 'Save notes', 'sop' ); ?>
+                        </button>
+                    </p>
+                </div>
             </div>
 
             <div class="sop-preorder-actions">
@@ -626,7 +653,8 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-table .column-notes textarea {
             width: 100%;
-            min-width: 200px;
+            min-height: 3em;
+            box-sizing: border-box;
         }
 
         .sop-preorder-table input[type="number"],
@@ -671,17 +699,60 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-row-removed {
             opacity: 0.6;
         }
+
+        .sop-preorder-table th.column-notes,
+        .sop-preorder-table td.column-notes {
+            width: 260px;
+        }
+
+        .sop-preorder-notes-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100000;
+            display: none;
+        }
+
+        .sop-preorder-notes-overlay-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .sop-preorder-notes-overlay-inner {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 700px;
+            width: 90%;
+            background: #fff;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .sop-preorder-notes-overlay-textarea {
+            width: 100%;
+            min-height: 180px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
     </style>
 
     <script>
         jQuery(function($) {
             var $table = $('.sop-preorder-table');
             var containerCbm = <?php echo json_encode( $effective_cbm ); ?>;
-            var $rowCheckboxes      = $table.find('.sop-preorder-select-row');
-            var $selectAllCheckbox  = $('#sop-preorder-select-all');
-            var $removeSelectedBtn  = $('#sop-preorder-remove-selected');
+            var $rowCheckboxes       = $table.find('.sop-preorder-select-row');
+            var $selectAllCheckbox   = $('#sop-preorder-select-all');
+            var $removeSelectedBtn   = $('#sop-preorder-remove-selected');
             var $showRemovedCheckbox = $('#sop-preorder-show-removed');
-            var lastClickedIndex    = null;
+            var $notesOverlay        = $('#sop-preorder-notes-overlay');
+            var $notesOverlayInner   = $notesOverlay.find('.sop-preorder-notes-overlay-inner');
+            var $notesOverlayTitle   = $notesOverlay.find('.sop-preorder-notes-overlay-title');
+            var $notesOverlayProduct = $notesOverlay.find('.sop-preorder-notes-overlay-product');
+            var $notesOverlayTextarea = $notesOverlay.find('.sop-preorder-notes-overlay-textarea');
+            var currentNotesTextarea = null;
+            var lastClickedIndex     = null;
 
             function sopPreorderGetRowFromChild( el ) {
                 var $el = $( el );
@@ -702,23 +773,34 @@ function sop_preorder_render_admin_page() {
                 return rows;
             }
 
-            function sopPreorderAutoGrow( el ) {
-                if ( ! el ) {
+            function sopPreorderOpenNotesOverlayForRow( $row ) {
+                if ( ! $row || ! $row.length ) {
                     return;
                 }
-                el.style.height = 'auto';
-                el.style.height = el.scrollHeight + 'px';
+
+                var $textarea = $row.find( '.sop-preorder-notes' );
+                if ( ! $textarea.length ) {
+                    return;
+                }
+
+                currentNotesTextarea = $textarea.get( 0 );
+
+                var productText = $.trim( $row.find( 'td.column-name' ).text() || '' );
+                $notesOverlayProduct.text( productText );
+
+                $notesOverlayTextarea.val( currentNotesTextarea.value );
+
+                $notesOverlay.show();
+                $notesOverlayTextarea.focus();
             }
 
-            // Auto-grow notes textareas.
-            var notesEls = document.querySelectorAll( '.sop-preorder-notes' );
-            for ( var i = 0; i < notesEls.length; i++ ) {
-                ( function( textarea ) {
-                    sopPreorderAutoGrow( textarea );
-                    textarea.addEventListener( 'input', function() {
-                        sopPreorderAutoGrow( textarea );
-                    } );
-                } )( notesEls[ i ] );
+            function sopPreorderCloseNotesOverlay( saveChanges ) {
+                if ( saveChanges && currentNotesTextarea && $notesOverlayTextarea.length ) {
+                    currentNotesTextarea.value = $notesOverlayTextarea.val();
+                }
+
+                currentNotesTextarea = null;
+                $notesOverlay.hide();
             }
 
             // Selection: select-all and shift-click range.
@@ -804,6 +886,25 @@ function sop_preorder_render_admin_page() {
                     }
                 } );
             }
+
+            // Open overlay for notes.
+            $table.on( 'click', '.sop-preorder-notes, .sop-preorder-notes-edit', function( e ) {
+                e.preventDefault();
+                var $row = $( this ).closest( 'tr.sop-preorder-row' );
+                sopPreorderOpenNotesOverlayForRow( $row );
+            } );
+
+            // Save notes from overlay.
+            $notesOverlay.on( 'click', '.sop-preorder-notes-overlay-save', function( e ) {
+                e.preventDefault();
+                sopPreorderCloseNotesOverlay( true );
+            } );
+
+            // Close overlay without saving.
+            $notesOverlay.on( 'click', '.sop-preorder-notes-overlay-close, .sop-preorder-notes-overlay-backdrop', function( e ) {
+                e.preventDefault();
+                sopPreorderCloseNotesOverlay( false );
+            } );
 
             // Restore row.
             $table.on( 'click', '.sop-preorder-restore-row', function( e ) {
