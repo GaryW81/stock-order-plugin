@@ -1,5 +1,7 @@
-<?php
-/*** Stock Order Plugin – Phase 4.1 – Pre-Order Sheet Core (admin only) V10.11*
+﻿<?php
+/**
+ * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
+ * File version: 10.12
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -412,8 +414,11 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         $cost_supplier = sop_preorder_get_cost_for_supplier_currency( $product_id, $supplier_currency, $settings );
         $cost_gbp      = sop_preorder_get_cost_gbp_for_product( $product_id, $settings );
 
-        // Location (warehouse bin/shelf), using existing Woo meta.
-        $location = get_post_meta( $product_id, '_product_location', true );
+        // Location (warehouse bin/shelf), using SOP bin location with fallback to existing Woo meta.
+        $location = get_post_meta( $product_id, '_sop_bin_location', true );
+        if ( '' === $location ) {
+            $location = get_post_meta( $product_id, '_product_location', true );
+        }
         $location = is_string( $location ) ? $location : '';
 
         // Brand from taxonomy only (WooCommerce Brands uses 'product_brand' taxonomy).
@@ -605,3 +610,4 @@ function sop_preorder_handle_post() {
         }
     }
 }
+

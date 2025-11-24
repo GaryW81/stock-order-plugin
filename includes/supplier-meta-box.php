@@ -1,12 +1,17 @@
-﻿<?php
+<?php
 /**
  * Stock Order Plugin - Phase 2
- * Product to Supplier assignment meta box (fixed for sop_supplier_get_all)
- * File version: 1.0.2
+ * Product Stock Order meta box (supplier + SOP fields).
+ * File version: 1.0.3
  *
- * - Adds a "Stock Order - Supplier" meta box to WooCommerce products.
+ * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
  * - Stores selected supplier ID in product meta: _sop_supplier_id.
+ * - Manages SOP product meta:
+ *     - Location: _sop_bin_location (primary), mirrored to _product_location.
+ *     - Supplier costs (per unit): _sop_cost_rmb, _sop_cost_usd, _sop_cost_eur.
+ *     - Minimum order quantity: _sop_min_order_qty.
+ *     - Pre-order notes: _sop_preorder_notes.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -24,7 +29,7 @@ if ( ! class_exists( 'sop_DB' ) || ! function_exists( 'sop_supplier_get_all' ) )
 function sop_register_product_supplier_metabox() {
     add_meta_box(
         'sop_product_supplier',
-        __( 'Stock Order – Supplier', 'sop' ),
+        __( 'Stock Order', 'sop' ),
         'sop_render_product_supplier_metabox',
         'product',
         'side',
@@ -34,17 +39,35 @@ function sop_register_product_supplier_metabox() {
 add_action( 'add_meta_boxes', 'sop_register_product_supplier_metabox' );
 
 /**
- * Render the supplier select in the meta box.
+ * Render the supplier and SOP fields in the meta box.
  *
- * @param WP_Post $post
+ * @param WP_Post $post Current product post object.
  */
 function sop_render_product_supplier_metabox( $post ) {
 
     // Nonce for save verification.
     wp_nonce_field( 'sop_save_product_supplier_' . $post->ID, 'sop_product_supplier_nonce' );
 
-    // Current value.
+    // Current supplier assignment.
     $current_supplier_id = sop_get_product_supplier_id( $post->ID );
+
+    // Location: SOP bin location (primary) with fallback to existing Woo location meta.
+    $bin_location = get_post_meta( $post->ID, '_sop_bin_location', true );
+    if ( '' === $bin_location ) {
+        $bin_location = get_post_meta( $post->ID, '_product_location', true );
+    }
+    $bin_location = is_string( $bin_location ) ? $bin_location : '';
+
+    // Supplier costs per unit in supplier currencies.
+    $cost_rmb = get_post_meta( $post->ID, '_sop_cost_rmb', true );
+    $cost_usd = get_post_meta( $post->ID, '_sop_cost_usd', true );
+    $cost_eur = get_post_meta( $post->ID, '_sop_cost_eur', true );
+
+    // SOP minimum order quantity and pre-order notes.
+    $min_order_qty  = get_post_meta( $post->ID, '_sop_min_order_qty', true );
+    $min_order_qty  = '' !== $min_order_qty ? (float) $min_order_qty : '';
+    $preorder_notes = get_post_meta( $post->ID, '_sop_preorder_notes', true );
+    $preorder_notes = is_string( $preorder_notes ) ? $preorder_notes : '';
 
     // Get active suppliers.
     $suppliers = sop_supplier_get_all(
@@ -55,7 +78,7 @@ function sop_render_product_supplier_metabox( $post ) {
     ?>
     <p>
         <label for="sop_supplier_id">
-            <?php esc_html_e( 'Assign this product to a supplier for Stock Order calculations.', 'sop' ); ?>
+            <?php esc_html_e( 'Supplier', 'sop' ); ?>
         </label>
     </p>
 
@@ -69,7 +92,6 @@ function sop_render_product_supplier_metabox( $post ) {
                     <?php
                     $sid   = (int) $supplier->id;
                     $label = $supplier->name;
-
                     ?>
                     <option value="<?php echo esc_attr( $sid ); ?>" <?php selected( $current_supplier_id, $sid ); ?>>
                         <?php echo esc_html( $label ); ?>
@@ -79,6 +101,66 @@ function sop_render_product_supplier_metabox( $post ) {
         </select>
     </p>
 
+    <hr />
+
+    <p>
+        <label for="sop_bin_location">
+            <?php esc_html_e( 'Location (bin / shelf)', 'sop' ); ?>
+        </label>
+        <input type="text"
+               name="sop_bin_location"
+               id="sop_bin_location"
+               value="<?php echo esc_attr( $bin_location ); ?>"
+               class="widefat" />
+    </p>
+
+    <p>
+        <strong><?php esc_html_e( 'Supplier costs (per unit)', 'sop' ); ?></strong><br />
+        <label for="sop_cost_rmb"><?php esc_html_e( 'RMB', 'sop' ); ?></label>
+        <input type="text"
+               name="sop_cost_rmb"
+               id="sop_cost_rmb"
+               value="<?php echo esc_attr( $cost_rmb ); ?>"
+               class="small-text" />
+        &nbsp;
+        <label for="sop_cost_usd"><?php esc_html_e( 'USD', 'sop' ); ?></label>
+        <input type="text"
+               name="sop_cost_usd"
+               id="sop_cost_usd"
+               value="<?php echo esc_attr( $cost_usd ); ?>"
+               class="small-text" />
+        &nbsp;
+        <label for="sop_cost_eur"><?php esc_html_e( 'EUR', 'sop' ); ?></label>
+        <input type="text"
+               name="sop_cost_eur"
+               id="sop_cost_eur"
+               value="<?php echo esc_attr( $cost_eur ); ?>"
+               class="small-text" />
+    </p>
+
+    <p>
+        <label for="sop_min_order_qty">
+            <?php esc_html_e( 'SOP minimum order quantity', 'sop' ); ?>
+        </label>
+        <input type="number"
+               step="0.01"
+               min="0"
+               name="sop_min_order_qty"
+               id="sop_min_order_qty"
+               value="<?php echo esc_attr( $min_order_qty ); ?>"
+               class="small-text" />
+    </p>
+
+    <p>
+        <label for="sop_preorder_notes">
+            <?php esc_html_e( 'Pre-order notes (internal)', 'sop' ); ?>
+        </label>
+        <textarea name="sop_preorder_notes"
+                  id="sop_preorder_notes"
+                  rows="3"
+                  class="widefat"><?php echo esc_textarea( $preorder_notes ); ?></textarea>
+    </p>
+
     <p style="font-size:11px;color:#666;">
         <?php esc_html_e( 'Only products with a supplier will be included in Stock Order forecasts and order sheets.', 'sop' ); ?>
     </p>
@@ -86,9 +168,9 @@ function sop_render_product_supplier_metabox( $post ) {
 }
 
 /**
- * Save product supplier meta when the product is saved.
+ * Save product supplier and SOP meta when the product is saved.
  *
- * @param int $post_id
+ * @param int $post_id Post ID.
  */
 function sop_save_product_supplier_meta( $post_id ) {
 
@@ -122,8 +204,62 @@ function sop_save_product_supplier_meta( $post_id ) {
     if ( $supplier_id > 0 ) {
         update_post_meta( $post_id, '_sop_supplier_id', $supplier_id );
     } else {
-        // 0 / empty = "no supplier" → delete meta to keep DB clean.
+        // 0 / empty = "no supplier" - delete meta to keep DB clean.
         delete_post_meta( $post_id, '_sop_supplier_id' );
+    }
+
+    // Location: write to SOP bin location (primary) and mirror to _product_location.
+    if ( isset( $_POST['sop_bin_location'] ) ) {
+        $location = trim( wp_unslash( (string) $_POST['sop_bin_location'] ) );
+        if ( '' !== $location ) {
+            update_post_meta( $post_id, '_sop_bin_location', $location );
+            update_post_meta( $post_id, '_product_location', $location );
+        } else {
+            delete_post_meta( $post_id, '_sop_bin_location' );
+            delete_post_meta( $post_id, '_product_location' );
+        }
+    }
+
+    // Supplier costs per unit: RMB, USD, EUR.
+    $cost_fields = array(
+        '_sop_cost_rmb' => 'sop_cost_rmb',
+        '_sop_cost_usd' => 'sop_cost_usd',
+        '_sop_cost_eur' => 'sop_cost_eur',
+    );
+
+    foreach ( $cost_fields as $meta_key => $post_key ) {
+        if ( isset( $_POST[ $post_key ] ) ) {
+            $raw = trim( (string) wp_unslash( $_POST[ $post_key ] ) );
+            if ( '' === $raw ) {
+                delete_post_meta( $post_id, $meta_key );
+            } else {
+                $raw = str_replace( ',', '.', $raw );
+                $val = (float) $raw;
+                update_post_meta( $post_id, $meta_key, $val );
+            }
+        }
+    }
+
+    // SOP minimum order quantity.
+    if ( isset( $_POST['sop_min_order_qty'] ) ) {
+        $raw = trim( (string) wp_unslash( $_POST['sop_min_order_qty'] ) );
+        if ( '' === $raw ) {
+            delete_post_meta( $post_id, '_sop_min_order_qty' );
+        } else {
+            $min_qty = (float) str_replace( ',', '.', $raw );
+            $min_qty = max( 0, $min_qty );
+            update_post_meta( $post_id, '_sop_min_order_qty', $min_qty );
+        }
+    }
+
+    // SOP pre-order notes.
+    if ( isset( $_POST['sop_preorder_notes'] ) ) {
+        $notes = trim( (string) wp_unslash( $_POST['sop_preorder_notes'] ) );
+        if ( '' === $notes ) {
+            delete_post_meta( $post_id, '_sop_preorder_notes' );
+        } else {
+            update_post_meta( $post_id, '_sop_preorder_notes', $notes );
+        }
     }
 }
 add_action( 'save_post', 'sop_save_product_supplier_meta', 20 );
@@ -131,7 +267,7 @@ add_action( 'save_post', 'sop_save_product_supplier_meta', 20 );
 /**
  * Helper: Get the assigned Stock Order supplier ID for a product.
  *
- * @param int $product_id
+ * @param int $product_id Product ID.
  * @return int Supplier ID or 0 if none.
  */
 function sop_get_product_supplier_id( $product_id ) {
@@ -144,5 +280,3 @@ function sop_get_product_supplier_id( $product_id ) {
 
     return (int) $supplier_id;
 }
-
-

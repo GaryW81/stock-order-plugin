@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Stock Order Plugin – Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
@@ -690,4 +690,3 @@ function sop_get_settings() {
         'show_suggested_vs_max'    => 1,
     );
 }
-
