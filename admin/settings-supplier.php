@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin – Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.13
+ * File version: 1.5.14
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -57,10 +57,18 @@ class sop_Admin_Settings {
             56
         );
 
-        // Rename the default first submenu entry to "General Settings".
-        if ( isset( $GLOBALS['submenu'][ $menu_slug ][0] ) ) {
-            $GLOBALS['submenu'][ $menu_slug ][0][0] = __( 'General Settings', 'sop' );
-        }
+        // Explicit "General Settings" submenu pointing to the same page.
+        add_submenu_page(
+            $menu_slug,
+            __( 'General Settings', 'sop' ),
+            __( 'General Settings', 'sop' ),
+            $capability,
+            $menu_slug,
+            array( $this, 'render_page' )
+        );
+
+        // Remove the auto-added duplicate submenu.
+        remove_submenu_page( $menu_slug, $menu_slug );
     }
 
     /**
