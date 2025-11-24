@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.8 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.9 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -438,25 +438,30 @@ function sop_preorder_render_admin_page() {
                                         <?php echo esc_html( number_format_i18n( $regular_line_price, 2 ) ); ?>
                                     </td>
                                     <td class="column-notes" data-column="notes">
-                                        <textarea
-                                            name="sop_notes[]"
-                                            rows="3"
-                                            class="sop-preorder-notes"
-                                            style="width: 100%; resize: none;"
-                                            title="<?php echo esc_attr( $notes ); ?>"
-                                            <?php disabled( $is_locked ); ?>
-                                        ><?php echo esc_textarea( $notes ); ?></textarea>
+                                        <div class="sop-preorder-notes-wrapper">
+                                            <textarea
+                                                name="sop_notes[]"
+                                                rows="3"
+                                                class="sop-preorder-notes"
+                                                style="width: 100%; resize: none;"
+                                                title="<?php echo esc_attr( $notes ); ?>"
+                                                <?php disabled( $is_locked ); ?>
+                                            ><?php echo esc_textarea( $notes ); ?></textarea>
+
+                                            <button type="button"
+                                                    class="sop-preorder-notes-edit-icon"
+                                                    data-row-key="<?php echo esc_attr( $row_key ); ?>"
+                                                    aria-label="<?php esc_attr_e( 'Edit notes', 'sop' ); ?>">
+                                                <span class="dashicons dashicons-edit"></span>
+                                            </button>
+                                        </div>
+
                                         <input
                                             type="hidden"
                                             name="sop_removed[]"
                                             value="<?php echo ! empty( $row['removed'] ) ? '1' : '0'; ?>"
                                             class="sop-preorder-removed-flag"
                                         />
-                                        <button type="button"
-                                                class="button-link sop-preorder-notes-edit"
-                                                data-row-key="<?php echo esc_attr( $row_key ); ?>">
-                                            <?php esc_html_e( 'Edit', 'sop' ); ?>
-                                        </button>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -608,7 +613,7 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-table-wrapper {
             max-height: 90vh;
             overflow-x: auto;
-            overflow-y: auto;
+            overflow-y: visible;
             border: 1px solid #ccd0d4;
         }
 
@@ -635,6 +640,10 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-table .column-image img {
             max-width: 40px;
             max-height: 40px;
+        }
+
+        .sop-preorder-table {
+            min-width: 1200px;
         }
 
         .sop-preorder-table .column-location {
@@ -702,7 +711,26 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-table th.column-notes,
         .sop-preorder-table td.column-notes {
-            width: 260px;
+            width: 320px;
+        }
+
+        .sop-preorder-notes-wrapper {
+            position: relative;
+        }
+
+        .sop-preorder-notes-edit-icon {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .sop-preorder-notes-edit-icon .dashicons {
+            font-size: 16px;
+            line-height: 1;
         }
 
         .sop-preorder-notes-overlay {
@@ -888,7 +916,7 @@ function sop_preorder_render_admin_page() {
             }
 
             // Open overlay for notes.
-            $table.on( 'click', '.sop-preorder-notes, .sop-preorder-notes-edit', function( e ) {
+            $table.on( 'click', '.sop-preorder-notes, .sop-preorder-notes-edit-icon', function( e ) {
                 e.preventDefault();
                 var $row = $( this ).closest( 'tr.sop-preorder-row' );
                 sopPreorderOpenNotesOverlayForRow( $row );
