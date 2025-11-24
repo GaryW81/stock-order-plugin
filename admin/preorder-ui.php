@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.10 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.11 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -120,6 +120,7 @@ function sop_preorder_render_admin_page() {
     $total_units          = 0.0;
     $total_cost_gbp       = 0.0;
     $total_cost_supplier  = 0.0;
+    $total_cbm            = 0.0;
 
     foreach ( $rows as $row ) {
         if ( ! empty( $row['removed'] ) ) {
@@ -133,11 +134,15 @@ function sop_preorder_render_admin_page() {
         $total_units         += $qty;
         $total_cost_gbp      += $qty * (float) $row['cost_gbp'];
         $total_cost_supplier += $qty * (float) $row['cost_supplier'];
+
+        if ( isset( $row['line_cbm'] ) ) {
+            $total_cbm += (float) $row['line_cbm'];
+        }
     }
 
     $used_cbm = 0.0;
-    if ( $effective_cbm > 0 ) {
-        $used_cbm = min( 100.0, ( $total_units / $effective_cbm ) * 100.0 );
+    if ( $effective_cbm > 0 && $total_cbm > 0 ) {
+        $used_cbm = min( 100.0, ( $total_cbm / $effective_cbm ) * 100.0 );
     }
 
     $currency_symbol = '£';
@@ -425,11 +430,13 @@ function sop_preorder_render_admin_page() {
                                             <?php echo esc_html( number_format_i18n( $line_total_sup, 2 ) ); ?>
                                         </span>
                                     </td>
-                                    <td class="column-cubic-item" data-column="cubic">
+                                    <td class="column-cubic-item" data-column="cubic" data-cubic-cm="<?php echo esc_attr( $cubic_cm ); ?>">
                                         <?php echo esc_html( number_format_i18n( $cubic_cm, 0 ) ); ?>
                                     </td>
                                     <td class="column-line-cbm" data-column="line_cbm">
-                                        <?php echo esc_html( number_format_i18n( $line_cbm, 3 ) ); ?>
+                                        <span class="sop-line-cbm-value">
+                                            <?php echo esc_html( number_format_i18n( $line_cbm, 3 ) ); ?>
+                                        </span>
                                     </td>
                                     <td class="column-regular-unit" data-column="regular_unit">
                                         <?php echo esc_html( number_format_i18n( $regular_unit_price, 2 ) ); ?>
@@ -965,6 +972,7 @@ function sop_preorder_render_admin_page() {
                 var totalUnits = 0;
                 var totalCostGbp = 0;
                 var totalCostSupplier = 0;
+                var totalCbm = 0;
 
                 $table.find('tbody tr').each(function() {
                     var $row = $(this);
@@ -974,8 +982,13 @@ function sop_preorder_render_admin_page() {
                     }
 
                     var qty = parseFloat($row.find('.sop-order-qty-input').val()) || 0;
+                    if ( qty <= 0 ) {
+                        return;
+                    }
+
                     var costGbp = parseFloat($row.find('.sop-line-total-gbp').data('cost-gbp')) || 0;
                     var costSupplier = parseFloat($row.find('.sop-line-total-supplier').data('cost-supplier')) || 0;
+                    var cubicCm = parseFloat($row.find('.column-cubic-item').data('cubic-cm')) || 0;
 
                     var lineTotalGbp = qty * costGbp;
                     var lineTotalSupplier = qty * costSupplier;
@@ -983,9 +996,20 @@ function sop_preorder_render_admin_page() {
                     $row.find('.sop-line-total-gbp').text(lineTotalGbp.toFixed(2));
                     $row.find('.sop-line-total-supplier').text(lineTotalSupplier.toFixed(2));
 
+                    var lineCbm = 0;
+                    if ( cubicCm > 0 ) {
+                        lineCbm = ( cubicCm * qty ) / 1000000;
+                    }
+
+                    var $lineCbmSpan = $row.find('.column-line-cbm .sop-line-cbm-value');
+                    if ( $lineCbmSpan.length ) {
+                        $lineCbmSpan.text( lineCbm.toFixed(3) );
+                    }
+
                     totalUnits += qty;
                     totalCostGbp += lineTotalGbp;
                     totalCostSupplier += lineTotalSupplier;
+                    totalCbm += lineCbm;
                 });
 
                 $('#sop-total-units').text(Math.round(totalUnits));
@@ -993,8 +1017,8 @@ function sop_preorder_render_admin_page() {
                 $('#sop-total-cost-supplier').text(totalCostSupplier.toFixed(2));
 
                 var usedCbm = 0;
-                if (containerCbm > 0) {
-                    usedCbm = Math.min(100, (totalUnits / containerCbm) * 100);
+                if ( containerCbm > 0 && totalCbm > 0 ) {
+                    usedCbm = Math.min(100, ( totalCbm / containerCbm ) * 100);
                 }
                 $('.sop-cbm-bar').css('width', usedCbm + '%');
                 $('#sop-cbm-label').text(usedCbm.toFixed(1) + '%');
