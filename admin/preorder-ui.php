@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.6 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.7 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -297,7 +297,7 @@ function sop_preorder_render_admin_page() {
                             <th class="column-line-cbm" data-column="line_cbm" data-sort="line_cbm" title="<?php esc_attr_e( 'Line volume in cubic metres', 'sop' ); ?>"><?php esc_html_e( 'Line CBM', 'sop' ); ?></th>
                             <th class="column-regular-unit" data-column="regular_unit" data-sort="price_ex" title="<?php esc_attr_e( 'Regular WooCommerce price per unit excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Price excl.', 'sop' ); ?></th>
                             <th class="column-regular-line" data-column="regular_line" data-sort="line_ex" title="<?php esc_attr_e( 'Regular WooCommerce line price excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Line excl.', 'sop' ); ?></th>
-                            <th class="column-notes" data-column="notes" title="<?php esc_attr_e( 'Internal notes for this product / supplier', 'sop' ); ?>"><?php esc_html_e( 'Notes', 'sop' ); ?></th>
+                            <th class="column-notes" data-column="notes" data-sort="notes" title="<?php esc_attr_e( 'Internal notes for this product / supplier', 'sop' ); ?>"><?php esc_html_e( 'Notes', 'sop' ); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -677,6 +677,158 @@ function sop_preorder_render_admin_page() {
         jQuery(function($) {
             var $table = $('.sop-preorder-table');
             var containerCbm = <?php echo json_encode( $effective_cbm ); ?>;
+            var $rowCheckboxes      = $table.find('.sop-preorder-select-row');
+            var $selectAllCheckbox  = $('#sop-preorder-select-all');
+            var $removeSelectedBtn  = $('#sop-preorder-remove-selected');
+            var $showRemovedCheckbox = $('#sop-preorder-show-removed');
+            var lastClickedIndex    = null;
+
+            function sopPreorderGetRowFromChild( el ) {
+                var $el = $( el );
+                return $el.closest( 'tr.sop-preorder-row' );
+            }
+
+            function sopPreorderGetSelectedRows() {
+                var rows = [];
+                $rowCheckboxes.each( function( index, checkbox ) {
+                    if ( ! checkbox.checked ) {
+                        return;
+                    }
+                    var $row = sopPreorderGetRowFromChild( checkbox );
+                    if ( $row.length && ! $row.hasClass( 'sop-preorder-row-removed' ) ) {
+                        rows.push( $row );
+                    }
+                } );
+                return rows;
+            }
+
+            function sopPreorderAutoGrow( el ) {
+                if ( ! el ) {
+                    return;
+                }
+                el.style.height = 'auto';
+                el.style.height = el.scrollHeight + 'px';
+            }
+
+            // Auto-grow notes textareas.
+            var notesEls = document.querySelectorAll( '.sop-preorder-notes' );
+            for ( var i = 0; i < notesEls.length; i++ ) {
+                ( function( textarea ) {
+                    sopPreorderAutoGrow( textarea );
+                    textarea.addEventListener( 'input', function() {
+                        sopPreorderAutoGrow( textarea );
+                    } );
+                } )( notesEls[ i ] );
+            }
+
+            // Selection: select-all and shift-click range.
+            if ( $selectAllCheckbox.length && $rowCheckboxes.length ) {
+                $selectAllCheckbox.on( 'change', function() {
+                    var checked = this.checked;
+                    $rowCheckboxes.each( function() {
+                        this.checked = checked;
+                    } );
+                } );
+
+                $rowCheckboxes.each( function( index ) {
+                    $( this ).on( 'click', function( event ) {
+                        if ( event.shiftKey && lastClickedIndex !== null ) {
+                            var start   = Math.min( lastClickedIndex, index );
+                            var end     = Math.max( lastClickedIndex, index );
+                            var checked = this.checked;
+
+                            $rowCheckboxes.each( function( i ) {
+                                if ( i >= start && i <= end ) {
+                                    this.checked = checked;
+                                }
+                            } );
+                        }
+                        lastClickedIndex = index;
+                    } );
+                } );
+            }
+
+            // Remove selected rows.
+            if ( $removeSelectedBtn.length && $rowCheckboxes.length ) {
+                $removeSelectedBtn.on( 'click', function( e ) {
+                    e.preventDefault();
+
+                    $rowCheckboxes.each( function() {
+                        if ( ! this.checked ) {
+                            return;
+                        }
+                        var $row = sopPreorderGetRowFromChild( this );
+                        if ( ! $row.length ) {
+                            return;
+                        }
+
+                        var $removedInput = $row.find( '.sop-preorder-removed-flag' );
+                        if ( $removedInput.length ) {
+                            $removedInput.val( '1' );
+                        }
+
+                        var $qtyInput = $row.find( '.sop-order-qty-input' );
+                        if ( $qtyInput.length ) {
+                            var currentVal = $qtyInput.val();
+                            if ( currentVal && ! $row.data( 'sopLastQty' ) ) {
+                                $row.data( 'sopLastQty', currentVal );
+                            }
+                            $qtyInput.val( '0' );
+                        }
+
+                        $row.addClass( 'sop-preorder-row-removed' );
+
+                        if ( ! $showRemovedCheckbox.length || ! $showRemovedCheckbox.prop( 'checked' ) ) {
+                            $row.hide();
+                        }
+                    } );
+
+                    recalcTotals();
+                } );
+            }
+
+            // Show removed toggle.
+            if ( $showRemovedCheckbox.length ) {
+                if ( ! $showRemovedCheckbox.prop( 'checked' ) ) {
+                    $table.find( 'tr.sop-preorder-row-removed' ).hide();
+                }
+
+                $showRemovedCheckbox.on( 'change', function() {
+                    var show = $( this ).prop( 'checked' );
+                    var $removedRows = $table.find( 'tr.sop-preorder-row-removed' );
+
+                    if ( show ) {
+                        $removedRows.show();
+                    } else {
+                        $removedRows.hide();
+                    }
+                } );
+            }
+
+            // Restore row.
+            $table.on( 'click', '.sop-preorder-restore-row', function( e ) {
+                e.preventDefault();
+
+                var $row = sopPreorderGetRowFromChild( this );
+                if ( ! $row.length ) {
+                    return;
+                }
+
+                var $removedInput = $row.find( '.sop-preorder-removed-flag' );
+                if ( $removedInput.length ) {
+                    $removedInput.val( '0' );
+                }
+
+                $row.removeClass( 'sop-preorder-row-removed' ).show();
+
+                var $qtyInput = $row.find( '.sop-order-qty-input' );
+                var lastQty   = $row.data( 'sopLastQty' );
+                if ( $qtyInput.length && typeof lastQty !== 'undefined' && lastQty !== null && lastQty !== '' ) {
+                    $qtyInput.val( lastQty );
+                }
+
+                recalcTotals();
+            } );
 
             function recalcTotals() {
                 var totalUnits = 0;
@@ -685,6 +837,10 @@ function sop_preorder_render_admin_page() {
 
                 $table.find('tbody tr').each(function() {
                     var $row = $(this);
+                    var removedFlag = $row.find('.sop-preorder-removed-flag').val();
+                    if ( removedFlag === '1' ) {
+                        return;
+                    }
 
                     var qty = parseFloat($row.find('.sop-order-qty-input').val()) || 0;
                     var costGbp = parseFloat($row.find('.sop-line-total-gbp').data('cost-gbp')) || 0;
@@ -726,8 +882,19 @@ function sop_preorder_render_admin_page() {
 
                 var mode = $(this).data('round-mode'); // 'up' or 'down'
                 var step = parseInt($('.sop-round-step').val(), 10) || 1;
+                var selectedRows = sopPreorderGetSelectedRows();
+                var $qtyInputs;
 
-                $table.find('.sop-order-qty-input').each(function() {
+                if ( selectedRows.length > 0 ) {
+                    $qtyInputs = $();
+                    $.each( selectedRows, function( i, $row ) {
+                        $qtyInputs = $qtyInputs.add( $row.find( '.sop-order-qty-input' ) );
+                    } );
+                } else {
+                    $qtyInputs = $table.find( '.sop-order-qty-input' );
+                }
+
+                $qtyInputs.each(function() {
                     var val = parseFloat($(this).val()) || 0;
                     var rounded = val;
 
