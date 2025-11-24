@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin – Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.14
+ * File version: 1.5.15
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -44,31 +44,53 @@ class sop_Admin_Settings {
      */
     public function register_menu() {
         // Only for users who can manage WooCommerce.
-        $capability = 'manage_woocommerce';
-        $menu_slug  = 'sop_stock_order';
+        $capability     = 'manage_woocommerce';
+        $dashboard_slug = 'sop_stock_order_dashboard';
+        $settings_slug  = 'sop_stock_order';
+
+        // Prevent legacy submenu registrations from attaching to the old parent slug.
+        remove_action( 'admin_menu', 'sop_register_products_by_supplier_submenu' );
+        remove_action( 'admin_menu', 'sop_preorder_register_admin_menu', 99 );
 
         add_menu_page(
             __( 'Stock Order', 'sop' ),
             __( 'Stock Order', 'sop' ),
             $capability,
-            $menu_slug,
-            array( $this, 'render_page' ),
+            $dashboard_slug,
+            array( $this, 'render_dashboard_page' ),
             'dashicons-products',
             56
         );
 
-        // Explicit "General Settings" submenu pointing to the same page.
+        // Products by Supplier.
         add_submenu_page(
-            $menu_slug,
+            $dashboard_slug,
+            __( 'Products by Supplier', 'sop' ),
+            __( 'Products by Supplier', 'sop' ),
+            $capability,
+            'sop_products_by_supplier',
+            'sop_render_products_by_supplier_page'
+        );
+
+        // Pre-Order Sheet.
+        add_submenu_page(
+            $dashboard_slug,
+            __( 'Pre-Order Sheet', 'sop' ),
+            __( 'Pre-Order Sheet', 'sop' ),
+            $capability,
+            'sop-preorder-sheet',
+            'sop_preorder_render_admin_page'
+        );
+
+        // General Settings (existing settings UI).
+        add_submenu_page(
+            $dashboard_slug,
             __( 'General Settings', 'sop' ),
             __( 'General Settings', 'sop' ),
             $capability,
-            $menu_slug,
+            $settings_slug,
             array( $this, 'render_page' )
         );
-
-        // Remove the auto-added duplicate submenu.
-        remove_submenu_page( $menu_slug, $menu_slug );
     }
 
     /**
@@ -202,6 +224,20 @@ class sop_Admin_Settings {
         }
 
         echo '</div>'; // .wrap
+    }
+
+    /**
+     * Render the Stock Order Dashboard placeholder.
+     */
+    public function render_dashboard_page() {
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            return;
+        }
+
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html__( 'Stock Order Dashboard', 'sop' ) . '</h1>';
+        echo '<p>' . esc_html__( 'Dashboard &amp; overview coming soon. Use the menu links for core workflows: Products by Supplier, Pre-Order Sheet, and General Settings.', 'sop' ) . '</p>';
+        echo '</div>';
     }
 
     /**
