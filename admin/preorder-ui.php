@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.27 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.28 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -437,14 +437,13 @@ function sop_preorder_render_admin_page() {
                                     </td>
                                     <td class="column-sku">
                                         <input type="hidden" name="sop_product_id[]" value="<?php echo esc_attr( $product_id ); ?>" />
-                                        <input
-                                            type="text"
+                                        <textarea
                                             name="sop_sku[]"
-                                            value="<?php echo esc_attr( $order_sku ); ?>"
-                                            title="<?php echo esc_attr( $order_sku ); ?>"
+                                            rows="2"
                                             class="sop-preorder-sku small-text"
+                                            title="<?php echo esc_attr( $order_sku ); ?>"
                                             <?php disabled( $is_locked ); ?>
-                                        />
+                                        ><?php echo esc_textarea( $order_sku ); ?></textarea>
                                     </td>
                                     <td class="column-name">
                                         <?php echo esc_html( $name ); ?>
@@ -742,8 +741,8 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-table .column-name {
-            min-width: 50ch;
-            max-width: 50ch;
+            min-width: 35ch;
+            max-width: 35ch;
             white-space: normal;
             word-wrap: break-word;
             word-break: break-word;
@@ -754,14 +753,16 @@ function sop_preorder_render_admin_page() {
             white-space: nowrap;
         }
 
-        .sop-preorder-table td.column-sku input[type="text"] {
+        .sop-preorder-table td.column-sku textarea.sop-preorder-sku {
             width: 12ch;
             min-width: 12ch;
             max-width: 12ch;
-            height: 3.6em;
-            padding-top: 4px;
-            padding-bottom: 4px;
+            min-height: 3.2em;
+            resize: vertical;
+            padding-top: 2px;
+            padding-bottom: 2px;
             box-sizing: border-box;
+            vertical-align: top;
         }
 
         .sop-preorder-table th.column-order-qty,
