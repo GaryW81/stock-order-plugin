@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.24 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.25 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -733,7 +733,7 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-table {
             table-layout: auto;
             width: auto;
-            min-width: 1400px;
+            min-width: 1600px;
         }
 
         .sop-preorder-table .column-location {
@@ -755,9 +755,13 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-table td.column-sku input[type="text"] {
-            width: 10ch;
-            min-width: 10ch;
-            max-width: 12ch;
+            width: 12ch;
+            min-width: 12ch;
+            max-width: 14ch;
+            height: 2.4em;
+            padding-top: 2px;
+            padding-bottom: 2px;
+            box-sizing: border-box;
         }
 
         .sop-preorder-table th.column-order-qty,
@@ -765,11 +769,20 @@ function sop_preorder_render_admin_page() {
             width: 90px;
         }
 
+        /* Qty and MOQ */
         .sop-preorder-table .sop-order-qty-input,
-        .sop-preorder-table .column-min-order input,
-        .sop-preorder-table .column-cost-supplier input {
-            width: 7ch;
+        .sop-preorder-table .sop-preorder-moq-input,
+        .sop-preorder-table .column-min-order input {
+            width: 5ch;
             min-width: 5ch;
+            max-width: 5ch;
+        }
+
+        /* Cost */
+        .sop-preorder-table .sop-cost-supplier-input,
+        .sop-preorder-table .column-cost-supplier input {
+            width: 8ch;
+            min-width: 8ch;
             max-width: 8ch;
         }
 
