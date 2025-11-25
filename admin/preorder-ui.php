@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.26 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.27 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -742,8 +742,8 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-table .column-name {
+            min-width: 50ch;
             max-width: 50ch;
-            min-width: 20ch;
             white-space: normal;
             word-wrap: break-word;
             word-break: break-word;
@@ -758,7 +758,7 @@ function sop_preorder_render_admin_page() {
             width: 12ch;
             min-width: 12ch;
             max-width: 12ch;
-            height: 3.2em;
+            height: 3.6em;
             padding-top: 4px;
             padding-bottom: 4px;
             box-sizing: border-box;
@@ -769,13 +769,13 @@ function sop_preorder_render_admin_page() {
             width: 90px;
         }
 
-        /* Qty and MOQ: ~10 characters, fixed so they don't squash */
+        /* Qty and MOQ: ~8 characters, fixed so they don't squash */
         .sop-preorder-table .sop-order-qty-input,
         .sop-preorder-table .sop-preorder-moq-input,
         .sop-preorder-table .column-min-order input {
-            width: 10ch;
-            min-width: 10ch;
-            max-width: 10ch;
+            width: 8ch;
+            min-width: 8ch;
+            max-width: 8ch;
         }
 
         /* Cost: ~11 characters to show decimal + extra digits, fixed width */
@@ -784,6 +784,12 @@ function sop_preorder_render_admin_page() {
             width: 11ch;
             min-width: 11ch;
             max-width: 11ch;
+        }
+
+        .sop-preorder-table input[type="text"],
+        .sop-preorder-table input[type="number"],
+        .sop-preorder-table textarea {
+            font-size: inherit;
         }
 
         .sop-preorder-table .column-notes textarea {
