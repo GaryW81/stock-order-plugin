@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.18 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.19 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -412,13 +412,11 @@ function sop_preorder_render_admin_page() {
                                             class="sop-preorder-select-row"
                                             data-row-key="<?php echo esc_attr( $row_key ); ?>"
                                         />
-                                        <?php if ( ! empty( $row['removed'] ) ) : ?>
-                                            <button type="button"
-                                                    class="button-link sop-preorder-restore-row"
-                                                    data-row-key="<?php echo esc_attr( $row_key ); ?>">
-                                                <?php esc_html_e( 'Restore', 'sop' ); ?>
-                                            </button>
-                                        <?php endif; ?>
+                                        <button type="button"
+                                                class="button-link sop-preorder-restore-row"
+                                                data-row-key="<?php echo esc_attr( $row_key ); ?>">
+                                            <?php esc_html_e( 'Restore', 'sop' ); ?>
+                                        </button>
                                     </td>
                                     <td class="column-image">
                                         <?php
@@ -814,11 +812,12 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-col-select .sop-preorder-restore-row {
-            display: block;
+            display: none;
             margin-top: 2px;
         }
 
-        .sop-preorder-row-removed .sop-preorder-restore-row {
+        .sop-preorder-row-removed .sop-preorder-col-select .sop-preorder-restore-row {
+            display: block;
             pointer-events: auto;
             opacity: 1;
         }
