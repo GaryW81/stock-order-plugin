@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.21 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.22 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -907,12 +907,9 @@ function sop_preorder_render_admin_page() {
             });
 
             // Removing or restoring rows also creates unsaved changes.
-            var $removeSelectedButton = $('.sop-preorder-remove-selected');
-            if ( $removeSelectedButton.length ) {
-                $removeSelectedButton.on( 'click', function() {
-                    hasUnsavedChanges = true;
-                } );
-            }
+            $( document ).on( 'click', '#sop-preorder-remove-selected', function() {
+                hasUnsavedChanges = true;
+            } );
 
             $table.on( 'click', '.sop-preorder-restore-row', function() {
                 hasUnsavedChanges = true;
