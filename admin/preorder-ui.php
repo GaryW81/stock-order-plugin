@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.13 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.14 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -236,14 +236,24 @@ function sop_preorder_render_admin_page() {
                     %
                 </label>
 
-                <label for="sop_sku_filter" class="sop-preorder-filter-sku">
-                    <?php esc_html_e( 'SKU search:', 'sop' ); ?>
-                    <input type="text"
-                           id="sop_sku_filter"
-                           name="sop_sku_filter"
-                           value="<?php echo esc_attr( $sku_filter ); ?>"
-                           class="regular-text" />
-                </label>
+                <div class="sop-preorder-filter-sku">
+                    <label for="sop_sku_filter" class="screen-reader-text">
+                        <?php esc_html_e( 'Search by SKU', 'sop' ); ?>
+                    </label>
+                    <div class="sop-preorder-filter-sku-field">
+                        <input type="text"
+                               id="sop_sku_filter"
+                               name="sop_sku_filter"
+                               value="<?php echo esc_attr( $sku_filter ); ?>"
+                               placeholder="<?php esc_attr_e( 'Input SKU', 'sop' ); ?>"
+                               class="regular-text" />
+                        <button type="submit"
+                                class="button sop-preorder-sku-search-button"
+                                aria-label="<?php esc_attr_e( 'Search by SKU', 'sop' ); ?>">
+                            <span class="dashicons dashicons-search"></span>
+                        </button>
+                    </div>
+                </div>
 
                 <button type="submit" class="button button-secondary">
                     <?php esc_html_e( 'Update Filter', 'sop' ); ?>
@@ -578,6 +588,31 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-controls select[name="sop_supplier_id"] {
             min-width: 260px;
+        }
+
+        .sop-preorder-filter-sku {
+            display: inline-block;
+            margin-left: 8px;
+        }
+
+        .sop-preorder-filter-sku-field {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .sop-preorder-filter-sku-field .regular-text {
+            width: 120px;
+            max-width: 160px;
+            margin-right: 2px;
+        }
+
+        .sop-preorder-sku-search-button {
+            padding: 0 4px;
+            min-width: 28px;
+        }
+
+        .sop-preorder-sku-search-button .dashicons {
+            line-height: 1;
         }
 
         .sop-preorder-summary-bar {
