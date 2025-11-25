@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.11 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.12 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -121,6 +121,7 @@ function sop_preorder_render_admin_page() {
     $total_cost_gbp       = 0.0;
     $total_cost_supplier  = 0.0;
     $total_cbm            = 0.0;
+    $total_skus           = 0;
 
     foreach ( $rows as $row ) {
         if ( ! empty( $row['removed'] ) ) {
@@ -138,6 +139,8 @@ function sop_preorder_render_admin_page() {
         if ( isset( $row['line_cbm'] ) ) {
             $total_cbm += (float) $row['line_cbm'];
         }
+
+        $total_skus++;
     }
 
     $used_cbm = 0.0;
@@ -213,6 +216,10 @@ function sop_preorder_render_admin_page() {
                 <span id="sop-total-units"><?php echo esc_html( number_format_i18n( $total_units, 0 ) ); ?></span>
             </div>
             <div class="sop-summary-item">
+                <strong><?php esc_html_e( 'Total SKUs', 'sop' ); ?>:</strong>
+                <span id="sop-total-skus"><?php echo esc_html( number_format_i18n( $total_skus, 0 ) ); ?></span>
+            </div>
+            <div class="sop-summary-item">
                 <strong><?php esc_html_e( 'Total Cost (GBP)', 'sop' ); ?>:</strong>
                 <span id="sop-total-cost-gbp"><?php echo esc_html( wc_price( $total_cost_gbp ) ); ?></span>
             </div>
@@ -267,15 +274,15 @@ function sop_preorder_render_admin_page() {
 
                 <div class="sop-column-visibility">
                     <span><?php esc_html_e( 'Columns:', 'sop' ); ?></span>
-                    <label><input type="checkbox" data-column="notes" checked /> <?php esc_html_e( 'Notes', 'sop' ); ?></label>
+                    <label><input type="checkbox" data-column="cost_supplier" checked /> <?php esc_html_e( 'Cost (Supplier)', 'sop' ); ?></label>
                     <label><input type="checkbox" data-column="min_order" checked /> <?php esc_html_e( 'Min Order', 'sop' ); ?></label>
                     <label><input type="checkbox" data-column="stock" checked /> <?php esc_html_e( 'Stock', 'sop' ); ?></label>
                     <label><input type="checkbox" data-column="inbound" checked /> <?php esc_html_e( 'Inbound', 'sop' ); ?></label>
-                    <label><input type="checkbox" data-column="cost_supplier" checked /> <?php esc_html_e( 'Cost (Supplier)', 'sop' ); ?></label>
                     <label><input type="checkbox" data-column="cubic" checked /> <?php esc_html_e( 'Cubic', 'sop' ); ?></label>
                     <label><input type="checkbox" data-column="line_cbm" checked /> <?php esc_html_e( 'Line CBM', 'sop' ); ?></label>
                     <label><input type="checkbox" data-column="regular_unit" checked /> <?php esc_html_e( 'Unit (ex VAT)', 'sop' ); ?></label>
                     <label><input type="checkbox" data-column="regular_line" checked /> <?php esc_html_e( 'Line (ex VAT)', 'sop' ); ?></label>
+                    <label><input type="checkbox" data-column="notes" checked /> <?php esc_html_e( 'Notes', 'sop' ); ?></label>
                 </div>
             </div>
 
@@ -640,13 +647,14 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-table .column-image {
-            width: 60px;
+            width: 80px;
             text-align: center;
         }
 
         .sop-preorder-table .column-image img {
-            max-width: 40px;
-            max-height: 40px;
+            width: 60px;
+            height: auto;
+            max-height: 60px;
         }
 
         .sop-preorder-table {
@@ -710,12 +718,22 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-col-select {
-            width: 32px;
+            width: 40px;
             text-align: center;
+        }
+
+        .sop-preorder-table th.sop-preorder-col-select,
+        .sop-preorder-table td.sop-preorder-col-select {
+            width: 40px;
         }
 
         .sop-preorder-row-removed {
             opacity: 0.6;
+        }
+
+        .sop-preorder-col-select .sop-preorder-restore-row {
+            display: block;
+            margin-top: 2px;
         }
 
         .sop-preorder-table th.column-notes,
@@ -970,6 +988,7 @@ function sop_preorder_render_admin_page() {
 
             function recalcTotals() {
                 var totalUnits = 0;
+                var totalSkus = 0;
                 var totalCostGbp = 0;
                 var totalCostSupplier = 0;
                 var totalCbm = 0;
@@ -1010,9 +1029,11 @@ function sop_preorder_render_admin_page() {
                     totalCostGbp += lineTotalGbp;
                     totalCostSupplier += lineTotalSupplier;
                     totalCbm += lineCbm;
+                    totalSkus += 1;
                 });
 
                 $('#sop-total-units').text(Math.round(totalUnits));
+                $('#sop-total-skus').text(totalSkus);
                 $('#sop-total-cost-gbp').text(wc_price_format(totalCostGbp));
                 $('#sop-total-cost-supplier').text(totalCostSupplier.toFixed(2));
 

@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.6
+ * File version: 1.0.7
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
@@ -51,13 +51,6 @@ function sop_render_product_supplier_metabox( $post ) {
     // Current supplier assignment.
     $current_supplier_id = sop_get_product_supplier_id( $post->ID );
 
-    // Location: SOP bin location (primary) with fallback to existing Woo location meta.
-    $bin_location = get_post_meta( $post->ID, '_sop_bin_location', true );
-    if ( '' === $bin_location ) {
-        $bin_location = get_post_meta( $post->ID, '_product_location', true );
-    }
-    $bin_location = is_string( $bin_location ) ? $bin_location : '';
-
     // Supplier costs per unit in supplier currencies.
     $cost_rmb = get_post_meta( $post->ID, '_sop_cost_rmb', true );
     $cost_usd = get_post_meta( $post->ID, '_sop_cost_usd', true );
@@ -102,17 +95,6 @@ function sop_render_product_supplier_metabox( $post ) {
     </p>
 
     <hr />
-
-    <p>
-        <label for="sop_bin_location">
-            <?php esc_html_e( 'Location (bin / shelf)', 'sop' ); ?>
-        </label>
-        <input type="text"
-               name="sop_bin_location"
-               id="sop_bin_location"
-               value="<?php echo esc_attr( $bin_location ); ?>"
-               class="widefat" />
-    </p>
 
     <p>
         <strong><?php esc_html_e( 'Supplier costs (per unit)', 'sop' ); ?></strong><br />
