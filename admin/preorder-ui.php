@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.22 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.23 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -423,13 +423,10 @@ function sop_preorder_render_admin_page() {
                                         if ( $product ) {
                                             $image_id = $product->get_image_id();
                                             if ( $image_id ) {
+                                                // Use the smaller WooCommerce gallery thumbnail (typically 100x100).
                                                 echo wp_get_attachment_image(
                                                     $image_id,
-                                                    'thumbnail',
-                                                    false,
-                                                    [
-                                                        'style' => 'width:40px;height:40px;object-fit:contain;',
-                                                    ]
+                                                    'woocommerce_gallery_thumbnail'
                                                 );
                                             }
                                         }
@@ -726,9 +723,11 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-table .column-image img {
-            width: 60px !important;
-            height: auto;
+            height: 60px !important;
+            width: auto;
             max-height: 60px;
+            max-width: 60px;
+            object-fit: contain;
         }
 
         .sop-preorder-table {
