@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.16 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.17 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -200,7 +200,7 @@ function sop_preorder_render_admin_page() {
     <div class="wrap sop-preorder-wrap">
         <h1><?php esc_html_e( 'Pre-Order Sheet', 'sop' ); ?></h1>
 
-        <form method="get" action="">
+        <form id="sop-preorder-filter-form" method="get" action="">
             <input type="hidden" name="page" value="sop-preorder-sheet" />
 
             <div class="sop-preorder-controls">
@@ -895,6 +895,52 @@ function sop_preorder_render_admin_page() {
             var $notesOverlayTextarea = $notesOverlay.find('.sop-preorder-notes-overlay-textarea');
             var currentNotesTextarea = null;
             var lastClickedIndex     = null;
+            var hasUnsavedChanges    = false;
+
+            // Mark unsaved changes on key editable fields.
+            $table.on('change input', '.sop-order-qty-input, .sop-preorder-notes, .sop-cost-supplier-input', function() {
+                hasUnsavedChanges = true;
+            });
+
+            $(document).on('change input', '.sop-preorder-notes-overlay textarea', function() {
+                hasUnsavedChanges = true;
+            });
+
+            // Clear unsaved flag on save.
+            var $saveButton = $('[name="sop_preorder_save"]');
+            if ( $saveButton.length ) {
+                $saveButton.on('click', function() {
+                    hasUnsavedChanges = false;
+                });
+            }
+
+            // Intercept filter form submits if unsaved changes exist.
+            var $filterForm = $('#sop-preorder-filter-form');
+            if ( $filterForm.length ) {
+                $filterForm.on('submit', function(e) {
+                    if ( ! hasUnsavedChanges ) {
+                        return;
+                    }
+
+                    var message = 'You have unsaved changes on this sheet. Save them before updating the filter or they will be lost.\n\nClick Cancel to stay on this page, or OK to discard changes and continue.';
+                    if ( ! window.confirm( message ) ) {
+                        e.preventDefault();
+                        return false;
+                    }
+
+                    hasUnsavedChanges = false;
+                });
+            }
+
+            // Warn on browser navigation if unsaved changes exist.
+            window.addEventListener('beforeunload', function(e) {
+                if ( ! hasUnsavedChanges ) {
+                    return;
+                }
+
+                e.preventDefault();
+                e.returnValue = '';
+            });
 
             function sopPreorderGetRowFromChild( el ) {
                 var $el = $( el );
