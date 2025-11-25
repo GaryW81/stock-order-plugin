@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.7
+ * File version: 1.0.8
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().

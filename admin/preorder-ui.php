@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.12 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.13 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -67,6 +67,12 @@ function sop_preorder_render_admin_page() {
         $allowance = 50;
     }
 
+    // SKU filter (substring match, case-insensitive).
+    $sku_filter = '';
+    if ( isset( $_GET['sop_sku_filter'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $sku_filter = sanitize_text_field( wp_unslash( $_GET['sop_sku_filter'] ) );
+    }
+
     // Base CBM and floor area per container type using real internal dimensions.
     $base_cbm   = 0.0;
     $floor_area = 0.0;
@@ -115,6 +121,32 @@ function sop_preorder_render_admin_page() {
     $rows = [];
     if ( $supplier ) {
         $rows = sop_preorder_build_rows_for_supplier( $supplier['id'], $supplier_currency, $settings );
+    }
+
+    if ( '' !== $sku_filter ) {
+        $filter_value = strtolower( $sku_filter );
+        $rows         = array_values(
+            array_filter(
+                $rows,
+                static function ( $row ) use ( $filter_value ) {
+                    $sku = '';
+
+                    if ( ! empty( $row['order_sku'] ) ) {
+                        $sku = (string) $row['order_sku'];
+                    } elseif ( ! empty( $row['sku'] ) ) {
+                        $sku = (string) $row['sku'];
+                    } elseif ( ! empty( $row['product_sku'] ) ) {
+                        $sku = (string) $row['product_sku'];
+                    }
+
+                    if ( '' === $sku ) {
+                        return false;
+                    }
+
+                    return false !== strpos( strtolower( $sku ), $filter_value );
+                }
+            )
+        );
     }
 
     $total_units          = 0.0;
@@ -202,6 +234,15 @@ function sop_preorder_render_admin_page() {
                     <?php esc_html_e( 'Allowance:', 'sop' ); ?>
                     <input type="number" name="sop_allowance" value="<?php echo esc_attr( $allowance ); ?>" step="1" min="-50" max="50" />
                     %
+                </label>
+
+                <label for="sop_sku_filter" class="sop-preorder-filter-sku">
+                    <?php esc_html_e( 'SKU search:', 'sop' ); ?>
+                    <input type="text"
+                           id="sop_sku_filter"
+                           name="sop_sku_filter"
+                           value="<?php echo esc_attr( $sku_filter ); ?>"
+                           class="regular-text" />
                 </label>
 
                 <button type="submit" class="button button-secondary">
@@ -620,8 +661,22 @@ function sop_preorder_render_admin_page() {
             min-width: 60px;
         }
 
+        .sop-column-visibility {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
         .sop-column-visibility label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             margin-right: 0.5rem;
+        }
+
+        .sop-column-visibility input[type="checkbox"] {
+            margin: 0;
         }
 
         .sop-preorder-table-wrapper {
@@ -652,7 +707,7 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-table .column-image img {
-            width: 60px;
+            width: 60px !important;
             height: auto;
             max-height: 60px;
         }
@@ -660,7 +715,7 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-table {
             table-layout: auto;
             width: auto;
-            min-width: 2000px; /* force a wide baseline so the horizontal scrollbar appears and columns have breathing room */
+            min-width: 1400px;
         }
 
         .sop-preorder-table .column-location {
@@ -670,11 +725,17 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-table .column-name {
             min-width: 200px;
+            max-width: 320px;
         }
 
         .sop-preorder-table .column-sku {
             width: 120px;
             white-space: nowrap;
+        }
+
+        .sop-preorder-table th.column-order-qty,
+        .sop-preorder-table td.column-order-qty {
+            width: 90px;
         }
 
         .sop-preorder-table .column-notes textarea {
@@ -734,6 +795,11 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-col-select .sop-preorder-restore-row {
             display: block;
             margin-top: 2px;
+        }
+
+        .sop-preorder-row-removed .sop-preorder-restore-row {
+            pointer-events: auto;
+            opacity: 1;
         }
 
         .sop-preorder-table th.column-notes,
