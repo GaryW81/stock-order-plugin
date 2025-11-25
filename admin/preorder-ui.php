@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.17 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.18 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -291,7 +291,7 @@ function sop_preorder_render_admin_page() {
             </div>
         </div>
 
-        <form method="post" action="">
+        <form id="sop-preorder-sheet-form" method="post" action="">
             <?php wp_nonce_field( 'sop_preorder_save', 'sop_preorder_nonce' ); ?>
             <input type="hidden" name="sop_supplier_id" value="<?php echo esc_attr( $selected_supplier_id ); ?>" />
 
@@ -896,6 +896,7 @@ function sop_preorder_render_admin_page() {
             var currentNotesTextarea = null;
             var lastClickedIndex     = null;
             var hasUnsavedChanges    = false;
+            var $sheetForm           = $('#sop-preorder-sheet-form');
 
             // Mark unsaved changes on key editable fields.
             $table.on('change input', '.sop-order-qty-input, .sop-preorder-notes, .sop-cost-supplier-input', function() {
@@ -930,6 +931,12 @@ function sop_preorder_render_admin_page() {
 
                     hasUnsavedChanges = false;
                 });
+            }
+
+            if ( $sheetForm.length ) {
+                $sheetForm.on( 'submit', function() {
+                    hasUnsavedChanges = false;
+                } );
             }
 
             // Warn on browser navigation if unsaved changes exist.
