@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.18
+ * File version: 1.5.19
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -319,6 +319,7 @@ class sop_Admin_Settings {
         $stock_cost_total           = 0.0;
         $stockout_products          = array();
         $supplier_ids               = array();
+        $total_products             = 0;
 
         $tax_query = array();
         if ( ! empty( $dashboard_category_ids ) ) {
@@ -354,6 +355,8 @@ class sop_Admin_Settings {
                 if ( ! $product->managing_stock() ) {
                     continue;
                 }
+
+                $total_products++;
 
                 $qty = $product->get_stock_quantity();
                 if ( null === $qty ) {
@@ -438,12 +441,14 @@ class sop_Admin_Settings {
                 ?>
                 <input type="hidden" name="page" value="sop_stock_order_dashboard" />
 
-                <label for="sop-dashboard-cats"><?php esc_html_e( 'Category filter:', 'sop' ); ?></label>
-                <select id="sop-dashboard-cats"
-                        name="sop_dashboard_cats[]"
-                        class="sop-dashboard-category-select wc-enhanced-select"
-                        multiple="multiple"
-                        style="width: 320px;">
+                <div class="sop-dashboard-filter-field">
+                    <label for="sop-dashboard-cats"><?php esc_html_e( 'Category filter:', 'sop' ); ?></label>
+                    <select id="sop-dashboard-cats"
+                            name="sop_dashboard_cats[]"
+                            class="sop-dashboard-category-select wc-enhanced-select"
+                            multiple="multiple"
+                            data-placeholder="<?php esc_attr_e( 'All categories', 'sop' ); ?>"
+                            data-minimum-results-for-search="-1">
                     <?php
                     $categories = get_terms(
                         array(
@@ -461,7 +466,8 @@ class sop_Admin_Settings {
                         endforeach;
                     endif;
                     ?>
-                </select>
+                    </select>
+                </div>
                 <button type="submit" class="button"><?php esc_html_e( 'Apply filter', 'sop' ); ?></button>
             </form>
 
@@ -489,9 +495,17 @@ class sop_Admin_Settings {
                             <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Total stock value (cost)', 'sop' ); ?></div>
                             <div class="sop-dashboard-metric-value"><?php echo wp_kses_post( wc_price( $stock_cost_total ) ); ?></div>
                         </div>
-                        <div class="sop-dashboard-metric">
+                        <div class="sop-dashboard-metric sop-dashboard-metric-units">
                             <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Total units', 'sop' ); ?></div>
                             <div class="sop-dashboard-metric-value"><?php echo esc_html( number_format_i18n( $stock_units_total, 0 ) ); ?></div>
+                            <div class="sop-dashboard-metric-sub">
+                                <?php
+                                printf(
+                                    esc_html__( 'Total products: %s', 'sop' ),
+                                    esc_html( number_format_i18n( $total_products, 0 ) )
+                                );
+                                ?>
+                            </div>
                         </div>
                         <div class="sop-dashboard-metric">
                             <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Average cost per unit (ex VAT)', 'sop' ); ?></div>
@@ -580,8 +594,33 @@ class sop_Admin_Settings {
                 margin: 12px 0 0;
                 display: flex;
                 flex-wrap: wrap;
-                gap: 8px;
+                gap: 8px 12px;
                 align-items: center;
+            }
+
+            .sop-dashboard-filter-field {
+                display: flex;
+                flex-direction: column;
+                min-width: 260px;
+            }
+
+            .sop-dashboard-filter-field label {
+                font-weight: 600;
+                margin-bottom: 2px;
+            }
+
+            .sop-dashboard-category-select {
+                min-width: 260px;
+                max-width: 420px;
+            }
+
+            .sop-dashboard-filter-form .select2-container {
+                min-width: 260px;
+                max-width: 420px;
+            }
+
+            .sop-dashboard-filter-form .select2-search--dropdown {
+                display: none !important;
             }
 
             .sop-dashboard-row {
@@ -646,6 +685,13 @@ class sop_Admin_Settings {
                 font-size: 16px;
                 font-weight: 600;
                 margin-top: 4px;
+            }
+
+            .sop-dashboard-metric-sub {
+                display: block;
+                margin-top: 2px;
+                font-size: 11px;
+                color: #666;
             }
 
             .sop-dashboard-tooltip {
