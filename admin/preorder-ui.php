@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.28 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.29 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -319,16 +319,55 @@ function sop_preorder_render_admin_page() {
                 </div>
 
                 <div class="sop-column-visibility">
-                    <span><?php esc_html_e( 'Columns:', 'sop' ); ?></span>
-                    <label><input type="checkbox" data-column="cost_supplier" checked /> <?php esc_html_e( 'Cost (Supplier)', 'sop' ); ?></label>
-                    <label><input type="checkbox" data-column="min_order" checked /> <?php esc_html_e( 'Min Order', 'sop' ); ?></label>
-                    <label><input type="checkbox" data-column="stock" checked /> <?php esc_html_e( 'Stock', 'sop' ); ?></label>
-                    <label><input type="checkbox" data-column="inbound" checked /> <?php esc_html_e( 'Inbound', 'sop' ); ?></label>
-                    <label><input type="checkbox" data-column="cubic" checked /> <?php esc_html_e( 'Cubic', 'sop' ); ?></label>
-                    <label><input type="checkbox" data-column="line_cbm" checked /> <?php esc_html_e( 'Line CBM', 'sop' ); ?></label>
-                    <label><input type="checkbox" data-column="regular_unit" checked /> <?php esc_html_e( 'Unit (ex VAT)', 'sop' ); ?></label>
-                    <label><input type="checkbox" data-column="regular_line" checked /> <?php esc_html_e( 'Line (ex VAT)', 'sop' ); ?></label>
-                    <label><input type="checkbox" data-column="notes" checked /> <?php esc_html_e( 'Notes', 'sop' ); ?></label>
+                    <div class="sop-preorder-columns">
+                        <span class="sop-preorder-columns-label">
+                            <?php esc_html_e( 'Columns:', 'sop' ); ?>
+                        </span>
+                        <button type="button"
+                                class="button sop-preorder-columns-toggle"
+                                aria-expanded="false"
+                                aria-haspopup="true">
+                            <?php esc_html_e( 'Columns selected', 'sop' ); ?>
+                        </button>
+                        <div class="sop-preorder-columns-panel">
+                            <label class="sop-preorder-columns-panel-item">
+                                <input type="checkbox" data-column="cost_supplier" checked />
+                                <span><?php esc_html_e( 'Cost (Supplier)', 'sop' ); ?></span>
+                            </label>
+                            <label class="sop-preorder-columns-panel-item">
+                                <input type="checkbox" data-column="min_order" checked />
+                                <span><?php esc_html_e( 'Min Order', 'sop' ); ?></span>
+                            </label>
+                            <label class="sop-preorder-columns-panel-item">
+                                <input type="checkbox" data-column="stock" checked />
+                                <span><?php esc_html_e( 'Stock', 'sop' ); ?></span>
+                            </label>
+                            <label class="sop-preorder-columns-panel-item">
+                                <input type="checkbox" data-column="inbound" checked />
+                                <span><?php esc_html_e( 'Inbound', 'sop' ); ?></span>
+                            </label>
+                            <label class="sop-preorder-columns-panel-item">
+                                <input type="checkbox" data-column="cubic" checked />
+                                <span><?php esc_html_e( 'Cubic', 'sop' ); ?></span>
+                            </label>
+                            <label class="sop-preorder-columns-panel-item">
+                                <input type="checkbox" data-column="line_cbm" checked />
+                                <span><?php esc_html_e( 'Line CBM', 'sop' ); ?></span>
+                            </label>
+                            <label class="sop-preorder-columns-panel-item">
+                                <input type="checkbox" data-column="regular_unit" checked />
+                                <span><?php esc_html_e( 'Unit (ex VAT)', 'sop' ); ?></span>
+                            </label>
+                            <label class="sop-preorder-columns-panel-item">
+                                <input type="checkbox" data-column="regular_line" checked />
+                                <span><?php esc_html_e( 'Line (ex VAT)', 'sop' ); ?></span>
+                            </label>
+                            <label class="sop-preorder-columns-panel-item">
+                                <input type="checkbox" data-column="notes" checked />
+                                <span><?php esc_html_e( 'Notes', 'sop' ); ?></span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -676,24 +715,6 @@ function sop_preorder_render_admin_page() {
             min-width: 60px;
         }
 
-        .sop-column-visibility {
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .sop-column-visibility label {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            margin-right: 0.5rem;
-        }
-
-        .sop-column-visibility input[type="checkbox"] {
-            margin: 0;
-        }
-
         .sop-preorder-table-wrapper {
             max-height: 90vh;
             overflow-x: auto;
@@ -791,6 +812,98 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-table input[type="number"],
         .sop-preorder-table textarea {
             font-size: inherit;
+        }
+
+        /* Columns dropdown control */
+        .sop-preorder-columns {
+            display: inline-block;
+            position: relative;
+            margin-left: 16px;
+        }
+
+        .sop-preorder-columns-label {
+            margin-right: 4px;
+            font-weight: 500;
+        }
+
+        .sop-preorder-columns-toggle {
+            margin-left: 2px;
+        }
+
+        .sop-preorder-columns-panel {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #ccd0d4;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            padding: 6px 0;
+            z-index: 1000;
+            min-width: 220px;
+            max-height: 260px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .sop-preorder-columns-panel-item {
+            display: flex;
+            align-items: center;
+            padding: 2px 10px;
+        }
+
+        .sop-preorder-columns-panel-item input[type="checkbox"] {
+            margin-right: 6px;
+        }
+
+        .sop-preorder-columns.is-open .sop-preorder-columns-panel {
+            display: block;
+        }
+
+        /* Columns dropdown control */
+        .sop-preorder-columns {
+            display: inline-block;
+            position: relative;
+            margin-left: 16px;
+        }
+
+        .sop-preorder-columns-label {
+            margin-right: 4px;
+            font-weight: 500;
+        }
+
+        .sop-preorder-columns-toggle {
+            margin-left: 2px;
+        }
+
+        .sop-preorder-columns-panel {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #ccd0d4;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            padding: 6px 0;
+            z-index: 1000;
+            min-width: 220px;
+            max-height: 260px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .sop-preorder-columns-panel-item {
+            display: flex;
+            align-items: center;
+            padding: 2px 10px;
+        }
+
+        .sop-preorder-columns-panel-item input[type="checkbox"] {
+            margin-right: 6px;
+        }
+
+        .sop-preorder-columns.is-open .sop-preorder-columns-panel {
+            display: block;
         }
 
         .sop-preorder-table .column-notes textarea {
@@ -932,6 +1045,10 @@ function sop_preorder_render_admin_page() {
             var lastClickedIndex     = null;
             var hasUnsavedChanges    = false;
             var $sheetForm           = $('#sop-preorder-sheet-form');
+            var $columnsWrapper      = $('.sop-preorder-columns');
+            var $columnsToggleButton = $columnsWrapper.find('.sop-preorder-columns-toggle');
+            var $columnsPanel        = $columnsWrapper.find('.sop-preorder-columns-panel');
+            var $columnCheckboxes    = $columnsPanel.find('input[type="checkbox"]');
 
             // Any text/number input or textarea inside the table is considered an edit.
             $table.on('change input', 'input[type="text"], input[type="number"], textarea', function() {
@@ -992,6 +1109,39 @@ function sop_preorder_render_admin_page() {
                 e.preventDefault();
                 e.returnValue = '';
             });
+
+            // Columns dropdown: open/close and update count.
+            function sopPreorderUpdateColumnsToggleLabel() {
+                var selectedCount = $columnCheckboxes.filter(':checked').length;
+                var labelText = selectedCount + ' columns selected';
+                if ( $columnsToggleButton.length ) {
+                    $columnsToggleButton.text( labelText );
+                }
+            }
+
+            if ( $columnsWrapper.length && $columnsToggleButton.length && $columnsPanel.length ) {
+                sopPreorderUpdateColumnsToggleLabel();
+
+                $columnsToggleButton.on( 'click', function( e ) {
+                    e.preventDefault();
+                    var isOpen = $columnsWrapper.hasClass( 'is-open' );
+                    $columnsWrapper.toggleClass( 'is-open', ! isOpen );
+                    $columnsToggleButton.attr( 'aria-expanded', ! isOpen );
+                } );
+
+                $columnCheckboxes.on( 'change', function() {
+                    sopPreorderUpdateColumnsToggleLabel();
+                } );
+
+                $( document ).on( 'click', function( e ) {
+                    if ( ! $( e.target ).closest( '.sop-preorder-columns' ).length ) {
+                        if ( $columnsWrapper.hasClass( 'is-open' ) ) {
+                            $columnsWrapper.removeClass( 'is-open' );
+                            $columnsToggleButton.attr( 'aria-expanded', 'false' );
+                        }
+                    }
+                } );
+            }
 
             function sopPreorderGetRowFromChild( el ) {
                 var $el = $( el );
