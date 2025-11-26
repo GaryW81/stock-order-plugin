@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.20
+ * File version: 1.5.21
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -422,7 +422,7 @@ class sop_Admin_Settings {
         <div class="wrap sop-dashboard-wrap">
             <h1 class="sop-dashboard-title"><?php esc_html_e( 'Stock Order Dashboard', 'sop' ); ?></h1>
 
-            <form method="get" class="sop-dashboard-filter-form">
+            <form method="get" class="sop-dashboard-filter-form sop-dashboard-filter-row">
                 <?php
                 foreach ( $_GET as $key => $value ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
                     if ( in_array( $key, array( 'sop_dashboard_cats', 'page' ), true ) ) {
@@ -448,8 +448,8 @@ class sop_Admin_Settings {
                 ?>
                 <input type="hidden" name="page" value="sop_stock_order_dashboard" />
 
-                <div class="sop-dashboard-filter-field">
-                    <label for="sop-dashboard-category-select"><?php esc_html_e( 'Category filter:', 'sop' ); ?></label>
+                <label for="sop-dashboard-category-select"><?php esc_html_e( 'Category filter:', 'sop' ); ?></label>
+                <div class="sop-dashboard-filter-select">
                     <select id="sop-dashboard-category-select"
                             name="sop_dashboard_cats[]"
                             class="sop-dashboard-category-select wc-enhanced-select"
@@ -505,9 +505,9 @@ class sop_Admin_Settings {
                         <div class="sop-dashboard-metric sop-dashboard-metric-units">
                             <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Total units', 'sop' ); ?></div>
                             <div class="sop-dashboard-metric-value"><?php echo esc_html( number_format_i18n( $stock_units_total, 0 ) ); ?></div>
-                            <div class="sop-dashboard-metric-subline">
-                                <span class="sop-dashboard-metric-sub-label"><?php esc_html_e( 'Products', 'sop' ); ?></span>
-                                <span class="sop-dashboard-metric-sub-value"><?php echo esc_html( number_format_i18n( $total_products, 0 ) ); ?></span>
+                            <div class="sop-dashboard-metric-meta">
+                                <span class="sop-dashboard-metric-meta-label"><?php esc_html_e( 'Products', 'sop' ); ?>:</span>
+                                <span class="sop-dashboard-metric-meta-value"><?php echo esc_html( number_format_i18n( $total_products, 0 ) ); ?></span>
                             </div>
                         </div>
                         <div class="sop-dashboard-metric">
@@ -597,33 +597,61 @@ class sop_Admin_Settings {
                 margin: 12px 0 0;
                 display: flex;
                 flex-wrap: wrap;
-                gap: 8px 16px;
                 align-items: center;
+                gap: 12px;
+                max-width: 100%;
             }
 
-            .sop-dashboard-filter-field {
+            .sop-dashboard-filter-row {
                 display: flex;
-                flex-direction: column;
-                min-width: 260px;
-                max-width: 420px;
+                align-items: center;
+                gap: 12px;
+                width: 100%;
             }
 
-            .sop-dashboard-filter-field label {
-                font-weight: 600;
-                margin-bottom: 4px;
+            .sop-dashboard-filter-row label {
+                margin: 0;
+                white-space: nowrap;
             }
 
-            .sop-dashboard-category-select {
-                min-width: 260px;
-                max-width: 420px;
+            .sop-dashboard-filter-row .button {
+                white-space: nowrap;
             }
 
-            .sop-dashboard-filter-form .select2-container {
-                min-width: 260px;
-                max-width: 420px;
+            .sop-dashboard-filter-select {
+                flex: 1;
             }
 
-            .sop-dashboard-filter-form .select2-search--dropdown {
+            .sop-dashboard-filter-select .select2-container,
+            .sop-dashboard-filter-select .wc-enhanced-select,
+            .sop-dashboard-filter-select .select2-container--default {
+                width: 100% !important;
+            }
+
+            .sop-dashboard-filter-select .select2-selection--multiple {
+                min-height: 34px;
+                max-height: 34px;
+                border-radius: 4px;
+                padding: 3px 6px;
+                display: flex;
+                align-items: center;
+                overflow-y: hidden;
+            }
+
+            .sop-dashboard-filter-select .select2-selection--multiple .select2-selection__rendered {
+                display: flex;
+                flex-wrap: nowrap;
+                gap: 4px;
+                overflow-x: auto;
+                overflow-y: hidden;
+            }
+
+            .sop-dashboard-filter-select .select2-selection--multiple .select2-selection__choice {
+                margin-top: 0;
+                padding: 2px 6px;
+            }
+
+            .sop-dashboard-filter-select .select2-search--dropdown {
                 display: none !important;
             }
 
@@ -691,21 +719,21 @@ class sop_Admin_Settings {
                 margin-top: 4px;
             }
 
-            .sop-dashboard-metric-subline {
-                display: flex;
-                align-items: baseline;
-                gap: 4px;
-                margin-top: 3px;
+            .sop-dashboard-metric-units .sop-dashboard-metric-meta {
+                margin-top: 2px;
                 font-size: 11px;
-                color: #6c757d;
+                color: #666;
+                display: flex;
+                gap: 4px;
+                align-items: baseline;
             }
 
-            .sop-dashboard-metric-sub-label {
-                text-transform: uppercase;
-                letter-spacing: 0.03em;
+            .sop-dashboard-metric-units .sop-dashboard-metric-meta-label {
+                font-weight: 500;
+                margin-right: 0;
             }
 
-            .sop-dashboard-metric-sub-value {
+            .sop-dashboard-metric-units .sop-dashboard-metric-meta-value {
                 font-weight: 600;
             }
 
