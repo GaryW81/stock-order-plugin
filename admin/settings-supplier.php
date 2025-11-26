@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.19
+ * File version: 1.5.20
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -234,6 +234,13 @@ class sop_Admin_Settings {
             return;
         }
 
+        // Ensure WooCommerce enhanced select assets are available on the dashboard.
+        if ( class_exists( 'WooCommerce' ) ) {
+            wp_enqueue_style( 'woocommerce_admin_styles' );
+            wp_enqueue_script( 'selectWoo' );
+            wp_enqueue_script( 'wc-enhanced-select' );
+        }
+
         $dashboard_category_ids = array();
         if ( ! empty( $_GET['sop_dashboard_cats'] ) && is_array( $_GET['sop_dashboard_cats'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $dashboard_category_ids = array_map( 'absint', wp_unslash( $_GET['sop_dashboard_cats'] ) );
@@ -442,8 +449,8 @@ class sop_Admin_Settings {
                 <input type="hidden" name="page" value="sop_stock_order_dashboard" />
 
                 <div class="sop-dashboard-filter-field">
-                    <label for="sop-dashboard-cats"><?php esc_html_e( 'Category filter:', 'sop' ); ?></label>
-                    <select id="sop-dashboard-cats"
+                    <label for="sop-dashboard-category-select"><?php esc_html_e( 'Category filter:', 'sop' ); ?></label>
+                    <select id="sop-dashboard-category-select"
                             name="sop_dashboard_cats[]"
                             class="sop-dashboard-category-select wc-enhanced-select"
                             multiple="multiple"
@@ -498,13 +505,9 @@ class sop_Admin_Settings {
                         <div class="sop-dashboard-metric sop-dashboard-metric-units">
                             <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Total units', 'sop' ); ?></div>
                             <div class="sop-dashboard-metric-value"><?php echo esc_html( number_format_i18n( $stock_units_total, 0 ) ); ?></div>
-                            <div class="sop-dashboard-metric-sub">
-                                <?php
-                                printf(
-                                    esc_html__( 'Total products: %s', 'sop' ),
-                                    esc_html( number_format_i18n( $total_products, 0 ) )
-                                );
-                                ?>
+                            <div class="sop-dashboard-metric-subline">
+                                <span class="sop-dashboard-metric-sub-label"><?php esc_html_e( 'Products', 'sop' ); ?></span>
+                                <span class="sop-dashboard-metric-sub-value"><?php echo esc_html( number_format_i18n( $total_products, 0 ) ); ?></span>
                             </div>
                         </div>
                         <div class="sop-dashboard-metric">
@@ -594,7 +597,7 @@ class sop_Admin_Settings {
                 margin: 12px 0 0;
                 display: flex;
                 flex-wrap: wrap;
-                gap: 8px 12px;
+                gap: 8px 16px;
                 align-items: center;
             }
 
@@ -602,11 +605,12 @@ class sop_Admin_Settings {
                 display: flex;
                 flex-direction: column;
                 min-width: 260px;
+                max-width: 420px;
             }
 
             .sop-dashboard-filter-field label {
                 font-weight: 600;
-                margin-bottom: 2px;
+                margin-bottom: 4px;
             }
 
             .sop-dashboard-category-select {
@@ -687,11 +691,22 @@ class sop_Admin_Settings {
                 margin-top: 4px;
             }
 
-            .sop-dashboard-metric-sub {
-                display: block;
-                margin-top: 2px;
+            .sop-dashboard-metric-subline {
+                display: flex;
+                align-items: baseline;
+                gap: 4px;
+                margin-top: 3px;
                 font-size: 11px;
-                color: #666;
+                color: #6c757d;
+            }
+
+            .sop-dashboard-metric-sub-label {
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+            }
+
+            .sop-dashboard-metric-sub-value {
+                font-weight: 600;
             }
 
             .sop-dashboard-tooltip {
@@ -756,8 +771,23 @@ class sop_Admin_Settings {
                     $wrapper.toggleClass('is-open');
                 });
 
-                if ( $.fn.wc_enhanced_select ) {
-                    $('.sop-dashboard-category-select').wc_enhanced_select();
+                if ( $.fn.selectWoo || $.fn.wc_enhanced_select ) {
+                    $('.sop-dashboard-category-select').each(function() {
+                        var $el = $( this );
+
+                        if ( $el.data( 'select2' ) ) {
+                            return;
+                        }
+
+                        if ( $.fn.selectWoo ) {
+                            $el.selectWoo({
+                                placeholder: $el.data( 'placeholder' ) || '',
+                                minimumResultsForSearch: $el.data( 'minimum-results-for-search' ) || -1
+                            });
+                        } else if ( $.fn.wc_enhanced_select ) {
+                            $el.wc_enhanced_select();
+                        }
+                    });
                 }
             });
         </script>
