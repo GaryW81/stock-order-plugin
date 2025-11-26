@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.21
+ * File version: 1.5.22
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -449,7 +449,7 @@ class sop_Admin_Settings {
                 <input type="hidden" name="page" value="sop_stock_order_dashboard" />
 
                 <label for="sop-dashboard-category-select"><?php esc_html_e( 'Category filter:', 'sop' ); ?></label>
-                <div class="sop-dashboard-filter-select">
+                <div class="sop-dashboard-filter-select sop-dashboard-filter-select-wrap">
                     <select id="sop-dashboard-category-select"
                             name="sop_dashboard_cats[]"
                             class="sop-dashboard-category-select wc-enhanced-select"
@@ -618,27 +618,23 @@ class sop_Admin_Settings {
                 white-space: nowrap;
             }
 
-            .sop-dashboard-filter-select {
-                flex: 1;
+            .sop-dashboard-filter-select-wrap {
+                flex: 0 0 50%;
+                max-width: 50%;
             }
 
-            .sop-dashboard-filter-select .select2-container,
-            .sop-dashboard-filter-select .wc-enhanced-select,
-            .sop-dashboard-filter-select .select2-container--default {
+            .sop-dashboard-filter-select-wrap .select2-container {
                 width: 100% !important;
             }
 
-            .sop-dashboard-filter-select .select2-selection--multiple {
-                min-height: 34px;
-                max-height: 34px;
-                border-radius: 4px;
-                padding: 3px 6px;
-                display: flex;
-                align-items: center;
-                overflow-y: hidden;
+            .sop-dashboard-filter-select-wrap .select2-selection--multiple {
+                min-height: 36px;
+                padding-top: 4px;
+                padding-bottom: 6px;
+                box-sizing: border-box;
             }
 
-            .sop-dashboard-filter-select .select2-selection--multiple .select2-selection__rendered {
+            .sop-dashboard-filter-select-wrap .select2-selection--multiple .select2-selection__rendered {
                 display: flex;
                 flex-wrap: nowrap;
                 gap: 4px;
@@ -646,12 +642,12 @@ class sop_Admin_Settings {
                 overflow-y: hidden;
             }
 
-            .sop-dashboard-filter-select .select2-selection--multiple .select2-selection__choice {
+            .sop-dashboard-filter-select-wrap .select2-selection--multiple .select2-selection__choice {
                 margin-top: 0;
                 padding: 2px 6px;
             }
 
-            .sop-dashboard-filter-select .select2-search--dropdown {
+            .sop-dashboard-filter-select-wrap .select2-search--dropdown {
                 display: none !important;
             }
 
@@ -711,30 +707,31 @@ class sop_Admin_Settings {
             .sop-dashboard-metric-label {
                 font-size: 13px;
                 color: #556070;
+                font-weight: 600;
+                margin-bottom: 2px;
             }
 
             .sop-dashboard-metric-value {
-                font-size: 16px;
+                font-size: 20px;
                 font-weight: 600;
-                margin-top: 4px;
+                margin-top: 0;
+                margin-bottom: 2px;
             }
 
-            .sop-dashboard-metric-units .sop-dashboard-metric-meta {
-                margin-top: 2px;
+            .sop-dashboard-metric-meta {
+                margin-top: 0;
                 font-size: 11px;
-                color: #666;
-                display: flex;
-                gap: 4px;
-                align-items: baseline;
+                color: #666666;
             }
 
-            .sop-dashboard-metric-units .sop-dashboard-metric-meta-label {
+            .sop-dashboard-metric-meta-label {
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+                margin-right: 4px;
+            }
+
+            .sop-dashboard-metric-meta-value {
                 font-weight: 500;
-                margin-right: 0;
-            }
-
-            .sop-dashboard-metric-units .sop-dashboard-metric-meta-value {
-                font-weight: 600;
             }
 
             .sop-dashboard-tooltip {
