@@ -1,15 +1,15 @@
-<?php
+﻿<?php
 /**
- * Stock Order Plugin – Phase 2 (Updated with USD)
+ * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.16
+ * File version: 1.5.18
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
  * - Suppliers tab manages rows in `sop_suppliers` via Phase 1 helpers.
  * - Implements global stock buffer months + per-supplier override (months).
  * - Supplier currency options: GBP, RMB, EUR, USD.
- * - Future phases: plugin will own its own product→supplier links and foreign prices
+ * - Future phases: plugin will own its own productâ†’supplier links and foreign prices
  *   (your existing meta like "supplier" and "rmb" can be migrated via a one-off tool).
  */
 
@@ -32,7 +32,7 @@ class sop_Admin_Settings {
     const OPTION_KEY = 'sop_settings';
 
     /**
-     * Constructor – hook into admin.
+     * Constructor â€“ hook into admin.
      */
     public function __construct() {
         add_action( 'admin_menu', array( $this, 'register_menu' ) );
@@ -127,19 +127,19 @@ class sop_Admin_Settings {
             $output['buffer_months_global'] = ( $buffer < 0 ) ? 0 : $buffer;
         }
 
-        // RMB → GBP rate (allow string, we'll cast when using).
+        // RMB â†’ GBP rate (allow string, we'll cast when using).
         if ( isset( $input['rmb_to_gbp_rate'] ) ) {
             $rate = trim( (string) $input['rmb_to_gbp_rate'] );
             $output['rmb_to_gbp_rate'] = $rate;
         }
 
-        // EUR ��' GBP rate (allow string, we'll cast when using).
+        // EUR ï¿½ï¿½' GBP rate (allow string, we'll cast when using).
         if ( isset( $input['eur_to_gbp_rate'] ) ) {
             $rate = trim( (string) $input['eur_to_gbp_rate'] );
             $output['eur_to_gbp_rate'] = $rate;
         }
 
-        // USD ��' GBP rate (allow string, we'll cast when using).
+        // USD ï¿½ï¿½' GBP rate (allow string, we'll cast when using).
         if ( isset( $input['usd_to_gbp_rate'] ) ) {
             $rate = trim( (string) $input['usd_to_gbp_rate'] );
             $output['usd_to_gbp_rate'] = $rate;
@@ -184,7 +184,7 @@ class sop_Admin_Settings {
     }
 
     /**
-     * Main page renderer – handles tab switching.
+     * Main page renderer â€“ handles tab switching.
      */
     public function render_page() {
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
@@ -234,13 +234,20 @@ class sop_Admin_Settings {
             return;
         }
 
+        $dashboard_category_ids = array();
+        if ( ! empty( $_GET['sop_dashboard_cats'] ) && is_array( $_GET['sop_dashboard_cats'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $dashboard_category_ids = array_map( 'absint', wp_unslash( $_GET['sop_dashboard_cats'] ) );
+        }
+
+        $settings = function_exists( 'sop_get_settings' ) ? sop_get_settings() : array();
+
         /**
-         * Get unit cost in GBP for dashboard metrics.
+         * Get unit cost in GBP for dashboard metrics (reuses existing SOP cost logic).
          *
          * @param WC_Product $product Product instance.
          * @return float
          */
-        $get_cost_gbp = function( $product ) {
+        $get_cost_gbp = function( $product ) use ( $settings ) {
             if ( ! $product instanceof WC_Product ) {
                 return 0.0;
             }
@@ -261,8 +268,6 @@ class sop_Admin_Settings {
                     $currency = strtoupper( (string) $supplier->currency );
                 }
             }
-
-            $settings = function_exists( 'sop_get_settings' ) ? sop_get_settings() : array();
 
             $rate_rmb = isset( $settings['rmb_to_gbp_rate'] ) ? (float) $settings['rmb_to_gbp_rate'] : 0.0;
             $rate_eur = isset( $settings['eur_to_gbp_rate'] ) ? (float) $settings['eur_to_gbp_rate'] : 0.0;
@@ -308,24 +313,37 @@ class sop_Admin_Settings {
             return $unit_cost_gbp;
         };
 
-        $stock_value_retail_ex_vat  = 0;
-        $stock_value_retail_inc_vat = 0;
+        $stock_value_retail_ex_vat  = 0.0;
+        $stock_value_retail_inc_vat = 0.0;
         $stock_units_total          = 0;
-        $stock_cost_total           = 0;
+        $stock_cost_total           = 0.0;
         $stockout_products          = array();
-        $stockout_count             = 0;
+        $supplier_ids               = array();
 
-        $product_query = new WC_Product_Query(
-            array(
-                'status'       => 'publish',
-                'limit'        => -1,
-                'type'         => array( 'simple', 'variation' ),
-                'return'       => 'objects',
-                'stock_status' => array( 'instock', 'outofstock' ),
-            )
+        $tax_query = array();
+        if ( ! empty( $dashboard_category_ids ) ) {
+            $tax_query[] = array(
+                'taxonomy' => 'product_cat',
+                'field'    => 'term_id',
+                'terms'    => $dashboard_category_ids,
+                'operator' => 'IN',
+            );
+        }
+
+        $query_args = array(
+            'status'       => 'publish',
+            'limit'        => -1,
+            'type'         => array( 'simple', 'variation' ),
+            'return'       => 'objects',
+            'stock_status' => array( 'instock', 'outofstock' ),
         );
 
-        $products = $product_query->get_products();
+        if ( ! empty( $tax_query ) ) {
+            $query_args['tax_query'] = $tax_query;
+        }
+
+        $product_query = new WC_Product_Query( $query_args );
+        $products      = $product_query->get_products();
 
         if ( ! empty( $products ) ) {
             foreach ( $products as $product ) {
@@ -358,9 +376,13 @@ class sop_Admin_Settings {
                     }
                 }
 
+                $supplier_id_for_count = (int) get_post_meta( $product->get_id(), '_sop_supplier_id', true );
+                if ( $supplier_id_for_count > 0 ) {
+                    $supplier_ids[ $supplier_id_for_count ] = true;
+                }
+
                 if ( 'outofstock' === $product->get_stock_status() ) {
-                    $stockout_count++;
-                    if ( count( $stockout_products ) < 10 ) {
+                    if ( count( $stockout_products ) < 15 ) {
                         $stockout_products[] = array(
                             'id'    => $product->get_id(),
                             'name'  => $product->get_name(),
@@ -372,79 +394,233 @@ class sop_Admin_Settings {
             }
         }
 
-        $supplier_count = 0;
-        if ( function_exists( 'sop_preorder_get_suppliers' ) ) {
-            $suppliers = sop_preorder_get_suppliers();
-            if ( is_array( $suppliers ) ) {
-                $supplier_count = count( $suppliers );
-            }
-        } elseif ( function_exists( 'sop_supplier_get_all' ) ) {
-            $suppliers = sop_supplier_get_all();
-            if ( is_array( $suppliers ) ) {
-                $supplier_count = count( $suppliers );
-            }
+        $stockout_count = count( $stockout_products );
+
+        $average_cost_ex_vat    = 0.0;
+        $average_retail_ex_vat  = 0.0;
+        $average_retail_inc_vat = 0.0;
+
+        if ( $stock_units_total > 0 ) {
+            $average_cost_ex_vat    = $stock_cost_total / $stock_units_total;
+            $average_retail_ex_vat  = $stock_value_retail_ex_vat / $stock_units_total;
+            $average_retail_inc_vat = $stock_value_retail_inc_vat / $stock_units_total;
         }
 
+        $supplier_count = count( $supplier_ids );
+
         ?>
+        <div class="wrap sop-dashboard-wrap">
+            <h1 class="sop-dashboard-title"><?php esc_html_e( 'Stock Order Dashboard', 'sop' ); ?></h1>
+
+            <form method="get" class="sop-dashboard-filter-form">
+                <?php
+                foreach ( $_GET as $key => $value ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                    if ( in_array( $key, array( 'sop_dashboard_cats', 'page' ), true ) ) {
+                        continue;
+                    }
+
+                    if ( is_array( $value ) ) {
+                        foreach ( $value as $sub_value ) {
+                            printf(
+                                '<input type="hidden" name="%s[]" value="%s" />',
+                                esc_attr( $key ),
+                                esc_attr( $sub_value )
+                            );
+                        }
+                    } else {
+                        printf(
+                            '<input type="hidden" name="%s" value="%s" />',
+                            esc_attr( $key ),
+                            esc_attr( $value )
+                        );
+                    }
+                }
+                ?>
+                <input type="hidden" name="page" value="sop_stock_order_dashboard" />
+
+                <label for="sop-dashboard-cats"><?php esc_html_e( 'Category filter:', 'sop' ); ?></label>
+                <select id="sop-dashboard-cats"
+                        name="sop_dashboard_cats[]"
+                        class="sop-dashboard-category-select wc-enhanced-select"
+                        multiple="multiple"
+                        style="width: 320px;">
+                    <?php
+                    $categories = get_terms(
+                        array(
+                            'taxonomy'   => 'product_cat',
+                            'hide_empty' => false,
+                        )
+                    );
+                    if ( ! is_wp_error( $categories ) ) :
+                        foreach ( $categories as $category ) :
+                            ?>
+                            <option value="<?php echo esc_attr( $category->term_id ); ?>" <?php selected( in_array( $category->term_id, $dashboard_category_ids, true ), true ); ?>>
+                                <?php echo esc_html( $category->name ); ?>
+                            </option>
+                            <?php
+                        endforeach;
+                    endif;
+                    ?>
+                </select>
+                <button type="submit" class="button"><?php esc_html_e( 'Apply filter', 'sop' ); ?></button>
+            </form>
+
+            <div class="sop-dashboard-row sop-dashboard-row-cards">
+                <div class="sop-dashboard-card sop-dashboard-card-overview">
+                    <h2 class="sop-dashboard-card-title">
+                        <?php esc_html_e( 'Stock overview', 'sop' ); ?>
+                        <span class="dashicons dashicons-info sop-dashboard-tooltip" title="<?php esc_attr_e( 'Includes current sale prices.', 'sop' ); ?>"></span>
+                    </h2>
+
+                    <div class="sop-dashboard-retail-total">
+                        <div class="sop-dashboard-retail-value js-sop-stock-value-display"
+                             data-display-ex="<?php echo esc_attr( wc_price( $stock_value_retail_ex_vat ) ); ?>"
+                             data-display-inc="<?php echo esc_attr( wc_price( $stock_value_retail_inc_vat ) ); ?>">
+                            <?php echo wp_kses_post( wc_price( $stock_value_retail_ex_vat ) ); ?>
+                        </div>
+                        <div class="sop-dashboard-retail-toggle">
+                            <button type="button" class="button button-small sop-stock-value-toggle is-active" data-mode="ex"><?php esc_html_e( 'Ex VAT', 'sop' ); ?></button>
+                            <button type="button" class="button button-small sop-stock-value-toggle" data-mode="inc"><?php esc_html_e( 'Inc VAT', 'sop' ); ?></button>
+                        </div>
+                    </div>
+
+                    <div class="sop-dashboard-metric-grid">
+                        <div class="sop-dashboard-metric">
+                            <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Total stock value (cost)', 'sop' ); ?></div>
+                            <div class="sop-dashboard-metric-value"><?php echo wp_kses_post( wc_price( $stock_cost_total ) ); ?></div>
+                        </div>
+                        <div class="sop-dashboard-metric">
+                            <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Total units', 'sop' ); ?></div>
+                            <div class="sop-dashboard-metric-value"><?php echo esc_html( number_format_i18n( $stock_units_total, 0 ) ); ?></div>
+                        </div>
+                        <div class="sop-dashboard-metric">
+                            <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Average cost per unit (ex VAT)', 'sop' ); ?></div>
+                            <div class="sop-dashboard-metric-value">
+                                <?php echo ( $average_cost_ex_vat > 0 ) ? wp_kses_post( wc_price( $average_cost_ex_vat ) ) : '&mdash;'; ?>
+                            </div>
+                        </div>
+                        <div class="sop-dashboard-metric">
+                            <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Average retail per unit (ex VAT)', 'sop' ); ?></div>
+                            <div class="sop-dashboard-metric-value">
+                                <?php echo ( $average_retail_ex_vat > 0 ) ? wp_kses_post( wc_price( $average_retail_ex_vat ) ) : '&mdash;'; ?>
+                            </div>
+                        </div>
+                        <div class="sop-dashboard-metric">
+                            <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Average retail per unit (inc VAT)', 'sop' ); ?></div>
+                            <div class="sop-dashboard-metric-value">
+                                <?php echo ( $average_retail_inc_vat > 0 ) ? wp_kses_post( wc_price( $average_retail_inc_vat ) ) : '&mdash;'; ?>
+                            </div>
+                        </div>
+                        <div class="sop-dashboard-metric">
+                            <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Suppliers', 'sop' ); ?></div>
+                            <div class="sop-dashboard-metric-value"><?php echo esc_html( number_format_i18n( $supplier_count, 0 ) ); ?></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sop-dashboard-card sop-dashboard-card-stockouts">
+                    <h2 class="sop-dashboard-card-title"><?php esc_html_e( 'Stock-out watchlist', 'sop' ); ?></h2>
+                    <p><?php printf( esc_html__( 'Products currently out of stock: %s', 'sop' ), esc_html( number_format_i18n( $stockout_count, 0 ) ) ); ?></p>
+                    <?php if ( ! empty( $stockout_products ) ) : ?>
+                        <ul class="sop-dashboard-watchlist">
+                            <?php foreach ( array_slice( $stockout_products, 0, 3 ) as $stockout_row ) : ?>
+                                <li>
+                                    <span class="sop-dashboard-watchlist-sku"><?php echo esc_html( $stockout_row['sku'] ? $stockout_row['sku'] : $stockout_row['name'] ); ?></span>
+                                    <span class="sop-dashboard-watchlist-name"><?php echo esc_html( $stockout_row['name'] ); ?></span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php else : ?>
+                        <p class="description"><?php esc_html_e( 'No products are currently out of stock.', 'sop' ); ?></p>
+                    <?php endif; ?>
+                    <p class="sop-dashboard-stockout-toggle">
+                        <a href="#" class="sop-dashboard-toggle-stockout-table">
+                            <?php esc_html_e( 'View out-of-stock products', 'sop' ); ?>
+                        </a>
+                    </p>
+                </div>
+            </div>
+
+            <div class="sop-dashboard-row sop-dashboard-row-stockouts">
+                <div id="sop-dashboard-stockout-table-wrapper" class="sop-dashboard-stockout-table-wrapper">
+                    <h2><?php esc_html_e( 'Out-of-stock products', 'sop' ); ?></h2>
+                    <?php if ( 0 === $stockout_count ) : ?>
+                        <p><?php esc_html_e( 'Good news - no products are currently out of stock.', 'sop' ); ?></p>
+                    <?php else : ?>
+                        <table class="widefat fixed striped sop-dashboard-stockout-table">
+                            <thead>
+                                <tr>
+                                    <th class="column-image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
+                                    <th class="column-sku"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                                    <th class="column-product"><?php esc_html_e( 'Product', 'sop' ); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ( $stockout_products as $stockout_row ) : ?>
+                                    <tr>
+                                        <td class="column-image"><?php echo wp_kses_post( $stockout_row['image'] ); ?></td>
+                                        <td class="column-sku"><?php echo esc_html( $stockout_row['sku'] ); ?></td>
+                                        <td class="column-product"><?php echo esc_html( $stockout_row['name'] ); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
         <style>
             .sop-dashboard-wrap {
-                max-width: 1200px;
+                max-width: 100%;
+                margin-top: 20px;
+            }
+
+            .sop-dashboard-filter-form {
+                margin: 12px 0 0;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                align-items: center;
             }
 
             .sop-dashboard-row {
-                margin-bottom: 20px;
+                margin-top: 20px;
             }
 
             .sop-dashboard-row-cards {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 16px;
+                display: grid;
+                grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+                gap: 20px;
+            }
+
+            @media ( max-width: 960px ) {
+                .sop-dashboard-row-cards {
+                    grid-template-columns: 1fr;
+                }
             }
 
             .sop-dashboard-card {
                 background: #fff;
-                border: 1px solid #ccd0d4;
-                border-radius: 4px;
-                padding: 16px;
-                flex: 1 1 0;
-                min-width: 260px;
+                border-radius: 10px;
+                border: 1px solid #e2e4e7;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+                padding: 18px 20px;
             }
 
             .sop-dashboard-card-title {
-                font-size: 15px;
-                margin: 0 0 8px;
+                margin: 0 0 12px;
+                font-size: 16px;
                 font-weight: 600;
             }
 
-            .sop-dashboard-card-value {
-                font-size: 24px;
+            .sop-dashboard-retail-value {
+                font-size: 1.6em;
                 font-weight: 700;
-                margin-bottom: 8px;
+                margin: 6px 0;
             }
 
-            .sop-dashboard-card-list {
-                margin: 0;
-                padding-left: 18px;
-            }
-
-            .sop-dashboard-card-list li {
-                margin-bottom: 4px;
-            }
-
-            .sop-dashboard-stockout-table img {
-                max-width: 40px;
-                height: auto;
-            }
-
-            .sop-dashboard-stockout-table .column-image {
-                width: 60px;
-            }
-
-            .sop-dashboard-stockout-table .column-sku {
-                width: 160px;
-            }
-
-            .sop-stock-value-toggle {
+            .sop-dashboard-retail-toggle .button {
                 margin-right: 6px;
             }
 
@@ -453,98 +629,94 @@ class sop_Admin_Settings {
                 color: #fff;
                 border-color: #1d5f8d;
             }
+
+            .sop-dashboard-metric-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 10px 16px;
+                margin-top: 16px;
+            }
+
+            .sop-dashboard-metric-label {
+                font-size: 13px;
+                color: #556070;
+            }
+
+            .sop-dashboard-metric-value {
+                font-size: 16px;
+                font-weight: 600;
+                margin-top: 4px;
+            }
+
+            .sop-dashboard-tooltip {
+                margin-left: 6px;
+                vertical-align: middle;
+                cursor: help;
+            }
+
+            .sop-dashboard-card-stockouts .sop-dashboard-watchlist {
+                margin: 0 0 8px;
+                padding-left: 18px;
+            }
+
+            .sop-dashboard-card-stockouts .sop-dashboard-watchlist li {
+                margin-bottom: 4px;
+            }
+
+            .sop-dashboard-stockout-table-wrapper {
+                display: none;
+            }
+
+            .sop-dashboard-stockout-table-wrapper.is-open {
+                display: block;
+            }
+
+            .sop-dashboard-stockout-table .column-image {
+                width: 70px;
+            }
+
+            .sop-dashboard-stockout-table img {
+                max-width: 50px;
+                height: auto;
+            }
         </style>
-        <div class="wrap sop-dashboard-wrap">
-            <h1 class="sop-dashboard-title"><?php esc_html_e( 'Stock Order Dashboard', 'sop' ); ?></h1>
 
-            <div class="sop-dashboard-row sop-dashboard-row-cards">
-                <div class="sop-dashboard-card sop-dashboard-card-stock-value">
-                    <h2 class="sop-dashboard-card-title"><?php esc_html_e( 'Total stock value (retail)', 'sop' ); ?></h2>
-                    <div class="sop-dashboard-card-value js-sop-stock-value-display"
-                         data-display-ex="<?php echo esc_attr( wc_price( $stock_value_retail_ex_vat ) ); ?>"
-                         data-display-inc="<?php echo esc_attr( wc_price( $stock_value_retail_inc_vat ) ); ?>">
-                        <?php echo wp_kses_post( wc_price( $stock_value_retail_ex_vat ) ); ?>
-                    </div>
-                    <div class="sop-stock-value-toggles">
-                        <button type="button" class="button button-small sop-stock-value-toggle is-active" data-mode="ex"><?php esc_html_e( 'Ex VAT', 'sop' ); ?></button>
-                        <button type="button" class="button button-small sop-stock-value-toggle" data-mode="inc"><?php esc_html_e( 'Inc VAT', 'sop' ); ?></button>
-                    </div>
-                </div>
-
-                <div class="sop-dashboard-card sop-dashboard-card-summary">
-                    <h2 class="sop-dashboard-card-title"><?php esc_html_e( 'Stock summary', 'sop' ); ?></h2>
-                    <p><?php printf( esc_html__( 'Total units: %s', 'sop' ), esc_html( number_format_i18n( $stock_units_total, 0 ) ) ); ?></p>
-                    <p><?php printf( esc_html__( 'Total stock value (cost): %s', 'sop' ), wp_kses_post( wc_price( $stock_cost_total ) ) ); ?></p>
-                    <p><?php printf( esc_html__( 'Suppliers: %s', 'sop' ), esc_html( number_format_i18n( $supplier_count, 0 ) ) ); ?></p>
-                </div>
-
-                <div class="sop-dashboard-card sop-dashboard-card-stockout">
-                    <h2 class="sop-dashboard-card-title"><?php esc_html_e( 'Stock-out watchlist', 'sop' ); ?></h2>
-                    <p><?php printf( esc_html__( 'Products currently out of stock: %s', 'sop' ), esc_html( number_format_i18n( $stockout_count, 0 ) ) ); ?></p>
-                    <?php if ( ! empty( $stockout_products ) ) : ?>
-                        <ul class="sop-dashboard-card-list">
-                            <?php foreach ( array_slice( $stockout_products, 0, 3 ) as $stockout_row ) : ?>
-                                <li><?php echo esc_html( $stockout_row['sku'] ? $stockout_row['sku'] : $stockout_row['name'] ); ?></li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <p class="description"><?php esc_html_e( 'Detailed list below.', 'sop' ); ?></p>
-                    <?php else : ?>
-                        <p class="description"><?php esc_html_e( 'No products are currently out of stock.', 'sop' ); ?></p>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <div class="sop-dashboard-row sop-dashboard-row-stockouts">
-                <h2><?php esc_html_e( 'Out-of-stock products', 'sop' ); ?></h2>
-                <?php if ( 0 === $stockout_count ) : ?>
-                    <p><?php esc_html_e( 'Good news – no products are currently out of stock.', 'sop' ); ?></p>
-                <?php else : ?>
-                    <table class="widefat fixed striped sop-dashboard-stockout-table">
-                        <thead>
-                            <tr>
-                                <th class="column-image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
-                                <th class="column-sku"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
-                                <th class="column-product"><?php esc_html_e( 'Product', 'sop' ); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ( $stockout_products as $stockout_row ) : ?>
-                                <tr>
-                                    <td class="column-image"><?php echo wp_kses_post( $stockout_row['image'] ); ?></td>
-                                    <td class="column-sku"><?php echo esc_html( $stockout_row['sku'] ); ?></td>
-                                    <td class="column-product"><?php echo esc_html( $stockout_row['name'] ); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
-            </div>
-        </div>
         <script>
             jQuery(function($) {
-                var $display = $('.js-sop-stock-value-display');
-                var $toggles = $('.sop-stock-value-toggle');
-
-                $toggles.on('click', function(e) {
+                $('.sop-dashboard-card-overview').on('click', '.sop-stock-value-toggle', function(e) {
                     e.preventDefault();
-                    var mode = $(this).data('mode');
+                    var $btn   = $(this);
+                    var mode   = $btn.data('mode');
+                    var $wrap  = $btn.closest('.sop-dashboard-card-overview');
+                    var $value = $wrap.find('.js-sop-stock-value-display');
 
-                    $toggles.removeClass('is-active');
-                    $(this).addClass('is-active');
+                    if ( ! mode || ! $value.length ) {
+                        return;
+                    }
 
-                    var html = (mode === 'inc') ? $display.data('display-inc') : $display.data('display-ex');
-                    if ( html ) {
-                        $display.html( html );
+                    $wrap.find('.sop-stock-value-toggle').removeClass('is-active');
+                    $btn.addClass('is-active');
+
+                    if ( 'inc' === mode ) {
+                        $value.html( $value.data('display-inc') );
+                    } else {
+                        $value.html( $value.data('display-ex') );
                     }
                 });
+
+                $('.sop-dashboard-card-stockouts').on('click', '.sop-dashboard-toggle-stockout-table', function(e) {
+                    e.preventDefault();
+                    var $wrapper = $('#sop-dashboard-stockout-table-wrapper');
+                    $wrapper.toggleClass('is-open');
+                });
+
+                if ( $.fn.wc_enhanced_select ) {
+                    $('.sop-dashboard-category-select').wc_enhanced_select();
+                }
             });
         </script>
         <?php
     }
-
-    /**
-     * Render the General Settings tab.
-     */
     protected function render_general_tab() {
         $settings = self::get_settings();
         ?>
@@ -598,7 +770,7 @@ class sop_Admin_Settings {
                     <tr>
                         <th scope="row">
                             <label for="sop_rmb_to_gbp_rate">
-                                <?php esc_html_e( 'RMB → GBP rate (optional)', 'sop' ); ?>
+                                <?php esc_html_e( 'RMB â†’ GBP rate (optional)', 'sop' ); ?>
                             </label>
                         </th>
                         <td>
