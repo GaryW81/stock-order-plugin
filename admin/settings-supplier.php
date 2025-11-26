@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.22
+ * File version: 1.5.23
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -505,10 +505,6 @@ class sop_Admin_Settings {
                         <div class="sop-dashboard-metric sop-dashboard-metric-units">
                             <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Total units', 'sop' ); ?></div>
                             <div class="sop-dashboard-metric-value"><?php echo esc_html( number_format_i18n( $stock_units_total, 0 ) ); ?></div>
-                            <div class="sop-dashboard-metric-meta">
-                                <span class="sop-dashboard-metric-meta-label"><?php esc_html_e( 'Products', 'sop' ); ?>:</span>
-                                <span class="sop-dashboard-metric-meta-value"><?php echo esc_html( number_format_i18n( $total_products, 0 ) ); ?></span>
-                            </div>
                         </div>
                         <div class="sop-dashboard-metric">
                             <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Average cost per unit (ex VAT)', 'sop' ); ?></div>
@@ -527,6 +523,10 @@ class sop_Admin_Settings {
                             <div class="sop-dashboard-metric-value">
                                 <?php echo ( $average_retail_inc_vat > 0 ) ? wp_kses_post( wc_price( $average_retail_inc_vat ) ) : '&mdash;'; ?>
                             </div>
+                        </div>
+                        <div class="sop-dashboard-metric">
+                            <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Products', 'sop' ); ?></div>
+                            <div class="sop-dashboard-metric-value"><?php echo esc_html( number_format_i18n( $total_products, 0 ) ); ?></div>
                         </div>
                         <div class="sop-dashboard-metric">
                             <div class="sop-dashboard-metric-label"><?php esc_html_e( 'Suppliers', 'sop' ); ?></div>
