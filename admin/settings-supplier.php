@@ -234,6 +234,80 @@ class sop_Admin_Settings {
             return;
         }
 
+        /**
+         * Get unit cost in GBP for dashboard metrics.
+         *
+         * @param WC_Product $product Product instance.
+         * @return float
+         */
+        $get_cost_gbp = function( $product ) {
+            if ( ! $product instanceof WC_Product ) {
+                return 0.0;
+            }
+
+            $product_id    = $product->get_id();
+            $unit_cost_gbp = (float) get_post_meta( $product_id, '_cogs_value', true );
+
+            if ( $unit_cost_gbp > 0 ) {
+                return $unit_cost_gbp;
+            }
+
+            $supplier_id = (int) get_post_meta( $product_id, '_sop_supplier_id', true );
+            $currency    = '';
+
+            if ( $supplier_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
+                $supplier = sop_supplier_get_by_id( $supplier_id );
+                if ( $supplier && ! empty( $supplier->currency ) ) {
+                    $currency = strtoupper( (string) $supplier->currency );
+                }
+            }
+
+            $settings = function_exists( 'sop_get_settings' ) ? sop_get_settings() : array();
+
+            $rate_rmb = isset( $settings['rmb_to_gbp_rate'] ) ? (float) $settings['rmb_to_gbp_rate'] : 0.0;
+            $rate_eur = isset( $settings['eur_to_gbp_rate'] ) ? (float) $settings['eur_to_gbp_rate'] : 0.0;
+            $rate_usd = isset( $settings['usd_to_gbp_rate'] ) ? (float) $settings['usd_to_gbp_rate'] : 0.0;
+
+            switch ( $currency ) {
+                case 'GBP':
+                    $unit_cost_gbp = (float) get_post_meta( $product_id, '_sop_cost_gbp', true );
+                    break;
+                case 'RMB':
+                    $unit_cost_gbp = (float) get_post_meta( $product_id, '_sop_cost_rmb', true );
+                    if ( $unit_cost_gbp > 0 && $rate_rmb > 0 ) {
+                        $unit_cost_gbp = $unit_cost_gbp * $rate_rmb;
+                    } else {
+                        $unit_cost_gbp = 0.0;
+                    }
+                    break;
+                case 'USD':
+                    $unit_cost_gbp = (float) get_post_meta( $product_id, '_sop_cost_usd', true );
+                    if ( $unit_cost_gbp > 0 && $rate_usd > 0 ) {
+                        $unit_cost_gbp = $unit_cost_gbp * $rate_usd;
+                    } else {
+                        $unit_cost_gbp = 0.0;
+                    }
+                    break;
+                case 'EUR':
+                    $unit_cost_gbp = (float) get_post_meta( $product_id, '_sop_cost_eur', true );
+                    if ( $unit_cost_gbp > 0 && $rate_eur > 0 ) {
+                        $unit_cost_gbp = $unit_cost_gbp * $rate_eur;
+                    } else {
+                        $unit_cost_gbp = 0.0;
+                    }
+                    break;
+                default:
+                    $unit_cost_gbp = 0.0;
+                    break;
+            }
+
+            if ( $unit_cost_gbp < 0 ) {
+                $unit_cost_gbp = 0.0;
+            }
+
+            return $unit_cost_gbp;
+        };
+
         $stock_value_retail_ex_vat  = 0;
         $stock_value_retail_inc_vat = 0;
         $stock_units_total          = 0;
@@ -278,9 +352,9 @@ class sop_Admin_Settings {
                     $stock_value_retail_ex_vat  += $qty * $price_ex_vat;
                     $stock_value_retail_inc_vat += $qty * $price_inc_vat;
 
-                    $cost_price = (float) get_post_meta( $product->get_id(), '_cogs_value', true );
-                    if ( $cost_price > 0 ) {
-                        $stock_cost_total += $qty * $cost_price;
+                    $cost_price_gbp = $get_cost_gbp( $product );
+                    if ( $cost_price_gbp > 0 ) {
+                        $stock_cost_total += $qty * $cost_price_gbp;
                     }
                 }
 
