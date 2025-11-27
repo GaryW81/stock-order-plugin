@@ -27,6 +27,7 @@ require_once SOP_PLUGIN_DIR . 'includes/db-helpers.php';
 require_once SOP_PLUGIN_DIR . 'includes/domain-helpers.php';
 require_once SOP_PLUGIN_DIR . 'includes/helper-buffer.php';
 require_once SOP_PLUGIN_DIR . 'includes/forecast-core.php';
+require_once SOP_PLUGIN_DIR . 'includes/class-sop-legacy-history.php';
 require_once SOP_PLUGIN_DIR . 'includes/supplier-meta-box.php';
 
 // Admin-only includes.
@@ -43,7 +44,10 @@ if ( is_admin() ) {
 function sop_activate_plugin() {
     if ( class_exists( 'sop_DB' ) ) {
         sop_DB::maybe_install();
-        return;
+    }
+
+    if ( class_exists( 'SOP_Legacy_History' ) ) {
+        SOP_Legacy_History::install();
     }
 
     // TODO: Add DB install routine when loader class is introduced.
@@ -58,3 +62,12 @@ function sop_deactivate_plugin() {
 
 register_activation_hook( __FILE__, 'sop_activate_plugin' );
 register_deactivation_hook( __FILE__, 'sop_deactivate_plugin' );
+
+add_action(
+    'admin_init',
+    function () {
+        if ( class_exists( 'SOP_Legacy_History' ) ) {
+            SOP_Legacy_History::install();
+        }
+    }
+);

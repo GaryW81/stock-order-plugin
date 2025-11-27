@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.23
+ * File version: 1.5.24
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -232,6 +232,309 @@ class sop_Admin_Settings {
     public function render_dashboard_page() {
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
             return;
+        }
+
+        global $wpdb;
+
+        $legacy_import_message       = '';
+        $legacy_import_notice_class  = 'notice-info';
+        $legacy_import_stats         = array(
+            'inserted'  => 0,
+            'updated'   => 0,
+            'skipped'   => 0,
+            'processed' => 0,
+        );
+
+        if ( ! empty( $_POST['sop_legacy_import_action'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            check_admin_referer( 'sop_legacy_import', 'sop_legacy_import_nonce' );
+
+            if ( ! class_exists( 'SOP_Legacy_History' ) ) {
+                $legacy_import_message      = __( 'Legacy history storage is not available. Please try again after reloading the plugin.', 'sop' );
+                $legacy_import_notice_class = 'notice-error';
+            } elseif ( empty( $_FILES['sop_legacy_import_file'] ) || ! isset( $_FILES['sop_legacy_import_file']['tmp_name'] ) ) {
+                $legacy_import_message      = __( 'Please choose a CSV file to import.', 'sop' );
+                $legacy_import_notice_class = 'notice-error';
+            } else {
+                $file = $_FILES['sop_legacy_import_file']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+
+                if ( ! empty( $file['error'] ) || UPLOAD_ERR_OK !== (int) $file['error'] ) {
+                    $legacy_import_message      = __( 'Upload error encountered. Please try again.', 'sop' );
+                    $legacy_import_notice_class = 'notice-error';
+                } else {
+                    $tmp_name = $file['tmp_name'];
+                    $handle   = ( $tmp_name && file_exists( $tmp_name ) ) ? fopen( $tmp_name, 'r' ) : false;
+
+                    if ( false === $handle ) {
+                        $legacy_import_message      = __( 'Could not read the uploaded CSV file.', 'sop' );
+                        $legacy_import_notice_class = 'notice-error';
+                    } else {
+                        $headers = fgetcsv( $handle );
+
+                        if ( empty( $headers ) || ! is_array( $headers ) ) {
+                            fclose( $handle );
+                            $legacy_import_message      = __( 'CSV appears to be empty or missing a header row.', 'sop' );
+                            $legacy_import_notice_class = 'notice-error';
+                        } else {
+                            $headers = array_map(
+                                function ( $header ) {
+                                    $header = preg_replace( '/^\xEF\xBB\xBF/', '', (string) $header ); // Remove BOM.
+                                    $header = strtolower( trim( $header ) );
+                                    $header = str_replace( array( ' ', '-' ), '_', $header );
+                                    $header = preg_replace( '/[^a-z0-9_]/', '', $header );
+                                    return $header;
+                                },
+                                $headers
+                            );
+
+                            $imported_at     = current_time( 'mysql' );
+                            $allowed_columns = class_exists( 'SOP_Legacy_History' ) ? SOP_Legacy_History::get_columns() : array();
+                            $allowed_map     = array_flip( $allowed_columns );
+                            $table_name      = class_exists( 'SOP_Legacy_History' ) ? SOP_Legacy_History::get_table_name() : '';
+                            $existing_map    = array();
+
+                            if ( $table_name ) {
+                                $existing_ids = $wpdb->get_col( "SELECT product_id FROM {$table_name}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+                                if ( ! empty( $existing_ids ) ) {
+                                    foreach ( $existing_ids as $existing_id ) {
+                                        $existing_map[ (int) $existing_id ] = true;
+                                    }
+                                }
+                            }
+
+                            while ( ( $row = fgetcsv( $handle ) ) !== false ) {
+                                if ( empty( $row ) || ( 1 === count( $row ) && '' === trim( (string) $row[0] ) ) ) {
+                                    continue;
+                                }
+
+                                if ( count( $row ) !== count( $headers ) ) {
+                                    $legacy_import_stats['skipped']++;
+                                    continue;
+                                }
+
+                                $row_data = array_combine( $headers, $row );
+
+                                $product_id = isset( $row_data['product_id'] ) ? (int) $row_data['product_id'] : 0;
+                                if ( $product_id <= 0 ) {
+                                    $legacy_import_stats['skipped']++;
+                                    continue;
+                                }
+
+                                $data = array(
+                                    'product_id'            => $product_id,
+                                    'legacy_source_version' => '2024-2025-import-v1',
+                                    'imported_at'           => $imported_at,
+                                );
+
+                                foreach ( $row_data as $column => $value ) {
+                                    $value = is_string( $value ) ? trim( $value ) : $value;
+
+                                    switch ( $column ) {
+                                        case 'sku':
+                                            if ( '' !== $value ) {
+                                                $data['sku'] = sanitize_text_field( $value );
+                                            }
+                                            break;
+                                        case 'product_name':
+                                        case 'name':
+                                            if ( '' !== $value ) {
+                                                $data['product_name'] = sanitize_text_field( $value );
+                                            }
+                                            break;
+                                        case 'supplier_id':
+                                            if ( '' !== $value ) {
+                                                $data['supplier_id'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'engine_kit_group':
+                                            if ( '' !== $value ) {
+                                                $data['engine_kit_group'] = sanitize_text_field( $value );
+                                            }
+                                            break;
+                                        case 'current_stock':
+                                        case 'stock':
+                                            if ( '' !== $value ) {
+                                                $data['current_stock'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'max_order_qty_per_month':
+                                            if ( '' !== $value ) {
+                                                $data['max_order_qty_per_month'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'units_sold_12m':
+                                            if ( '' !== $value ) {
+                                                $data['units_sold_12m'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'revenue_12m':
+                                            if ( '' !== $value ) {
+                                                $data['revenue_12m'] = (float) $value;
+                                            }
+                                            break;
+                                        case 'order_count_12m':
+                                        case 'order_count':
+                                            if ( '' !== $value ) {
+                                                $data['order_count_12m'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'first_order_date':
+                                        case 'first_order_date_12m':
+                                            if ( '' !== $value ) {
+                                                $data['first_order_date_12m'] = $value;
+                                            }
+                                            break;
+                                        case 'last_order_date':
+                                        case 'last_order_date_12m':
+                                            if ( '' !== $value ) {
+                                                $data['last_order_date_12m'] = $value;
+                                            }
+                                            break;
+                                        case 'avg_units_per_day_raw_12m':
+                                            if ( '' !== $value ) {
+                                                $data['avg_units_per_day_raw_12m'] = (float) $value;
+                                            }
+                                            break;
+                                        case 'days_span_12m':
+                                            if ( '' !== $value ) {
+                                                $data['days_span_12m'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'avg_units_per_day_span_12m':
+                                            if ( '' !== $value ) {
+                                                $data['avg_units_per_day_span_12m'] = (float) $value;
+                                            }
+                                            break;
+                                        case 'alert_count_12m':
+                                        case 'alert_count':
+                                            if ( '' !== $value ) {
+                                                $data['alert_count_12m'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'zero_alert_count_12m':
+                                        case 'zero_alert_count':
+                                            if ( '' !== $value ) {
+                                                $data['zero_alert_count_12m'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'first_zero_alert':
+                                        case 'first_zero_alert_12m':
+                                            if ( '' !== $value ) {
+                                                $data['first_zero_alert_12m'] = $value;
+                                            }
+                                            break;
+                                        case 'last_zero_alert':
+                                        case 'last_zero_alert_12m':
+                                            if ( '' !== $value ) {
+                                                $data['last_zero_alert_12m'] = $value;
+                                            }
+                                            break;
+                                        case 'delivered_units_from_containers':
+                                        case 'delivered_units_from_containers_12m':
+                                            if ( '' !== $value ) {
+                                                $data['delivered_units_from_containers_12m'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'container_delivery_count':
+                                        case 'container_delivery_count_12m':
+                                            if ( '' !== $value ) {
+                                                $data['container_delivery_count_12m'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'stockout_days_12m_legacy':
+                                        case 'stockout_days':
+                                            if ( '' !== $value ) {
+                                                $data['stockout_days_12m_legacy'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'days_on_sale_12m_legacy':
+                                        case 'days_on_sale':
+                                            if ( '' !== $value ) {
+                                                $data['days_on_sale_12m_legacy'] = (int) $value;
+                                            }
+                                            break;
+                                        case 'avg_units_per_day_in_stock_12m_legacy':
+                                            if ( '' !== $value ) {
+                                                $data['avg_units_per_day_in_stock_12m_legacy'] = (float) $value;
+                                            }
+                                            break;
+                                        case 'lost_units_12m_legacy':
+                                            if ( '' !== $value ) {
+                                                $data['lost_units_12m_legacy'] = (float) $value;
+                                            }
+                                            break;
+                                        case 'lost_revenue_12m_legacy':
+                                            if ( '' !== $value ) {
+                                                $data['lost_revenue_12m_legacy'] = (float) $value;
+                                            }
+                                            break;
+                                    }
+                                }
+
+                                if ( ! isset( $data['days_span_12m'] ) && ! empty( $data['first_order_date_12m'] ) && ! empty( $data['last_order_date_12m'] ) ) {
+                                    $start_ts = strtotime( $data['first_order_date_12m'] );
+                                    $end_ts   = strtotime( $data['last_order_date_12m'] );
+                                    if ( false !== $start_ts && false !== $end_ts && $end_ts >= $start_ts ) {
+                                        $data['days_span_12m'] = (int) floor( ( $end_ts - $start_ts ) / DAY_IN_SECONDS ) + 1;
+                                    }
+                                }
+
+                                if ( ! isset( $data['avg_units_per_day_raw_12m'] ) && isset( $data['units_sold_12m'] ) ) {
+                                    $data['avg_units_per_day_raw_12m'] = (float) $data['units_sold_12m'] / 365;
+                                }
+
+                                if ( ! isset( $data['avg_units_per_day_span_12m'] ) && isset( $data['units_sold_12m'] ) ) {
+                                    $span_days = isset( $data['days_span_12m'] ) ? (int) $data['days_span_12m'] : 0;
+                                    if ( $span_days > 0 ) {
+                                        $data['avg_units_per_day_span_12m'] = (float) $data['units_sold_12m'] / max( 1, $span_days );
+                                    }
+                                }
+
+                                $data = array_intersect_key( $data, $allowed_map );
+
+                                if ( empty( $data['product_id'] ) ) {
+                                    $legacy_import_stats['skipped']++;
+                                    continue;
+                                }
+
+                                $was_existing = isset( $existing_map[ $product_id ] );
+
+                                $result = SOP_Legacy_History::upsert_row( $data );
+
+                                if ( false === $result ) {
+                                    $legacy_import_stats['skipped']++;
+                                    continue;
+                                }
+
+                                $legacy_import_stats['processed']++;
+                                if ( $was_existing ) {
+                                    $legacy_import_stats['updated']++;
+                                } else {
+                                    $legacy_import_stats['inserted']++;
+                                }
+
+                                $existing_map[ $product_id ] = true;
+                            }
+
+                            fclose( $handle );
+
+                            if ( $legacy_import_stats['processed'] > 0 ) {
+                                $legacy_import_message      = sprintf(
+                                    /* translators: 1: processed count, 2: inserted count, 3: updated count, 4: skipped count */
+                                    __( 'Imported %1$s products (%2$s inserts, %3$s updates, %4$s skipped).', 'sop' ),
+                                    number_format_i18n( $legacy_import_stats['processed'] ),
+                                    number_format_i18n( $legacy_import_stats['inserted'] ),
+                                    number_format_i18n( $legacy_import_stats['updated'] ),
+                                    number_format_i18n( $legacy_import_stats['skipped'] )
+                                );
+                                $legacy_import_notice_class = 'notice-success';
+                            } else {
+                                $legacy_import_message      = __( 'No rows were imported from the CSV.', 'sop' );
+                                $legacy_import_notice_class = 'notice-warning';
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Ensure WooCommerce enhanced select assets are available on the dashboard.
@@ -583,6 +886,37 @@ class sop_Admin_Settings {
                             </tbody>
                         </table>
                     <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="sop-dashboard-row sop-dashboard-row-import">
+                <div class="sop-dashboard-card">
+                    <h2 class="sop-dashboard-card-title"><?php esc_html_e( 'Legacy data import (temporary)', 'sop' ); ?></h2>
+                    <p><?php esc_html_e( 'Upload a one-time CSV of legacy product metrics. Rows are keyed by product ID and can be re-imported to update values.', 'sop' ); ?></p>
+                    <p class="description">
+                        <?php esc_html_e( 'CSV must include a header row. Recognised columns include product_id, sku, product_name, supplier_id, current_stock, max_order_qty_per_month, units_sold_12m, revenue_12m, order_count_12m, alert_count_12m, zero_alert_count_12m, delivered_units_from_containers_12m, container_delivery_count_12m, stockout_days_12m_legacy, days_on_sale_12m_legacy and date columns such as first_order_date_12m.', 'sop' ); ?>
+                    </p>
+                    <p class="description">
+                        <?php esc_html_e( 'Extra columns are ignored unless they match a legacy history field. This importer only writes to the sop_legacy_product_history table and will not touch WooCommerce meta.', 'sop' ); ?>
+                    </p>
+
+                    <?php if ( $legacy_import_message ) : ?>
+                        <div class="notice <?php echo esc_attr( $legacy_import_notice_class ); ?> is-dismissible">
+                            <p><?php echo esc_html( $legacy_import_message ); ?></p>
+                        </div>
+                    <?php endif; ?>
+
+                    <form method="post" enctype="multipart/form-data">
+                        <?php wp_nonce_field( 'sop_legacy_import', 'sop_legacy_import_nonce' ); ?>
+                        <input type="hidden" name="sop_legacy_import_action" value="1" />
+                        <p>
+                            <label for="sop_legacy_import_file"><?php esc_html_e( 'Legacy CSV file', 'sop' ); ?></label><br />
+                            <input type="file" name="sop_legacy_import_file" id="sop_legacy_import_file" accept=".csv,text/csv" />
+                        </p>
+                        <p>
+                            <button type="submit" class="button button-primary"><?php esc_html_e( 'Import legacy data', 'sop' ); ?></button>
+                        </p>
+                    </form>
                 </div>
             </div>
         </div>
