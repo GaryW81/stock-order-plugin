@@ -363,7 +363,24 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         $engine = sop_core_engine();
 
         if ( $engine && method_exists( $engine, 'get_supplier_forecast' ) ) {
-            $forecast_rows = $engine->get_supplier_forecast( $supplier_id, array() );
+            $forecast_rows = array();
+
+            // Protect against any runtime errors inside the forecast engine.
+            try {
+                $forecast_rows = $engine->get_supplier_forecast( $supplier_id, array() );
+            } catch ( Throwable $t ) { // PHP 7+.
+                // Log the error but do not break the Pre-Order Sheet.
+                error_log(
+                    sprintf(
+                        'SOP forecast error for supplier %d: %s in %s:%d',
+                        (int) $supplier_id,
+                        $t->getMessage(),
+                        $t->getFile(),
+                        $t->getLine()
+                    )
+                );
+                $forecast_rows = array();
+            }
 
             if ( is_array( $forecast_rows ) ) {
                 foreach ( $forecast_rows as $frow ) {
