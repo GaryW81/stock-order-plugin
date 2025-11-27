@@ -356,6 +356,32 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         return [];
     }
 
+    // Preload forecast rows for this supplier and index by product ID.
+    $forecast_by_product = array();
+
+    if ( function_exists( 'sop_core_engine' ) ) {
+        $engine = sop_core_engine();
+
+        if ( $engine && method_exists( $engine, 'get_supplier_forecast' ) ) {
+            $forecast_rows = $engine->get_supplier_forecast( $supplier_id, array() );
+
+            if ( is_array( $forecast_rows ) ) {
+                foreach ( $forecast_rows as $frow ) {
+                    if ( empty( $frow['product_id'] ) ) {
+                        continue;
+                    }
+
+                    $pid = (int) $frow['product_id'];
+                    if ( $pid <= 0 ) {
+                        continue;
+                    }
+
+                    $forecast_by_product[ $pid ] = $frow;
+                }
+            }
+        }
+    }
+
     $q = new WP_Query(
         [
             'post_type'      => 'product',
@@ -488,7 +514,21 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         }
 
         $regular_line_price  = $regular_unit_price * $order;
-        $suggested_order_qty = 0.0; // Placeholder until forecasting engine is wired in.
+        $suggested_order_qty = 0.0;
+
+        if ( isset( $forecast_by_product[ $product_id ] ) && is_array( $forecast_by_product[ $product_id ] ) ) {
+            $forecast_row = $forecast_by_product[ $product_id ];
+
+            if ( isset( $forecast_row['suggested_capped'] ) ) {
+                $suggested_order_qty = (float) $forecast_row['suggested_capped'];
+            } elseif ( isset( $forecast_row['suggested_raw'] ) ) {
+                $suggested_order_qty = (float) $forecast_row['suggested_raw'];
+            }
+
+            if ( $suggested_order_qty < 0 ) {
+                $suggested_order_qty = 0.0;
+            }
+        }
 
         $rows[] = [
             'product_id'          => $product_id,

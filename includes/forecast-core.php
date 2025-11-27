@@ -423,7 +423,7 @@ add_action(
     'admin_menu',
     function () {
         add_submenu_page(
-            'sop_stock_order',
+            'sop_stock_order_dashboard',
             __( 'Stock Order Forecast (Debug)', 'sop' ),
             __( 'Forecast (Debug)', 'sop' ),
             'manage_woocommerce',
