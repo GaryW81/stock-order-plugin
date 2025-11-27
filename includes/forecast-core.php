@@ -165,9 +165,22 @@ class Stock_Order_Plugin_Core_Engine {
     /**
      * Get sales summary for a product (qty sold, days on sale, demand per day).
      *
+     * This uses WooCommerce order data for quantity sold, combines live stockout
+     * logs from sop_stockout_log with scaled legacy stockout metrics, and computes
+     * an adjusted days-on-sale figure.
+     *
      * @param int   $product_id Product ID.
      * @param array $args       Optional overrides (lookback_days, date_to).
-     * @return array
+     * @return array {
+     *     @type int   $qty_sold             Total quantity sold in the window.
+     *     @type float $days_on_sale         Adjusted days on sale (total_days - stockout_days_total).
+     *     @type float $demand_per_day       Qty sold per adjusted day.
+     *     @type float $total_days           Total days in the analysis window.
+     *     @type float $stockout_days_total  Combined live + legacy stockout days.
+     *     @type float $stockout_days_live   Live stockout days from sop_stockout_log.
+     *     @type float $stockout_days_legacy Legacy stockout days (scaled to the window).
+     *     @type float $legacy_total_days    Total legacy-covered days inside the window.
+     * }
      */
     public function get_product_sales_summary( $product_id, array $args = array() ) {
         global $wpdb;
@@ -175,11 +188,14 @@ class Stock_Order_Plugin_Core_Engine {
         $product_id = (int) $product_id;
         if ( $product_id <= 0 ) {
             return array(
-                'qty_sold'       => 0,
-                'days_on_sale'   => 0.0,
-                'demand_per_day' => 0.0,
-                'total_days'     => 0.0,
-                'stockout_days'  => 0.0,
+                'qty_sold'             => 0,
+                'days_on_sale'         => 0.0,
+                'demand_per_day'       => 0.0,
+                'total_days'           => 0.0,
+                'stockout_days_total'  => 0.0,
+                'stockout_days_live'   => 0.0,
+                'stockout_days_legacy' => 0.0,
+                'legacy_total_days'    => 0.0,
             );
         }
 
@@ -195,6 +211,7 @@ class Stock_Order_Plugin_Core_Engine {
         $to_ts   = strtotime( $date_to . ' 23:59:59' );
         $from_ts = $to_ts - ( $lookback_days * DAY_IN_SECONDS );
 
+        // 1) Quantity sold from WooCommerce order lookup tables.
         $lookup_table = $wpdb->prefix . 'wc_order_product_lookup';
         $orders_table = $wpdb->prefix . 'wc_orders';
 
@@ -222,31 +239,55 @@ class Stock_Order_Plugin_Core_Engine {
 
         $qty_sold = (int) $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
 
-        $total_days    = max( 1.0, ( $to_ts - $from_ts ) / DAY_IN_SECONDS );
-        $stockout_days = 0.0;
+        // 2) Days in the analysis window.
+        $total_days = max( 1.0, ( $to_ts - $from_ts ) / DAY_IN_SECONDS );
 
+        // 3) Live stockout days from sop_stockout_log.
+        $stockout_days_live = 0.0;
         if ( function_exists( 'sop_stockout_get_days_in_window' ) ) {
-            $stockout_days = (float) sop_stockout_get_days_in_window( $product_id, 0, $from_ts, $to_ts );
+            $stockout_days_live = (float) sop_stockout_get_days_in_window( $product_id, 0, $from_ts, $to_ts );
+            if ( $stockout_days_live < 0 ) {
+                $stockout_days_live = 0.0;
+            }
         }
 
-        if ( $stockout_days < 0 ) {
-            $stockout_days = 0.0;
+        // 4) Legacy stockout days (scaled to the portion of the window before import).
+        $stockout_days_legacy = 0.0;
+        $legacy_total_days    = 0.0;
+
+        if ( function_exists( 'sop_legacy_get_scaled_days_for_window' ) ) {
+            $legacy = sop_legacy_get_scaled_days_for_window( $product_id, $from_ts, $to_ts );
+            if ( is_array( $legacy ) ) {
+                if ( isset( $legacy['stockout_days'] ) ) {
+                    $stockout_days_legacy = max( 0.0, (float) $legacy['stockout_days'] );
+                }
+                if ( isset( $legacy['total_days'] ) ) {
+                    $legacy_total_days = max( 0.0, (float) $legacy['total_days'] );
+                }
+            }
         }
 
-        if ( $stockout_days > $total_days ) {
-            $stockout_days = $total_days;
+        // 5) Combine and clamp.
+        $stockout_days_total = $stockout_days_live + $stockout_days_legacy;
+        if ( $stockout_days_total < 0.0 ) {
+            $stockout_days_total = 0.0;
+        } elseif ( $stockout_days_total > $total_days ) {
+            $stockout_days_total = $total_days;
         }
 
-        $days_on_sale = max( 1.0, $total_days - $stockout_days );
+        $days_on_sale = max( 1.0, $total_days - $stockout_days_total );
 
         $demand_per_day = $qty_sold > 0 ? ( $qty_sold / $days_on_sale ) : 0.0;
 
         return array(
-            'qty_sold'       => $qty_sold,
-            'days_on_sale'   => (float) $days_on_sale,
-            'demand_per_day' => (float) $demand_per_day,
-            'total_days'     => (float) $total_days,
-            'stockout_days'  => (float) $stockout_days,
+            'qty_sold'             => $qty_sold,
+            'days_on_sale'         => (float) $days_on_sale,
+            'demand_per_day'       => (float) $demand_per_day,
+            'total_days'           => (float) $total_days,
+            'stockout_days_total'  => (float) $stockout_days_total,
+            'stockout_days_live'   => (float) $stockout_days_live,
+            'stockout_days_legacy' => (float) $stockout_days_legacy,
+            'legacy_total_days'    => (float) $legacy_total_days,
         );
     }
 

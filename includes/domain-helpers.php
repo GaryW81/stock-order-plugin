@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.3
+ * File version: 1.0.4
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -385,6 +385,123 @@ function sop_stockout_get_days_in_window( $product_id, $variation_id = 0, $from_
     }
 
     return (float) $days;
+}
+
+/**
+ * Get effective legacy stockout/in-stock days for a product within an analysis window.
+ *
+ * Legacy impact fades linearly over the lookback window based on the import timestamp,
+ * preserving the original stockout ratio for the portion still covered by legacy data.
+ *
+ * @param int $product_id Product ID.
+ * @param int $from_ts    Analysis window start (Unix timestamp).
+ * @param int $to_ts      Analysis window end (Unix timestamp).
+ * @return array {
+ *     @type float $stockout_days Effective legacy stockout days inside the window.
+ *     @type float $in_stock_days Effective legacy in-stock days inside the window.
+ *     @type float $total_days    Total legacy-covered days inside the window.
+ * }
+ */
+function sop_legacy_get_scaled_days_for_window( $product_id, $from_ts, $to_ts ) {
+    global $wpdb;
+
+    $product_id = (int) $product_id;
+    if ( $product_id <= 0 ) {
+        return array(
+            'stockout_days' => 0.0,
+            'in_stock_days' => 0.0,
+            'total_days'    => 0.0,
+        );
+    }
+
+    $from_ts = (int) $from_ts;
+    $to_ts   = (int) $to_ts;
+
+    if ( $to_ts <= $from_ts ) {
+        return array(
+            'stockout_days' => 0.0,
+            'in_stock_days' => 0.0,
+            'total_days'    => 0.0,
+        );
+    }
+
+    $lookback_days = max( 1, (int) floor( ( $to_ts - $from_ts ) / DAY_IN_SECONDS ) );
+
+    $table = $wpdb->prefix . 'sop_legacy_product_history';
+
+    $sql = $wpdb->prepare(
+        "SELECT stockout_days_12m_legacy, days_on_sale_12m_legacy, imported_at
+         FROM {$table}
+         WHERE product_id = %d
+         LIMIT 1",
+        $product_id
+    );
+
+    $row = $wpdb->get_row( $sql ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+    if ( ! $row ) {
+        return array(
+            'stockout_days' => 0.0,
+            'in_stock_days' => 0.0,
+            'total_days'    => 0.0,
+        );
+    }
+
+    $legacy_stockout = isset( $row->stockout_days_12m_legacy ) ? (float) $row->stockout_days_12m_legacy : 0.0;
+    $legacy_on_sale  = isset( $row->days_on_sale_12m_legacy ) ? (float) $row->days_on_sale_12m_legacy : 0.0;
+
+    $legacy_total = $legacy_stockout + $legacy_on_sale;
+    if ( $legacy_total <= 0 ) {
+        return array(
+            'stockout_days' => 0.0,
+            'in_stock_days' => 0.0,
+            'total_days'    => 0.0,
+        );
+    }
+
+    $imported_at_raw = isset( $row->imported_at ) ? (string) $row->imported_at : '';
+    $import_ts       = $imported_at_raw ? strtotime( $imported_at_raw ) : 0;
+
+    $stockout_ratio = max( 0.0, min( 1.0, $legacy_stockout / $legacy_total ) );
+
+    if ( $import_ts <= 0 ) {
+        $stockout_days = $lookback_days * $stockout_ratio;
+        $in_stock_days = $lookback_days - $stockout_days;
+
+        return array(
+            'stockout_days' => (float) $stockout_days,
+            'in_stock_days' => (float) $in_stock_days,
+            'total_days'    => (float) $lookback_days,
+        );
+    }
+
+    $days_since_import = (int) floor( max( 0, ( $to_ts - $import_ts ) / DAY_IN_SECONDS ) );
+
+    if ( $days_since_import >= $lookback_days ) {
+        return array(
+            'stockout_days' => 0.0,
+            'in_stock_days' => 0.0,
+            'total_days'    => 0.0,
+        );
+    }
+
+    $pre_import_days = (float) ( $lookback_days - $days_since_import );
+    if ( $pre_import_days <= 0 ) {
+        return array(
+            'stockout_days' => 0.0,
+            'in_stock_days' => 0.0,
+            'total_days'    => 0.0,
+        );
+    }
+
+    $stockout_days = $pre_import_days * $stockout_ratio;
+    $in_stock_days = $pre_import_days - $stockout_days;
+
+    return array(
+        'stockout_days' => (float) $stockout_days,
+        'in_stock_days' => (float) $in_stock_days,
+        'total_days'    => (float) $pre_import_days,
+    );
 }
 
 /**
