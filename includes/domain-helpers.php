@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.2
+ * File version: 1.0.3
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -293,6 +293,98 @@ function sop_stockout_close( $product_id, $variation_id = 0, $source = 'runtime'
     }
 
     return $closed_count;
+}
+
+/**
+ * Calculate total stockout days for a product/variation within a window.
+ *
+ * @param int $product_id
+ * @param int $variation_id
+ * @param int $from_ts      Start timestamp (inclusive).
+ * @param int $to_ts        End timestamp (exclusive).
+ * @return float Stockout days within the window.
+ */
+function sop_stockout_get_days_in_window( $product_id, $variation_id = 0, $from_ts = 0, $to_ts = 0 ) {
+    global $wpdb;
+
+    $product_id   = (int) $product_id;
+    $variation_id = (int) $variation_id;
+    $from_ts      = (int) $from_ts;
+    $to_ts        = (int) $to_ts;
+
+    if ( $product_id <= 0 ) {
+        return 0.0;
+    }
+
+    if ( $from_ts <= 0 || $to_ts <= 0 || $from_ts >= $to_ts ) {
+        return 0.0;
+    }
+
+    $table = sop_get_table_name( 'stockout_log' );
+    if ( ! $table ) {
+        return 0.0;
+    }
+
+    $window_start = date( 'Y-m-d H:i:s', $from_ts );
+    $window_end   = date( 'Y-m-d H:i:s', $to_ts );
+
+    $sql = $wpdb->prepare(
+        "SELECT date_start, date_end FROM {$table}
+        WHERE product_id = %d
+          AND variation_id = %d
+          AND date_start <= %s
+          AND ( date_end IS NULL OR date_end >= %s )
+        ORDER BY date_start ASC",
+        $product_id,
+        $variation_id,
+        $window_end,
+        $window_start
+    );
+
+    $rows = $wpdb->get_results( $sql ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+    if ( empty( $rows ) ) {
+        return 0.0;
+    }
+
+    $total_seconds = 0.0;
+
+    foreach ( $rows as $row ) {
+        $start_ts = strtotime( $row->date_start );
+        $end_ts   = $row->date_end ? strtotime( $row->date_end ) : current_time( 'timestamp' );
+
+        if ( false === $start_ts ) {
+            continue;
+        }
+
+        if ( false === $end_ts ) {
+            continue;
+        }
+
+        if ( $end_ts <= $from_ts || $start_ts >= $to_ts ) {
+            continue;
+        }
+
+        $segment_start = max( $from_ts, $start_ts );
+        $segment_end   = min( $to_ts, $end_ts );
+
+        if ( $segment_end > $segment_start ) {
+            $total_seconds += ( $segment_end - $segment_start );
+        }
+    }
+
+    $days        = $total_seconds / DAY_IN_SECONDS;
+    $window_days = max( 0.0, ( $to_ts - $from_ts ) / DAY_IN_SECONDS );
+
+    if ( $days < 0 ) {
+        $days = 0.0;
+    }
+
+    if ( $days > $window_days ) {
+        $days = $window_days;
+    }
+
+    return (float) $days;
 }
 
 /**

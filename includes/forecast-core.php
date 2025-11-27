@@ -178,6 +178,8 @@ class Stock_Order_Plugin_Core_Engine {
                 'qty_sold'       => 0,
                 'days_on_sale'   => 0.0,
                 'demand_per_day' => 0.0,
+                'total_days'     => 0.0,
+                'stockout_days'  => 0.0,
             );
         }
 
@@ -220,9 +222,22 @@ class Stock_Order_Plugin_Core_Engine {
 
         $qty_sold = (int) $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
 
-        $total_days    = max( 1, ( $to_ts - $from_ts ) / DAY_IN_SECONDS );
-        $stockout_days = 0.0; // TODO: integrate sop_stockout_log if needed.
-        $days_on_sale  = max( 1.0, $total_days - $stockout_days );
+        $total_days    = max( 1.0, ( $to_ts - $from_ts ) / DAY_IN_SECONDS );
+        $stockout_days = 0.0;
+
+        if ( function_exists( 'sop_stockout_get_days_in_window' ) ) {
+            $stockout_days = (float) sop_stockout_get_days_in_window( $product_id, 0, $from_ts, $to_ts );
+        }
+
+        if ( $stockout_days < 0 ) {
+            $stockout_days = 0.0;
+        }
+
+        if ( $stockout_days > $total_days ) {
+            $stockout_days = $total_days;
+        }
+
+        $days_on_sale = max( 1.0, $total_days - $stockout_days );
 
         $demand_per_day = $qty_sold > 0 ? ( $qty_sold / $days_on_sale ) : 0.0;
 
@@ -230,6 +245,8 @@ class Stock_Order_Plugin_Core_Engine {
             'qty_sold'       => $qty_sold,
             'days_on_sale'   => (float) $days_on_sale,
             'demand_per_day' => (float) $demand_per_day,
+            'total_days'     => (float) $total_days,
+            'stockout_days'  => (float) $stockout_days,
         );
     }
 
@@ -264,6 +281,9 @@ class Stock_Order_Plugin_Core_Engine {
         $sales = $this->get_product_sales_summary( $product_id, array( 'lookback_days' => $lookback_days ) );
 
         $demand_per_day = $sales['demand_per_day'];
+        $days_on_sale   = isset( $sales['days_on_sale'] ) ? (float) $sales['days_on_sale'] : 0.0;
+        $total_days     = isset( $sales['total_days'] ) ? (float) $sales['total_days'] : 0.0;
+        $stockout_days  = isset( $sales['stockout_days'] ) ? (float) $sales['stockout_days'] : 0.0;
 
         $lead_days     = $this->get_supplier_lead_days( $supplier_settings );
         $buffer_months = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
@@ -304,6 +324,9 @@ class Stock_Order_Plugin_Core_Engine {
             'max_for_cycle'     => (float) $max_for_cycle,
             'suggested_raw'     => (float) $suggested_raw,
             'suggested_capped'  => (float) $suggested_capped,
+            'days_on_sale'      => (float) $days_on_sale,
+            'total_days'        => (float) $total_days,
+            'stockout_days'     => (float) $stockout_days,
         );
     }
 
@@ -485,6 +508,8 @@ function sop_render_forecast_debug_page() {
                         <th><?php esc_html_e( 'Name', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Current Stock', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Qty Sold (Period)', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Days on sale (adj.)', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Stockout days', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Demand / Day', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Forecast Days', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Forecast Demand', 'sop' ); ?></th>
@@ -502,10 +527,11 @@ function sop_render_forecast_debug_page() {
                             <td><?php echo esc_html( $row['name'] ); ?></td>
                             <td><?php echo esc_html( $row['current_stock'] ); ?></td>
                             <td><?php echo esc_html( $row['qty_sold'] ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( isset( $row['days_on_sale'] ) ? $row['days_on_sale'] : 0, 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( isset( $row['stockout_days'] ) ? $row['stockout_days'] : 0, 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['demand_per_day'], 3 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['forecast_days'], 1 ) ); ?></td>
-                            <td><?php echo
- esc_html( number_format_i18n( $row['forecast_demand'], 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( $row['forecast_demand'], 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['max_order_per_month'], 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['max_for_cycle'], 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['suggested_raw'], 1 ) ); ?></td>
