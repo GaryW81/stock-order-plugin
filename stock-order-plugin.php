@@ -25,6 +25,7 @@ if ( ! defined( 'SOP_PLUGIN_URL' ) ) {
 // Core includes.
 require_once SOP_PLUGIN_DIR . 'includes/db-helpers.php';
 require_once SOP_PLUGIN_DIR . 'includes/domain-helpers.php';
+require_once SOP_PLUGIN_DIR . 'includes/stockout-tracking.php';
 require_once SOP_PLUGIN_DIR . 'includes/helper-buffer.php';
 require_once SOP_PLUGIN_DIR . 'includes/forecast-core.php';
 require_once SOP_PLUGIN_DIR . 'includes/class-sop-legacy-history.php';
@@ -50,6 +51,10 @@ function sop_activate_plugin() {
         SOP_Legacy_History::install();
     }
 
+    if ( function_exists( 'sop_ensure_daily_maintenance_cron' ) ) {
+        sop_ensure_daily_maintenance_cron();
+    }
+
     // TODO: Add DB install routine when loader class is introduced.
 }
 
@@ -57,6 +62,10 @@ function sop_activate_plugin() {
  * Fired during plugin deactivation.
  */
 function sop_deactivate_plugin() {
+    if ( function_exists( 'wp_clear_scheduled_hook' ) ) {
+        wp_clear_scheduled_hook( 'sop_daily_maintenance' );
+    }
+
     // TODO: Add cleanup logic or scheduled event removal when available.
 }
 
@@ -68,6 +77,10 @@ add_action(
     function () {
         if ( class_exists( 'SOP_Legacy_History' ) ) {
             SOP_Legacy_History::install();
+        }
+
+        if ( function_exists( 'sop_ensure_daily_maintenance_cron' ) ) {
+            sop_ensure_daily_maintenance_cron();
         }
     }
 );

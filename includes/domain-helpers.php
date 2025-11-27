@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.1
+ * File version: 1.0.2
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -293,6 +293,36 @@ function sop_stockout_close( $product_id, $variation_id = 0, $source = 'runtime'
     }
 
     return $closed_count;
+}
+
+/**
+ * Prune stockout log rows older than the specified number of years.
+ *
+ * Intended to enforce a rolling retention policy (default 5 years).
+ *
+ * @param int $max_age_years Number of years to keep (minimum 1).
+ * @return int Rows affected.
+ */
+function sop_prune_old_stockout_logs( $max_age_years = 5 ) {
+    global $wpdb;
+
+    $max_age_years = (int) $max_age_years;
+    if ( $max_age_years < 1 ) {
+        $max_age_years = 1;
+    }
+
+    $table = sop_get_table_name( 'stockout_log' );
+    if ( ! $table ) {
+        return 0;
+    }
+
+    $cutoff_ts = time() - ( $max_age_years * YEAR_IN_SECONDS );
+    $cutoff    = gmdate( 'Y-m-d H:i:s', $cutoff_ts );
+
+    $sql = $wpdb->prepare( "DELETE FROM {$table} WHERE date_start < %s", $cutoff );
+    $wpdb->query( $sql ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+    return (int) $wpdb->rows_affected;
 }
 
 /* -------------------------------------------------------------------------
