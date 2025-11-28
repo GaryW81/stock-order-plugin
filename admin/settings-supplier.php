@@ -441,12 +441,14 @@ class sop_Admin_Settings {
                                             }
                                             break;
                                         case 'stockout_days_12m_legacy':
+                                        case 'stockout_days_12m':
                                         case 'stockout_days':
                                             if ( '' !== $value ) {
                                                 $data['stockout_days_12m_legacy'] = (int) $value;
                                             }
                                             break;
                                         case 'days_on_sale_12m_legacy':
+                                        case 'days_on_sale_12m':
                                         case 'days_on_sale':
                                             if ( '' !== $value ) {
                                                 $data['days_on_sale_12m_legacy'] = (int) $value;
