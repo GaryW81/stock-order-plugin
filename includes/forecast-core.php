@@ -92,27 +92,84 @@ class Stock_Order_Plugin_Core_Engine {
     public function get_supplier_settings( $supplier_id ) {
         $supplier_id = (int) $supplier_id;
 
-        $base = array(
-            'id'              => $supplier_id,
-            'name'            => '',
-            'lead_time_weeks' => 0,
-            'holiday_extra_days' => 0,
-            'buffer_months'   => 0.0,
-            'currency'        => 'GBP',
-        );
+        if ( $supplier_id <= 0 ) {
+            error_log( 'SOP: get_supplier_settings() called with invalid supplier ID.' );
 
-        $row = sop_supplier_get_by_id( $supplier_id );
-        if ( $row ) {
-            $base['name']            = isset( $row->name ) ? (string) $row->name : '';
-            $base['lead_time_weeks'] = isset( $row->lead_time_weeks ) ? (int) $row->lead_time_weeks : 0;
-            // holiday_extra_days / buffer_months may be in settings_json; for now we derive buffer via helper.
-            $base['currency']        = ! empty( $row->currency ) ? (string) $row->currency : 'GBP';
+            return array(
+                'lead_time_weeks'    => 0,
+                'buffer_months'      => 0,
+                'holiday_extra_days' => 0,
+                'lookback_days'      => $this->get_effective_lookback_days( null ),
+                'currency'           => 'GBP',
+            );
         }
 
-        $buffer = sop_get_supplier_effective_buffer_months( $supplier_id );
-        $base['buffer_months'] = (float) $buffer;
+        if ( ! function_exists( 'sop_supplier_get_by_id' ) || ! function_exists( 'sop_get_settings' ) ) {
+            error_log( sprintf( 'SOP: supplier/settings helpers missing in get_supplier_settings() for supplier %d.', $supplier_id ) );
 
-        return $base;
+            return array(
+                'lead_time_weeks'    => 0,
+                'buffer_months'      => 0,
+                'holiday_extra_days' => 0,
+                'lookback_days'      => $this->get_effective_lookback_days( $supplier_id ),
+                'currency'           => 'GBP',
+            );
+        }
+
+        $supplier = sop_supplier_get_by_id( $supplier_id );
+
+        if ( ! $supplier || ( ! is_object( $supplier ) && ! is_array( $supplier ) ) ) {
+            error_log( sprintf( 'SOP: supplier %d not found in get_supplier_settings().', $supplier_id ) );
+
+            return array(
+                'lead_time_weeks'    => 0,
+                'buffer_months'      => 0,
+                'holiday_extra_days' => 0,
+                'lookback_days'      => $this->get_effective_lookback_days( $supplier_id ),
+                'currency'           => 'GBP',
+            );
+        }
+
+        $settings = sop_get_settings();
+        if ( ! is_array( $settings ) ) {
+            $settings = array();
+        }
+
+        $lead_time_weeks = 0;
+        $currency        = 'GBP';
+        $holiday_weeks   = 0;
+
+        if ( is_object( $supplier ) ) {
+            $lead_time_weeks = isset( $supplier->lead_time_weeks ) ? (int) $supplier->lead_time_weeks : 0;
+            $currency        = ! empty( $supplier->currency ) ? (string) $supplier->currency : 'GBP';
+            $holiday_weeks   = isset( $supplier->holiday_weeks ) ? (int) $supplier->holiday_weeks : 0;
+            if ( isset( $supplier->holiday_extra_days ) && $supplier->holiday_extra_days ) {
+                // Preserve legacy holiday_extra_days field when present.
+                $holiday_weeks = (int) ceil( (int) $supplier->holiday_extra_days / 7 );
+            }
+        } elseif ( is_array( $supplier ) ) {
+            $lead_time_weeks = isset( $supplier['lead_time_weeks'] ) ? (int) $supplier['lead_time_weeks'] : 0;
+            $currency        = ! empty( $supplier['currency'] ) ? (string) $supplier['currency'] : 'GBP';
+            $holiday_weeks   = isset( $supplier['holiday_weeks'] ) ? (int) $supplier['holiday_weeks'] : 0;
+            if ( isset( $supplier['holiday_extra_days'] ) && $supplier['holiday_extra_days'] ) {
+                $holiday_weeks = (int) ceil( (int) $supplier['holiday_extra_days'] / 7 );
+            }
+        }
+
+        $buffer_months = 0.0;
+        if ( function_exists( 'sop_get_supplier_effective_buffer_months' ) ) {
+            $buffer_months = (float) sop_get_supplier_effective_buffer_months( $supplier_id );
+        }
+
+        $lookback_days = $this->get_effective_lookback_days( $supplier_id );
+
+        return array(
+            'lead_time_weeks'    => $lead_time_weeks,
+            'buffer_months'      => $buffer_months,
+            'holiday_extra_days' => $holiday_weeks * 7,
+            'lookback_days'      => $lookback_days,
+            'currency'           => $currency,
+        );
     }
 
     /**
