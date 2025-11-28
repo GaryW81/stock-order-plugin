@@ -16,15 +16,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Require core helpers. If they are missing, bail quietly so we don't fatal.
-if (
-    ! function_exists( 'sop_supplier_get_by_id' ) ||
-    ! function_exists( 'sop_supplier_get_all' ) ||
-    ! function_exists( 'sop_get_supplier_effective_buffer_months' ) ||
-    ! function_exists( 'sop_get_analysis_lookback_days' )
-) {
-    return;
-}
-
 if ( ! class_exists( 'Stock_Order_Plugin_Core_Engine' ) ) :
 
 /**
