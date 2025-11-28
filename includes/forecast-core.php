@@ -389,10 +389,12 @@ class Stock_Order_Plugin_Core_Engine {
 
         $sales = $this->get_product_sales_summary( $product_id, array( 'lookback_days' => $lookback_days ) );
 
-        $demand_per_day = $sales['demand_per_day'];
-        $days_on_sale   = isset( $sales['days_on_sale'] ) ? (float) $sales['days_on_sale'] : 0.0;
-        $total_days     = isset( $sales['total_days'] ) ? (float) $sales['total_days'] : 0.0;
-        $stockout_days  = isset( $sales['stockout_days'] ) ? (float) $sales['stockout_days'] : 0.0;
+        $demand_per_day       = isset( $sales['demand_per_day'] ) ? (float) $sales['demand_per_day'] : 0.0;
+        $days_on_sale         = isset( $sales['days_on_sale'] ) ? (float) $sales['days_on_sale'] : 0.0;
+        $total_days           = isset( $sales['total_days'] ) ? (float) $sales['total_days'] : 0.0;
+        $stockout_days_total  = isset( $sales['stockout_days_total'] ) ? (float) $sales['stockout_days_total'] : 0.0;
+        $stockout_days_live   = isset( $sales['stockout_days_live'] ) ? (float) $sales['stockout_days_live'] : 0.0;
+        $stockout_days_legacy = isset( $sales['stockout_days_legacy'] ) ? (float) $sales['stockout_days_legacy'] : 0.0;
 
         $lead_days     = $this->get_supplier_lead_days( $supplier_settings );
         $buffer_months = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
@@ -435,7 +437,9 @@ class Stock_Order_Plugin_Core_Engine {
             'suggested_capped'  => (float) $suggested_capped,
             'days_on_sale'      => (float) $days_on_sale,
             'total_days'        => (float) $total_days,
-            'stockout_days'     => (float) $stockout_days,
+            'stockout_days'     => (float) $stockout_days_total,
+            'stockout_days_live'  => (float) $stockout_days_live,
+            'stockout_days_legacy'=> (float) $stockout_days_legacy,
         );
     }
 
