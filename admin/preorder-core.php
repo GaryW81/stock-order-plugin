@@ -368,7 +368,7 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             // Protect against any runtime errors inside the forecast engine.
             try {
                 $forecast_rows = $engine->get_supplier_forecast( $supplier_id, array() );
-            } catch ( Throwable $t ) { // PHP 7+.
+            } catch ( \Throwable $t ) { // PHP 7+.
                 // Log the error but do not break the Pre-Order Sheet.
                 error_log(
                     sprintf(

@@ -408,9 +408,15 @@ endif; // class exists.
 /**
  * Helper to access the forecast engine singleton.
  *
- * @return Stock_Order_Plugin_Core_Engine
+ * @return Stock_Order_Plugin_Core_Engine|null
  */
 function sop_core_engine() {
+    if ( ! class_exists( 'Stock_Order_Plugin_Core_Engine' ) ) {
+        // Log and fail gracefully instead of throwing a fatal error.
+        error_log( 'SOP: Stock_Order_Plugin_Core_Engine class is missing when sop_core_engine() was called.' );
+        return null;
+    }
+
     return Stock_Order_Plugin_Core_Engine::get_instance();
 }
 
