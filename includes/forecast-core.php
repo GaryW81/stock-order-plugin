@@ -519,20 +519,37 @@ function sop_render_forecast_debug_page() {
 
     $suppliers = function_exists( 'sop_supplier_get_all' ) ? sop_supplier_get_all() : array();
 
-    $selected_supplier_id = isset( $_GET['supplier_id'] ) ? (int) $_GET['supplier_id'] : 0;
-    $engine               = sop_core_engine();
-
-    if ( ! $engine ) {
-        echo '<div class="notice notice-error"><p>' . esc_html__( 'Forecast engine is not available. Please check that core helpers are loaded.', 'sop' ) . '</p></div>';
-        return;
-    }
+    $selected_supplier_id = isset( $_GET['supplier_id'] ) ? (int) $_GET['supplier_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $engine               = function_exists( 'sop_core_engine' ) ? sop_core_engine() : null;
 
     $rows    = array();
     $ran_run = false;
 
-    if ( $selected_supplier_id > 0 ) {
-        $rows   = $engine->get_supplier_forecast( $selected_supplier_id );
-        $ran_run = true;
+    if ( ! $engine || ! is_object( $engine ) ) {
+        echo '<div class="wrap sop-forecast-debug">';
+        echo '<h1>' . esc_html__( 'Stock Order Forecast (Debug)', 'sop' ) . '</h1>';
+        echo '<div class="notice notice-error"><p>' . esc_html__( 'Forecast engine is not available. Please check that the Stock Order Plugin core helpers are loaded.', 'sop' ) . '</p></div>';
+        echo '</div>';
+        return;
+    }
+
+    if ( $selected_supplier_id > 0 && method_exists( $engine, 'get_supplier_forecast' ) ) {
+        try {
+            $rows    = $engine->get_supplier_forecast( $selected_supplier_id );
+            $ran_run = true;
+        } catch ( \Throwable $t ) {
+            error_log(
+                sprintf(
+                    'SOP: Forecast debug run failed for supplier %d: %s in %s:%d',
+                    (int) $selected_supplier_id,
+                    $t->getMessage(),
+                    $t->getFile(),
+                    $t->getLine()
+                )
+            );
+            $rows    = array();
+            $ran_run = true;
+        }
     }
     ?>
     <div class="wrap sop-forecast-debug">
@@ -560,24 +577,21 @@ function sop_render_forecast_debug_page() {
             <?php submit_button( __( 'Run Forecast', 'sop' ), 'primary', '', false, array( 'style' => 'margin-left:8px;' ) ); ?>
         </form>
 
-        <?php if ( ! $ran_run ) : ?>
-            <p><?php esc_html_e( 'Choose a supplier and click "Run Forecast" to see suggested quantities.', 'sop' ); ?></p>
-            </div>
-            <?php
-            return;
-        endif;
-
-        if ( empty( $rows ) ) :
-            ?>
-            <p><?php esc_html_e( 'No products found for this supplier or no sales data in the selected analysis window.', 'sop' ); ?></p>
-        </div>
         <?php
+        if ( ! $ran_run ) {
+            echo '<p>' . esc_html__( 'Choose a supplier and click "Run Forecast" to see suggested quantities.', 'sop' ) . '</p>';
+            echo '</div>';
             return;
-        endif;
+        }
 
-        // Basic summary.
+        if ( empty( $rows ) ) {
+            echo '<p>' . esc_html__( 'No products found for this supplier or no sales data in the selected analysis window.', 'sop' ) . '</p>';
+            echo '</div>';
+            return;
+        }
+
         $supplier_settings = $engine->get_supplier_settings( $selected_supplier_id );
-        $lookback_days     = max( 1, (int) $this->get_effective_lookback_days( null ) );
+        $lookback_days     = max( 1, (int) ( function_exists( 'sop_get_analysis_lookback_days' ) ? sop_get_analysis_lookback_days() : 365 ) );
         $lead_days         = $engine->get_supplier_lead_days( $supplier_settings );
         $buffer_months     = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
         ?>
@@ -586,8 +600,8 @@ function sop_render_forecast_debug_page() {
             printf(
                 /* translators: 1: supplier name, 2: supplier ID */
                 esc_html__( 'Forecast for %1$s (ID %2$d)', 'sop' ),
-                esc_html( $supplier_settings['name'] ),
-                (int) $supplier_settings['id']
+                esc_html( isset( $supplier_settings['name'] ) ? $supplier_settings['name'] : '' ),
+                (int) ( isset( $supplier_settings['id'] ) ? $supplier_settings['id'] : $selected_supplier_id )
             );
             ?>
             <br />
