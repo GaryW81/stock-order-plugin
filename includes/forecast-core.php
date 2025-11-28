@@ -480,8 +480,9 @@ endif; // class exists.
  */
 function sop_core_engine() {
     if ( ! class_exists( 'Stock_Order_Plugin_Core_Engine' ) ) {
-        // Log and fail gracefully instead of throwing a fatal error.
-        error_log( 'SOP: Stock_Order_Plugin_Core_Engine class is missing when sop_core_engine() was called.' );
+        if ( function_exists( 'error_log' ) ) {
+            error_log( '[SOP] sop_core_engine() called but Stock_Order_Plugin_Core_Engine is not available.' );
+        }
         return null;
     }
 
@@ -520,6 +521,11 @@ function sop_render_forecast_debug_page() {
 
     $selected_supplier_id = isset( $_GET['supplier_id'] ) ? (int) $_GET['supplier_id'] : 0;
     $engine               = sop_core_engine();
+
+    if ( ! $engine ) {
+        echo '<div class="notice notice-error"><p>' . esc_html__( 'Forecast engine is not available. Please check that core helpers are loaded.', 'sop' ) . '</p></div>';
+        return;
+    }
 
     $rows    = array();
     $ran_run = false;
