@@ -45,6 +45,26 @@ class Stock_Order_Plugin_Core_Engine {
     protected $default_order_cycle_months = 6;
 
     /**
+     * Resolve lookback days from helper or default.
+     *
+     * Uses sop_get_analysis_lookback_days() when available, otherwise falls back
+     * to a sensible default (365 days for a 12-month analysis window).
+     *
+     * @param int|null $supplier_id Optional supplier ID.
+     * @return int
+     */
+    private function get_effective_lookback_days( $supplier_id = null ) {
+        if ( function_exists( 'sop_get_analysis_lookback_days' ) ) {
+            $days = (int) sop_get_analysis_lookback_days( $supplier_id );
+            if ( $days > 0 ) {
+                return $days;
+            }
+        }
+
+        return 365;
+    }
+
+    /**
      * Get singleton instance.
      *
      * @return Stock_Order_Plugin_Core_Engine
@@ -60,7 +80,7 @@ class Stock_Order_Plugin_Core_Engine {
      * Constructor.
      */
     protected function __construct() {
-        $this->default_lookback_days = max( 1, (int) sop_get_analysis_lookback_days() );
+        $this->default_lookback_days = max( 1, (int) $this->get_effective_lookback_days( null ) );
     }
 
     /**
@@ -494,7 +514,7 @@ function sop_render_forecast_debug_page() {
 
         // Basic summary.
         $supplier_settings = $engine->get_supplier_settings( $selected_supplier_id );
-        $lookback_days     = max( 1, (int) sop_get_analysis_lookback_days() );
+        $lookback_days     = max( 1, (int) $this->get_effective_lookback_days( null ) );
         $lead_days         = $engine->get_supplier_lead_days( $supplier_settings );
         $buffer_months     = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
         ?>
