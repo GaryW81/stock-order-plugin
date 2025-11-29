@@ -402,16 +402,21 @@ class Stock_Order_Plugin_Core_Engine {
             $buffer_months = 0.0;
         }
 
-        $buffer_days    = $buffer_months * 30.0;
-        $forecast_days  = max( 0.0, $lead_days + $buffer_days );
-        $forecast_demand = $forecast_days > 0 ? ( $demand_per_day * $forecast_days ) : 0.0;
+        $buffer_days        = max( 0.0, $buffer_months * 30.0 );
+        $demand_during_lead = $demand_per_day * max( 0.0, (float) $lead_days );
+        $buffer_target_units = $demand_per_day * $buffer_days;
+
+        $forecast_days   = max( 0.0, (float) $lead_days + $buffer_days );
+        $forecast_demand = $demand_per_day * $forecast_days;
 
         $current_stock = (int) $product->get_stock_quantity();
         if ( $current_stock < 0 ) {
             $current_stock = 0;
         }
 
-        $suggested_raw = max( 0.0, $forecast_demand - $current_stock );
+        $stock_at_arrival = max( 0.0, (float) $current_stock - $demand_during_lead );
+
+        $suggested_raw = max( 0.0, ( $demand_during_lead + $buffer_target_units ) - $current_stock );
 
         // Optional per-product max-per-month cap.
         $max_per_month = get_post_meta( $product_id, 'max_order_qty_per_month', true );
@@ -440,6 +445,11 @@ class Stock_Order_Plugin_Core_Engine {
             'stockout_days'     => (float) $stockout_days_total,
             'stockout_days_live'  => (float) $stockout_days_live,
             'stockout_days_legacy'=> (float) $stockout_days_legacy,
+            'lead_days'         => (float) $lead_days,
+            'buffer_days'       => (float) $buffer_days,
+            'demand_during_lead'=> (float) $demand_during_lead,
+            'buffer_target_units'=> (float) $buffer_target_units,
+            'stock_at_arrival'  => (float) $stock_at_arrival,
         );
     }
 
@@ -652,6 +662,8 @@ function sop_render_forecast_debug_page() {
                         <th><?php esc_html_e( 'Demand / Day', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Forecast Days', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Forecast Demand', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Stock at arrival', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Buffer target', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Max / Month', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Max / Cycle', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Suggested (Raw)', 'sop' ); ?></th>
@@ -671,6 +683,8 @@ function sop_render_forecast_debug_page() {
                             <td><?php echo esc_html( number_format_i18n( $row['demand_per_day'], 3 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['forecast_days'], 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['forecast_demand'], 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( isset( $row['stock_at_arrival'] ) ? $row['stock_at_arrival'] : 0, 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( isset( $row['buffer_target_units'] ) ? $row['buffer_target_units'] : 0, 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['max_order_per_month'], 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['max_for_cycle'], 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['suggested_raw'], 1 ) ); ?></td>
