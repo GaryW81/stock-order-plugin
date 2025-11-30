@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.2
+ * File version: 1.0.3
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -157,12 +157,12 @@ class Stock_Order_Plugin_Core_Engine {
             }
         }
 
+        $lookback_days = $this->get_effective_lookback_days( $supplier_id );
+
         $buffer_months = 0.0;
         if ( function_exists( 'sop_get_supplier_effective_buffer_months' ) ) {
             $buffer_months = (float) sop_get_supplier_effective_buffer_months( $supplier_id );
         }
-
-        $lookback_days = $this->get_effective_lookback_days( $supplier_id );
 
         return array(
             'lead_time_weeks'    => $lead_time_weeks,
@@ -433,7 +433,7 @@ class Stock_Order_Plugin_Core_Engine {
             $buffer_months = 0.0;
         }
 
-        $buffer_days = max( 0.0, $buffer_months * 30.0 );
+        $buffer_days = max( 0.0, $buffer_months * 30.4375 );
 
         $lead_demand   = $demand_per_day * $lead_days;
         $buffer_demand = $demand_per_day * $buffer_days;

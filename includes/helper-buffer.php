@@ -11,7 +11,7 @@
  * - sop_get_supplier_buffer_override_months( $supplier_id )
  * - sop_get_supplier_effective_buffer_months( $supplier_id )
  * - sop_get_analysis_lookback_days()
- * File version: 1.0.1
+ * File version: 1.0.2
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -88,14 +88,28 @@ if ( ! function_exists( 'sop_get_supplier_effective_buffer_months' ) ) {
             $supplier_id = 0;
         }
 
-        // Default to the global buffer months setting.
-        $global_buffer = sop_get_global_buffer_months();
-        $effective     = max( 0.0, (float) $global_buffer );
+        // 1. Global buffer months from plugin option.
+        $buffer_global = 0.0;
+        $settings      = get_option( 'sop_settings', array() );
+        if ( isset( $settings['sop_global_buffer_months'] ) && '' !== $settings['sop_global_buffer_months'] ) {
+            $buffer_global = (float) $settings['sop_global_buffer_months'];
+        }
 
-        // Apply supplier override only when explicitly set.
-        $override_buffer = sop_get_supplier_buffer_override_months( $supplier_id );
-        if ( null !== $override_buffer && $override_buffer >= 0 ) {
-            $effective = (float) $override_buffer;
+        // 2. Supplier override (stored in sop_suppliers array).
+        $buffer_supplier = null;
+        $suppliers       = get_option( 'sop_suppliers', array() );
+
+        if ( isset( $suppliers[ $supplier_id ] ) ) {
+            $row = $suppliers[ $supplier_id ];
+            if ( isset( $row['buffer_override_months'] ) && '' !== $row['buffer_override_months'] ) {
+                $buffer_supplier = (float) $row['buffer_override_months'];
+            }
+        }
+
+        // 3. Global -> Supplier override.
+        $effective = max( 0.0, $buffer_global );
+        if ( null !== $buffer_supplier && $buffer_supplier >= 0 ) {
+            $effective = (float) $buffer_supplier;
         }
 
         return $effective;
