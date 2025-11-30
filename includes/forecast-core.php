@@ -9,6 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
+ * File version: 1.0.1
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -279,6 +280,35 @@ class Stock_Order_Plugin_Core_Engine {
         $to_ts   = strtotime( $date_to . ' 23:59:59' );
         $from_ts = $to_ts - ( $lookback_days * DAY_IN_SECONDS );
 
+        // Base window span in days (e.g. 365).
+        $window_span_days = max( 1.0, ( $to_ts - $from_ts ) / DAY_IN_SECONDS );
+
+        // Derive product creation timestamp (use parent for variations).
+        $product_created_ts = 0;
+        $product_post       = get_post( $product_id );
+
+        if ( $product_post instanceof WP_Post ) {
+            if ( 'product_variation' === $product_post->post_type && $product_post->post_parent ) {
+                $parent_post = get_post( $product_post->post_parent );
+                if ( $parent_post instanceof WP_Post ) {
+                    $product_created_ts = get_post_time( 'U', true, $parent_post );
+                }
+            } else {
+                $product_created_ts = get_post_time( 'U', true, $product_post );
+            }
+        }
+
+        // Effective start for this product inside the window:
+        // - if we know its creation date, use max(window start, created),
+        // - otherwise fall back to the full window.
+        if ( $product_created_ts > 0 ) {
+            $product_start_ts = max( $from_ts, $product_created_ts );
+            $product_life_days = max( 1.0, ( $to_ts - $product_start_ts ) / DAY_IN_SECONDS );
+            $total_days        = min( $window_span_days, $product_life_days );
+        } else {
+            $total_days = $window_span_days;
+        }
+
         // 1) Quantity sold from WooCommerce order lookup tables.
         $lookup_table = $wpdb->prefix . 'wc_order_product_lookup';
         $orders_table = $wpdb->prefix . 'wc_orders';
@@ -307,10 +337,7 @@ class Stock_Order_Plugin_Core_Engine {
 
         $qty_sold = (int) $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
 
-        // 2) Days in the analysis window.
-        $total_days = max( 1.0, ( $to_ts - $from_ts ) / DAY_IN_SECONDS );
-
-        // 3) Live stockout days from sop_stockout_log.
+        // 2) Live stockout days from sop_stockout_log.
         $stockout_days_live = 0.0;
         if ( function_exists( 'sop_stockout_get_days_in_window' ) ) {
             $stockout_days_live = (float) sop_stockout_get_days_in_window( $product_id, 0, $from_ts, $to_ts );
@@ -319,7 +346,7 @@ class Stock_Order_Plugin_Core_Engine {
             }
         }
 
-        // 4) Legacy stockout days (scaled to the portion of the window before import).
+        // 3) Legacy stockout days (scaled to the portion of the window before import).
         $stockout_days_legacy = 0.0;
         $legacy_total_days    = 0.0;
 
@@ -335,17 +362,19 @@ class Stock_Order_Plugin_Core_Engine {
             }
         }
 
-        // 5) Combine and clamp.
-        $stockout_days_total = $stockout_days_live + $stockout_days_legacy;
-        if ( $stockout_days_total < 0.0 ) {
-            $stockout_days_total = 0.0;
-        } elseif ( $stockout_days_total > $total_days ) {
-            $stockout_days_total = $total_days;
-        }
+        // 4) Combine live + legacy stockout days and clamp to the product's effective days.
+        $stockout_days_total = max( 0.0, $stockout_days_live + $stockout_days_legacy );
+        $stockout_days_total = min( $stockout_days_total, $total_days );
 
+        // 5) Days on sale are the product's effective days minus stockout.
         $days_on_sale = max( 1.0, $total_days - $stockout_days_total );
 
-        $demand_per_day = $qty_sold > 0 ? ( $qty_sold / $days_on_sale ) : 0.0;
+        // Demand per day uses days on sale (OOS-adjusted).
+        if ( $qty_sold > 0 && $days_on_sale > 0 ) {
+            $demand_per_day = $qty_sold / $days_on_sale;
+        } else {
+            $demand_per_day = 0.0;
+        }
 
         return array(
             'qty_sold'             => $qty_sold,
