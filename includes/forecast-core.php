@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.11
+ * File version: 1.0.12
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -493,12 +493,19 @@ class Stock_Order_Plugin_Core_Engine {
             }
         }
 
-        // Max / Cycle = Max / Month multiplied by the order cycle length in months.
-        $max_for_cycle = $max_per_month > 0
-            ? ( $max_per_month * $order_cycle_months )
+        // Use the supplier's effective buffer months as the cap horizon where possible.
+        $effective_cycle_months = $buffer_months > 0 ? (float) $buffer_months : (float) $order_cycle_months;
+        if ( $effective_cycle_months < 0 ) {
+            $effective_cycle_months = 0.0;
+        }
+
+        // Max for the full forecast cycle = monthly cap × buffer months (or fallback cycle).
+        $max_for_cycle = ( $max_per_month > 0 && $effective_cycle_months > 0 )
+            ? ( $max_per_month * $effective_cycle_months )
             : 0.0;
 
-        // Suggested (Capped) never exceeds the cycle cap if one is set.
+        // Suggested (Capped) is used for comparison in Forecast (Debug) only.
+        // The Pre-Order Sheet uses Suggested (Raw) as its suggested order quantity.
         $suggested_capped = ( $max_for_cycle > 0 )
             ? min( $suggested_raw, $max_for_cycle )
             : $suggested_raw;
@@ -741,9 +748,9 @@ function sop_render_forecast_debug_page() {
                         <th title="<?php echo esc_attr__( 'Estimated units left when the shipment arrives with no new order placed. Current stock minus demand during lead time, never less than zero.', 'sop' ); ?>"><?php esc_html_e( 'Stock at arrival', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Units we aim to have when the shipment lands, based on buffer months and demand per day.', 'sop' ); ?>"><?php esc_html_e( 'Buffer target', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Manual per-product ceiling (max_order_qty_per_month) representing the maximum units per month you will order.', 'sop' ); ?>"><?php esc_html_e( 'Max / Month', 'sop' ); ?></th>
-                        <th title="<?php echo esc_attr__( 'Max / Month scaled across this ordering cycle (lead time + buffer) as the cap on this order.', 'sop' ); ?>"><?php esc_html_e( 'Max / Cycle', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Max / Month multiplied by this supplier\'s buffer months (lead-time buffer horizon). Shown as a reference cap for this forecast run.', 'sop' ); ?>"><?php esc_html_e( 'Max / Cycle', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Suggested order quantity before applying Max / Month caps or rounding.', 'sop' ); ?>"><?php esc_html_e( 'Suggested (Raw)', 'sop' ); ?></th>
-                        <th title="<?php echo esc_attr__( 'Final suggested order quantity after applying caps. This value feeds the pre-order sheet.', 'sop' ); ?>"><?php esc_html_e( 'Suggested (Capped)', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Suggested order quantity after applying the Max / Month × buffer-month cap. Used for comparison only – the Pre-Order Sheet uses Suggested (Raw) as its suggested order quantity.', 'sop' ); ?>"><?php esc_html_e( 'Suggested (Capped)', 'sop' ); ?></th>
                     </tr>
                 </thead>
                 <tbody>

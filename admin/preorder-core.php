@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.14
+ * File version: 10.15
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -536,16 +536,21 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         if ( isset( $forecast_by_product[ $product_id ] ) && is_array( $forecast_by_product[ $product_id ] ) ) {
             $forecast_row = $forecast_by_product[ $product_id ];
 
-            if ( isset( $forecast_row['suggested_capped'] ) ) {
-                $suggested_order_qty = (float) $forecast_row['suggested_capped'];
-            } elseif ( isset( $forecast_row['suggested_raw'] ) ) {
+            // Pre-Order Sheet uses Suggested (Raw) as SOQ.
+            if ( isset( $forecast_row['suggested_raw'] ) ) {
                 $suggested_order_qty = (float) $forecast_row['suggested_raw'];
+            } elseif ( isset( $forecast_row['suggested_capped'] ) ) {
+                // Backwards compatibility if only capped is present.
+                $suggested_order_qty = (float) $forecast_row['suggested_capped'];
             }
 
             if ( $suggested_order_qty < 0 ) {
                 $suggested_order_qty = 0.0;
             }
         }
+
+        // SOQ should be rounded up to the nearest whole number.
+        $suggested_order_qty = ceil( $suggested_order_qty );
 
         $rows[] = [
             'product_id'          => $product_id,

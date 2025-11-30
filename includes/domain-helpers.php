@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.8
+ * File version: 1.0.9
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
