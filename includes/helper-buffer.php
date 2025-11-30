@@ -11,15 +11,15 @@
  * - sop_get_supplier_buffer_override_months( $supplier_id )
  * - sop_get_supplier_effective_buffer_months( $supplier_id )
  * - sop_get_analysis_lookback_days()
- * File version: 1.0.2
+ * File version: 1.0.3
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     return;
 }
 
-// Require that Phase 1 & 2 infrastructure is present.
-if ( ! function_exists( 'sop_get_settings' ) || ! function_exists( 'sop_supplier_get_by_id' ) ) {
+// Require supplier helper function (DB layer). Global settings are read directly from options.
+if ( ! function_exists( 'sop_supplier_get_by_id' ) ) {
     return;
 }
 
@@ -29,11 +29,25 @@ if ( ! function_exists( 'sop_get_settings' ) || ! function_exists( 'sop_supplier
  * @return float
  */
 if ( ! function_exists( 'sop_get_global_buffer_months' ) ) {
+    /**
+     * Get the global buffer months from the sop_settings option.
+     *
+     * @return float Non-negative buffer months.
+     */
     function sop_get_global_buffer_months() {
-        $settings = sop_get_settings();
-        $value    = isset( $settings['buffer_months_global'] ) ? (float) $settings['buffer_months_global'] : 0.0;
+        // Read the raw option directly; fall back to an empty array.
+        $settings = get_option( 'sop_settings', array() );
+        if ( ! is_array( $settings ) ) {
+            $settings = array();
+        }
 
-        return ( $value < 0 ) ? 0.0 : $value;
+        $value = isset( $settings['buffer_months_global'] ) ? (float) $settings['buffer_months_global'] : 0.0;
+
+        if ( $value < 0 ) {
+            $value = 0.0;
+        }
+
+        return $value;
     }
 }
 
@@ -51,22 +65,35 @@ if ( ! function_exists( 'sop_get_supplier_buffer_override_months' ) ) {
         }
 
         $supplier = sop_supplier_get_by_id( $supplier_id );
-        if ( ! $supplier || empty( $supplier->settings_json ) ) {
+        if ( ! $supplier ) {
             return null;
         }
 
-        $settings = json_decode( $supplier->settings_json, true );
+        $settings_json = isset( $supplier->settings_json ) ? $supplier->settings_json : '';
+        if ( '' === $settings_json ) {
+            return null;
+        }
+
+        $settings = json_decode( $settings_json, true );
         if ( ! is_array( $settings ) ) {
             return null;
         }
 
+        // If the key isn't present at all, there is no override; fall back to global.
         if ( ! array_key_exists( 'buffer_months_override', $settings ) ) {
             return null;
         }
 
-        $override = (float) $settings['buffer_months_override'];
+        $raw = $settings['buffer_months_override'];
+
+        // Treat an explicit empty string as "no override".
+        if ( '' === $raw ) {
+            return null;
+        }
+
+        $override = (float) $raw;
         if ( $override < 0 ) {
-            $override = 0;
+            $override = 0.0;
         }
 
         return $override;
@@ -83,36 +110,13 @@ if ( ! function_exists( 'sop_get_supplier_buffer_override_months' ) ) {
  */
 if ( ! function_exists( 'sop_get_supplier_effective_buffer_months' ) ) {
     function sop_get_supplier_effective_buffer_months( $supplier_id ) {
-        $supplier_id = (int) $supplier_id;
-        if ( $supplier_id < 0 ) {
-            $supplier_id = 0;
+        $override = sop_get_supplier_buffer_override_months( $supplier_id );
+
+        if ( null !== $override ) {
+            return $override;
         }
 
-        // 1. Global buffer months from plugin option.
-        $buffer_global = 0.0;
-        $settings      = get_option( 'sop_settings', array() );
-        if ( isset( $settings['sop_global_buffer_months'] ) && '' !== $settings['sop_global_buffer_months'] ) {
-            $buffer_global = (float) $settings['sop_global_buffer_months'];
-        }
-
-        // 2. Supplier override (stored in sop_suppliers array).
-        $buffer_supplier = null;
-        $suppliers       = get_option( 'sop_suppliers', array() );
-
-        if ( isset( $suppliers[ $supplier_id ] ) ) {
-            $row = $suppliers[ $supplier_id ];
-            if ( isset( $row['buffer_override_months'] ) && '' !== $row['buffer_override_months'] ) {
-                $buffer_supplier = (float) $row['buffer_override_months'];
-            }
-        }
-
-        // 3. Global -> Supplier override.
-        $effective = max( 0.0, $buffer_global );
-        if ( null !== $buffer_supplier && $buffer_supplier >= 0 ) {
-            $effective = (float) $buffer_supplier;
-        }
-
-        return $effective;
+        return sop_get_global_buffer_months();
     }
 }
 
