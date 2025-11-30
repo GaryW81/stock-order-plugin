@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.29 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.30 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -309,6 +309,7 @@ function sop_preorder_render_admin_page() {
                         <button type="button" class="button" data-round-mode="up"><?php esc_html_e( 'Round Up', 'sop' ); ?></button>
                         <button type="button" class="button" data-round-mode="down"><?php esc_html_e( 'Round Down', 'sop' ); ?></button>
                         <button type="button" class="button" id="sop-preorder-remove-selected"><?php esc_html_e( 'Remove selected', 'sop' ); ?></button>
+                        <button type="button" class="button" id="sop-apply-soq-to-qty"><?php esc_html_e( 'Apply SOQ to Qty', 'sop' ); ?></button>
                         <label for="sop-preorder-show-removed" style="margin-left: 10px;">
                             <input type="checkbox" id="sop-preorder-show-removed" />
                             <?php esc_html_e( 'Show removed rows', 'sop' ); ?>
@@ -500,13 +501,15 @@ function sop_preorder_render_admin_page() {
                                         <?php echo esc_html( number_format_i18n( $inbound_qty, 0 ) ); ?>
                                     </td>
                                     <td class="column-min-order" data-column="min_order">
-                                        <input type="number" name="sop_min_order_qty[]" value="<?php echo esc_attr( $min_order_qty ); ?>" step="1" min="0" <?php disabled( $is_locked ); ?> />
+                                        <input type="number" name="sop_min_order_qty[]" value="<?php echo esc_attr( $min_order_qty ); ?>" step="1" min="0" class="sop-preorder-moq" <?php disabled( $is_locked ); ?> />
                                     </td>
                                     <td class="column-suggested">
-                                        <?php echo esc_html( number_format_i18n( $suggested_order_qty, 0 ) ); ?>
+                                        <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
+                                            <?php echo esc_html( number_format_i18n( $suggested_order_qty, 0 ) ); ?>
+                                        </span>
                                     </td>
                                     <td class="column-order-qty" data-sort="order_qty">
-                                        <input type="number" name="sop_preorder_order_qty[]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input" <?php disabled( $is_locked ); ?> />
+                                        <input type="number" name="sop_preorder_order_qty[]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input sop-preorder-qty" <?php disabled( $is_locked ); ?> />
                                     </td>
                                     <td class="column-line-total-supplier">
                                         <span class="sop-line-total-gbp" data-cost-gbp="<?php echo esc_attr( $cost_gbp ); ?>" style="display:none;">
@@ -1421,6 +1424,53 @@ function sop_preorder_render_admin_page() {
                     }
 
                     $(this).val(rounded);
+                });
+
+                recalcTotals();
+            });
+
+            $('#sop-apply-soq-to-qty').on('click', function(e) {
+                e.preventDefault();
+
+                $table.find('tbody tr').each(function() {
+                    var $row = $( this );
+
+                    if ( $row.hasClass( 'sop-preorder-row-removed' ) ) {
+                        return;
+                    }
+
+                    var $qtyInput = $row.find( 'input.sop-preorder-qty' );
+                    var $soqEl    = $row.find( '.sop-preorder-soq' );
+                    var $moqInput = $row.find( 'input.sop-preorder-moq' );
+
+                    if ( ! $qtyInput.length || ! $soqEl.length ) {
+                        return;
+                    }
+
+                    var qtyVal = parseFloat( $qtyInput.val() );
+                    if ( isNaN( qtyVal ) ) {
+                        qtyVal = 0;
+                    }
+
+                    if ( qtyVal !== 0 ) {
+                        return;
+                    }
+
+                    var soqVal = parseFloat( $soqEl.data( 'soq' ) );
+                    var moqVal = $moqInput.length ? parseFloat( $moqInput.val() ) : 0;
+
+                    if ( isNaN( soqVal ) || soqVal < 0 ) {
+                        soqVal = 0;
+                    }
+                    if ( isNaN( moqVal ) || moqVal < 0 ) {
+                        moqVal = 0;
+                    }
+
+                    var targetQty = Math.max( soqVal, moqVal );
+                    if ( targetQty > 0 ) {
+                        targetQty = Math.ceil( targetQty );
+                        $qtyInput.val( targetQty );
+                    }
                 });
 
                 recalcTotals();
