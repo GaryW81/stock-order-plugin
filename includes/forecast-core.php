@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.3
+ * File version: 1.0.4
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -696,12 +696,12 @@ function sop_render_forecast_debug_page() {
                         <th><?php esc_html_e( 'Name', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Current Stock', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Qty Sold (Period)', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Days on sale (adj.)', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Stockout days', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Demand / Day', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Forecast Days', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Forecast Demand', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Stock at arrival', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Days the product was in stock during the lookback window after removing stockout days. Used to calculate demand per day.', 'sop' ); ?>"><?php esc_html_e( 'Days on sale (adj.)', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Total days in the lookback window where stock level was zero for this product.', 'sop' ); ?>"><?php esc_html_e( 'Stockout days', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Average units sold per adjusted day on sale. Quantity sold divided by Days on sale.', 'sop' ); ?>"><?php esc_html_e( 'Demand / Day', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Total days covered by the forecast. Supplier lead time in days plus buffer period in days.', 'sop' ); ?>"><?php esc_html_e( 'Forecast Days', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Expected units sold over the forecast window based on Demand per Day multiplied by Forecast Days.', 'sop' ); ?>"><?php esc_html_e( 'Forecast Demand', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Estimated units left when the shipment arrives with no new order placed. Current stock minus demand during lead time, never less than zero.', 'sop' ); ?>"><?php esc_html_e( 'Stock at arrival', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Units we aim to have when the shipment lands, based on buffer months and demand per day.', 'sop' ); ?>"><?php esc_html_e( 'Buffer target', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Manual per-product ceiling (max_order_qty_per_month) representing the maximum units per month you will order.', 'sop' ); ?>"><?php esc_html_e( 'Max / Month', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Max / Month scaled across this ordering cycle (lead time + buffer) as the cap on this order.', 'sop' ); ?>"><?php esc_html_e( 'Max / Cycle', 'sop' ); ?></th>
