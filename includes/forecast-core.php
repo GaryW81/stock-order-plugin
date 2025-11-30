@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.1
+ * File version: 1.0.2
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -702,11 +702,11 @@ function sop_render_forecast_debug_page() {
                         <th><?php esc_html_e( 'Forecast Days', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Forecast Demand', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Stock at arrival', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Buffer target', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Max / Month', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Max / Cycle', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Suggested (Raw)', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Suggested (Capped)', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Units we aim to have when the shipment lands, based on buffer months and demand per day.', 'sop' ); ?>"><?php esc_html_e( 'Buffer target', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Manual per-product ceiling (max_order_qty_per_month) representing the maximum units per month you will order.', 'sop' ); ?>"><?php esc_html_e( 'Max / Month', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Max / Month scaled across this ordering cycle (lead time + buffer) as the cap on this order.', 'sop' ); ?>"><?php esc_html_e( 'Max / Cycle', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Suggested order quantity before applying Max / Month caps or rounding.', 'sop' ); ?>"><?php esc_html_e( 'Suggested (Raw)', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Final suggested order quantity after applying caps. This value feeds the pre-order sheet.', 'sop' ); ?>"><?php esc_html_e( 'Suggested (Capped)', 'sop' ); ?></th>
                     </tr>
                 </thead>
                 <tbody>

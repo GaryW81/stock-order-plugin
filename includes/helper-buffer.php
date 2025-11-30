@@ -11,6 +11,7 @@
  * - sop_get_supplier_buffer_override_months( $supplier_id )
  * - sop_get_supplier_effective_buffer_months( $supplier_id )
  * - sop_get_analysis_lookback_days()
+ * File version: 1.0.1
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -83,18 +84,21 @@ if ( ! function_exists( 'sop_get_supplier_buffer_override_months' ) ) {
 if ( ! function_exists( 'sop_get_supplier_effective_buffer_months' ) ) {
     function sop_get_supplier_effective_buffer_months( $supplier_id ) {
         $supplier_id = (int) $supplier_id;
-        if ( $supplier_id <= 0 ) {
+        if ( $supplier_id < 0 ) {
             $supplier_id = 0;
         }
 
-        $global_buffer   = sop_get_global_buffer_months();
-        $override_buffer = sop_get_supplier_buffer_override_months( $supplier_id );
+        // Default to the global buffer months setting.
+        $global_buffer = sop_get_global_buffer_months();
+        $effective     = max( 0.0, (float) $global_buffer );
 
+        // Apply supplier override only when explicitly set.
+        $override_buffer = sop_get_supplier_buffer_override_months( $supplier_id );
         if ( null !== $override_buffer && $override_buffer >= 0 ) {
-            return max( 0.0, (float) $override_buffer );
+            $effective = (float) $override_buffer;
         }
 
-        return max( 0.0, (float) $global_buffer );
+        return $effective;
     }
 }
 
