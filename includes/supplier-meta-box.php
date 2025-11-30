@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.12
+ * File version: 1.0.13
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
@@ -61,11 +61,18 @@ function sop_render_product_supplier_metabox( $post ) {
     $min_order_qty  = '' !== $min_order_qty ? (float) $min_order_qty : '';
 
     // Optional max order quantity per month (cap for forecast suggestions).
-    // Primary key is max_order_qty_per_month with max_qty_per_month as a legacy alias.
+    // Priority:
+    // 1. max_order_qty_per_month (canonical)
+    // 2. max_qty_per_month      (legacy)
+    // 3. max_order_qty_per month (legacy with space)
     $max_order_qty_per_month = get_post_meta( $post->ID, 'max_order_qty_per_month', true );
 
     if ( '' === $max_order_qty_per_month ) {
         $max_order_qty_per_month = get_post_meta( $post->ID, 'max_qty_per_month', true );
+    }
+
+    if ( '' === $max_order_qty_per_month ) {
+        $max_order_qty_per_month = get_post_meta( $post->ID, 'max_order_qty_per month', true );
     }
 
     if ( '' !== $max_order_qty_per_month ) {

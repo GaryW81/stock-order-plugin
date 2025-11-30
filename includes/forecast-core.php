@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.10
+ * File version: 1.0.11
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -472,8 +472,9 @@ class Stock_Order_Plugin_Core_Engine {
             }
 
             $meta_keys = array(
-                'max_order_qty_per_month',
-                'max_qty_per_month',
+                'max_order_qty_per_month',   // canonical key
+                'max_qty_per_month',         // legacy key
+                'max_order_qty_per month',   // legacy key with space before "month"
             );
 
             foreach ( $ids_to_check as $cap_post_id ) {

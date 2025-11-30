@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.7
+ * File version: 1.0.8
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -197,8 +197,9 @@ function sop_get_product_max_order_qty_per_month( $product ) {
     $parent_id  = $wc_product->get_parent_id();
 
     $meta_keys = array(
-        'max_order_qty_per_month',
-        'max_qty_per_month',
+        'max_order_qty_per_month',   // canonical
+        'max_qty_per_month',         // legacy without "order"
+        'max_order_qty_per month',   // legacy with space before "month"
     );
 
     foreach ( $meta_keys as $meta_key ) {
