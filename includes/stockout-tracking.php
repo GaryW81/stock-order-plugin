@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 4
  * Stockout tracking + maintenance hooks
- * File version: 1.0.0
+ * File version: 1.0.1
  *
  * - Hooks WooCommerce stock changes to stockout open/close helpers.
  * - Ensures a daily maintenance cron runs to prune old stockout logs.
@@ -106,3 +106,175 @@ function sop_run_daily_maintenance_tasks() {
 add_action( 'woocommerce_product_set_stock', 'sop_handle_product_stock_change', 20 );
 add_action( 'woocommerce_product_set_stock_status', 'sop_handle_product_stock_status_change', 20, 3 );
 add_action( 'sop_daily_maintenance', 'sop_run_daily_maintenance_tasks' );
+
+/**
+ * Register Stockout Log (Debug) admin page.
+ *
+ * @return void
+ */
+function sop_register_stockout_log_debug_page() {
+    $parent_slug = 'sop_stock_order_dashboard';
+
+    add_submenu_page(
+        $parent_slug,
+        __( 'Stockout Log (Debug)', 'sop' ),
+        __( 'Stockout Log (Debug)', 'sop' ),
+        'manage_woocommerce',
+        'sop_stockout_log_debug',
+        'sop_render_stockout_log_debug_page'
+    );
+}
+add_action( 'admin_menu', 'sop_register_stockout_log_debug_page', 30 );
+
+/**
+ * Render the Stockout Log (Debug) admin page.
+ *
+ * Shows recent stockout intervals from the sop_stockout_log table.
+ *
+ * @return void
+ */
+function sop_render_stockout_log_debug_page() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        return;
+    }
+
+    global $wpdb;
+
+    $table_name = $wpdb->prefix . 'sop_stockout_log';
+
+    $days_back  = isset( $_GET['days'] ) ? absint( wp_unslash( $_GET['days'] ) ) : 30; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $product_id = isset( $_GET['product_id'] ) ? absint( wp_unslash( $_GET['product_id'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $days_back  = $days_back > 0 ? $days_back : 30;
+    $limit      = 200;
+
+    $from_date = gmdate( 'Y-m-d H:i:s', time() - ( $days_back * DAY_IN_SECONDS ) );
+
+    $where = $wpdb->prepare( 'WHERE date_start >= %s', $from_date );
+    if ( $product_id > 0 ) {
+        $where .= $wpdb->prepare( ' AND product_id = %d', $product_id );
+    }
+
+    $sql = "
+        SELECT *
+        FROM {$table_name}
+        {$where}
+        ORDER BY date_start DESC
+        LIMIT %d
+    ";
+    $sql = $wpdb->prepare( $sql, $limit );
+
+    $rows = $wpdb->get_results( $sql );
+
+    ?>
+    <div class="wrap">
+        <h1><?php esc_html_e( 'Stockout Log (Debug)', 'sop' ); ?></h1>
+
+        <form method="get" style="margin-bottom: 1em;">
+            <input type="hidden" name="page" value="sop_stockout_log_debug" />
+            <label for="sop_stockout_days"><?php esc_html_e( 'Days back:', 'sop' ); ?></label>
+            <input type="number" id="sop_stockout_days" name="days" value="<?php echo esc_attr( $days_back ); ?>" min="1" step="1" />
+            <label for="sop_stockout_product_id"><?php esc_html_e( 'Product ID (optional):', 'sop' ); ?></label>
+            <input type="number" id="sop_stockout_product_id" name="product_id" value="<?php echo $product_id > 0 ? esc_attr( $product_id ) : ''; ?>" min="0" step="1" />
+            <button type="submit" class="button button-primary"><?php esc_html_e( 'Filter', 'sop' ); ?></button>
+        </form>
+
+        <?php if ( empty( $rows ) ) : ?>
+            <p><?php esc_html_e( 'No stockout log entries found for the selected period.', 'sop' ); ?></p>
+        <?php else : ?>
+            <table class="widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th><?php esc_html_e( 'Product ID', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Product', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Date start', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Date end', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Duration (days)', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Source', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Notes', 'sop' ); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ( $rows as $row ) : ?>
+                        <?php
+                        $pid  = isset( $row->product_id ) ? (int) $row->product_id : 0;
+                        $post = ( $pid > 0 ) ? get_post( $pid ) : null;
+                        $sku  = '';
+
+                        if ( $pid > 0 && function_exists( 'wc_get_product' ) ) {
+                            $product_obj = wc_get_product( $pid );
+                            if ( $product_obj ) {
+                                $sku = $product_obj->get_sku();
+                            }
+                        }
+
+                        $name         = ( $post instanceof WP_Post ) ? $post->post_title : '';
+                        $start_ts     = ! empty( $row->date_start ) ? strtotime( $row->date_start ) : false;
+                        $end_ts       = ! empty( $row->date_end ) ? strtotime( $row->date_end ) : false;
+                        $now_ts       = time();
+                        $duration_days = 0;
+
+                        if ( $start_ts ) {
+                            $end_for_calc = $end_ts ? $end_ts : $now_ts;
+                            if ( $end_for_calc >= $start_ts ) {
+                                $duration_days = ( $end_for_calc - $start_ts ) / DAY_IN_SECONDS;
+                            }
+                        }
+                        ?>
+                        <tr>
+                            <td><?php echo esc_html( $pid ); ?></td>
+                            <td><?php echo esc_html( $sku ); ?></td>
+                            <td>
+                                <?php
+                                if ( $post instanceof WP_Post ) {
+                                    echo esc_html( $name );
+                                } else {
+                                    esc_html_e( '(unknown)', 'sop' );
+                                }
+                                ?>
+                            </td>
+                            <td>
+                                <?php
+                                if ( ! empty( $row->date_start ) ) {
+                                    echo esc_html( $row->date_start );
+                                } else {
+                                    esc_html_e( '-', 'sop' );
+                                }
+                                ?>
+                            </td>
+                            <td>
+                                <?php
+                                if ( ! empty( $row->date_end ) ) {
+                                    echo esc_html( $row->date_end );
+                                } else {
+                                    esc_html_e( '(open)', 'sop' );
+                                }
+                                ?>
+                            </td>
+                            <td><?php echo esc_html( number_format_i18n( $duration_days, 2 ) ); ?></td>
+                            <td>
+                                <?php
+                                if ( isset( $row->source ) && $row->source !== '' ) {
+                                    echo esc_html( $row->source );
+                                } else {
+                                    esc_html_e( '-', 'sop' );
+                                }
+                                ?>
+                            </td>
+                            <td>
+                                <?php
+                                if ( isset( $row->notes ) && $row->notes !== '' ) {
+                                    echo esc_html( $row->notes );
+                                } else {
+                                    esc_html_e( '-', 'sop' );
+                                }
+                                ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+    <?php
+}
