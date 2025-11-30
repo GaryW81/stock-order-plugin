@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.6
+ * File version: 1.0.7
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -457,16 +457,28 @@ class Stock_Order_Plugin_Core_Engine {
         // Suggested order is what we need to reach the buffer target at arrival.
         $suggested_raw = max( 0.0, $target_at_arrival - $stock_at_arrival );
 
-        // Optional per-product max-per-month cap.
-        // Optional per-product max-per-month cap, with legacy meta fallback.
-        $max_per_month = function_exists( 'sop_get_product_max_order_qty_per_month' )
-            ? sop_get_product_max_order_qty_per_month( $product_id )
-            : 0.0;
+        // Optional per-product max-per-month cap (with legacy + parent/variation fallback).
+        if ( function_exists( 'sop_get_product_max_order_qty_per_month' ) ) {
+            $max_per_month = sop_get_product_max_order_qty_per_month( $product );
+        } else {
+            $max_per_month = 0.0;
 
-        // Max for the full ordering cycle (e.g. 6-month cycle by default).
-        $max_for_cycle = $max_per_month > 0
-            ? ( $max_per_month * $order_cycle_months )
-            : 0.0;
+            // Fallback to direct meta in case helpers are not loaded.
+            $raw_max = get_post_meta( $product_id, 'max_order_qty_per_month', true );
+            if ( '' === $raw_max ) {
+                $raw_max = get_post_meta( $product_id, 'max_qty_per_month', true );
+            }
+
+            if ( '' !== $raw_max ) {
+                $max_per_month = (float) str_replace( ',', '.', (string) $raw_max );
+                if ( $max_per_month < 0 ) {
+                    $max_per_month = 0.0;
+                }
+            }
+        }
+
+        // Max / Cycle = Max / Month multiplied by the order cycle length in months.
+        $max_for_cycle = $max_per_month > 0 ? ( $max_per_month * $order_cycle_months ) : 0.0;
 
         // Suggested (Capped) never exceeds the cycle cap if one is set.
         $suggested_capped = ( $max_for_cycle > 0 )

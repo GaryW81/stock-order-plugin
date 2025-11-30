@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.10
+ * File version: 1.0.11
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
@@ -59,16 +59,17 @@ function sop_render_product_supplier_metabox( $post ) {
     // SOP minimum order quantity and pre-order notes.
     $min_order_qty  = get_post_meta( $post->ID, '_sop_min_order_qty', true );
     $min_order_qty  = '' !== $min_order_qty ? (float) $min_order_qty : '';
+
+    // Optional max order quantity per month (used as forecast cap).
+    $max_order_qty_per_month = get_post_meta( $post->ID, 'max_order_qty_per_month', true );
+    if ( '' === $max_order_qty_per_month ) {
+        // Legacy alias from earlier workflows.
+        $max_order_qty_per_month = get_post_meta( $post->ID, 'max_qty_per_month', true );
+    }
+    $max_order_qty_per_month = '' !== $max_order_qty_per_month ? (float) $max_order_qty_per_month : '';
+
     $preorder_notes = get_post_meta( $post->ID, '_sop_preorder_notes', true );
     $preorder_notes = is_string( $preorder_notes ) ? $preorder_notes : '';
-
-    // Optional max order quantity per month (cap for forecast suggestions).
-    if ( function_exists( 'sop_get_product_max_order_qty_per_month' ) ) {
-        $max_order_qty_per_month = sop_get_product_max_order_qty_per_month( $post->ID );
-        $max_order_qty_per_month = $max_order_qty_per_month > 0 ? $max_order_qty_per_month : '';
-    } else {
-        $max_order_qty_per_month = '';
-    }
 
     // Optional max order quantity per month (used to cap forecast suggestions).
     $max_order_qty_per_month = get_post_meta( $post->ID, 'max_order_qty_per_month', true );

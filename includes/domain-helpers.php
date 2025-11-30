@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.6
+ * File version: 1.0.7
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -159,6 +159,71 @@ function sop_supplier_get_all( array $args = array() ) {
     }
 
     return sop_db_get_results( 'suppliers', $where );
+}
+
+/**
+ * Get the configured max order quantity per month for a product, if any.
+ *
+ * Priority:
+ * 1. Product meta 'max_order_qty_per_month'.
+ * 2. Product meta 'max_qty_per_month' (legacy alias).
+ * 3. Parent product meta (same keys) if this is a variation.
+ *
+ * Returns a non-negative float; 0.0 means "no cap".
+ *
+ * @param int|\WC_Product $product Product ID or product object.
+ * @return float
+ */
+function sop_get_product_max_order_qty_per_month( $product ) {
+    if ( $product instanceof \WC_Product ) {
+        $wc_product = $product;
+    } else {
+        $product_id = (int) $product;
+        if ( $product_id <= 0 ) {
+            return 0.0;
+        }
+
+        if ( ! function_exists( 'wc_get_product' ) ) {
+            return 0.0;
+        }
+
+        $wc_product = wc_get_product( $product_id );
+        if ( ! $wc_product ) {
+            return 0.0;
+        }
+    }
+
+    $product_id = $wc_product->get_id();
+    $parent_id  = $wc_product->get_parent_id();
+
+    $meta_keys = array(
+        'max_order_qty_per_month',
+        'max_qty_per_month',
+    );
+
+    foreach ( $meta_keys as $meta_key ) {
+        $raw = get_post_meta( $product_id, $meta_key, true );
+        if ( '' !== $raw ) {
+            $val = (float) str_replace( ',', '.', (string) $raw );
+            if ( $val > 0 ) {
+                return $val;
+            }
+        }
+    }
+
+    if ( $parent_id ) {
+        foreach ( $meta_keys as $meta_key ) {
+            $raw = get_post_meta( $parent_id, $meta_key, true );
+            if ( '' !== $raw ) {
+                $val = (float) str_replace( ',', '.', (string) $raw );
+                if ( $val > 0 ) {
+                    return $val;
+                }
+            }
+        }
+    }
+
+    return 0.0;
 }
 
 /* -------------------------------------------------------------------------
@@ -502,39 +567,6 @@ function sop_legacy_get_scaled_days_for_window( $product_id, $from_ts, $to_ts ) 
         'in_stock_days' => (float) $in_stock_days,
         'total_days'    => (float) $pre_import_days,
     );
-}
-
-/**
- * Get the configured max order quantity per month for a product, if any.
- *
- * Reads the primary meta key 'max_order_qty_per_month' with a legacy fallback
- * to 'max_qty_per_month'. Returns a non-negative float; 0.0 means "no cap".
- *
- * This function MUST NOT write to either meta key; it is read-only.
- *
- * @param int $product_id Product ID.
- * @return float
- */
-function sop_get_product_max_order_qty_per_month( $product_id ) {
-    $product_id = (int) $product_id;
-    if ( $product_id <= 0 ) {
-        return 0.0;
-    }
-
-    $max = get_post_meta( $product_id, 'max_order_qty_per_month', true );
-
-    if ( '' === $max ) {
-        // Legacy alias from earlier workflows.
-        $max = get_post_meta( $product_id, 'max_qty_per_month', true );
-    }
-
-    if ( '' === $max ) {
-        return 0.0;
-    }
-
-    // Normalise to float and clamp to zero or above.
-    $max = (float) str_replace( ',', '.', (string) $max );
-    return max( 0.0, $max );
 }
 
 /**
