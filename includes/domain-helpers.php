@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.4
+ * File version: 1.0.5
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -532,6 +532,95 @@ function sop_prune_old_stockout_logs( $max_age_years = 5 ) {
     $wpdb->query( $sql ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
     return (int) $wpdb->rows_affected;
+}
+
+/**
+ * Backfill open stockout intervals for any products currently at zero stock.
+ *
+ * This is intended as a safety net for products that were already out of stock
+ * before live stockout logging was enabled. It will:
+ * - Find all WooCommerce products/variations with manage_stock = yes and _stock <= 0.
+ * - Skip any product that already has an open stockout row (date_end IS NULL).
+ * - Call sop_stockout_open() to create an open interval for the remaining IDs.
+ *
+ * @return void
+ */
+function sop_backfill_open_stockouts_for_zero_stock_products() {
+    global $wpdb;
+
+    // Ensure core helpers exist.
+    if ( ! function_exists( 'sop_stockout_open' ) ) {
+        return;
+    }
+
+    $posts_table    = $wpdb->posts;
+    $postmeta_table = $wpdb->postmeta;
+
+    // Find managed products/variations with stock <= 0.
+    $sql_zero_stock = "
+        SELECT p.ID
+        FROM {$posts_table} p
+        INNER JOIN {$postmeta_table} ms
+            ON ms.post_id = p.ID
+           AND ms.meta_key = '_manage_stock'
+           AND ms.meta_value = 'yes'
+        INNER JOIN {$postmeta_table} st
+            ON st.post_id = p.ID
+           AND st.meta_key = '_stock'
+        WHERE p.post_type IN ('product','product_variation')
+          AND p.post_status NOT IN ('trash','auto-draft')
+          AND CAST(st.meta_value AS SIGNED) <= 0
+    ";
+
+    $zero_stock_ids = $wpdb->get_col( $sql_zero_stock ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+
+    if ( empty( $zero_stock_ids ) ) {
+        return;
+    }
+
+    // Table name for stockout logs.
+    $table = sop_get_table_name( 'stockout_log' );
+    if ( ! $table ) {
+        return;
+    }
+
+    // Get product IDs that already have an open stockout row.
+    $sql_open = "
+        SELECT DISTINCT product_id
+        FROM {$table}
+        WHERE date_end IS NULL
+    ";
+    $open_ids = $wpdb->get_col( $sql_open ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+
+    if ( ! is_array( $open_ids ) ) {
+        $open_ids = array();
+    }
+
+    $open_map = array();
+    foreach ( $open_ids as $open_id ) {
+        $open_map[ (int) $open_id ] = true;
+    }
+
+    foreach ( $zero_stock_ids as $product_id ) {
+        $product_id = (int) $product_id;
+
+        if ( $product_id <= 0 ) {
+            continue;
+        }
+
+        // Skip if we already have an open interval for this product.
+        if ( isset( $open_map[ $product_id ] ) ) {
+            continue;
+        }
+
+        // Open a backfilled stockout interval at "now".
+        sop_stockout_open(
+            $product_id,
+            0,
+            'backfill',
+            'Opened by maintenance for existing zero stock.'
+        );
+    }
 }
 
 /* -------------------------------------------------------------------------
