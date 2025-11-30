@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.11
+ * File version: 1.0.12
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
@@ -60,29 +60,23 @@ function sop_render_product_supplier_metabox( $post ) {
     $min_order_qty  = get_post_meta( $post->ID, '_sop_min_order_qty', true );
     $min_order_qty  = '' !== $min_order_qty ? (float) $min_order_qty : '';
 
-    // Optional max order quantity per month (used as forecast cap).
+    // Optional max order quantity per month (cap for forecast suggestions).
+    // Primary key is max_order_qty_per_month with max_qty_per_month as a legacy alias.
     $max_order_qty_per_month = get_post_meta( $post->ID, 'max_order_qty_per_month', true );
+
     if ( '' === $max_order_qty_per_month ) {
-        // Legacy alias from earlier workflows.
         $max_order_qty_per_month = get_post_meta( $post->ID, 'max_qty_per_month', true );
     }
-    $max_order_qty_per_month = '' !== $max_order_qty_per_month ? (float) $max_order_qty_per_month : '';
+
+    if ( '' !== $max_order_qty_per_month ) {
+        $max_order_qty_per_month = (float) str_replace( ',', '.', (string) $max_order_qty_per_month );
+        $max_order_qty_per_month = max( 0, $max_order_qty_per_month );
+    } else {
+        $max_order_qty_per_month = '';
+    }
 
     $preorder_notes = get_post_meta( $post->ID, '_sop_preorder_notes', true );
     $preorder_notes = is_string( $preorder_notes ) ? $preorder_notes : '';
-
-    // Optional max order quantity per month (used to cap forecast suggestions).
-    $max_order_qty_per_month = get_post_meta( $post->ID, 'max_order_qty_per_month', true );
-
-    // Backwards-compat: if the older max_qty_per_month key exists and the primary is empty, display that.
-    if ( '' === $max_order_qty_per_month ) {
-        $legacy_max = get_post_meta( $post->ID, 'max_qty_per_month', true );
-        if ( '' !== $legacy_max ) {
-            $max_order_qty_per_month = $legacy_max;
-        }
-    }
-
-    $max_order_qty_per_month = '' !== $max_order_qty_per_month ? (float) $max_order_qty_per_month : '';
 
     // Get active suppliers.
     $suppliers = sop_supplier_get_all(
@@ -159,22 +153,6 @@ function sop_render_product_supplier_metabox( $post ) {
                id="sop_min_order_qty"
                value="<?php echo esc_attr( $min_order_qty ); ?>"
                class="small-text" />
-    </p>
-
-    <p>
-        <label for="sop_max_order_qty_per_month">
-            <?php esc_html_e( 'Max order quantity per month', 'sop' ); ?>
-        </label>
-        <input type="number"
-               step="1"
-               min="0"
-               name="sop_max_order_qty_per_month"
-               id="sop_max_order_qty_per_month"
-               value="<?php echo esc_attr( $max_order_qty_per_month ); ?>"
-               class="small-text" />
-        <span class="description" style="display:block;margin-top:2px;">
-            <?php esc_html_e( 'Optional ceiling for this SKU. Used for Max / Month, Max / Cycle and Suggested (Capped). Leave blank for no cap.', 'sop' ); ?>
-        </span>
     </p>
 
     <p>
@@ -299,23 +277,7 @@ function sop_save_product_supplier_meta( $post_id ) {
         $raw = trim( (string) wp_unslash( $_POST['sop_max_order_qty_per_month'] ) );
 
         if ( '' === $raw ) {
-            // Empty field removes the cap; do not touch legacy meta.
-            delete_post_meta( $post_id, 'max_order_qty_per_month' );
-        } else {
-            $raw           = str_replace( ',', '.', $raw );
-            $max_per_month = (float) $raw;
-            $max_per_month = max( 0, $max_per_month );
-
-            update_post_meta( $post_id, 'max_order_qty_per_month', $max_per_month );
-        }
-    }
-
-    // Max order quantity per month (cap for forecast suggestions).
-    if ( isset( $_POST['sop_max_order_qty_per_month'] ) ) {
-        $raw = trim( (string) wp_unslash( $_POST['sop_max_order_qty_per_month'] ) );
-
-        if ( '' === $raw ) {
-            // Empty field removes the cap.
+            // Empty field removes the cap (primary meta only).
             delete_post_meta( $post_id, 'max_order_qty_per_month' );
         } else {
             $raw           = str_replace( ',', '.', $raw );

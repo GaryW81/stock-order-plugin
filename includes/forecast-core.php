@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.7
+ * File version: 1.0.8
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
