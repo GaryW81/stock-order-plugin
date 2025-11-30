@@ -425,27 +425,37 @@ class Stock_Order_Plugin_Core_Engine {
         $stockout_days_live   = isset( $sales['stockout_days_live'] ) ? (float) $sales['stockout_days_live'] : 0.0;
         $stockout_days_legacy = isset( $sales['stockout_days_legacy'] ) ? (float) $sales['stockout_days_legacy'] : 0.0;
 
-        $lead_days     = $this->get_supplier_lead_days( $supplier_settings );
+        $lead_days = $this->get_supplier_lead_days( $supplier_settings );
+        $lead_days = max( 0.0, (float) $lead_days );
+
         $buffer_months = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
         if ( $buffer_months < 0 ) {
             $buffer_months = 0.0;
         }
 
-        $buffer_days        = max( 0.0, $buffer_months * 30.0 );
-        $demand_during_lead = $demand_per_day * max( 0.0, (float) $lead_days );
-        $buffer_target_units = $demand_per_day * $buffer_days;
+        $buffer_days = max( 0.0, $buffer_months * 30.0 );
 
-        $forecast_days   = max( 0.0, (float) $lead_days + $buffer_days );
-        $forecast_demand = $demand_per_day * $forecast_days;
+        $lead_demand   = $demand_per_day * $lead_days;
+        $buffer_demand = $demand_per_day * $buffer_days;
 
         $current_stock = (int) $product->get_stock_quantity();
         if ( $current_stock < 0 ) {
             $current_stock = 0;
         }
 
-        $stock_at_arrival = max( 0.0, (float) $current_stock - $demand_during_lead );
+        // Stock remaining when the shipment lands (before new order), clamped at zero.
+        $stock_at_arrival = max( 0.0, (float) $current_stock - $lead_demand );
 
-        $suggested_raw = max( 0.0, ( $demand_during_lead + $buffer_target_units ) - $current_stock );
+        // Target stock on arrival is based solely on buffer coverage.
+        $target_at_arrival   = $buffer_demand;
+        $buffer_target_units = $target_at_arrival;
+
+        // Informational forecast metrics.
+        $forecast_days   = max( 0.0, (float) $lead_days + $buffer_days );
+        $forecast_demand = $demand_per_day * $forecast_days;
+
+        // Suggested order is what we need to reach the buffer target at arrival.
+        $suggested_raw = max( 0.0, $target_at_arrival - $stock_at_arrival );
 
         // Optional per-product max-per-month cap.
         $max_per_month = get_post_meta( $product_id, 'max_order_qty_per_month', true );

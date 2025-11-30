@@ -82,13 +82,19 @@ if ( ! function_exists( 'sop_get_supplier_buffer_override_months' ) ) {
  */
 if ( ! function_exists( 'sop_get_supplier_effective_buffer_months' ) ) {
     function sop_get_supplier_effective_buffer_months( $supplier_id ) {
-        $override = sop_get_supplier_buffer_override_months( $supplier_id );
-
-        if ( null !== $override ) {
-            return $override;
+        $supplier_id = (int) $supplier_id;
+        if ( $supplier_id <= 0 ) {
+            $supplier_id = 0;
         }
 
-        return sop_get_global_buffer_months();
+        $global_buffer   = sop_get_global_buffer_months();
+        $override_buffer = sop_get_supplier_buffer_override_months( $supplier_id );
+
+        if ( null !== $override_buffer && $override_buffer >= 0 ) {
+            return max( 0.0, (float) $override_buffer );
+        }
+
+        return max( 0.0, (float) $global_buffer );
     }
 }
 
