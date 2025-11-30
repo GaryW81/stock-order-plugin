@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.13
+ * File version: 1.0.14
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
@@ -174,7 +174,7 @@ function sop_render_product_supplier_metabox( $post ) {
                value="<?php echo esc_attr( $max_order_qty_per_month ); ?>"
                class="small-text" />
         <span class="description" style="display:block;margin-top:2px;">
-            <?php esc_html_e( 'Optional ceiling for this SKU. Used for Max / Month, Max / Cycle and Suggested (Capped). Leave blank for no cap.', 'sop' ); ?>
+            <?php esc_html_e( 'Optional ceiling for this SKU. Used for Max / Month and Max / Cycle in Forecast (Debug). Leave blank for no cap.', 'sop' ); ?>
         </span>
     </p>
 

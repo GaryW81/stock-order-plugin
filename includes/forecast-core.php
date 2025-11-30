@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.12
+ * File version: 1.0.13
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -504,11 +504,7 @@ class Stock_Order_Plugin_Core_Engine {
             ? ( $max_per_month * $effective_cycle_months )
             : 0.0;
 
-        // Suggested (Capped) is used for comparison in Forecast (Debug) only.
-        // The Pre-Order Sheet uses Suggested (Raw) as its suggested order quantity.
-        $suggested_capped = ( $max_for_cycle > 0 )
-            ? min( $suggested_raw, $max_for_cycle )
-            : $suggested_raw;
+        // Max / Cycle is informational in Forecast (Debug); Pre-Order uses Suggested (Raw) directly.
 
         return array(
             'product_id'        => $product_id,
@@ -522,7 +518,6 @@ class Stock_Order_Plugin_Core_Engine {
             'max_order_per_month' => (float) $max_per_month,
             'max_for_cycle'     => (float) $max_for_cycle,
             'suggested_raw'     => (float) $suggested_raw,
-            'suggested_capped'  => (float) $suggested_capped,
             'days_on_sale'      => (float) $days_on_sale,
             'total_days'        => (float) $total_days,
             'stockout_days'     => (float) $stockout_days_total,
@@ -749,8 +744,7 @@ function sop_render_forecast_debug_page() {
                         <th title="<?php echo esc_attr__( 'Units we aim to have when the shipment lands, based on buffer months and demand per day.', 'sop' ); ?>"><?php esc_html_e( 'Buffer target', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Manual per-product ceiling (max_order_qty_per_month) representing the maximum units per month you will order.', 'sop' ); ?>"><?php esc_html_e( 'Max / Month', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Max / Month multiplied by this supplier\'s buffer months (lead-time buffer horizon). Shown as a reference cap for this forecast run.', 'sop' ); ?>"><?php esc_html_e( 'Max / Cycle', 'sop' ); ?></th>
-                        <th title="<?php echo esc_attr__( 'Suggested order quantity before applying Max / Month caps or rounding.', 'sop' ); ?>"><?php esc_html_e( 'Suggested (Raw)', 'sop' ); ?></th>
-                        <th title="<?php echo esc_attr__( 'Suggested order quantity after applying the Max / Month × buffer-month cap. Used for comparison only – the Pre-Order Sheet uses Suggested (Raw) as its suggested order quantity.', 'sop' ); ?>"><?php esc_html_e( 'Suggested (Capped)', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Suggested order quantity that feeds the Pre-Order Sheet. Max / Month and Max / Cycle are informational caps only.', 'sop' ); ?>"><?php esc_html_e( 'Suggested (Raw)', 'sop' ); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -771,7 +765,6 @@ function sop_render_forecast_debug_page() {
                             <td><?php echo esc_html( number_format_i18n( $row['max_order_per_month'], 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['max_for_cycle'], 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['suggested_raw'], 1 ) ); ?></td>
-                            <td><strong><?php echo esc_html( number_format_i18n( $row['suggested_capped'], 1 ) ); ?></strong></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
