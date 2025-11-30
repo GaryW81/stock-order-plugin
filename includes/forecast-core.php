@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.9
+ * File version: 1.0.10
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -457,28 +457,45 @@ class Stock_Order_Plugin_Core_Engine {
         // Suggested order is what we need to reach the buffer target at arrival.
         $suggested_raw = max( 0.0, $target_at_arrival - $stock_at_arrival );
 
-        // Optional per-product max-per-month cap (with legacy + parent/variation fallback).
-        if ( function_exists( 'sop_get_product_max_order_qty_per_month' ) ) {
-            $max_per_month = sop_get_product_max_order_qty_per_month( $product_id );
-        } else {
-            $max_per_month = 0.0;
+        // Optional per-product max-per-month cap, read directly from product/parent meta.
+        // We support two keys:
+        // - 'max_order_qty_per_month' (primary)
+        // - 'max_qty_per_month'       (legacy)
+        $max_per_month = 0.0;
 
-            // Fallback to direct meta in case helpers are not loaded.
-            $raw_max = get_post_meta( $product_id, 'max_order_qty_per_month', true );
-            if ( '' === $raw_max ) {
-                $raw_max = get_post_meta( $product_id, 'max_qty_per_month', true );
+        if ( $product instanceof \WC_Product ) {
+            $ids_to_check = array( $product->get_id() );
+            $parent_id    = $product->get_parent_id();
+
+            if ( $parent_id ) {
+                $ids_to_check[] = $parent_id;
             }
 
-            if ( '' !== $raw_max ) {
-                $max_per_month = (float) str_replace( ',', '.', (string) $raw_max );
-                if ( $max_per_month < 0 ) {
-                    $max_per_month = 0.0;
+            $meta_keys = array(
+                'max_order_qty_per_month',
+                'max_qty_per_month',
+            );
+
+            foreach ( $ids_to_check as $cap_post_id ) {
+                foreach ( $meta_keys as $meta_key ) {
+                    $raw = get_post_meta( $cap_post_id, $meta_key, true );
+                    if ( '' === $raw ) {
+                        continue;
+                    }
+
+                    $val = (float) str_replace( ',', '.', (string) $raw );
+                    if ( $val > 0 ) {
+                        $max_per_month = $val;
+                        break 2; // break out of both loops.
+                    }
                 }
             }
         }
 
         // Max / Cycle = Max / Month multiplied by the order cycle length in months.
-        $max_for_cycle = $max_per_month > 0 ? ( $max_per_month * $order_cycle_months ) : 0.0;
+        $max_for_cycle = $max_per_month > 0
+            ? ( $max_per_month * $order_cycle_months )
+            : 0.0;
 
         // Suggested (Capped) never exceeds the cycle cap if one is set.
         $suggested_capped = ( $max_for_cycle > 0 )
