@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.8
+ * File version: 1.0.9
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -459,7 +459,7 @@ class Stock_Order_Plugin_Core_Engine {
 
         // Optional per-product max-per-month cap (with legacy + parent/variation fallback).
         if ( function_exists( 'sop_get_product_max_order_qty_per_month' ) ) {
-            $max_per_month = sop_get_product_max_order_qty_per_month( $product );
+            $max_per_month = sop_get_product_max_order_qty_per_month( $product_id );
         } else {
             $max_per_month = 0.0;
 
