@@ -1487,6 +1487,11 @@ function sop_preorder_render_admin_page() {
                         moqVal = 0;
                     }
 
+                    // If Suggested Order Qty is zero or less, skip this row (ignore MOQ).
+                    if ( soqVal <= 0 ) {
+                        return;
+                    }
+
                     var targetQty = Math.max( soqVal, moqVal );
                     if ( targetQty > 0 ) {
                         targetQty = Math.ceil( targetQty );
