@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.30 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.31 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -175,9 +175,19 @@ function sop_preorder_render_admin_page() {
         $total_skus++;
     }
 
-    $used_cbm = 0.0;
+    $used_cbm     = 0.0; // raw percent, may exceed 100.
+    $used_cbm_bar = 0.0; // clamped percent for bar width.
+
     if ( $effective_cbm > 0 && $total_cbm > 0 ) {
-        $used_cbm = min( 100.0, ( $total_cbm / $effective_cbm ) * 100.0 );
+        $used_cbm = ( $total_cbm / $effective_cbm ) * 100.0;
+
+        if ( $used_cbm < 0.0 ) {
+            $used_cbm_bar = 0.0;
+        } elseif ( $used_cbm > 100.0 ) {
+            $used_cbm_bar = 100.0;
+        } else {
+            $used_cbm_bar = $used_cbm;
+        }
     }
 
     $currency_symbol = '£';
@@ -219,9 +229,9 @@ function sop_preorder_render_admin_page() {
                     <?php esc_html_e( 'Container:', 'sop' ); ?>
                     <select name="sop_container">
                         <option value=""><?php esc_html_e( 'None', 'sop' ); ?></option>
-                        <option value="20ft" <?php selected( $container_selection, '20ft' ); ?>>20ft (33.2 CBM)</option>
-                        <option value="40ft" <?php selected( $container_selection, '40ft' ); ?>>40ft (67.7 CBM)</option>
-                        <option value="40ft_hc" <?php selected( $container_selection, '40ft_hc' ); ?>>40ft (76.3 CBM)</option>
+                <option value="20ft" <?php selected( $container_selection, '20ft' ); ?>>20&#39; (33.2 CBM)</option>
+                <option value="40ft" <?php selected( $container_selection, '40ft' ); ?>>40&#39; (67.7 CBM)</option>
+                <option value="40ft_hc" <?php selected( $container_selection, '40ft_hc' ); ?>>40&#39; HQ (76.3 CBM)</option>
                     </select>
                 </label>
 
@@ -275,13 +285,15 @@ function sop_preorder_render_admin_page() {
                     <?php echo esc_html( $currency_symbol . ' ' . number_format_i18n( $total_cost_supplier, 2 ) ); ?>
                 </span>
             </div>
-            <div class="sop-summary-item sop-summary-cbm">
-                <strong><?php esc_html_e( 'Container Fill', 'sop' ); ?>:</strong>
-                <div class="sop-cbm-bar-wrapper" title="<?php echo esc_attr( $used_cbm ); ?>%">
-                    <div class="sop-cbm-bar" style="width: <?php echo esc_attr( $used_cbm ); ?>%;"></div>
-                </div>
-                <span class="sop-cbm-label" id="sop-cbm-label"><?php echo esc_html( number_format_i18n( $used_cbm, 1 ) ); ?>%</span>
+        <div class="sop-summary-item sop-summary-cbm">
+            <strong><?php esc_html_e( 'Container Fill', 'sop' ); ?>:</strong>
+            <div class="sop-cbm-bar-wrapper" title="<?php echo esc_attr( $used_cbm ); ?>%">
+                <div class="sop-cbm-bar" style="width: <?php echo esc_attr( $used_cbm_bar ); ?>%;"></div>
             </div>
+            <span class="sop-cbm-label" id="sop-cbm-label">
+                <?php echo esc_html( number_format_i18n( $used_cbm, 1 ) ); ?>%
+            </span>
+        </div>
             <div class="sop-summary-item sop-summary-lock">
                 <?php if ( $is_locked ) : ?>
                     <span class="sop-lock-status sop-locked"><?php esc_html_e( 'Sheet is LOCKED', 'sop' ); ?></span>
@@ -1376,12 +1388,21 @@ function sop_preorder_render_admin_page() {
                 $('#sop-total-cost-gbp').text(wc_price_format(totalCostGbp));
                 $('#sop-total-cost-supplier').text(totalCostSupplier.toFixed(2));
 
-                var usedCbm = 0;
+                var usedCbmPercent = 0;
                 if ( containerCbm > 0 && totalCbm > 0 ) {
-                    usedCbm = Math.min(100, ( totalCbm / containerCbm ) * 100);
+                    usedCbmPercent = ( totalCbm / containerCbm ) * 100;
                 }
-                $('.sop-cbm-bar').css('width', usedCbm + '%');
-                $('#sop-cbm-label').text(usedCbm.toFixed(1) + '%');
+
+                // Clamp bar width between 0 and 100, but show the raw percentage in the label.
+                var usedCbmBar = usedCbmPercent;
+                if ( usedCbmBar < 0 ) {
+                    usedCbmBar = 0;
+                } else if ( usedCbmBar > 100 ) {
+                    usedCbmBar = 100;
+                }
+
+                $('.sop-cbm-bar').css('width', usedCbmBar + '%');
+                $('#sop-cbm-label').text(usedCbmPercent.toFixed(1) + '%');
             }
 
             function wc_price_format(amount) {
