@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.9
+ * File version: 1.0.10
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
@@ -61,6 +61,14 @@ function sop_render_product_supplier_metabox( $post ) {
     $min_order_qty  = '' !== $min_order_qty ? (float) $min_order_qty : '';
     $preorder_notes = get_post_meta( $post->ID, '_sop_preorder_notes', true );
     $preorder_notes = is_string( $preorder_notes ) ? $preorder_notes : '';
+
+    // Optional max order quantity per month (cap for forecast suggestions).
+    if ( function_exists( 'sop_get_product_max_order_qty_per_month' ) ) {
+        $max_order_qty_per_month = sop_get_product_max_order_qty_per_month( $post->ID );
+        $max_order_qty_per_month = $max_order_qty_per_month > 0 ? $max_order_qty_per_month : '';
+    } else {
+        $max_order_qty_per_month = '';
+    }
 
     // Optional max order quantity per month (used to cap forecast suggestions).
     $max_order_qty_per_month = get_post_meta( $post->ID, 'max_order_qty_per_month', true );
@@ -150,6 +158,22 @@ function sop_render_product_supplier_metabox( $post ) {
                id="sop_min_order_qty"
                value="<?php echo esc_attr( $min_order_qty ); ?>"
                class="small-text" />
+    </p>
+
+    <p>
+        <label for="sop_max_order_qty_per_month">
+            <?php esc_html_e( 'Max order quantity per month', 'sop' ); ?>
+        </label>
+        <input type="number"
+               step="1"
+               min="0"
+               name="sop_max_order_qty_per_month"
+               id="sop_max_order_qty_per_month"
+               value="<?php echo esc_attr( $max_order_qty_per_month ); ?>"
+               class="small-text" />
+        <span class="description" style="display:block;margin-top:2px;">
+            <?php esc_html_e( 'Optional ceiling for this SKU. Used for Max / Month, Max / Cycle and Suggested (Capped). Leave blank for no cap.', 'sop' ); ?>
+        </span>
     </p>
 
     <p>
@@ -266,6 +290,22 @@ function sop_save_product_supplier_meta( $post_id ) {
             $min_qty = (float) str_replace( ',', '.', $raw );
             $min_qty = max( 0, $min_qty );
             update_post_meta( $post_id, '_sop_min_order_qty', $min_qty );
+        }
+    }
+
+    // Max order quantity per month (manual cap for forecast suggestions).
+    if ( isset( $_POST['sop_max_order_qty_per_month'] ) ) {
+        $raw = trim( (string) wp_unslash( $_POST['sop_max_order_qty_per_month'] ) );
+
+        if ( '' === $raw ) {
+            // Empty field removes the cap; do not touch legacy meta.
+            delete_post_meta( $post_id, 'max_order_qty_per_month' );
+        } else {
+            $raw           = str_replace( ',', '.', $raw );
+            $max_per_month = (float) $raw;
+            $max_per_month = max( 0, $max_per_month );
+
+            update_post_meta( $post_id, 'max_order_qty_per_month', $max_per_month );
         }
     }
 

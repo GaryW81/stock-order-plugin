@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.5
+ * File version: 1.0.6
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -502,6 +502,39 @@ function sop_legacy_get_scaled_days_for_window( $product_id, $from_ts, $to_ts ) 
         'in_stock_days' => (float) $in_stock_days,
         'total_days'    => (float) $pre_import_days,
     );
+}
+
+/**
+ * Get the configured max order quantity per month for a product, if any.
+ *
+ * Reads the primary meta key 'max_order_qty_per_month' with a legacy fallback
+ * to 'max_qty_per_month'. Returns a non-negative float; 0.0 means "no cap".
+ *
+ * This function MUST NOT write to either meta key; it is read-only.
+ *
+ * @param int $product_id Product ID.
+ * @return float
+ */
+function sop_get_product_max_order_qty_per_month( $product_id ) {
+    $product_id = (int) $product_id;
+    if ( $product_id <= 0 ) {
+        return 0.0;
+    }
+
+    $max = get_post_meta( $product_id, 'max_order_qty_per_month', true );
+
+    if ( '' === $max ) {
+        // Legacy alias from earlier workflows.
+        $max = get_post_meta( $product_id, 'max_qty_per_month', true );
+    }
+
+    if ( '' === $max ) {
+        return 0.0;
+    }
+
+    // Normalise to float and clamp to zero or above.
+    $max = (float) str_replace( ',', '.', (string) $max );
+    return max( 0.0, $max );
 }
 
 /**
