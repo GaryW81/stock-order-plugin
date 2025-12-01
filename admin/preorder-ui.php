@@ -1099,7 +1099,7 @@ function sop_preorder_render_admin_page() {
                         return;
                     }
 
-                    var message = 'You have unsaved changes on this sheet. Save them before updating the filter or they will be lost.\n\nClick Cancel to stay on this page, or OK to discard changes and continue.';
+                    var message = 'You have unsaved changes on this sheet. Changing the filter (supplier, container, allowance, etc.) will rebuild the sheet and those changes will be lost.\n\nClick Cancel to stay on this page, or OK to discard changes and continue.';
                     if ( ! window.confirm( message ) ) {
                         e.preventDefault();
                         return false;
