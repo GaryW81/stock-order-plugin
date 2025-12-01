@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.10
+ * File version: 1.0.11
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -332,12 +332,12 @@ function sop_get_overstock_report( $args = array() ) {
             if ( $product_obj ) {
                 $image_id = $product_obj->get_image_id();
                 if ( $image_id ) {
-                    $image_html = wp_get_attachment_image( $image_id, 'thumbnail' );
+                    $image_html = wp_get_attachment_image( $image_id, array( 60, 60 ) );
                 }
             }
 
             if ( '' === $image_html && function_exists( 'wc_placeholder_img' ) ) {
-                $image_html = wc_placeholder_img( array( 'class' => 'sop-dashboard-thumb' ) );
+                $image_html = wc_placeholder_img( array( 60, 60 ) );
             }
 
             $rows[] = array(

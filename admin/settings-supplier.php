@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.25
+ * File version: 1.5.26
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -720,6 +720,42 @@ class sop_Admin_Settings {
             );
         }
 
+        $overstock_summary = array(
+            'count'       => 0,
+            'total_units' => 0.0,
+            'avg_pct'     => 0.0,
+            'worst_sku'   => '',
+            'worst_pct'   => 0.0,
+        );
+
+        if ( ! empty( $overstock_rows ) && is_array( $overstock_rows ) ) {
+            $overstock_summary['count'] = count( $overstock_rows );
+
+            $sum_pct = 0.0;
+
+            foreach ( $overstock_rows as $idx => $row ) {
+                $units = isset( $row['over_units'] ) ? (float) $row['over_units'] : 0.0;
+                $pct   = isset( $row['over_pct'] ) ? (float) $row['over_pct'] : 0.0;
+
+                if ( $units > 0 ) {
+                    $overstock_summary['total_units'] += $units;
+                }
+
+                if ( $pct > 0 ) {
+                    $sum_pct += $pct;
+                }
+
+                if ( 0 === $idx ) {
+                    $overstock_summary['worst_sku'] = isset( $row['sku'] ) ? (string) $row['sku'] : '';
+                    $overstock_summary['worst_pct'] = $pct;
+                }
+            }
+
+            if ( $overstock_summary['count'] > 0 && $sum_pct > 0 ) {
+                $overstock_summary['avg_pct'] = $sum_pct / $overstock_summary['count'];
+            }
+        }
+
         $average_cost_ex_vat    = 0.0;
         $average_retail_ex_vat  = 0.0;
         $average_retail_inc_vat = 0.0;
@@ -874,12 +910,55 @@ class sop_Admin_Settings {
                 <div class="sop-dashboard-card sop-dashboard-card-overstock">
                     <h2 class="sop-dashboard-card-title"><?php esc_html_e( 'Overstock report', 'sop' ); ?></h2>
                     <p class="description">
-                        <?php esc_html_e( 'Top overstocked products by percentage above buffer-based target stock. Helps spot SKUs that may need promotions or further investigation.', 'sop' ); ?>
+                        <?php esc_html_e( 'Snapshot of products currently above their buffer-based target stock. Use this to spot SKUs that may need promotions or further investigation.', 'sop' ); ?>
                     </p>
 
                     <?php if ( empty( $overstock_rows ) ) : ?>
                         <p><?php esc_html_e( 'No overstock detected within the current lookback window.', 'sop' ); ?></p>
                     <?php else : ?>
+                        <ul class="sop-overstock-summary-list">
+                            <li>
+                                <strong><?php esc_html_e( 'Overstocked SKUs:', 'sop' ); ?></strong>
+                                <?php echo esc_html( number_format_i18n( $overstock_summary['count'], 0 ) ); ?>
+                            </li>
+                            <li>
+                                <strong><?php esc_html_e( 'Total overstock units:', 'sop' ); ?></strong>
+                                <?php echo esc_html( number_format_i18n( $overstock_summary['total_units'], 1 ) ); ?>
+                            </li>
+                            <li>
+                                <strong><?php esc_html_e( 'Average % over target:', 'sop' ); ?></strong>
+                                <?php echo esc_html( number_format_i18n( $overstock_summary['avg_pct'], 1 ) ); ?>%
+                            </li>
+                            <?php if ( ! empty( $overstock_summary['worst_sku'] ) ) : ?>
+                                <li>
+                                    <strong><?php esc_html_e( 'Worst offender:', 'sop' ); ?></strong>
+                                    <?php
+                                    echo esc_html( $overstock_summary['worst_sku'] );
+                                    echo ' (' . esc_html( number_format_i18n( $overstock_summary['worst_pct'], 1 ) ) . '%)';
+                                    ?>
+                                </li>
+                            <?php endif; ?>
+                        </ul>
+
+                        <p>
+                            <button type="button" class="button button-primary sop-overstock-open">
+                                <?php esc_html_e( 'See products', 'sop' ); ?>
+                            </button>
+                        </p>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <?php if ( ! empty( $overstock_rows ) ) : ?>
+                <div id="sop-overstock-modal" class="sop-overstock-modal sop-hidden" aria-hidden="true">
+                    <div class="sop-overstock-modal-backdrop"></div>
+                    <div class="sop-overstock-modal-inner" role="dialog" aria-modal="true" aria-labelledby="sop-overstock-modal-title">
+                        <button type="button" class="button-link sop-overstock-close" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">&times;</button>
+                        <h2 id="sop-overstock-modal-title"><?php esc_html_e( 'Overstock products', 'sop' ); ?></h2>
+                        <p class="description">
+                            <?php esc_html_e( 'Top overstocked products by percentage above target stock. Use this list to decide where to run promotions or adjust pricing.', 'sop' ); ?>
+                        </p>
+
                         <div class="sop-overstock-table-wrapper">
                             <table class="widefat striped sop-overstock-table">
                                 <thead>
@@ -900,7 +979,7 @@ class sop_Admin_Settings {
                                         $extra_class = ( $overstock_index > 10 ) ? ' sop-overstock-extra sop-hidden' : '';
                                         ?>
                                         <tr class="<?php echo esc_attr( trim( $extra_class ) ); ?>">
-                                            <td><?php echo $over_row['image_html']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+                                            <td class="sop-overstock-image-cell"><?php echo $over_row['image_html']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
                                             <td><?php echo esc_html( $over_row['location'] ); ?></td>
                                             <td><?php echo esc_html( $over_row['sku'] ); ?></td>
                                             <td><?php echo esc_html( number_format_i18n( $over_row['stock'], 0 ) ); ?></td>
@@ -918,9 +997,9 @@ class sop_Admin_Settings {
                                 </p>
                             <?php endif; ?>
                         </div>
-                    <?php endif; ?>
+                    </div>
                 </div>
-            </div>
+            <?php endif; ?>
 
             <div class="sop-dashboard-row sop-dashboard-row-stockouts">
                 <div id="sop-dashboard-stockout-table-wrapper" class="sop-dashboard-stockout-table-wrapper">
@@ -1161,6 +1240,53 @@ class sop_Admin_Settings {
                 height: auto;
             }
 
+            .sop-overstock-modal {
+                position: fixed;
+                inset: 0;
+                z-index: 100000;
+            }
+
+            .sop-overstock-modal-backdrop {
+                position: absolute;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.4);
+            }
+
+            .sop-overstock-modal-inner {
+                position: absolute;
+                top: 5%;
+                left: 50%;
+                transform: translateX(-50%);
+                max-width: 960px;
+                width: 95%;
+                max-height: 90%;
+                overflow: auto;
+                background: #fff;
+                padding: 20px;
+                box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+            }
+
+            .sop-overstock-close {
+                float: right;
+                font-size: 20px;
+                line-height: 1;
+                margin: 0;
+            }
+
+            .sop-overstock-image-cell img {
+                max-width: 60px;
+                height: auto;
+            }
+
+            .sop-overstock-summary-list {
+                margin: 0 0 10px;
+                padding-left: 18px;
+            }
+
+            .sop-overstock-summary-list li {
+                margin: 2px 0;
+            }
+
             .sop-hidden {
                 display: none;
             }
@@ -1213,6 +1339,16 @@ class sop_Admin_Settings {
                         $( this ).text('<?php echo esc_js( __( 'Show more', 'sop' ) ); ?>');
                     }
                 });
+
+                $('.sop-overstock-open').on('click', function(e) {
+                    e.preventDefault();
+                    $('#sop-overstock-modal').removeClass('sop-hidden').attr('aria-hidden', 'false');
+                });
+
+                $( document ).on( 'click', '.sop-overstock-close, .sop-overstock-modal-backdrop', function(e) {
+                    e.preventDefault();
+                    $('#sop-overstock-modal').addClass('sop-hidden').attr('aria-hidden', 'true');
+                } );
 
                 if ( $.fn.selectWoo || $.fn.wc_enhanced_select ) {
                     $('.sop-dashboard-category-select').each(function() {
