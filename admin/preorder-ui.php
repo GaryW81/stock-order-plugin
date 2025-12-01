@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.31 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.32 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -418,6 +418,7 @@ function sop_preorder_render_admin_page() {
                                 </td>
                             </tr>
                         <?php else : ?>
+                            <?php $sop_row_index = 0; ?>
                             <?php foreach ( $rows as $index => $row ) :
                                 $product_id           = (int) $row['product_id'];
                                 $name                 = $row['name'];
@@ -456,8 +457,15 @@ function sop_preorder_render_admin_page() {
                                     $row_classes[] = 'sop-preorder-row-removed';
                                 }
                                 $row_key = $product_id;
+                                $row_index = $sop_row_index;
                                 ?>
                                 <tr data-index="<?php echo esc_attr( $index ); ?>" class="<?php echo esc_attr( implode( ' ', $row_classes ) ); ?>">
+                                    <input type="hidden" name="sop_line_product_id[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $product_id ); ?>" />
+                                    <input type="hidden" name="sop_line_sku[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $sku ); ?>" />
+                                    <input type="hidden" name="sop_line_image_id[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $image_id ); ?>" />
+                                    <input type="hidden" name="sop_line_location[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $location ); ?>" />
+                                    <input type="hidden" name="sop_line_cbm_per_unit[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( isset( $row['cbm_per_unit'] ) ? $row['cbm_per_unit'] : 0 ); ?>" />
+                                    <input type="hidden" name="sop_line_cbm_total[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $line_cbm ); ?>" />
                                     <td class="sop-preorder-col-select">
                                         <input
                                             type="checkbox"
@@ -501,7 +509,7 @@ function sop_preorder_render_admin_page() {
                                         <?php echo esc_html( $name ); ?>
                                     </td>
                                     <td class="column-cost-supplier" data-column="cost_supplier">
-                                        <input type="number" name="sop_cost_unit_supplier[]" value="<?php echo esc_attr( $cost_supplier ); ?>" step="0.01" min="0" class="sop-cost-supplier-input" <?php disabled( $is_locked ); ?> />
+                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier ); ?>" step="0.01" min="0" class="sop-cost-supplier-input" <?php disabled( $is_locked ); ?> />
                                     </td>
                                     <td class="column-brand">
                                         <?php echo esc_html( $brand ); ?>
@@ -513,7 +521,7 @@ function sop_preorder_render_admin_page() {
                                         <?php echo esc_html( number_format_i18n( $inbound_qty, 0 ) ); ?>
                                     </td>
                                     <td class="column-min-order" data-column="min_order">
-                                        <input type="number" name="sop_min_order_qty[]" value="<?php echo esc_attr( $min_order_qty ); ?>" step="1" min="0" class="sop-preorder-moq" <?php disabled( $is_locked ); ?> />
+                                        <input type="number" name="sop_line_moq[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $min_order_qty ); ?>" step="1" min="0" class="sop-preorder-moq" <?php disabled( $is_locked ); ?> />
                                     </td>
                                     <td class="column-suggested">
                                         <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
@@ -521,7 +529,7 @@ function sop_preorder_render_admin_page() {
                                         </span>
                                     </td>
                                     <td class="column-order-qty" data-sort="order_qty">
-                                        <input type="number" name="sop_preorder_order_qty[]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input sop-preorder-qty" <?php disabled( $is_locked ); ?> />
+                                        <input type="number" name="sop_line_qty[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input sop-preorder-qty" <?php disabled( $is_locked ); ?> />
                                     </td>
                                     <td class="column-line-total-supplier">
                                         <span class="sop-line-total-gbp" data-cost-gbp="<?php echo esc_attr( $cost_gbp ); ?>" style="display:none;">
@@ -548,7 +556,7 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-notes" data-column="notes">
                                         <div class="sop-preorder-notes-wrapper">
                                             <textarea
-                                                name="sop_notes[]"
+                                                name="sop_line_product_notes[<?php echo esc_attr( $row_index ); ?>]"
                                                 rows="3"
                                                 class="sop-preorder-notes"
                                                 style="width: 100%; resize: none;"
@@ -572,6 +580,7 @@ function sop_preorder_render_admin_page() {
                                         />
                                     </td>
                                 </tr>
+                                <?php $sop_row_index++; ?>
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </tbody>
