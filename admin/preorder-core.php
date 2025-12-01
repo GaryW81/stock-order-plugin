@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.18
+ * File version: 10.19
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -81,7 +81,7 @@ function sop_handle_save_preorder_sheet() {
     if ( $supplier_id < 1 ) {
         $redirect = add_query_arg(
             array(
-                'page'      => 'sop-preorder',
+                'page'      => 'sop-preorder-sheet',
                 'sop_saved' => '0',
             ),
             admin_url( 'admin.php' )
@@ -161,7 +161,7 @@ function sop_handle_save_preorder_sheet() {
     if ( is_wp_error( $sheet_id ) || ! $sheet_id ) {
         $redirect = add_query_arg(
             array(
-                'page'      => 'sop-preorder',
+                'page'      => 'sop-preorder-sheet',
                 'sop_saved' => '0',
             ),
             admin_url( 'admin.php' )
@@ -174,7 +174,7 @@ function sop_handle_save_preorder_sheet() {
     if ( is_wp_error( $lines_result ) ) {
         $redirect = add_query_arg(
             array(
-                'page'      => 'sop-preorder',
+                'page'      => 'sop-preorder-sheet',
                 'sop_saved' => '0',
             ),
             admin_url( 'admin.php' )
@@ -185,7 +185,7 @@ function sop_handle_save_preorder_sheet() {
 
     $redirect = add_query_arg(
         array(
-            'page'        => 'sop-preorder',
+            'page'        => 'sop-preorder-sheet',
             'supplier_id' => $supplier_id,
             'sop_saved'   => '1',
         ),
