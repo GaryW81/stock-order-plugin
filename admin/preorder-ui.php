@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.32 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.33 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -303,11 +303,21 @@ function sop_preorder_render_admin_page() {
             </div>
         </div>
 
-        <form id="sop-preorder-sheet-form" method="post" action="">
-            <?php wp_nonce_field( 'sop_preorder_save', 'sop_preorder_nonce' ); ?>
+        <form id="sop-preorder-sheet-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <?php wp_nonce_field( 'sop_save_preorder_sheet', 'sop_save_preorder_sheet_nonce' ); ?>
+            <input type="hidden" name="action" value="sop_save_preorder_sheet" />
+            <input type="hidden" name="sop_sheet_id" value="0" />
             <input type="hidden" name="sop_supplier_id" value="<?php echo esc_attr( $selected_supplier_id ); ?>" />
+            <input type="hidden" name="sop_supplier_name" value="<?php echo isset( $supplier['name'] ) ? esc_attr( $supplier['name'] ) : ''; ?>" />
+            <input type="hidden" name="sop_container_type" value="<?php echo esc_attr( $container_selection ); ?>" />
+            <input type="hidden" name="sop_allowance_percent" value="<?php echo esc_attr( $allowance ); ?>" />
 
             <div class="sop-preorder-table-toolbar">
+                <p class="sop-preorder-actions">
+                    <button type="submit" class="button button-primary" name="sop_preorder_save">
+                        <?php esc_html_e( 'Save sheet', 'sop' ); ?>
+                    </button>
+                </p>
                 <div class="sop-rounding-controls">
                     <span><?php esc_html_e( 'Rounding:', 'sop' ); ?></span>
                     <?php if ( ! $is_locked ) : ?>
@@ -458,6 +468,11 @@ function sop_preorder_render_admin_page() {
                                 }
                                 $row_key = $product_id;
                                 $row_index = $sop_row_index;
+
+                                $image_id = 0;
+                                if ( $product ) {
+                                    $image_id = $product->get_image_id();
+                                }
                                 ?>
                                 <tr data-index="<?php echo esc_attr( $index ); ?>" class="<?php echo esc_attr( implode( ' ', $row_classes ) ); ?>">
                                     <input type="hidden" name="sop_line_product_id[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $product_id ); ?>" />
@@ -480,15 +495,12 @@ function sop_preorder_render_admin_page() {
                                     </td>
                                     <td class="column-image">
                                         <?php
-                                        if ( $product ) {
-                                            $image_id = $product->get_image_id();
-                                            if ( $image_id ) {
-                                                // Use the smaller WooCommerce gallery thumbnail (typically 100x100).
-                                                echo wp_get_attachment_image(
-                                                    $image_id,
-                                                    'woocommerce_gallery_thumbnail'
-                                                );
-                                            }
+                                        if ( $image_id ) {
+                                            // Use the smaller WooCommerce gallery thumbnail (typically 100x100).
+                                            echo wp_get_attachment_image(
+                                                $image_id,
+                                                'woocommerce_gallery_thumbnail'
+                                            );
                                         }
                                         ?>
                                     </td>

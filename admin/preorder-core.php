@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.17
+ * File version: 10.18
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -68,20 +68,131 @@ function sop_handle_save_preorder_sheet() {
         wp_die( esc_html__( 'You do not have permission to save preorder sheets.', 'sop' ) );
     }
 
-    $nonce = isset( $_POST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ) : '';
+    $nonce = isset( $_POST['sop_save_preorder_sheet_nonce'] )
+        ? sanitize_text_field( wp_unslash( $_POST['sop_save_preorder_sheet_nonce'] ) )
+        : '';
+
     if ( ! wp_verify_nonce( $nonce, 'sop_save_preorder_sheet' ) ) {
         wp_die( esc_html__( 'Security check failed while saving preorder sheet.', 'sop' ) );
     }
 
-    $redirect_url = admin_url( 'admin.php?page=sop-preorder' );
-    $redirect_url = add_query_arg(
-        array(
-            'sop_saved' => 'stub',
-        ),
-        $redirect_url
+    $supplier_id = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
+
+    if ( $supplier_id < 1 ) {
+        $redirect = add_query_arg(
+            array(
+                'page'      => 'sop-preorder',
+                'sop_saved' => '0',
+            ),
+            admin_url( 'admin.php' )
+        );
+        wp_safe_redirect( $redirect );
+        exit;
+    }
+
+    $now_utc        = current_time( 'mysql', true );
+    $container_type = isset( $_POST['sop_container_type'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_container_type'] ) ) : '';
+    $allowance      = isset( $_POST['sop_allowance_percent'] ) ? floatval( wp_unslash( $_POST['sop_allowance_percent'] ) ) : 0;
+
+    // For now, default order date to today (UTC); this can be made editable later.
+    $order_date = gmdate( 'Y-m-d' );
+
+    $header_data = array(
+        'supplier_id'      => $supplier_id,
+        'status'           => 'draft',
+        'order_date_owner' => $order_date,
+        'container_type'   => $container_type,
+        'created_at'       => $now_utc,
+        'updated_at'       => $now_utc,
     );
 
-    wp_safe_redirect( $redirect_url );
+    if ( ! empty( $_POST['sop_supplier_name'] ) ) {
+        $header_data['title'] = sanitize_text_field( wp_unslash( $_POST['sop_supplier_name'] ) );
+    }
+
+    // Collect line arrays.
+    $product_ids   = isset( $_POST['sop_line_product_id'] ) ? (array) $_POST['sop_line_product_id'] : array();
+    $skus          = isset( $_POST['sop_line_sku'] ) ? (array) $_POST['sop_line_sku'] : array();
+    $qtys          = isset( $_POST['sop_line_qty'] ) ? (array) $_POST['sop_line_qty'] : array();
+    $moqs          = isset( $_POST['sop_line_moq'] ) ? (array) $_POST['sop_line_moq'] : array();
+    $costs_rmb     = isset( $_POST['sop_line_cost_rmb'] ) ? (array) $_POST['sop_line_cost_rmb'] : array();
+    $product_notes = isset( $_POST['sop_line_product_notes'] ) ? (array) $_POST['sop_line_product_notes'] : array();
+    $image_ids     = isset( $_POST['sop_line_image_id'] ) ? (array) $_POST['sop_line_image_id'] : array();
+    $locations     = isset( $_POST['sop_line_location'] ) ? (array) $_POST['sop_line_location'] : array();
+    $cbm_units     = isset( $_POST['sop_line_cbm_per_unit'] ) ? (array) $_POST['sop_line_cbm_per_unit'] : array();
+    $cbm_totals    = isset( $_POST['sop_line_cbm_total'] ) ? (array) $_POST['sop_line_cbm_total'] : array();
+
+    $lines      = array();
+    $sort_index = 0;
+
+    foreach ( $product_ids as $key => $product_id_raw ) {
+        $product_id = (int) $product_id_raw;
+        if ( $product_id <= 0 ) {
+            continue;
+        }
+
+        $sku       = isset( $skus[ $key ] ) ? sanitize_text_field( wp_unslash( $skus[ $key ] ) ) : '';
+        $qty       = isset( $qtys[ $key ] ) ? floatval( wp_unslash( $qtys[ $key ] ) ) : 0;
+        $moq       = isset( $moqs[ $key ] ) ? floatval( wp_unslash( $moqs[ $key ] ) ) : 0;
+        $cost_rmb  = isset( $costs_rmb[ $key ] ) ? floatval( wp_unslash( $costs_rmb[ $key ] ) ) : 0;
+        $p_notes   = isset( $product_notes[ $key ] ) ? wp_kses_post( wp_unslash( $product_notes[ $key ] ) ) : '';
+        $image_id  = isset( $image_ids[ $key ] ) ? (int) $image_ids[ $key ] : 0;
+        $location  = isset( $locations[ $key ] ) ? sanitize_text_field( wp_unslash( $locations[ $key ] ) ) : '';
+        $cbm_unit  = isset( $cbm_units[ $key ] ) ? floatval( wp_unslash( $cbm_units[ $key ] ) ) : 0;
+        $cbm_total = isset( $cbm_totals[ $key ] ) ? floatval( wp_unslash( $cbm_totals[ $key ] ) ) : 0;
+
+        $lines[] = array(
+            'product_id'          => $product_id,
+            'sku_owner'           => $sku,
+            'qty_owner'           => $qty,
+            'cost_rmb_owner'      => $cost_rmb,
+            'moq_owner'           => $moq,
+            'product_notes_owner' => $p_notes,
+            'order_notes_owner'   => '',
+            'image_id'            => $image_id,
+            'location'            => $location,
+            'cbm_per_unit'        => $cbm_unit,
+            'cbm_total_owner'     => $cbm_total,
+            'sort_index'          => $sort_index++,
+        );
+    }
+
+    $sheet_id = sop_insert_preorder_sheet( $header_data );
+    if ( is_wp_error( $sheet_id ) || ! $sheet_id ) {
+        $redirect = add_query_arg(
+            array(
+                'page'      => 'sop-preorder',
+                'sop_saved' => '0',
+            ),
+            admin_url( 'admin.php' )
+        );
+        wp_safe_redirect( $redirect );
+        exit;
+    }
+
+    $lines_result = sop_insert_preorder_sheet_lines( (int) $sheet_id, $lines );
+    if ( is_wp_error( $lines_result ) ) {
+        $redirect = add_query_arg(
+            array(
+                'page'      => 'sop-preorder',
+                'sop_saved' => '0',
+            ),
+            admin_url( 'admin.php' )
+        );
+        wp_safe_redirect( $redirect );
+        exit;
+    }
+
+    $redirect = add_query_arg(
+        array(
+            'page'        => 'sop-preorder',
+            'supplier_id' => $supplier_id,
+            'sop_saved'   => '1',
+        ),
+        admin_url( 'admin.php' )
+    );
+
+    wp_safe_redirect( $redirect );
     exit;
 }
 
