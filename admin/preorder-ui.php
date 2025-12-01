@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.34 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.36 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -31,6 +31,9 @@ function sop_preorder_render_admin_page() {
     $selected_supplier_id = isset( $_GET['sop_supplier_id'] )
         ? (int) $_GET['sop_supplier_id']
         : 0;
+    $current_sheet_id     = isset( $_GET['sop_sheet_id'] ) ? (int) $_GET['sop_sheet_id'] : 0;
+    $current_sheet        = null;
+    $current_lines        = array();
 
     $supplier = null;
     foreach ( $suppliers as $row ) {
@@ -119,6 +122,10 @@ function sop_preorder_render_admin_page() {
     $is_locked      = $lock_timestamp > 0;
 
     $rows = [];
+    $overlay_stats = array(
+        'matched_rows' => 0,
+        'total_lines'  => 0,
+    );
     if ( $supplier ) {
         $rows = sop_preorder_build_rows_for_supplier( $supplier['id'], $supplier_currency, $settings );
     }
@@ -147,6 +154,65 @@ function sop_preorder_render_admin_page() {
                 }
             )
         );
+    }
+
+    // Overlay saved sheet data if present.
+    if ( $current_sheet_id > 0 && function_exists( 'sop_get_preorder_sheet' ) && function_exists( 'sop_get_preorder_sheet_lines' ) ) {
+        $current_sheet = sop_get_preorder_sheet( $current_sheet_id );
+
+        if ( ! $current_sheet || ! is_array( $current_sheet ) ) {
+            $current_sheet_id = 0;
+            $current_sheet    = null;
+        } elseif ( isset( $current_sheet['supplier_id'] ) && ( (int) $current_sheet['supplier_id'] !== $selected_supplier_id ) ) {
+            $current_sheet_id = 0;
+            $current_sheet    = null;
+        } else {
+            $current_lines = sop_get_preorder_sheet_lines( $current_sheet_id );
+            if ( ! is_array( $current_lines ) ) {
+                $current_lines = array();
+            }
+
+            if ( ! empty( $current_lines ) ) {
+                $lines_by_product = array();
+                foreach ( $current_lines as $line ) {
+                    $pid = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+                    if ( $pid <= 0 ) {
+                        continue;
+                    }
+                    $lines_by_product[ $pid ] = $line;
+                }
+
+                $overlay_stats['total_lines'] = count( $lines_by_product );
+
+                foreach ( $rows as &$row ) {
+                    $pid = isset( $row['product_id'] ) ? (int) $row['product_id'] : 0;
+                    if ( $pid <= 0 || ! isset( $lines_by_product[ $pid ] ) ) {
+                        continue;
+                    }
+
+                    $line = $lines_by_product[ $pid ];
+
+                    if ( isset( $line['qty_owner'] ) ) {
+                        $row['manual_order_qty'] = (float) $line['qty_owner'];
+                    }
+
+                    if ( isset( $line['moq_owner'] ) && $line['moq_owner'] > 0 ) {
+                        $row['min_order_qty'] = (float) $line['moq_owner'];
+                    }
+
+                    if ( isset( $line['cost_rmb_owner'] ) && $line['cost_rmb_owner'] > 0 ) {
+                        $row['cost_supplier'] = (float) $line['cost_rmb_owner'];
+                    }
+
+                    if ( isset( $line['product_notes_owner'] ) ) {
+                        $row['notes'] = $line['product_notes_owner'];
+                    }
+
+                    $overlay_stats['matched_rows']++;
+                }
+                unset( $row );
+            }
+        }
     }
 
     $total_units          = 0.0;
@@ -229,6 +295,22 @@ function sop_preorder_render_admin_page() {
             );
         }
         ?>
+
+        <?php if ( $current_sheet_id > 0 && $current_sheet ) : ?>
+            <div class="notice notice-info sop-preorder-sheet-banner">
+                <p>
+                    <?php
+                    printf(
+                        /* translators: 1: sheet ID, 2: status, 3: updated date */
+                        esc_html__( 'Editing saved pre-order sheet #%1$d. Status: %2$s. Last updated: %3$s', 'sop' ),
+                        (int) $current_sheet_id,
+                        esc_html( isset( $current_sheet['status'] ) ? $current_sheet['status'] : 'draft' ),
+                        esc_html( isset( $current_sheet['updated_at'] ) ? $current_sheet['updated_at'] : '' )
+                    );
+                    ?>
+                </p>
+            </div>
+        <?php endif; ?>
 
         <form id="sop-preorder-filter-form" method="get" action="">
             <input type="hidden" name="page" value="sop-preorder-sheet" />
@@ -326,7 +408,7 @@ function sop_preorder_render_admin_page() {
         <form id="sop-preorder-sheet-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
             <?php wp_nonce_field( 'sop_save_preorder_sheet', 'sop_save_preorder_sheet_nonce' ); ?>
             <input type="hidden" name="action" value="sop_save_preorder_sheet" />
-            <input type="hidden" name="sop_sheet_id" value="0" />
+            <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
             <input type="hidden" name="sop_supplier_id" value="<?php echo esc_attr( $selected_supplier_id ); ?>" />
             <input type="hidden" name="sop_supplier_name" value="<?php echo isset( $supplier['name'] ) ? esc_attr( $supplier['name'] ) : ''; ?>" />
             <input type="hidden" name="sop_container_type" value="<?php echo esc_attr( $container_selection ); ?>" />
@@ -335,7 +417,11 @@ function sop_preorder_render_admin_page() {
             <div class="sop-preorder-table-toolbar">
                 <p class="sop-preorder-actions">
                     <button type="submit" class="button button-primary" name="sop_preorder_save">
-                        <?php esc_html_e( 'Save sheet', 'sop' ); ?>
+                        <?php
+                        echo ( $current_sheet_id > 0 )
+                            ? esc_html__( 'Update sheet', 'sop' )
+                            : esc_html__( 'Save sheet', 'sop' );
+                        ?>
                     </button>
                 </p>
                 <div class="sop-rounding-controls">
@@ -644,7 +730,11 @@ function sop_preorder_render_admin_page() {
             <div class="sop-preorder-actions">
                 <?php if ( ! $is_locked ) : ?>
                     <button type="submit" name="sop_save_sheet" value="1" class="button button-primary">
-                        <?php esc_html_e( 'Save Sheet', 'sop' ); ?>
+                        <?php
+                        echo ( $current_sheet_id > 0 )
+                            ? esc_html__( 'Update sheet', 'sop' )
+                            : esc_html__( 'Save sheet', 'sop' );
+                        ?>
                     </button>
                     <button type="submit" name="sop_lock_sheet" value="1" class="button button-secondary sop-lock-button">
                         <?php esc_html_e( 'Lock Sheet', 'sop' ); ?>

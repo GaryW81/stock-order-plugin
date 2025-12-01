@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.20
+ * File version: 10.21
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -58,9 +58,7 @@ function sop_preorder_register_admin_menu() {
 }
 
 /**
- * Minimal stub handler for saving a preorder sheet.
- *
- * Phase 1B (step 1): this is only scaffolding and is not wired to any UI yet.
+ * Handler for saving a preorder sheet (insert or update).
  */
 add_action( 'admin_post_sop_save_preorder_sheet', 'sop_handle_save_preorder_sheet' );
 function sop_handle_save_preorder_sheet() {
@@ -77,6 +75,7 @@ function sop_handle_save_preorder_sheet() {
     }
 
     $supplier_id = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
+    $sheet_id    = isset( $_POST['sop_sheet_id'] ) ? (int) $_POST['sop_sheet_id'] : 0;
 
     if ( $supplier_id < 1 ) {
         $redirect = add_query_arg(
@@ -157,25 +156,67 @@ function sop_handle_save_preorder_sheet() {
         );
     }
 
-    $sheet_id = sop_insert_preorder_sheet( $header_data );
-    if ( is_wp_error( $sheet_id ) || ! $sheet_id ) {
-        $redirect = add_query_arg(
-            array(
-                'page'      => 'sop-preorder-sheet',
-                'sop_saved' => '0',
-            ),
-            admin_url( 'admin.php' )
-        );
-        wp_safe_redirect( $redirect );
-        exit;
+    $is_update = false;
+
+    if ( $sheet_id > 0 && function_exists( 'sop_get_preorder_sheet' ) ) {
+        $existing_sheet = sop_get_preorder_sheet( $sheet_id );
+        if ( $existing_sheet && is_array( $existing_sheet ) ) {
+            if ( ! isset( $existing_sheet['supplier_id'] ) || (int) $existing_sheet['supplier_id'] !== $supplier_id ) {
+                $sheet_id = 0;
+            } else {
+                if ( function_exists( 'sop_update_preorder_sheet' ) ) {
+                    $header_data['updated_at'] = current_time( 'mysql', true );
+                    $update_result              = sop_update_preorder_sheet( $sheet_id, $header_data );
+                    if ( is_wp_error( $update_result ) ) {
+                        $redirect = add_query_arg(
+                            array(
+                                'page'        => 'sop-preorder-sheet',
+                                'supplier_id' => $supplier_id,
+                                'sop_saved'   => '0',
+                                'sop_sheet_id'=> (int) $sheet_id,
+                            ),
+                            admin_url( 'admin.php' )
+                        );
+                        wp_safe_redirect( $redirect );
+                        exit;
+                    }
+                    $is_update = true;
+                } else {
+                    $sheet_id = 0;
+                }
+            }
+        } else {
+            $sheet_id = 0;
+        }
     }
 
-    $lines_result = sop_insert_preorder_sheet_lines( (int) $sheet_id, $lines );
+    if ( ! $is_update ) {
+        $sheet_id = sop_insert_preorder_sheet( $header_data );
+        if ( is_wp_error( $sheet_id ) || ! $sheet_id ) {
+            $redirect = add_query_arg(
+                array(
+                    'page'        => 'sop-preorder-sheet',
+                    'supplier_id' => $supplier_id,
+                    'sop_saved'   => '0',
+                ),
+                admin_url( 'admin.php' )
+            );
+            wp_safe_redirect( $redirect );
+            exit;
+        }
+        $sheet_id = (int) $sheet_id;
+    }
+
+    $lines_result = function_exists( 'sop_replace_preorder_sheet_lines' )
+        ? sop_replace_preorder_sheet_lines( (int) $sheet_id, $lines )
+        : sop_insert_preorder_sheet_lines( (int) $sheet_id, $lines );
     if ( is_wp_error( $lines_result ) ) {
         $redirect = add_query_arg(
             array(
-                'page'      => 'sop-preorder-sheet',
-                'sop_saved' => '0',
+                'page'        => 'sop-preorder-sheet',
+                'supplier_id' => $supplier_id,
+                'sop_saved'   => '0',
+                'sop_sheet_id'=> (int) $sheet_id,
             ),
             admin_url( 'admin.php' )
         );
