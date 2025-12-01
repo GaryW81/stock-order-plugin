@@ -1445,6 +1445,8 @@ function sop_preorder_render_admin_page() {
                     }
 
                     $(this).val(rounded);
+                    hasUnsavedChanges = true;
+                    $(this).trigger('change');
                 });
 
                 recalcTotals();
@@ -1496,6 +1498,8 @@ function sop_preorder_render_admin_page() {
                     if ( targetQty > 0 ) {
                         targetQty = Math.ceil( targetQty );
                         $qtyInput.val( targetQty );
+                        hasUnsavedChanges = true;
+                        $qtyInput.trigger('change');
                     }
                 });
 
