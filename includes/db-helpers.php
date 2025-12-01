@@ -24,7 +24,7 @@ if ( ! class_exists( 'sop_DB' ) ) {
          * Current schema version for this project.
          * Bump this when tables/columns change in future phases.
          */
-        const VERSION = '1.0.0';
+        const VERSION = '1.1.0';
 
         /**
          * Return list of logical table keys => physical table names.
@@ -44,6 +44,8 @@ if ( ! class_exists( 'sop_DB' ) ) {
                 'goods_in_session'    => $prefix . 'sop_goods_in_sessions',
                 'goods_in_item'       => $prefix . 'sop_goods_in_items',
                 'supplier_layouts'    => $prefix . 'sop_supplier_layouts',
+                'preorder_sheet'      => $prefix . 'sop_preorder_sheet',
+                'preorder_sheet_lines'=> $prefix . 'sop_preorder_sheet_lines',
             );
         }
 
@@ -221,6 +223,68 @@ if ( ! class_exists( 'sop_DB' ) ) {
                 PRIMARY KEY  (id),
                 UNIQUE KEY supplier_context (supplier_id, context),
                 KEY context (context)
+            ) $charset_collate;";
+
+            // 8. Preorder sheet headers.
+            $sql[] = "CREATE TABLE {$tables['preorder_sheet']} (
+                id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+                supplier_id BIGINT(20) UNSIGNED NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'draft',
+                title VARCHAR(255) NOT NULL DEFAULT '',
+                order_number VARCHAR(100) NOT NULL DEFAULT '',
+                order_date_owner DATE NULL,
+                container_load_date_owner DATE NULL,
+                arrival_date_owner DATE NULL,
+                deposit_fx_owner DECIMAL(14,6) NULL,
+                balance_fx_owner DECIMAL(14,6) NULL,
+                header_notes_owner LONGTEXT NULL,
+                order_date_supplier DATE NULL,
+                container_load_date_supplier DATE NULL,
+                arrival_date_supplier DATE NULL,
+                deposit_fx_supplier DECIMAL(14,6) NULL,
+                balance_fx_supplier DECIMAL(14,6) NULL,
+                header_notes_supplier LONGTEXT NULL,
+                public_token VARCHAR(64) NULL,
+                supplier_pin VARCHAR(64) NULL,
+                portal_enabled TINYINT(1) NOT NULL DEFAULT 0,
+                last_supplier_activity_at DATETIME NULL,
+                last_owner_activity_at DATETIME NULL,
+                currency_code VARCHAR(10) NOT NULL DEFAULT '',
+                container_type VARCHAR(50) NOT NULL DEFAULT '',
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL,
+                PRIMARY KEY  (id),
+                KEY supplier_id (supplier_id),
+                KEY status (status),
+                KEY public_token (public_token)
+            ) $charset_collate;";
+
+            // 9. Preorder sheet lines.
+            $sql[] = "CREATE TABLE {$tables['preorder_sheet_lines']} (
+                id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+                sheet_id BIGINT(20) UNSIGNED NOT NULL,
+                product_id BIGINT(20) UNSIGNED NOT NULL,
+                sku_owner VARCHAR(190) NOT NULL DEFAULT '',
+                qty_owner DECIMAL(14,3) NOT NULL DEFAULT 0,
+                cost_rmb_owner DECIMAL(14,4) NOT NULL DEFAULT 0,
+                moq_owner DECIMAL(14,3) NOT NULL DEFAULT 0,
+                product_notes_owner LONGTEXT NULL,
+                order_notes_owner LONGTEXT NULL,
+                sku_supplier VARCHAR(190) NOT NULL DEFAULT '',
+                qty_supplier DECIMAL(14,3) NOT NULL DEFAULT 0,
+                cost_rmb_supplier DECIMAL(14,4) NOT NULL DEFAULT 0,
+                moq_supplier DECIMAL(14,3) NOT NULL DEFAULT 0,
+                product_notes_supplier LONGTEXT NULL,
+                order_notes_supplier LONGTEXT NULL,
+                image_id BIGINT(20) UNSIGNED NULL,
+                location VARCHAR(190) NOT NULL DEFAULT '',
+                cbm_per_unit DECIMAL(14,6) NOT NULL DEFAULT 0,
+                cbm_total_owner DECIMAL(14,6) NOT NULL DEFAULT 0,
+                sort_index INT(11) NOT NULL DEFAULT 0,
+                PRIMARY KEY  (id),
+                KEY sheet_id (sheet_id),
+                KEY product_id (product_id),
+                KEY sku_owner (sku_owner)
             ) $charset_collate;";
 
             foreach ( $sql as $statement ) {

@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.11
+ * File version: 1.0.12
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -20,6 +20,73 @@ if ( ! class_exists( 'sop_DB' ) ) {
 /* -------------------------------------------------------------------------
  * Supplier helpers
  * ---------------------------------------------------------------------- */
+
+/**
+ * Get the preorder sheet header table name.
+ *
+ * @return string
+ */
+if ( ! function_exists( 'sop_get_preorder_sheet_table_name' ) ) {
+    function sop_get_preorder_sheet_table_name() {
+        global $wpdb;
+        return $wpdb->prefix . 'sop_preorder_sheet';
+    }
+}
+
+/**
+ * Get the preorder sheet lines table name.
+ *
+ * @return string
+ */
+if ( ! function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ) {
+    function sop_get_preorder_sheet_lines_table_name() {
+        global $wpdb;
+        return $wpdb->prefix . 'sop_preorder_sheet_lines';
+    }
+}
+
+/**
+ * Create a new preorder sheet header row.
+ *
+ * This will be implemented in a later phase.
+ *
+ * @param array $data Associative array of fields to insert.
+ * @return int|WP_Error
+ */
+function sop_insert_preorder_sheet( $data ) {
+    return new WP_Error( 'sop_not_implemented', __( 'Preorder sheet insert not implemented yet.', 'sop' ) );
+}
+
+/**
+ * Fetch a preorder sheet header by ID.
+ *
+ * @param int $sheet_id Sheet ID.
+ * @return array|null
+ */
+function sop_get_preorder_sheet( $sheet_id ) {
+    return null;
+}
+
+/**
+ * Insert multiple preorder sheet lines for a sheet.
+ *
+ * @param int   $sheet_id Sheet ID.
+ * @param array $lines    List of associative arrays per line.
+ * @return true|WP_Error
+ */
+function sop_insert_preorder_sheet_lines( $sheet_id, array $lines ) {
+    return new WP_Error( 'sop_not_implemented', __( 'Preorder sheet line insert not implemented yet.', 'sop' ) );
+}
+
+/**
+ * Get all lines for a preorder sheet.
+ *
+ * @param int $sheet_id Sheet ID.
+ * @return array[] List of associative rows.
+ */
+function sop_get_preorder_sheet_lines( $sheet_id ) {
+    return array();
+}
 
 /**
  * Create or update a supplier.
