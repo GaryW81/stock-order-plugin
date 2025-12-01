@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.24
+ * File version: 1.5.25
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -127,7 +127,7 @@ class sop_Admin_Settings {
             $output['buffer_months_global'] = ( $buffer < 0 ) ? 0 : $buffer;
         }
 
-        // RMB â†’ GBP rate (allow string, we'll cast when using).
+        // RMB to GBP rate (allow string, we'll cast when using).
         if ( isset( $input['rmb_to_gbp_rate'] ) ) {
             $rate = trim( (string) $input['rmb_to_gbp_rate'] );
             $output['rmb_to_gbp_rate'] = $rate;
@@ -630,6 +630,7 @@ class sop_Admin_Settings {
         $stock_units_total          = 0;
         $stock_cost_total           = 0.0;
         $stockout_products          = array();
+        $overstock_rows             = array();
         $supplier_ids               = array();
         $total_products             = 0;
 
@@ -710,6 +711,14 @@ class sop_Admin_Settings {
         }
 
         $stockout_count = count( $stockout_products );
+
+        if ( function_exists( 'sop_get_overstock_report' ) ) {
+            $overstock_rows = sop_get_overstock_report(
+                array(
+                    'limit' => 50,
+                )
+            );
+        }
 
         $average_cost_ex_vat    = 0.0;
         $average_retail_ex_vat  = 0.0;
@@ -860,6 +869,56 @@ class sop_Admin_Settings {
                             <?php esc_html_e( 'View out-of-stock products', 'sop' ); ?>
                         </a>
                     </p>
+                </div>
+
+                <div class="sop-dashboard-card sop-dashboard-card-overstock">
+                    <h2 class="sop-dashboard-card-title"><?php esc_html_e( 'Overstock report', 'sop' ); ?></h2>
+                    <p class="description">
+                        <?php esc_html_e( 'Top overstocked products by percentage above buffer-based target stock. Helps spot SKUs that may need promotions or further investigation.', 'sop' ); ?>
+                    </p>
+
+                    <?php if ( empty( $overstock_rows ) ) : ?>
+                        <p><?php esc_html_e( 'No overstock detected within the current lookback window.', 'sop' ); ?></p>
+                    <?php else : ?>
+                        <div class="sop-overstock-table-wrapper">
+                            <table class="widefat striped sop-overstock-table">
+                                <thead>
+                                    <tr>
+                                        <th><?php esc_html_e( 'Image', 'sop' ); ?></th>
+                                        <th><?php esc_html_e( 'Location', 'sop' ); ?></th>
+                                        <th><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                                        <th><?php esc_html_e( 'Stock', 'sop' ); ?></th>
+                                        <th><?php esc_html_e( 'Overstock (units)', 'sop' ); ?></th>
+                                        <th><?php esc_html_e( '% over target', 'sop' ); ?></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    $overstock_index = 0;
+                                    foreach ( $overstock_rows as $over_row ) :
+                                        $overstock_index++;
+                                        $extra_class = ( $overstock_index > 10 ) ? ' sop-overstock-extra sop-hidden' : '';
+                                        ?>
+                                        <tr class="<?php echo esc_attr( trim( $extra_class ) ); ?>">
+                                            <td><?php echo $over_row['image_html']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+                                            <td><?php echo esc_html( $over_row['location'] ); ?></td>
+                                            <td><?php echo esc_html( $over_row['sku'] ); ?></td>
+                                            <td><?php echo esc_html( number_format_i18n( $over_row['stock'], 0 ) ); ?></td>
+                                            <td><?php echo esc_html( number_format_i18n( $over_row['over_units'], 1 ) ); ?></td>
+                                            <td><?php echo esc_html( number_format_i18n( $over_row['over_pct'], 1 ) ); ?>%</td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            <?php if ( count( $overstock_rows ) > 10 ) : ?>
+                                <p>
+                                    <a href="#" id="sop-overstock-toggle">
+                                        <?php esc_html_e( 'Show more', 'sop' ); ?>
+                                    </a>
+                                </p>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -1101,6 +1160,10 @@ class sop_Admin_Settings {
                 max-width: 50px;
                 height: auto;
             }
+
+            .sop-hidden {
+                display: none;
+            }
         </style>
 
         <script>
@@ -1130,6 +1193,25 @@ class sop_Admin_Settings {
                     e.preventDefault();
                     var $wrapper = $('#sop-dashboard-stockout-table-wrapper');
                     $wrapper.toggleClass('is-open');
+                });
+
+                $('#sop-overstock-toggle').on('click', function(e) {
+                    e.preventDefault();
+
+                    var $extraRows = $('.sop-overstock-extra');
+                    if ( ! $extraRows.length ) {
+                        return;
+                    }
+
+                    var isHidden = $extraRows.first().hasClass('sop-hidden');
+
+                    if ( isHidden ) {
+                        $extraRows.removeClass('sop-hidden');
+                        $( this ).text('<?php echo esc_js( __( 'Show less', 'sop' ) ); ?>');
+                    } else {
+                        $extraRows.addClass('sop-hidden');
+                        $( this ).text('<?php echo esc_js( __( 'Show more', 'sop' ) ); ?>');
+                    }
                 });
 
                 if ( $.fn.selectWoo || $.fn.wc_enhanced_select ) {
@@ -1207,7 +1289,7 @@ class sop_Admin_Settings {
                     <tr>
                         <th scope="row">
                             <label for="sop_rmb_to_gbp_rate">
-                                <?php esc_html_e( 'RMB â†’ GBP rate (optional)', 'sop' ); ?>
+                                <?php esc_html_e( 'RMB to GBP rate (optional)', 'sop' ); ?>
                             </label>
                         </th>
                         <td>

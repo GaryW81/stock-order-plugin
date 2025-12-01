@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.9
+ * File version: 1.0.10
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -225,6 +225,152 @@ function sop_get_product_max_order_qty_per_month( $product ) {
     }
 
     return 0.0;
+}
+
+/**
+ * Get an overstock report across products.
+ *
+ * For each product with a supplier and positive demand + stock,
+ * we estimate a recommended stock "target" using the same demand-per-day
+ * and buffer-days structure as the forecast engine. Any stock above that
+ * target is treated as overstock.
+ *
+ * Returns rows sorted by overstock percentage (descending).
+ *
+ * @param array $args {
+ *     @type int $limit Max number of rows to return (for UI).
+ * }
+ * @return array[] List of associative arrays with product_id, sku, name, location, stock, over_units, over_pct, image_html.
+ */
+function sop_get_overstock_report( $args = array() ) {
+    $args = wp_parse_args(
+        $args,
+        array(
+            'limit' => 50,
+        )
+    );
+
+    $rows = array();
+
+    if ( ! function_exists( 'sop_core_engine' ) || ! function_exists( 'sop_supplier_get_all' ) ) {
+        return $rows;
+    }
+
+    $engine = sop_core_engine();
+    if ( ! $engine || ! method_exists( $engine, 'get_supplier_forecast' ) ) {
+        return $rows;
+    }
+
+    $suppliers = sop_supplier_get_all( array( 'is_active' => 1 ) );
+    if ( empty( $suppliers ) ) {
+        return $rows;
+    }
+
+    foreach ( $suppliers as $supplier ) {
+        $supplier_id = 0;
+        if ( is_object( $supplier ) && isset( $supplier->id ) ) {
+            $supplier_id = (int) $supplier->id;
+        } elseif ( is_array( $supplier ) && isset( $supplier['id'] ) ) {
+            $supplier_id = (int) $supplier['id'];
+        }
+
+        if ( $supplier_id <= 0 ) {
+            continue;
+        }
+
+        $forecast_rows = $engine->get_supplier_forecast( $supplier_id );
+        if ( empty( $forecast_rows ) || ! is_array( $forecast_rows ) ) {
+            continue;
+        }
+
+        foreach ( $forecast_rows as $row ) {
+            $product_id = isset( $row['product_id'] ) ? (int) $row['product_id'] : 0;
+            if ( $product_id <= 0 ) {
+                continue;
+            }
+
+            $current_stock = isset( $row['current_stock'] ) ? (float) $row['current_stock'] : 0.0;
+            if ( $current_stock <= 0 ) {
+                continue;
+            }
+
+            $target_stock = 0.0;
+            if ( isset( $row['buffer_target_units'] ) ) {
+                $target_stock = (float) $row['buffer_target_units'];
+            } elseif ( isset( $row['buffer_days'] ) && isset( $row['demand_per_day'] ) ) {
+                $target_stock = (float) $row['buffer_days'] * (float) $row['demand_per_day'];
+            }
+
+            $target_stock = max( 0.0, $target_stock );
+
+            if ( $target_stock <= 0.0 ) {
+                continue;
+            }
+
+            if ( $current_stock <= $target_stock ) {
+                continue;
+            }
+
+            $over_units = $current_stock - $target_stock;
+            $over_pct   = ( $target_stock > 0.0 ) ? ( $over_units / $target_stock * 100.0 ) : 0.0;
+
+            $product_obj = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+            $sku         = isset( $row['sku'] ) ? (string) $row['sku'] : '';
+            $name        = isset( $row['name'] ) ? (string) $row['name'] : '';
+
+            if ( $product_obj ) {
+                if ( '' === $sku ) {
+                    $sku = $product_obj->get_sku();
+                }
+
+                $name = $product_obj->get_name();
+            }
+
+            $location = get_post_meta( $product_id, '_product_location', true );
+
+            $image_html = '';
+            if ( $product_obj ) {
+                $image_id = $product_obj->get_image_id();
+                if ( $image_id ) {
+                    $image_html = wp_get_attachment_image( $image_id, 'thumbnail' );
+                }
+            }
+
+            if ( '' === $image_html && function_exists( 'wc_placeholder_img' ) ) {
+                $image_html = wc_placeholder_img( array( 'class' => 'sop-dashboard-thumb' ) );
+            }
+
+            $rows[] = array(
+                'product_id' => $product_id,
+                'sku'        => $sku,
+                'name'       => $name,
+                'location'   => $location,
+                'stock'      => (int) round( $current_stock ),
+                'over_units' => (float) $over_units,
+                'over_pct'   => (float) $over_pct,
+                'image_html' => $image_html,
+            );
+        }
+    }
+
+    if ( ! empty( $rows ) ) {
+        usort(
+            $rows,
+            function ( $a, $b ) {
+                if ( $a['over_pct'] === $b['over_pct'] ) {
+                    return 0;
+                }
+                return ( $a['over_pct'] < $b['over_pct'] ) ? 1 : -1;
+            }
+        );
+    }
+
+    $limit = isset( $args['limit'] ) ? (int) $args['limit'] : 0;
+    if ( $limit > 0 && count( $rows ) > $limit ) {
+        $rows = array_slice( $rows, 0, $limit );
+    }
+
+    return $rows;
 }
 
 /* -------------------------------------------------------------------------
