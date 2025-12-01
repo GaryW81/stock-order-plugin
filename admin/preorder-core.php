@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.16
+ * File version: 10.17
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -55,6 +55,34 @@ function sop_preorder_register_admin_menu() {
         'sop-preorder-sheet',
         'sop_preorder_render_admin_page'
     );
+}
+
+/**
+ * Minimal stub handler for saving a preorder sheet.
+ *
+ * Phase 1B (step 1): this is only scaffolding and is not wired to any UI yet.
+ */
+add_action( 'admin_post_sop_save_preorder_sheet', 'sop_handle_save_preorder_sheet' );
+function sop_handle_save_preorder_sheet() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You do not have permission to save preorder sheets.', 'sop' ) );
+    }
+
+    $nonce = isset( $_POST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ) : '';
+    if ( ! wp_verify_nonce( $nonce, 'sop_save_preorder_sheet' ) ) {
+        wp_die( esc_html__( 'Security check failed while saving preorder sheet.', 'sop' ) );
+    }
+
+    $redirect_url = admin_url( 'admin.php?page=sop-preorder' );
+    $redirect_url = add_query_arg(
+        array(
+            'sop_saved' => 'stub',
+        ),
+        $redirect_url
+    );
+
+    wp_safe_redirect( $redirect_url );
+    exit;
 }
 
 function sop_preorder_get_settings() {

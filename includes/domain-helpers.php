@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.12
+ * File version: 1.0.13
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -48,13 +48,84 @@ if ( ! function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ) {
 /**
  * Create a new preorder sheet header row.
  *
- * This will be implemented in a later phase.
- *
  * @param array $data Associative array of fields to insert.
- * @return int|WP_Error
+ * @return int|WP_Error Insert ID on success, WP_Error on failure.
  */
 function sop_insert_preorder_sheet( $data ) {
-    return new WP_Error( 'sop_not_implemented', __( 'Preorder sheet insert not implemented yet.', 'sop' ) );
+    global $wpdb;
+
+    $table = sop_get_preorder_sheet_table_name();
+    if ( ! $table ) {
+        return new WP_Error( 'sop_insert_preorder_sheet_failed', __( 'Failed to insert preorder sheet.', 'sop' ) );
+    }
+
+    $now_utc = current_time( 'mysql', true );
+
+    $defaults = array(
+        'supplier_id'               => 0,
+        'status'                    => 'draft',
+        'title'                     => '',
+        'order_number'              => '',
+        'order_date_owner'          => null,
+        'container_load_date_owner' => null,
+        'arrival_date_owner'        => null,
+        'deposit_fx_owner'          => null,
+        'balance_fx_owner'          => null,
+        'header_notes_owner'        => null,
+        'currency_code'             => '',
+        'container_type'            => '',
+        'public_token'              => null,
+        'portal_enabled'            => 0,
+        'created_at'                => $now_utc,
+        'updated_at'                => $now_utc,
+    );
+
+    $data = wp_parse_args( $data, $defaults );
+
+    $insert = array(
+        'supplier_id'               => (int) $data['supplier_id'],
+        'status'                    => ( $data['status'] !== '' ) ? $data['status'] : 'draft',
+        'title'                     => (string) $data['title'],
+        'order_number'              => (string) $data['order_number'],
+        'order_date_owner'          => $data['order_date_owner'],
+        'container_load_date_owner' => $data['container_load_date_owner'],
+        'arrival_date_owner'        => $data['arrival_date_owner'],
+        'deposit_fx_owner'          => $data['deposit_fx_owner'],
+        'balance_fx_owner'          => $data['balance_fx_owner'],
+        'header_notes_owner'        => $data['header_notes_owner'],
+        'currency_code'             => (string) $data['currency_code'],
+        'container_type'            => (string) $data['container_type'],
+        'public_token'              => $data['public_token'],
+        'portal_enabled'            => (int) $data['portal_enabled'],
+        'created_at'                => ( $data['created_at'] ) ? $data['created_at'] : $now_utc,
+        'updated_at'                => ( $data['updated_at'] ) ? $data['updated_at'] : $now_utc,
+    );
+
+    $format = array(
+        '%d', // supplier_id.
+        '%s', // status.
+        '%s', // title.
+        '%s', // order_number.
+        '%s', // order_date_owner.
+        '%s', // container_load_date_owner.
+        '%s', // arrival_date_owner.
+        '%f', // deposit_fx_owner.
+        '%f', // balance_fx_owner.
+        '%s', // header_notes_owner.
+        '%s', // currency_code.
+        '%s', // container_type.
+        '%s', // public_token.
+        '%d', // portal_enabled.
+        '%s', // created_at.
+        '%s', // updated_at.
+    );
+
+    $result = $wpdb->insert( $table, $insert, $format );
+    if ( false === $result ) {
+        return new WP_Error( 'sop_insert_preorder_sheet_failed', __( 'Failed to insert preorder sheet.', 'sop' ) );
+    }
+
+    return (int) $wpdb->insert_id;
 }
 
 /**
@@ -64,18 +135,233 @@ function sop_insert_preorder_sheet( $data ) {
  * @return array|null
  */
 function sop_get_preorder_sheet( $sheet_id ) {
-    return null;
+    global $wpdb;
+
+    $sheet_id = (int) $sheet_id;
+    if ( $sheet_id <= 0 ) {
+        return null;
+    }
+
+    $table = sop_get_preorder_sheet_table_name();
+    if ( ! $table ) {
+        return null;
+    }
+
+    $sql = $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $sheet_id );
+    $row = $wpdb->get_row( $sql, ARRAY_A );
+
+    return $row ? $row : null;
 }
 
 /**
- * Insert multiple preorder sheet lines for a sheet.
+ * Get preorder sheets for a supplier.
+ *
+ * @param int   $supplier_id Supplier ID.
+ * @param array $args {
+ *     @type int   $limit  Max rows to return.
+ *     @type array $status Statuses to include (defaults to array('draft')).
+ * }
+ * @return array[]
+ */
+function sop_get_preorder_sheets_for_supplier( $supplier_id, $args = array() ) {
+    global $wpdb;
+
+    $supplier_id = (int) $supplier_id;
+    if ( $supplier_id <= 0 ) {
+        return array();
+    }
+
+    $args = wp_parse_args(
+        $args,
+        array(
+            'limit'  => 20,
+            'status' => array( 'draft' ),
+        )
+    );
+
+    $table = sop_get_preorder_sheet_table_name();
+    if ( ! $table ) {
+        return array();
+    }
+
+    $where   = array( $wpdb->prepare( 'supplier_id = %d', $supplier_id ) );
+    $values  = array();
+    $limit   = (int) $args['limit'];
+    $limit   = ( $limit > 0 ) ? $limit : 20;
+    $status  = $args['status'];
+    $status_sql = '';
+
+    if ( is_array( $status ) && ! empty( $status ) ) {
+        $placeholders = implode( ',', array_fill( 0, count( $status ), '%s' ) );
+        $where[]      = "status IN ( {$placeholders} )";
+        $values       = array_merge( $values, $status );
+    }
+
+    $where_sql = implode( ' AND ', $where );
+
+    $sql = "SELECT * FROM {$table} WHERE {$where_sql} ORDER BY updated_at DESC, created_at DESC LIMIT %d";
+    $values[] = $limit;
+
+    $prepared = $wpdb->prepare( $sql, $values );
+
+    return $wpdb->get_results( $prepared, ARRAY_A );
+}
+
+/**
+ * Update an existing preorder sheet header row.
+ *
+ * @param int   $sheet_id Sheet ID.
+ * @param array $data     Data to update.
+ * @return true|WP_Error
+ */
+function sop_update_preorder_sheet( $sheet_id, $data ) {
+    global $wpdb;
+
+    $sheet_id = (int) $sheet_id;
+    if ( $sheet_id <= 0 ) {
+        return new WP_Error( 'sop_update_preorder_sheet_failed', __( 'Invalid preorder sheet ID.', 'sop' ) );
+    }
+
+    $table = sop_get_preorder_sheet_table_name();
+    if ( ! $table ) {
+        return new WP_Error( 'sop_update_preorder_sheet_failed', __( 'Failed to update preorder sheet.', 'sop' ) );
+    }
+
+    $now_utc = current_time( 'mysql', true );
+
+    $allowed = array(
+        'status',
+        'title',
+        'order_number',
+        'order_date_owner',
+        'container_load_date_owner',
+        'arrival_date_owner',
+        'deposit_fx_owner',
+        'balance_fx_owner',
+        'header_notes_owner',
+        'currency_code',
+        'container_type',
+        'portal_enabled',
+    );
+
+    $update = array();
+
+    foreach ( $allowed as $key ) {
+        if ( array_key_exists( $key, $data ) ) {
+            $update[ $key ] = $data[ $key ];
+        }
+    }
+
+    $update['updated_at'] = $now_utc;
+
+    if ( empty( $update ) ) {
+        return true;
+    }
+
+    $formats = array();
+    foreach ( $update as $key => $value ) {
+        switch ( $key ) {
+            case 'portal_enabled':
+                $formats[] = '%d';
+                break;
+            case 'deposit_fx_owner':
+            case 'balance_fx_owner':
+                $formats[] = '%f';
+                break;
+            default:
+                $formats[] = '%s';
+        }
+    }
+
+    $result = $wpdb->update(
+        $table,
+        $update,
+        array( 'id' => $sheet_id ),
+        $formats,
+        array( '%d' )
+    );
+
+    if ( false === $result ) {
+        return new WP_Error( 'sop_update_preorder_sheet_failed', __( 'Failed to update preorder sheet.', 'sop' ) );
+    }
+
+    return true;
+}
+
+/**
+ * Insert preorder sheet lines (replace existing).
  *
  * @param int   $sheet_id Sheet ID.
  * @param array $lines    List of associative arrays per line.
  * @return true|WP_Error
  */
 function sop_insert_preorder_sheet_lines( $sheet_id, array $lines ) {
-    return new WP_Error( 'sop_not_implemented', __( 'Preorder sheet line insert not implemented yet.', 'sop' ) );
+    global $wpdb;
+
+    $sheet_id = (int) $sheet_id;
+    if ( $sheet_id <= 0 ) {
+        return new WP_Error( 'sop_insert_preorder_lines_failed', __( 'Invalid preorder sheet ID.', 'sop' ) );
+    }
+
+    $table = sop_get_preorder_sheet_lines_table_name();
+    if ( ! $table ) {
+        return new WP_Error( 'sop_insert_preorder_lines_failed', __( 'Failed to insert preorder lines.', 'sop' ) );
+    }
+
+    $wpdb->delete( $table, array( 'sheet_id' => $sheet_id ), array( '%d' ) );
+
+    foreach ( $lines as $line ) {
+        $insert = array(
+            'sheet_id'              => $sheet_id,
+            'product_id'            => isset( $line['product_id'] ) ? (int) $line['product_id'] : 0,
+            'sku_owner'             => isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '',
+            'qty_owner'             => isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0.0,
+            'cost_rmb_owner'        => isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0.0,
+            'moq_owner'             => isset( $line['moq_owner'] ) ? (float) $line['moq_owner'] : 0.0,
+            'product_notes_owner'   => isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : null,
+            'order_notes_owner'     => isset( $line['order_notes_owner'] ) ? $line['order_notes_owner'] : null,
+            'sku_supplier'          => isset( $line['sku_supplier'] ) ? (string) $line['sku_supplier'] : '',
+            'qty_supplier'          => isset( $line['qty_supplier'] ) ? (float) $line['qty_supplier'] : 0.0,
+            'cost_rmb_supplier'     => isset( $line['cost_rmb_supplier'] ) ? (float) $line['cost_rmb_supplier'] : 0.0,
+            'moq_supplier'          => isset( $line['moq_supplier'] ) ? (float) $line['moq_supplier'] : 0.0,
+            'product_notes_supplier'=> isset( $line['product_notes_supplier'] ) ? $line['product_notes_supplier'] : null,
+            'order_notes_supplier'  => isset( $line['order_notes_supplier'] ) ? $line['order_notes_supplier'] : null,
+            'image_id'              => isset( $line['image_id'] ) ? (int) $line['image_id'] : null,
+            'location'              => isset( $line['location'] ) ? (string) $line['location'] : '',
+            'cbm_per_unit'          => isset( $line['cbm_per_unit'] ) ? (float) $line['cbm_per_unit'] : 0.0,
+            'cbm_total_owner'       => isset( $line['cbm_total_owner'] ) ? (float) $line['cbm_total_owner'] : 0.0,
+            'sort_index'            => isset( $line['sort_index'] ) ? (int) $line['sort_index'] : 0,
+        );
+
+        $format = array(
+            '%d', // sheet_id.
+            '%d', // product_id.
+            '%s', // sku_owner.
+            '%f', // qty_owner.
+            '%f', // cost_rmb_owner.
+            '%f', // moq_owner.
+            '%s', // product_notes_owner.
+            '%s', // order_notes_owner.
+            '%s', // sku_supplier.
+            '%f', // qty_supplier.
+            '%f', // cost_rmb_supplier.
+            '%f', // moq_supplier.
+            '%s', // product_notes_supplier.
+            '%s', // order_notes_supplier.
+            '%d', // image_id.
+            '%s', // location.
+            '%f', // cbm_per_unit.
+            '%f', // cbm_total_owner.
+            '%d', // sort_index.
+        );
+
+        $result = $wpdb->insert( $table, $insert, $format );
+        if ( false === $result ) {
+            return new WP_Error( 'sop_insert_preorder_lines_failed', __( 'Failed to insert preorder lines.', 'sop' ) );
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -85,7 +371,24 @@ function sop_insert_preorder_sheet_lines( $sheet_id, array $lines ) {
  * @return array[] List of associative rows.
  */
 function sop_get_preorder_sheet_lines( $sheet_id ) {
-    return array();
+    global $wpdb;
+
+    $sheet_id = (int) $sheet_id;
+    if ( $sheet_id <= 0 ) {
+        return array();
+    }
+
+    $table = sop_get_preorder_sheet_lines_table_name();
+    if ( ! $table ) {
+        return array();
+    }
+
+    $sql = $wpdb->prepare(
+        "SELECT * FROM {$table} WHERE sheet_id = %d ORDER BY sort_index ASC, id ASC",
+        $sheet_id
+    );
+
+    return $wpdb->get_results( $sql, ARRAY_A );
 }
 
 /**
