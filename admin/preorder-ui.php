@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.33 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.34 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -209,6 +209,26 @@ function sop_preorder_render_admin_page() {
     ?>
     <div class="wrap sop-preorder-wrap">
         <h1><?php esc_html_e( 'Pre-Order Sheet', 'sop' ); ?></h1>
+        <?php
+        $sop_saved    = isset( $_GET['sop_saved'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_saved'] ) ) : '';
+        $sop_sheet_id = isset( $_GET['sop_sheet_id'] ) ? absint( $_GET['sop_sheet_id'] ) : 0;
+
+        if ( '1' === $sop_saved ) {
+            $message = $sop_sheet_id
+                ? sprintf( __( 'Pre-order sheet saved (ID %d).', 'sop' ), $sop_sheet_id )
+                : __( 'Pre-order sheet saved.', 'sop' );
+
+            printf(
+                '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+                esc_html( $message )
+            );
+        } elseif ( '0' === $sop_saved ) {
+            printf(
+                '<div class="notice notice-error"><p>%s</p></div>',
+                esc_html__( 'There was a problem saving the pre-order sheet. Please try again.', 'sop' )
+            );
+        }
+        ?>
 
         <form id="sop-preorder-filter-form" method="get" action="">
             <input type="hidden" name="page" value="sop-preorder-sheet" />
