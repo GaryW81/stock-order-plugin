@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.2
+ * File version: 1.1.3
  *
  * Excel-compatible HTML export (with embedded images) for saved Pre-Order sheets.
  */
@@ -20,16 +20,14 @@ class SOP_Preorder_Excel_Exporter {
      * @return string
      */
     public static function build_html_table( $header, $lines ) {
-        $image_cell_size_px  = 60; // Outer dimension for the image column.
+        $image_cell_size_px  = 62; // Outer dimension for the image column.
         $image_padding_px    = 1;  // Padding inside the image cell.
-        $image_inner_max_px  = $image_cell_size_px - ( 2 * $image_padding_px );
-        $row_height_px       = $image_cell_size_px + 2; // Slightly taller than the image.
+        $row_height_px       = 62; // Row height to match image cell.
 
         $html  = '<html><head><meta charset="utf-8" /></head><body>';
         $html .= '<table border="1" cellspacing="0" cellpadding="3">';
         $html .= '<colgroup>';
         $html .= '<col style="width:' . (int) $image_cell_size_px . 'px;" />';
-        // Remaining columns use default sizing.
         for ( $i = 0; $i < 10; $i++ ) {
             $html .= '<col />';
         }
@@ -73,32 +71,33 @@ class SOP_Preorder_Excel_Exporter {
                 $image_id = get_post_thumbnail_id( $product_id );
             }
 
-            $image_url = '';
+            $thumb_url = '';
             if ( $image_id ) {
-                $image_url = wp_get_attachment_image_url( $image_id, 'woocommerce_thumbnail' );
+                $src = wp_get_attachment_image_src( $image_id, 'woocommerce_gallery_thumbnail' );
+                if ( $src && ! empty( $src[0] ) ) {
+                    $thumb_url = $src[0];
+                }
+                if ( empty( $thumb_url ) ) {
+                    $src = wp_get_attachment_image_src( $image_id, 'thumbnail' );
+                    if ( $src && ! empty( $src[0] ) ) {
+                        $thumb_url = $src[0];
+                    }
+                }
             }
 
             $html .= '<tr style="height:' . (int) $row_height_px . 'px;">';
 
             $img_td_style = sprintf(
-                'width:%dpx;height:%dpx;padding:0;border:1px solid #000;text-align:center;vertical-align:middle;',
+                'width:%dpx;height:%dpx;border:1px solid #000;vertical-align:middle;text-align:center;',
                 (int) $image_cell_size_px,
                 (int) $image_cell_size_px
             );
 
-            $inner = '';
-            if ( $image_url ) {
-                $inner  = '<table role="presentation" style="border-collapse:collapse;margin:0 auto;">';
-                $inner .= '<tr>';
-                $inner .= '<td style="width:' . (int) $image_cell_size_px . 'px;height:' . (int) $image_cell_size_px . 'px;text-align:center;vertical-align:middle;padding:' . (int) $image_padding_px . 'px;">';
-                $inner .= '<img src="' . esc_attr( $image_url ) . '" alt="" width="58" height="58" style="max-width:58px;max-height:58px;display:inline-block;" />';
-                $inner .= '</td>';
-                $inner .= '</tr>';
-                $inner .= '</table>';
-            }
-
+            $html .= '<tr style="height:' . (int) $row_height_px . 'px;">';
             $html .= '<td style="' . $img_td_style . '">';
-            $html .= $inner;
+            if ( $thumb_url ) {
+                $html .= '<img src="' . esc_url( $thumb_url ) . '" alt="" width="60" height="60" style="display:block;margin:1px auto;" />';
+            }
             $html .= '</td>';
             $html .= '<td>' . (int) $product_id . '</td>';
             $html .= '<td>' . esc_html( $sku ) . '</td>';
