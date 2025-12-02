@@ -37,6 +37,28 @@ if ( is_admin() ) {
     require_once SOP_PLUGIN_DIR . 'admin/product-mapping.php';
     require_once SOP_PLUGIN_DIR . 'admin/preorder-core.php';
     require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';
+
+    /**
+     * Register Saved sheets submenu.
+     */
+    add_action(
+        'admin_menu',
+        function () {
+            $parent_slug = function_exists( 'sop_preorder_get_stock_order_parent_slug' )
+                ? sop_preorder_get_stock_order_parent_slug()
+                : 'woocommerce';
+
+            add_submenu_page(
+                $parent_slug,
+                __( 'Saved sheets', 'sop' ),
+                __( 'Saved sheets', 'sop' ),
+                'manage_woocommerce',
+                'sop-preorder-sheets',
+                'sop_render_preorder_sheets_page'
+            );
+        },
+        100
+    );
 }
 
 /**

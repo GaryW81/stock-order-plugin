@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.36 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.37 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -423,6 +423,20 @@ function sop_preorder_render_admin_page() {
                             : esc_html__( 'Save sheet', 'sop' );
                         ?>
                     </button>
+                    <?php if ( $selected_supplier_id > 0 ) : ?>
+                        <?php
+                        $saved_sheets_url = add_query_arg(
+                            array(
+                                'page'        => 'sop-preorder-sheets',
+                                'supplier_id' => (int) $selected_supplier_id,
+                            ),
+                            admin_url( 'admin.php' )
+                        );
+                        ?>
+                        <a class="button button-secondary" href="<?php echo esc_url( $saved_sheets_url ); ?>">
+                            <?php esc_html_e( 'View saved sheets', 'sop' ); ?>
+                        </a>
+                    <?php endif; ?>
                 </p>
                 <div class="sop-rounding-controls">
                     <span><?php esc_html_e( 'Rounding:', 'sop' ); ?></span>

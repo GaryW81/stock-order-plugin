@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.21
+ * File version: 10.22
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -55,6 +55,96 @@ function sop_preorder_register_admin_menu() {
         'sop-preorder-sheet',
         'sop_preorder_render_admin_page'
     );
+}
+
+/**
+ * Render the Saved Sheets admin page.
+ */
+function sop_render_preorder_sheets_page() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You do not have permission to view preorder sheets.', 'sop' ) );
+    }
+
+    $supplier_id = isset( $_GET['supplier_id'] ) ? (int) $_GET['supplier_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+    $suppliers = function_exists( 'sop_preorder_get_suppliers' ) ? sop_preorder_get_suppliers() : array();
+    $sheets    = array();
+
+    if ( $supplier_id > 0 && function_exists( 'sop_get_preorder_sheets_for_supplier' ) ) {
+        $sheets = sop_get_preorder_sheets_for_supplier( $supplier_id );
+    }
+    ?>
+    <div class="wrap">
+        <h1><?php esc_html_e( 'Saved pre-order sheets', 'sop' ); ?></h1>
+
+        <form method="get" action="">
+            <input type="hidden" name="page" value="sop-preorder-sheets" />
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php esc_html_e( 'Supplier', 'sop' ); ?></th>
+                    <td>
+                        <select name="supplier_id">
+                            <option value="0"><?php esc_html_e( 'Select a supplier', 'sop' ); ?></option>
+                            <?php foreach ( $suppliers as $supplier ) : ?>
+                                <option value="<?php echo esc_attr( $supplier['id'] ); ?>" <?php selected( (int) $supplier['id'], $supplier_id ); ?>>
+                                    <?php echo esc_html( $supplier['name'] ); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="submit" class="button"><?php esc_html_e( 'Filter', 'sop' ); ?></button>
+                    </td>
+                </tr>
+            </table>
+        </form>
+
+        <?php if ( $supplier_id <= 0 ) : ?>
+            <p><?php esc_html_e( 'Select a supplier to view saved sheets.', 'sop' ); ?></p>
+        <?php elseif ( empty( $sheets ) ) : ?>
+            <p><?php esc_html_e( 'No saved sheets found for this supplier.', 'sop' ); ?></p>
+        <?php else : ?>
+            <table class="widefat striped">
+                <thead>
+                    <tr>
+                        <th><?php esc_html_e( 'ID', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Supplier', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Status', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Order date', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Container', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Last updated', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Actions', 'sop' ); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ( $sheets as $sheet ) : ?>
+                        <tr>
+                            <td><?php echo esc_html( $sheet['id'] ); ?></td>
+                            <td><?php echo esc_html( $sheet['supplier_id'] ); ?></td>
+                            <td><?php echo esc_html( isset( $sheet['status'] ) ? $sheet['status'] : '' ); ?></td>
+                            <td><?php echo esc_html( isset( $sheet['order_date_owner'] ) ? $sheet['order_date_owner'] : '' ); ?></td>
+                            <td><?php echo esc_html( isset( $sheet['container_type'] ) ? $sheet['container_type'] : '' ); ?></td>
+                            <td><?php echo esc_html( isset( $sheet['updated_at'] ) ? $sheet['updated_at'] : '' ); ?></td>
+                            <td>
+                                <?php
+                                $open_url = add_query_arg(
+                                    array(
+                                        'page'         => 'sop-preorder-sheet',
+                                        'supplier_id'  => isset( $sheet['supplier_id'] ) ? (int) $sheet['supplier_id'] : 0,
+                                        'sop_sheet_id' => isset( $sheet['id'] ) ? (int) $sheet['id'] : 0,
+                                    ),
+                                    admin_url( 'admin.php' )
+                                );
+                                ?>
+                                <a class="button" href="<?php echo esc_url( $open_url ); ?>">
+                                    <?php esc_html_e( 'Open', 'sop' ); ?>
+                                </a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+    <?php
 }
 
 /**
