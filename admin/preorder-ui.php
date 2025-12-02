@@ -384,7 +384,68 @@ function sop_preorder_render_admin_page() {
             </div>
         </form>
 
-        <div class="sop-preorder-summary-bar">
+        <?php if ( $current_sheet_id > 0 ) : ?>
+            <form id="sop-preorder-export-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:none;">
+                <input type="hidden" name="action" value="sop_export_preorder_sheet_csv" />
+                <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+                <input type="hidden" name="supplier_id" value="<?php echo esc_attr( $selected_supplier_id ); ?>" />
+                <?php wp_nonce_field( 'sop_export_preorder_sheet_csv' ); ?>
+            </form>
+        <?php endif; ?>
+
+        <form id="sop-preorder-sheet-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <?php wp_nonce_field( 'sop_save_preorder_sheet', 'sop_save_preorder_sheet_nonce' ); ?>
+            <input type="hidden" name="action" value="sop_save_preorder_sheet" />
+            <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+            <input type="hidden" name="sop_supplier_id" value="<?php echo esc_attr( $selected_supplier_id ); ?>" />
+            <input type="hidden" name="sop_supplier_name" value="<?php echo isset( $supplier['name'] ) ? esc_attr( $supplier['name'] ) : ''; ?>" />
+            <input type="hidden" name="sop_container_type" value="<?php echo esc_attr( $container_selection ); ?>" />
+            <input type="hidden" name="sop_allowance_percent" value="<?php echo esc_attr( $allowance ); ?>" />
+
+            <div class="sop-preorder-actions" style="margin-top: 0;">
+                <p class="sop-preorder-actions">
+                    <label for="sop-header-order-number" style="margin-right:6px;">
+                        <?php esc_html_e( 'Order #', 'sop' ); ?>
+                        <input type="text"
+                               id="sop-header-order-number"
+                               name="sop_header_order_number"
+                               value="<?php echo esc_attr( $order_number_value ); ?>"
+                               style="width: 90px;" />
+                    </label>
+                    <button type="submit" class="button button-primary" name="sop_preorder_save">
+                        <?php
+                        echo ( $current_sheet_id > 0 )
+                            ? esc_html__( 'Update sheet', 'sop' )
+                            : esc_html__( 'Save sheet', 'sop' );
+                        ?>
+                    </button>
+                    <?php if ( $selected_supplier_id > 0 ) : ?>
+                        <?php
+                        $saved_sheets_url = add_query_arg(
+                            array(
+                                'page'        => 'sop-preorder-sheets',
+                                'supplier_id' => (int) $selected_supplier_id,
+                            ),
+                            admin_url( 'admin.php' )
+                        );
+                        ?>
+                        <a class="button button-secondary" href="<?php echo esc_url( $saved_sheets_url ); ?>">
+                            <?php esc_html_e( 'View saved sheets', 'sop' ); ?>
+                        </a>
+                    <?php endif; ?>
+
+                    <?php if ( $current_sheet_id > 0 ) : ?>
+                        <button type="submit"
+                                class="button"
+                                form="sop-preorder-export-form"
+                                style="margin-left:6px;">
+                            <?php esc_html_e( 'Export CSV', 'sop' ); ?>
+                        </button>
+                    <?php endif; ?>
+                </p>
+            </div>
+
+            <div class="sop-preorder-summary-bar">
             <div class="sop-summary-item">
                 <strong><?php esc_html_e( 'Total Units', 'sop' ); ?>:</strong>
                 <span id="sop-total-units"><?php echo esc_html( number_format_i18n( $total_units, 0 ) ); ?></span>
@@ -419,7 +480,68 @@ function sop_preorder_render_admin_page() {
             </div>
         </div>
 
-        <div class="sop-preorder-table-wrapper">
+            <div class="sop-preorder-table-toolbar">
+                <div class="sop-rounding-controls">
+                    <span><?php esc_html_e( 'Rounding:', 'sop' ); ?></span>
+                    <?php if ( ! $is_locked ) : ?>
+                        <label class="sop-round-step-label">
+                            <?php esc_html_e( 'Step:', 'sop' ); ?>
+                            <select class="sop-round-step">
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                            </select>
+                        </label>
+                        <button type="button" class="button" data-round-mode="up"><?php esc_html_e( 'Round Up', 'sop' ); ?></button>
+                        <button type="button" class="button" data-round-mode="down"><?php esc_html_e( 'Round Down', 'sop' ); ?></button>
+                        <button type="button" class="button" id="sop-preorder-remove-selected"><?php esc_html_e( 'Remove selected', 'sop' ); ?></button>
+                        <button type="button" class="button" id="sop-apply-soq-to-qty"><?php esc_html_e( 'Apply SOQ to Qty', 'sop' ); ?></button>
+                        <label for="sop-preorder-show-removed" style="margin-left: 10px;">
+                            <input type="checkbox" id="sop-preorder-show-removed" />
+                            <?php esc_html_e( 'Show removed rows', 'sop' ); ?>
+                        </label>
+                    <?php else : ?>
+                        <span class="description"><?php esc_html_e( 'Rounding disabled for locked sheet.', 'sop' ); ?></span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="sop-preorder-columns">
+                    <span class="sop-preorder-columns-label"><?php esc_html_e( 'Columns', 'sop' ); ?>:</span>
+                    <button type="button" class="button sop-preorder-columns-toggle" aria-expanded="false">
+                        <?php esc_html_e( 'Select', 'sop' ); ?>
+                    </button>
+                    <div class="sop-preorder-columns-panel" role="menu">
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="cost_supplier" checked="checked" /><?php esc_html_e( 'Cost', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="stock" checked="checked" /><?php esc_html_e( 'Stock', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="inbound" checked="checked" /><?php esc_html_e( 'Inbound', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="min_order" checked="checked" /><?php esc_html_e( 'MOQ', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="cubic" checked="checked" /><?php esc_html_e( 'cm³ per unit', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="line_cbm" checked="checked" /><?php esc_html_e( 'Line CBM', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="regular_unit" checked="checked" /><?php esc_html_e( 'Price excl.', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="regular_line" checked="checked" /><?php esc_html_e( 'Line excl.', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="notes" checked="checked" /><?php esc_html_e( 'Notes', 'sop' ); ?></label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sop-preorder-table-wrapper">
                 <table class="wp-list-table widefat fixed striped sop-preorder-table">
                     <thead>
                         <tr>
