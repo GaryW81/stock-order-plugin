@@ -765,16 +765,20 @@ function sop_preorder_render_admin_page() {
                                             <textarea
                                                 name="sop_line_product_notes[<?php echo esc_attr( $row_index ); ?>]"
                                                 rows="3"
-                                                class="sop-preorder-notes"
+                                                class="sop-preorder-notes sop-preorder-notes-product"
                                                 style="width: 100%; resize: none;"
                                                 title="<?php echo esc_attr( $notes ); ?>"
+                                                data-row-index="<?php echo esc_attr( $row_index ); ?>"
+                                                data-notes-type="product"
                                                 <?php disabled( $is_locked ); ?>
                                             ><?php echo esc_textarea( $notes ); ?></textarea>
 
                                             <button type="button"
                                                     class="sop-preorder-notes-edit-icon"
                                                     data-row-key="<?php echo esc_attr( $row_key ); ?>"
-                                                    aria-label="<?php esc_attr_e( 'Edit notes', 'sop' ); ?>">
+                                                    data-row-index="<?php echo esc_attr( $row_index ); ?>"
+                                                    data-notes-type="product"
+                                                    aria-label="<?php esc_attr_e( 'Edit product notes', 'sop' ); ?>">
                                                 <span class="dashicons dashicons-edit"></span>
                                             </button>
                                         </div>
@@ -787,13 +791,26 @@ function sop_preorder_render_admin_page() {
                                         />
                                     </td>
                                     <td class="column-order-notes" data-column="order_notes">
-                                        <textarea
-                                            name="sop_line_order_notes[<?php echo esc_attr( $row_index ); ?>]"
-                                            rows="3"
-                                            class="sop-preorder-order-notes sop-preorder-notes"
-                                            style="width: 100%; resize: none;"
-                                            <?php disabled( $is_locked ); ?>
-                                        ><?php echo isset( $row['order_notes'] ) ? esc_textarea( $row['order_notes'] ) : ''; ?></textarea>
+                                        <div class="sop-preorder-notes-wrapper">
+                                            <textarea
+                                                name="sop_line_order_notes[<?php echo esc_attr( $row_index ); ?>]"
+                                                rows="3"
+                                                class="sop-preorder-notes sop-preorder-notes-order"
+                                                style="width: 100%; resize: none;"
+                                                data-row-index="<?php echo esc_attr( $row_index ); ?>"
+                                                data-notes-type="order"
+                                                <?php disabled( $is_locked ); ?>
+                                            ><?php echo isset( $row['order_notes'] ) ? esc_textarea( $row['order_notes'] ) : ''; ?></textarea>
+
+                                            <button type="button"
+                                                    class="sop-preorder-notes-edit-icon"
+                                                    data-row-key="<?php echo esc_attr( $row_key ); ?>"
+                                                    data-row-index="<?php echo esc_attr( $row_index ); ?>"
+                                                    data-notes-type="order"
+                                                    aria-label="<?php esc_attr_e( 'Edit order notes', 'sop' ); ?>">
+                                                <span class="dashicons dashicons-edit"></span>
+                                            </button>
+                                        </div>
                                     </td>
                                     <td class="column-carton-no" data-column="carton_no">
                                         <input
@@ -822,7 +839,7 @@ function sop_preorder_render_admin_page() {
                         &times;
                     </button>
                     <h3 class="sop-preorder-notes-overlay-title">
-                        <?php esc_html_e( 'Pre-order notes', 'sop' ); ?>
+                        <?php esc_html_e( 'Product notes', 'sop' ); ?>
                     </h3>
                     <p class="sop-preorder-notes-overlay-product"></p>
                     <textarea class="sop-preorder-notes-overlay-textarea" rows="8"></textarea>
@@ -1226,7 +1243,9 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-table th.column-notes,
-        .sop-preorder-table td.column-notes {
+        .sop-preorder-table td.column-notes,
+        .sop-preorder-table th.column-order-notes,
+        .sop-preorder-table td.column-order-notes {
             min-width: 40ch;
         }
 
@@ -1296,6 +1315,8 @@ function sop_preorder_render_admin_page() {
             var $notesOverlayProduct = $notesOverlay.find('.sop-preorder-notes-overlay-product');
             var $notesOverlayTextarea = $notesOverlay.find('.sop-preorder-notes-overlay-textarea');
             var currentNotesTextarea = null;
+            var currentNotesType     = 'product';
+            var currentNotesRowIndex = null;
             var lastClickedIndex     = null;
             var hasUnsavedChanges    = false;
             var $sheetForm           = $('#sop-preorder-sheet-form');
@@ -1416,20 +1437,31 @@ function sop_preorder_render_admin_page() {
                 return rows;
             }
 
-            function sopPreorderOpenNotesOverlayForRow( $row ) {
+            function sopPreorderOpenNotesOverlayForRow( $row, notesType ) {
                 if ( ! $row || ! $row.length ) {
                     return;
                 }
 
-                var $textarea = $row.find( '.sop-preorder-notes' );
+                var type = notesType || 'product';
+                var $textarea = 'order' === type
+                    ? $row.find( '.sop-preorder-notes-order' )
+                    : $row.find( '.sop-preorder-notes-product' );
                 if ( ! $textarea.length ) {
                     return;
                 }
 
                 currentNotesTextarea = $textarea.get( 0 );
+                currentNotesType     = type;
+                currentNotesRowIndex = $textarea.data( 'row-index' );
 
                 var productText = $.trim( $row.find( 'td.column-name' ).text() || '' );
                 $notesOverlayProduct.text( productText );
+
+                if ( 'order' === type ) {
+                    $notesOverlayTitle.text( '<?php echo esc_js( __( 'Order notes', 'sop' ) ); ?>' );
+                } else {
+                    $notesOverlayTitle.text( '<?php echo esc_js( __( 'Product notes', 'sop' ) ); ?>' );
+                }
 
                 $notesOverlayTextarea.val( currentNotesTextarea.value );
 
@@ -1443,6 +1475,8 @@ function sop_preorder_render_admin_page() {
                 }
 
                 currentNotesTextarea = null;
+                currentNotesType     = 'product';
+                currentNotesRowIndex = null;
                 $notesOverlay.hide();
             }
 
@@ -1534,7 +1568,8 @@ function sop_preorder_render_admin_page() {
             $table.on( 'click', '.sop-preorder-notes, .sop-preorder-notes-edit-icon', function( e ) {
                 e.preventDefault();
                 var $row = $( this ).closest( 'tr.sop-preorder-row' );
-                sopPreorderOpenNotesOverlayForRow( $row );
+                var notesType = $( this ).data( 'notes-type' ) || ( $( this ).hasClass( 'sop-preorder-notes-order' ) ? 'order' : 'product' );
+                sopPreorderOpenNotesOverlayForRow( $row, notesType );
             } );
 
             // Save notes from overlay.
