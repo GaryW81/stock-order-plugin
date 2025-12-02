@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.22
+ * File version: 10.23
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -325,6 +325,113 @@ function sop_handle_save_preorder_sheet() {
     );
 
     wp_safe_redirect( $redirect );
+    exit;
+}
+
+/**
+ * Handle CSV export for a saved pre-order sheet.
+ *
+ * @return void
+ */
+add_action( 'admin_post_sop_export_preorder_sheet_csv', 'sop_handle_export_preorder_sheet_csv' );
+function sop_handle_export_preorder_sheet_csv() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You are not allowed to export pre-order sheets.', 'sop' ) );
+    }
+
+    $nonce = isset( $_REQUEST['_wpnonce'] ) ? wp_unslash( $_REQUEST['_wpnonce'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    if ( ! wp_verify_nonce( $nonce, 'sop_export_preorder_sheet_csv' ) ) {
+        wp_die( esc_html__( 'Invalid export request.', 'sop' ) );
+    }
+
+    $sheet_id    = isset( $_REQUEST['sop_sheet_id'] ) ? (int) $_REQUEST['sop_sheet_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    $supplier_id = isset( $_REQUEST['supplier_id'] ) ? (int) $_REQUEST['supplier_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+
+    if ( $sheet_id <= 0 || ! function_exists( 'sop_get_preorder_sheet' ) || ! function_exists( 'sop_get_preorder_sheet_lines' ) ) {
+        wp_die( esc_html__( 'Pre-order sheet not found for export.', 'sop' ) );
+    }
+
+    $sheet = sop_get_preorder_sheet( $sheet_id );
+    $lines = sop_get_preorder_sheet_lines( $sheet_id );
+    $lines = is_array( $lines ) ? $lines : array();
+
+    if ( empty( $sheet ) || empty( $lines ) ) {
+        wp_die( esc_html__( 'No data available to export for this sheet.', 'sop' ) );
+    }
+
+    if ( ! empty( $sheet['supplier_id'] ) && $supplier_id > 0 && ( (int) $sheet['supplier_id'] !== $supplier_id ) ) {
+        wp_die( esc_html__( 'Supplier mismatch for export request.', 'sop' ) );
+    }
+
+    $supplier_label = ! empty( $sheet['supplier_id'] ) ? 'supplier-' . (int) $sheet['supplier_id'] : 'supplier';
+    $filename       = sprintf(
+        'preorder-%s-sheet-%d-%s.csv',
+        $supplier_label,
+        (int) $sheet_id,
+        gmdate( 'Ymd-His' )
+    );
+
+    nocache_headers();
+    header( 'Content-Type: text/csv; charset=utf-8' );
+    header( 'Content-Disposition: attachment; filename=' . $filename );
+
+    $output = fopen( 'php://output', 'w' );
+
+    fputcsv(
+        $output,
+        array(
+            'Product ID',
+            'SKU',
+            'Product name',
+            'Location',
+            'MOQ',
+            'SOQ',
+            'Qty',
+            'Cost per unit',
+            'Line total',
+            'Notes',
+        )
+    );
+
+    foreach ( $lines as $line ) {
+        $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+        $sku        = isset( $line['sku_owner'] ) ? $line['sku_owner'] : '';
+        $qty        = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0;
+        $moq        = isset( $line['moq_owner'] ) ? (float) $line['moq_owner'] : 0;
+        $soq        = isset( $line['suggested_qty_owner'] ) ? (float) $line['suggested_qty_owner'] : 0;
+        $cost       = isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0;
+        $notes      = isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : '';
+
+        $product_name = '';
+        $location     = isset( $line['location'] ) ? $line['location'] : '';
+
+        if ( $product_id > 0 && function_exists( 'wc_get_product' ) ) {
+            $product = wc_get_product( $product_id );
+            if ( $product ) {
+                $product_name = $product->get_name();
+            }
+        }
+
+        $line_total = $qty * $cost;
+
+        fputcsv(
+            $output,
+            array(
+                $product_id,
+                $sku,
+                $product_name,
+                $location,
+                $moq,
+                $soq,
+                $qty,
+                $cost,
+                $line_total,
+                $notes,
+            )
+        );
+    }
+
+    fclose( $output );
     exit;
 }
 

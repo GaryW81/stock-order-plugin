@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.37 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.38 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -405,6 +405,15 @@ function sop_preorder_render_admin_page() {
             </div>
         </div>
 
+        <?php if ( $current_sheet_id > 0 ) : ?>
+            <form id="sop-preorder-export-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <input type="hidden" name="action" value="sop_export_preorder_sheet_csv" />
+                <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+                <input type="hidden" name="supplier_id" value="<?php echo esc_attr( $selected_supplier_id ); ?>" />
+                <?php wp_nonce_field( 'sop_export_preorder_sheet_csv' ); ?>
+            </form>
+        <?php endif; ?>
+
         <form id="sop-preorder-sheet-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
             <?php wp_nonce_field( 'sop_save_preorder_sheet', 'sop_save_preorder_sheet_nonce' ); ?>
             <input type="hidden" name="action" value="sop_save_preorder_sheet" />
@@ -436,6 +445,15 @@ function sop_preorder_render_admin_page() {
                         <a class="button button-secondary" href="<?php echo esc_url( $saved_sheets_url ); ?>">
                             <?php esc_html_e( 'View saved sheets', 'sop' ); ?>
                         </a>
+                    <?php endif; ?>
+
+                    <?php if ( $current_sheet_id > 0 ) : ?>
+                        <button type="submit"
+                                class="button"
+                                form="sop-preorder-export-form"
+                                style="margin-left:6px;">
+                            <?php esc_html_e( 'Export CSV', 'sop' ); ?>
+                        </button>
                     <?php endif; ?>
                 </p>
                 <div class="sop-rounding-controls">
