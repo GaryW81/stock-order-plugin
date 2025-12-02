@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.0
+ * File version: 1.1.1
  *
  * Excel-compatible HTML export (with embedded images) for saved Pre-Order sheets.
  */
@@ -20,8 +20,20 @@ class SOP_Preorder_Excel_Exporter {
      * @return string
      */
     public static function build_html_table( $header, $lines ) {
+        $image_cell_size_px  = 60; // Outer dimension for the image column.
+        $image_padding_px    = 1;  // Padding inside the image cell.
+        $image_inner_max_px  = $image_cell_size_px - ( 2 * $image_padding_px );
+        $row_height_px       = $image_cell_size_px + 2; // Slightly taller than the image.
+
         $html  = '<html><head><meta charset="utf-8" /></head><body>';
         $html .= '<table border="1" cellspacing="0" cellpadding="3">';
+        $html .= '<colgroup>';
+        $html .= '<col style="width:' . (int) $image_cell_size_px . 'px;" />';
+        // Remaining columns use default sizing.
+        for ( $i = 0; $i < 10; $i++ ) {
+            $html .= '<col />';
+        }
+        $html .= '</colgroup>';
 
         $html .= '<tr>';
         $columns = array(
@@ -66,10 +78,17 @@ class SOP_Preorder_Excel_Exporter {
                 $image_url = wp_get_attachment_image_url( $image_id, 'woocommerce_thumbnail' );
             }
 
-            $html .= '<tr>';
-            $html .= '<td>';
+            $html .= '<tr style="height:' . (int) $row_height_px . 'px;">';
+
+            $img_td_style = sprintf(
+                'width:%dpx;height:%dpx;padding:%dpx;text-align:center;vertical-align:middle;',
+                (int) $image_cell_size_px,
+                (int) $image_cell_size_px,
+                (int) $image_padding_px
+            );
+            $html .= '<td style="' . $img_td_style . '">';
             if ( $image_url ) {
-                $html .= '<img src="' . esc_url( $image_url ) . '" width="60" height="60" />';
+                $html .= '<img src="' . esc_url( $image_url ) . '" alt="" style="max-width:' . (int) $image_inner_max_px . 'px;max-height:' . (int) $image_inner_max_px . 'px;display:block;margin:0 auto;" />';
             }
             $html .= '</td>';
             $html .= '<td>' . (int) $product_id . '</td>';
