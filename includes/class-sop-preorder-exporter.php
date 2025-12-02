@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.1
+ * File version: 1.1.2
  *
  * Excel-compatible HTML export (with embedded images) for saved Pre-Order sheets.
  */
@@ -88,7 +88,7 @@ class SOP_Preorder_Excel_Exporter {
             );
             $html .= '<td style="' . $img_td_style . '">';
             if ( $image_url ) {
-                $html .= '<img src="' . esc_url( $image_url ) . '" alt="" style="max-width:' . (int) $image_inner_max_px . 'px;max-height:' . (int) $image_inner_max_px . 'px;display:block;margin:0 auto;" />';
+                $html .= '<img src="' . esc_url( $image_url ) . '" alt="" width="58" height="58" style="display:block;margin:0 auto;" />';
             }
             $html .= '</td>';
             $html .= '<td>' . (int) $product_id . '</td>';
