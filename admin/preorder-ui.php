@@ -557,6 +557,8 @@ function sop_preorder_render_admin_page() {
                             <th class="column-image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
                             <th class="column-location" data-sort="location" title="<?php esc_attr_e( 'Warehouse location / bin', 'sop' ); ?>"><?php esc_html_e( 'Location', 'sop' ); ?></th>
                             <th class="column-sku" data-sort="sku" title="<?php esc_attr_e( 'SKU (stock-keeping unit)', 'sop' ); ?>"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                            <th class="column-brand" data-sort="brand" title="<?php esc_attr_e( 'Brand / manufacturer', 'sop' ); ?>"><?php esc_html_e( 'Brand', 'sop' ); ?></th>
+                            <th class="column-category" data-sort="category" title="<?php esc_attr_e( 'Product categories', 'sop' ); ?>"><?php esc_html_e( 'Category', 'sop' ); ?></th>
                             <th class="column-name" data-sort="name" title="<?php esc_attr_e( 'Product name', 'sop' ); ?>"><?php esc_html_e( 'Product', 'sop' ); ?></th>
                             <th class="column-cost-supplier" data-column="cost_supplier" data-sort="cost" title="<?php esc_attr_e( 'Cost per unit in supplier currency (GBP, USD, EUR, RMB)', 'sop' ); ?>">
                                 <?php
@@ -572,8 +574,6 @@ function sop_preorder_render_admin_page() {
                                     <?php esc_html_e( 'Unit price (USD)', 'sop' ); ?>
                                 </th>
                             <?php endif; ?>
-                            <th class="column-brand" data-sort="brand" title="<?php esc_attr_e( 'Brand / manufacturer', 'sop' ); ?>"><?php esc_html_e( 'Brand', 'sop' ); ?></th>
-                            <th class="column-category" data-sort="category" title="<?php esc_attr_e( 'Product categories', 'sop' ); ?>"><?php esc_html_e( 'Category', 'sop' ); ?></th>
                             <th class="column-stock" data-column="stock" data-sort="stock" title="<?php esc_attr_e( 'Stock on hand', 'sop' ); ?>"><?php esc_html_e( 'Stock', 'sop' ); ?></th>
                             <th class="column-inbound" data-column="inbound" data-sort="inbound" title="<?php esc_attr_e( 'Inbound quantity on purchase orders', 'sop' ); ?>"><?php esc_html_e( 'Inbound', 'sop' ); ?></th>
                             <th class="column-min-order" data-column="min_order" data-sort="moq" title="<?php esc_attr_e( 'Minimum order quantity', 'sop' ); ?>"><?php esc_html_e( 'MOQ', 'sop' ); ?></th>
@@ -696,6 +696,12 @@ function sop_preorder_render_admin_page() {
                                             <?php disabled( $is_locked ); ?>
                                         ><?php echo esc_textarea( $order_sku ); ?></textarea>
                                     </td>
+                                    <td class="column-brand">
+                                        <?php echo esc_html( $brand ); ?>
+                                    </td>
+                                    <td class="column-category">
+                                        <?php echo esc_html( $categories ); ?>
+                                    </td>
                                     <td class="column-name">
                                         <?php echo esc_html( $name ); ?>
                                     </td>
@@ -715,12 +721,6 @@ function sop_preorder_render_admin_page() {
                                             ?>
                                         </td>
                                     <?php endif; ?>
-                                    <td class="column-brand">
-                                        <?php echo esc_html( $brand ); ?>
-                                    </td>
-                                    <td class="column-category">
-                                        <?php echo esc_html( $categories ); ?>
-                                    </td>
                                     <td class="column-stock" data-column="stock">
                                         <?php echo esc_html( number_format_i18n( $stock_on_hand, 0 ) ); ?>
                                     </td>
@@ -790,7 +790,7 @@ function sop_preorder_render_admin_page() {
                                         <textarea
                                             name="sop_line_order_notes[<?php echo esc_attr( $row_index ); ?>]"
                                             rows="3"
-                                            class="sop-preorder-order-notes"
+                                            class="sop-preorder-order-notes sop-preorder-notes"
                                             style="width: 100%; resize: none;"
                                             <?php disabled( $is_locked ); ?>
                                         ><?php echo isset( $row['order_notes'] ) ? esc_textarea( $row['order_notes'] ) : ''; ?></textarea>
