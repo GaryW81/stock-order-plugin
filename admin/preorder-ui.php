@@ -562,16 +562,18 @@ function sop_preorder_render_admin_page() {
                                 ?>
                             </th>
                             <th class="column-brand" data-sort="brand" title="<?php esc_attr_e( 'Brand / manufacturer', 'sop' ); ?>"><?php esc_html_e( 'Brand', 'sop' ); ?></th>
+                            <th class="column-category" data-sort="category" title="<?php esc_attr_e( 'Product categories', 'sop' ); ?>"><?php esc_html_e( 'Category', 'sop' ); ?></th>
                             <th class="column-stock" data-column="stock" data-sort="stock" title="<?php esc_attr_e( 'Stock on hand', 'sop' ); ?>"><?php esc_html_e( 'Stock', 'sop' ); ?></th>
                             <th class="column-inbound" data-column="inbound" data-sort="inbound" title="<?php esc_attr_e( 'Inbound quantity on purchase orders', 'sop' ); ?>"><?php esc_html_e( 'Inbound', 'sop' ); ?></th>
                             <th class="column-min-order" data-column="min_order" data-sort="moq" title="<?php esc_attr_e( 'Minimum order quantity', 'sop' ); ?>"><?php esc_html_e( 'MOQ', 'sop' ); ?></th>
                             <th class="column-suggested" data-sort="soq" title="<?php esc_attr_e( 'Suggested order quantity', 'sop' ); ?>"><?php esc_html_e( 'SOQ', 'sop' ); ?></th>
                             <th class="column-order-qty" data-sort="order_qty" title="<?php esc_attr_e( 'Manual order quantity for this shipment', 'sop' ); ?>"><?php esc_html_e( 'Qty', 'sop' ); ?></th>
                             <th class="column-line-total-supplier" data-sort="total" title="<?php esc_attr_e( 'Line total in supplier currency', 'sop' ); ?>">
+                                <?php echo esc_html__( 'Line total', 'sop' ); ?>
+                                <br />
                                 <?php
                                 printf(
-                                    /* translators: %s: supplier currency code. */
-                                    esc_html__( 'Line total (%s)', 'sop' ),
+                                    '(%s)',
                                     esc_html( $supplier_currency )
                                 );
                                 ?>
@@ -586,7 +588,7 @@ function sop_preorder_render_admin_page() {
                     <tbody>
                         <?php if ( empty( $rows ) ) : ?>
                             <tr>
-                                <td colspan="17">
+                                <td colspan="19">
                                     <?php esc_html_e( 'No products found for this supplier.', 'sop' ); ?>
                                 </td>
                             </tr>
@@ -615,6 +617,7 @@ function sop_preorder_render_admin_page() {
                                 $suggested_order_qty  = isset( $row['suggested_order_qty'] ) ? (float) $row['suggested_order_qty'] : 0.0;
                                 $cubic_cm             = isset( $row['cubic_cm'] ) ? (float) $row['cubic_cm'] : 0.0;
                                 $line_cbm             = isset( $row['line_cbm'] ) ? (float) $row['line_cbm'] : 0.0;
+                                $categories           = isset( $row['categories'] ) ? $row['categories'] : '';
 
                                 $product              = wc_get_product( $product_id );
 
@@ -688,6 +691,9 @@ function sop_preorder_render_admin_page() {
                                     </td>
                                     <td class="column-brand">
                                         <?php echo esc_html( $brand ); ?>
+                                    </td>
+                                    <td class="column-category">
+                                        <?php echo esc_html( $categories ); ?>
                                     </td>
                                     <td class="column-stock" data-column="stock">
                                         <?php echo esc_html( number_format_i18n( $stock_on_hand, 0 ) ); ?>
