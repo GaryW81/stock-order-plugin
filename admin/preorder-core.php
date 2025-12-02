@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.24
+ * File version: 10.25
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -384,17 +384,12 @@ function sop_handle_export_preorder_sheet_csv() {
         wp_die( esc_html__( 'Pre-order sheet not found for export.', 'sop' ) );
     }
 
-    $sheet = sop_get_preorder_sheet( $sheet_id );
-    $lines = sop_get_preorder_sheet_lines( $sheet_id );
-    $lines = is_array( $lines ) ? $lines : array();
-
-    if ( empty( $sheet ) || empty( $lines ) ) {
-        wp_die( esc_html__( 'No data available to export for this sheet.', 'sop' ) );
+    $dataset = sop_preorder_build_export_dataset( $sheet_id, $supplier_id );
+    if ( is_wp_error( $dataset ) ) {
+        wp_die( esc_html( $dataset->get_error_message() ) );
     }
 
-    if ( ! empty( $sheet['supplier_id'] ) && $supplier_id > 0 && ( (int) $sheet['supplier_id'] !== $supplier_id ) ) {
-        wp_die( esc_html__( 'Supplier mismatch for export request.', 'sop' ) );
-    }
+    list( $sheet, $lines ) = $dataset;
 
     $supplier_slug = '';
     if ( ! empty( $sheet['title'] ) ) {
@@ -410,13 +405,106 @@ function sop_handle_export_preorder_sheet_csv() {
     $order_date   = ! empty( $sheet['order_date_owner'] ) ? preg_replace( '/[^0-9\-]/', '', $sheet['order_date_owner'] ) : gmdate( 'Y-m-d' );
 
     $filename = sprintf(
-        '%s-order-%s-v%d-%s.csv',
+        '%s-order-%s-v%d-%s.xlsx',
         $supplier_slug,
         $order_number,
         $version,
         $order_date
     );
 
+    $result = class_exists( 'SOP_Preorder_Excel_Exporter' )
+        ? SOP_Preorder_Excel_Exporter::export_sheet( $sheet, $lines, $filename )
+        : new WP_Error( 'sop_export_no_exporter', __( 'Excel exporter is not available.', 'sop' ) );
+
+    if ( is_wp_error( $result ) ) {
+        $csv_filename = str_replace( '.xlsx', '.csv', $filename );
+        sop_preorder_stream_csv_export( $sheet, $lines, $csv_filename );
+    }
+    exit;
+}
+
+/**
+ * Build export dataset (header + lines).
+ *
+ * @param int $sheet_id Sheet ID.
+ * @param int $supplier_id Supplier ID.
+ * @return array|WP_Error
+ */
+function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
+    if ( ! function_exists( 'sop_get_preorder_sheet' ) || ! function_exists( 'sop_get_preorder_sheet_lines' ) ) {
+        return new WP_Error( 'sop_export_missing_helpers', __( 'Export helpers unavailable.', 'sop' ) );
+    }
+
+    $sheet = sop_get_preorder_sheet( $sheet_id );
+    if ( empty( $sheet ) ) {
+        return new WP_Error( 'sop_export_sheet_missing', __( 'Pre-order sheet not found.', 'sop' ) );
+    }
+
+    if ( $supplier_id > 0 && isset( $sheet['supplier_id'] ) && (int) $sheet['supplier_id'] !== (int) $supplier_id ) {
+        return new WP_Error( 'sop_export_supplier_mismatch', __( 'Supplier mismatch for export.', 'sop' ) );
+    }
+
+    $lines = sop_get_preorder_sheet_lines( $sheet_id );
+    $lines = is_array( $lines ) ? $lines : array();
+
+    if ( empty( $lines ) ) {
+        return new WP_Error( 'sop_export_no_lines', __( 'No lines found for this sheet.', 'sop' ) );
+    }
+
+    $supplier_name = '';
+    if ( ! empty( $sheet['title'] ) ) {
+        $supplier_name = $sheet['title'];
+    } elseif ( function_exists( 'sop_preorder_get_suppliers' ) && ! empty( $sheet['supplier_id'] ) ) {
+        $suppliers = sop_preorder_get_suppliers();
+        foreach ( $suppliers as $row ) {
+            if ( (int) $row['id'] === (int) $sheet['supplier_id'] ) {
+                $supplier_name = $row['name'];
+                break;
+            }
+        }
+    }
+
+    $sheet_header = array(
+        'id'                => isset( $sheet['id'] ) ? (int) $sheet['id'] : 0,
+        'supplier_id'       => isset( $sheet['supplier_id'] ) ? (int) $sheet['supplier_id'] : 0,
+        'supplier_name'     => $supplier_name,
+        'order_number_label'=> isset( $sheet['order_number_label'] ) ? $sheet['order_number_label'] : '',
+        'edit_version'      => isset( $sheet['edit_version'] ) ? (int) $sheet['edit_version'] : 1,
+        'order_date_owner'  => isset( $sheet['order_date_owner'] ) ? $sheet['order_date_owner'] : '',
+    );
+
+    $line_rows = array();
+    foreach ( $lines as $line ) {
+        $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+        $product    = $product_id > 0 && function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : false;
+
+        $line_rows[] = array(
+            'product_id'    => $product_id,
+            'sku'           => isset( $line['sku_owner'] ) ? $line['sku_owner'] : '',
+            'product_name'  => $product ? $product->get_name() : '',
+            'location'      => isset( $line['location'] ) ? $line['location'] : '',
+            'moq'           => isset( $line['moq_owner'] ) ? (float) $line['moq_owner'] : 0,
+            'soq'           => isset( $line['suggested_qty_owner'] ) ? (float) $line['suggested_qty_owner'] : 0,
+            'qty'           => isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0,
+            'cost_per_unit' => isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0,
+            'line_total'    => ( isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0 ) * ( isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0 ),
+            'notes'         => isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : '',
+            'image_id'      => $product_id ? get_post_thumbnail_id( $product_id ) : 0,
+        );
+    }
+
+    return array( $sheet_header, $line_rows );
+}
+
+/**
+ * Fallback CSV export.
+ *
+ * @param array  $sheet_header Header data.
+ * @param array  $lines        Line rows.
+ * @param string $filename     Filename.
+ * @return void
+ */
+function sop_preorder_stream_csv_export( $sheet_header, $lines, $filename ) {
     nocache_headers();
     header( 'Content-Type: text/csv; charset=utf-8' );
     header( 'Content-Disposition: attachment; filename=' . $filename );
@@ -440,45 +528,24 @@ function sop_handle_export_preorder_sheet_csv() {
     );
 
     foreach ( $lines as $line ) {
-        $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-        $sku        = isset( $line['sku_owner'] ) ? $line['sku_owner'] : '';
-        $qty        = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0;
-        $moq        = isset( $line['moq_owner'] ) ? (float) $line['moq_owner'] : 0;
-        $soq        = isset( $line['suggested_qty_owner'] ) ? (float) $line['suggested_qty_owner'] : 0;
-        $cost       = isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0;
-        $notes      = isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : '';
-
-        $product_name = '';
-        $location     = isset( $line['location'] ) ? $line['location'] : '';
-
-        if ( $product_id > 0 && function_exists( 'wc_get_product' ) ) {
-            $product = wc_get_product( $product_id );
-            if ( $product ) {
-                $product_name = $product->get_name();
-            }
-        }
-
-        $line_total = $qty * $cost;
-
         fputcsv(
             $output,
             array(
-                $product_id,
-                $sku,
-                $product_name,
-                $location,
-                $moq,
-                $soq,
-                $qty,
-                $cost,
-                $line_total,
-                $notes,
+                isset( $line['product_id'] ) ? $line['product_id'] : '',
+                isset( $line['sku'] ) ? $line['sku'] : '',
+                isset( $line['product_name'] ) ? $line['product_name'] : '',
+                isset( $line['location'] ) ? $line['location'] : '',
+                isset( $line['moq'] ) ? $line['moq'] : '',
+                isset( $line['soq'] ) ? $line['soq'] : '',
+                isset( $line['qty'] ) ? $line['qty'] : '',
+                isset( $line['cost_per_unit'] ) ? $line['cost_per_unit'] : '',
+                isset( $line['line_total'] ) ? $line['line_total'] : '',
+                isset( $line['notes'] ) ? $line['notes'] : '',
             )
         );
     }
 
     fclose( $output );
-    exit;
 }
 
 /**

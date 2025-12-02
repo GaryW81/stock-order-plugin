@@ -30,6 +30,7 @@ require_once SOP_PLUGIN_DIR . 'includes/helper-buffer.php';
 require_once SOP_PLUGIN_DIR . 'includes/forecast-core.php';
 require_once SOP_PLUGIN_DIR . 'includes/class-sop-legacy-history.php';
 require_once SOP_PLUGIN_DIR . 'includes/supplier-meta-box.php';
+require_once SOP_PLUGIN_DIR . 'includes/class-sop-preorder-exporter.php';
 
 // Admin-only includes.
 if ( is_admin() ) {
