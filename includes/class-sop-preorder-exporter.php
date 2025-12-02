@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.4
+ * File version: 1.1.5
  *
  * Excel-compatible HTML export (with embedded images) for saved Pre-Order sheets.
  */
@@ -28,24 +28,28 @@ class SOP_Preorder_Excel_Exporter {
         $html .= '<table border="1" cellspacing="0" cellpadding="3">';
         $html .= '<colgroup>';
         $html .= '<col style="width:' . (int) $image_cell_size_px . 'px;" />';
-        for ( $i = 0; $i < 10; $i++ ) {
+        for ( $i = 0; $i < 14; $i++ ) {
             $html .= '<col />';
         }
         $html .= '</colgroup>';
 
         $html .= '<tr>';
         $columns = array(
-            'Image',
-            'Product ID',
-            'SKU',
-            'Product name',
-            'Location',
-            'MOQ',
-            'SOQ',
-            'Qty',
-            'Cost per unit',
-            'Line total',
-            'Notes',
+            __( 'Image', 'sop' ),
+            __( 'SKU', 'sop' ),
+            __( 'Brand', 'sop' ),
+            __( 'Product name', 'sop' ),
+            __( 'Categories', 'sop' ),
+            __( 'MOQ', 'sop' ),
+            __( 'Qty', 'sop' ),
+            __( 'Unit price (RMB)', 'sop' ),
+            __( 'Unit price (USD)', 'sop' ),
+            __( 'Total (RMB)', 'sop' ),
+            __( 'Product notes', 'sop' ),
+            __( 'Order notes', 'sop' ),
+            __( 'Carton no.', 'sop' ),
+            __( 'cm3 per unit', 'sop' ),
+            __( 'Line CBM', 'sop' ),
         );
         foreach ( $columns as $col ) {
             $html .= '<th>' . esc_html( $col ) . '</th>';
@@ -54,16 +58,27 @@ class SOP_Preorder_Excel_Exporter {
 
         foreach ( $lines as $line ) {
             $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-            $sku        = isset( $line['sku'] ) ? $line['sku'] : '';
-            $name       = isset( $line['product_name'] ) ? $line['product_name'] : '';
-            $location   = isset( $line['location'] ) ? $line['location'] : '';
-            $moq        = isset( $line['moq'] ) ? (float) $line['moq'] : 0;
-            $soq        = isset( $line['soq'] ) ? (float) $line['soq'] : 0;
-            $qty        = isset( $line['qty'] ) ? (float) $line['qty'] : 0;
-            $cost_unit  = isset( $line['cost_per_unit'] ) ? (float) $line['cost_per_unit'] : 0;
-            $line_total = isset( $line['line_total'] ) ? (float) $line['line_total'] : ( $qty * $cost_unit );
-            $notes      = isset( $line['notes'] ) ? $line['notes'] : '';
-            $image_id   = 0;
+            $sku         = isset( $line['sku'] ) ? $line['sku'] : '';
+            $brand       = isset( $line['brand'] ) ? $line['brand'] : '';
+            $name        = isset( $line['product_name'] ) ? $line['product_name'] : '';
+            $categories  = isset( $line['categories'] ) ? $line['categories'] : '';
+            $moq         = isset( $line['moq'] ) ? (float) $line['moq'] : 0;
+            $qty         = isset( $line['qty'] ) ? (float) $line['qty'] : 0;
+            $cost_rmb    = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : ( isset( $line['cost_per_unit'] ) ? (float) $line['cost_per_unit'] : 0 );
+            $cost_usd    = '';
+            if ( $cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
+                $converted = sop_convert_rmb_unit_cost_to_usd( $cost_rmb );
+                if ( $converted > 0 ) {
+                    $cost_usd = number_format_i18n( $converted, 2 );
+                }
+            }
+            $line_total_rmb = isset( $line['line_total_rmb'] ) ? $line['line_total_rmb'] : ( isset( $line['line_total'] ) ? $line['line_total'] : ( $qty * $cost_rmb ) );
+            $product_notes  = isset( $line['product_notes'] ) ? $line['product_notes'] : '';
+            $order_notes    = isset( $line['order_notes'] ) ? $line['order_notes'] : '';
+            $carton_number  = isset( $line['carton_number'] ) ? $line['carton_number'] : '';
+            $cm3_per_unit   = isset( $line['cm3_per_unit'] ) ? $line['cm3_per_unit'] : '';
+            $line_cbm       = isset( $line['line_cbm'] ) ? $line['line_cbm'] : '';
+            $image_id       = 0;
 
             if ( isset( $line['image_id'] ) ) {
                 $image_id = (int) $line['image_id'];
@@ -97,16 +112,20 @@ class SOP_Preorder_Excel_Exporter {
                 $html .= '<img src="' . esc_url( $thumb_url ) . '" alt="" width="60" height="60" style="display:block;margin:1px auto;" />';
             }
             $html .= '</td>';
-            $html .= '<td>' . (int) $product_id . '</td>';
             $html .= '<td>' . esc_html( $sku ) . '</td>';
+            $html .= '<td>' . esc_html( $brand ) . '</td>';
             $html .= '<td>' . esc_html( $name ) . '</td>';
-            $html .= '<td>' . esc_html( $location ) . '</td>';
+            $html .= '<td>' . esc_html( $categories ) . '</td>';
             $html .= '<td>' . esc_html( $moq ) . '</td>';
-            $html .= '<td>' . esc_html( $soq ) . '</td>';
             $html .= '<td>' . esc_html( $qty ) . '</td>';
-            $html .= '<td>' . esc_html( $cost_unit ) . '</td>';
-            $html .= '<td>' . esc_html( $line_total ) . '</td>';
-            $html .= '<td>' . esc_html( $notes ) . '</td>';
+            $html .= '<td>' . esc_html( $cost_rmb ) . '</td>';
+            $html .= '<td>' . esc_html( $cost_usd ) . '</td>';
+            $html .= '<td>' . esc_html( $line_total_rmb ) . '</td>';
+            $html .= '<td>' . esc_html( $product_notes ) . '</td>';
+            $html .= '<td>' . esc_html( $order_notes ) . '</td>';
+            $html .= '<td>' . esc_html( $carton_number ) . '</td>';
+            $html .= '<td>' . esc_html( $cm3_per_unit ) . '</td>';
+            $html .= '<td>' . esc_html( $line_cbm ) . '</td>';
             $html .= '</tr>';
         }
 

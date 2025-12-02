@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.14
+ * File version: 1.0.15
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -576,6 +576,33 @@ function sop_supplier_get_all( array $args = array() ) {
     }
 
     return sop_db_get_results( 'suppliers', $where );
+}
+
+/**
+ * Convert a unit cost in RMB to USD using manual FX rates from SOP settings.
+ *
+ * @param float $rmb_cost Unit cost in RMB.
+ * @return float Converted USD value or 0.0 on failure.
+ */
+function sop_convert_rmb_unit_cost_to_usd( $rmb_cost ) {
+    $rmb_cost = (float) $rmb_cost;
+
+    $settings   = get_option( 'sop_settings', array() );
+    $rmb_to_gbp = isset( $settings['rmb_to_gbp_rate'] ) ? (float) $settings['rmb_to_gbp_rate'] : 0.0;
+    $usd_to_gbp = isset( $settings['usd_to_gbp_rate'] ) ? (float) $settings['usd_to_gbp_rate'] : 0.0;
+
+    if ( $rmb_cost <= 0 || $rmb_to_gbp <= 0 || $usd_to_gbp <= 0 ) {
+        return 0.0;
+    }
+
+    $gbp_value = $rmb_cost * $rmb_to_gbp;
+    if ( $gbp_value <= 0 ) {
+        return 0.0;
+    }
+
+    $usd_value = $gbp_value / $usd_to_gbp;
+
+    return $usd_value;
 }
 
 /**
