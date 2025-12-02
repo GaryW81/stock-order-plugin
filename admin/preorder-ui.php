@@ -537,6 +537,12 @@ function sop_preorder_render_admin_page() {
                         <div class="sop-preorder-columns-panel-item">
                             <label><input type="checkbox" data-column="notes" checked="checked" /><?php esc_html_e( 'Notes', 'sop' ); ?></label>
                         </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="order_notes" checked="checked" /><?php esc_html_e( 'Order notes', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="carton_no" checked="checked" /><?php esc_html_e( 'Carton no.', 'sop' ); ?></label>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -561,6 +567,11 @@ function sop_preorder_render_admin_page() {
                                 );
                                 ?>
                             </th>
+                            <?php if ( 'RMB' === $supplier_currency ) : ?>
+                                <th class="column-cost-usd" data-sort="cost_usd">
+                                    <?php esc_html_e( 'Unit price (USD)', 'sop' ); ?>
+                                </th>
+                            <?php endif; ?>
                             <th class="column-brand" data-sort="brand" title="<?php esc_attr_e( 'Brand / manufacturer', 'sop' ); ?>"><?php esc_html_e( 'Brand', 'sop' ); ?></th>
                             <th class="column-category" data-sort="category" title="<?php esc_attr_e( 'Product categories', 'sop' ); ?>"><?php esc_html_e( 'Category', 'sop' ); ?></th>
                             <th class="column-stock" data-column="stock" data-sort="stock" title="<?php esc_attr_e( 'Stock on hand', 'sop' ); ?>"><?php esc_html_e( 'Stock', 'sop' ); ?></th>
@@ -583,12 +594,14 @@ function sop_preorder_render_admin_page() {
                             <th class="column-regular-unit" data-column="regular_unit" data-sort="price_ex" title="<?php esc_attr_e( 'Regular WooCommerce price per unit excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Price excl.', 'sop' ); ?></th>
                             <th class="column-regular-line" data-column="regular_line" data-sort="line_ex" title="<?php esc_attr_e( 'Regular WooCommerce line price excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Line excl.', 'sop' ); ?></th>
                             <th class="column-notes" data-column="notes" data-sort="notes" title="<?php esc_attr_e( 'Internal notes for this product / supplier', 'sop' ); ?>"><?php esc_html_e( 'Notes', 'sop' ); ?></th>
+                            <th class="column-order-notes" data-column="order_notes" data-sort="order_notes" title="<?php esc_attr_e( 'Order-specific notes', 'sop' ); ?>"><?php esc_html_e( 'Order notes', 'sop' ); ?></th>
+                            <th class="column-carton-no" data-column="carton_no" data-sort="carton_no" title="<?php esc_attr_e( 'Carton number', 'sop' ); ?>"><?php esc_html_e( 'Carton no.', 'sop' ); ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if ( empty( $rows ) ) : ?>
                             <tr>
-                                <td colspan="19">
+                                <td colspan="<?php echo ( 'RMB' === $supplier_currency ) ? '22' : '21'; ?>">
                                     <?php esc_html_e( 'No products found for this supplier.', 'sop' ); ?>
                                 </td>
                             </tr>
@@ -689,6 +702,19 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-cost-supplier" data-column="cost_supplier">
                                         <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier ); ?>" step="0.01" min="0" class="sop-cost-supplier-input" <?php disabled( $is_locked ); ?> />
                                     </td>
+                                    <?php if ( 'RMB' === $supplier_currency ) : ?>
+                                        <td class="column-cost-usd" data-column="cost_usd">
+                                            <?php
+                                            $unit_cost_rmb = $cost_supplier;
+                                            if ( function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) && $unit_cost_rmb > 0 ) {
+                                                $unit_cost_usd = sop_convert_rmb_unit_cost_to_usd( $unit_cost_rmb );
+                                                echo esc_html( wc_format_decimal( $unit_cost_usd, 2 ) );
+                                            } else {
+                                                echo '&ndash;';
+                                            }
+                                            ?>
+                                        </td>
+                                    <?php endif; ?>
                                     <td class="column-brand">
                                         <?php echo esc_html( $brand ); ?>
                                     </td>
@@ -758,6 +784,25 @@ function sop_preorder_render_admin_page() {
                                             name="sop_removed[]"
                                             value="<?php echo ! empty( $row['removed'] ) ? '1' : '0'; ?>"
                                             class="sop-preorder-removed-flag"
+                                        />
+                                    </td>
+                                    <td class="column-order-notes" data-column="order_notes">
+                                        <textarea
+                                            name="sop_line_order_notes[<?php echo esc_attr( $row_index ); ?>]"
+                                            rows="3"
+                                            class="sop-preorder-order-notes"
+                                            style="width: 100%; resize: none;"
+                                            <?php disabled( $is_locked ); ?>
+                                        ><?php echo isset( $row['order_notes'] ) ? esc_textarea( $row['order_notes'] ) : ''; ?></textarea>
+                                    </td>
+                                    <td class="column-carton-no" data-column="carton_no">
+                                        <input
+                                            type="text"
+                                            name="sop_line_carton_no[<?php echo esc_attr( $row_index ); ?>]"
+                                            value="<?php echo isset( $row['carton_no'] ) ? esc_attr( $row['carton_no'] ) : ''; ?>"
+                                            class="sop-preorder-carton"
+                                            style="width: 80px;"
+                                            <?php disabled( $is_locked ); ?>
                                         />
                                     </td>
                                 </tr>

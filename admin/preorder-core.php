@@ -237,6 +237,8 @@ function sop_handle_save_preorder_sheet() {
     $moqs          = isset( $_POST['sop_line_moq'] ) ? (array) $_POST['sop_line_moq'] : array();
     $costs_rmb     = isset( $_POST['sop_line_cost_rmb'] ) ? (array) $_POST['sop_line_cost_rmb'] : array();
     $product_notes = isset( $_POST['sop_line_product_notes'] ) ? (array) $_POST['sop_line_product_notes'] : array();
+    $order_notes   = isset( $_POST['sop_line_order_notes'] ) ? (array) wp_unslash( $_POST['sop_line_order_notes'] ) : array();
+    $carton_nos    = isset( $_POST['sop_line_carton_no'] ) ? (array) wp_unslash( $_POST['sop_line_carton_no'] ) : array();
     $image_ids     = isset( $_POST['sop_line_image_id'] ) ? (array) $_POST['sop_line_image_id'] : array();
     $locations     = isset( $_POST['sop_line_location'] ) ? (array) $_POST['sop_line_location'] : array();
     $cbm_units     = isset( $_POST['sop_line_cbm_per_unit'] ) ? (array) $_POST['sop_line_cbm_per_unit'] : array();
@@ -256,6 +258,8 @@ function sop_handle_save_preorder_sheet() {
         $moq       = isset( $moqs[ $key ] ) ? floatval( wp_unslash( $moqs[ $key ] ) ) : 0;
         $cost_rmb  = isset( $costs_rmb[ $key ] ) ? floatval( wp_unslash( $costs_rmb[ $key ] ) ) : 0;
         $p_notes   = isset( $product_notes[ $key ] ) ? wp_kses_post( wp_unslash( $product_notes[ $key ] ) ) : '';
+        $o_notes   = isset( $order_notes[ $key ] ) ? sanitize_textarea_field( $order_notes[ $key ] ) : '';
+        $carton_no = isset( $carton_nos[ $key ] ) ? sanitize_text_field( $carton_nos[ $key ] ) : '';
         $image_id  = isset( $image_ids[ $key ] ) ? (int) $image_ids[ $key ] : 0;
         $location  = isset( $locations[ $key ] ) ? sanitize_text_field( wp_unslash( $locations[ $key ] ) ) : '';
         $cbm_unit  = isset( $cbm_units[ $key ] ) ? floatval( wp_unslash( $cbm_units[ $key ] ) ) : 0;
@@ -268,7 +272,8 @@ function sop_handle_save_preorder_sheet() {
             'cost_rmb_owner'      => $cost_rmb,
             'moq_owner'           => $moq,
             'product_notes_owner' => $p_notes,
-            'order_notes_owner'   => '',
+            'order_notes_owner'   => $o_notes,
+            'carton_no'           => $carton_no,
             'image_id'            => $image_id,
             'location'            => $location,
             'cbm_per_unit'        => $cbm_unit,
@@ -487,17 +492,40 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
         $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
         $product    = $product_id > 0 && function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : false;
 
+        $brand      = '';
+        if ( $product && function_exists( 'wc_get_product_terms' ) ) {
+            $terms = wc_get_product_terms( $product_id, 'product_brand', array( 'fields' => 'names' ) );
+            if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+                $brand = implode( ', ', $terms );
+            }
+        }
+
+        $categories = '';
+        if ( $product ) {
+            $cat_terms = get_the_terms( $product_id, 'product_cat' );
+            if ( is_array( $cat_terms ) && ! empty( $cat_terms ) ) {
+                $names = wp_list_pluck( $cat_terms, 'name' );
+                $categories = implode( ' > ', $names );
+            }
+        }
+
         $line_rows[] = array(
             'product_id'    => $product_id,
             'sku'           => isset( $line['sku_owner'] ) ? $line['sku_owner'] : '',
             'product_name'  => $product ? $product->get_name() : '',
+            'brand'         => $brand,
+            'categories'    => $categories,
             'location'      => isset( $line['location'] ) ? $line['location'] : '',
             'moq'           => isset( $line['moq_owner'] ) ? (float) $line['moq_owner'] : 0,
             'soq'           => isset( $line['suggested_qty_owner'] ) ? (float) $line['suggested_qty_owner'] : 0,
             'qty'           => isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0,
-            'cost_per_unit' => isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0,
-            'line_total'    => ( isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0 ) * ( isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0 ),
-            'notes'         => isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : '',
+            'cost_rmb'      => isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0,
+            'line_total_rmb'=> ( isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0 ) * ( isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0 ),
+            'product_notes' => isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : '',
+            'order_notes'   => isset( $line['order_notes_owner'] ) ? $line['order_notes_owner'] : '',
+            'carton_no'     => isset( $line['carton_no'] ) ? $line['carton_no'] : '',
+            'cm3_per_unit'  => isset( $line['cbm_per_unit'] ) ? (float) $line['cbm_per_unit'] : 0,
+            'line_cbm'      => isset( $line['cbm_total_owner'] ) ? (float) $line['cbm_total_owner'] : 0,
             'image_id'      => $product_id ? get_post_thumbnail_id( $product_id ) : 0,
         );
     }
