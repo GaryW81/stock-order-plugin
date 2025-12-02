@@ -48,29 +48,14 @@ function sop_preorder_render_admin_page() {
         $selected_supplier_id = (int) $supplier['id'];
     }
 
-    $supplier_currency      = 'GBP';
-    switch (  ) {
-        case 'RMB':
-             = 'RMB';
-            break;
-        case 'USD':
-             = 'USD';
-            break;
-        case 'EUR':
-             = 'EUR';
-            break;
-        case 'GBP':
-        default:
-             = 'GBP';
-            break;
-    }
+    $supplier_currency = 'GBP';
 
-     = '';
-        = 1;
-         = '';
-        = '';if ( $supplier ) {
-        $ctx               = sop_preorder_resolve_supplier_params();
-        $supplier_currency = $ctx['currency_code'];
+    if ( $supplier ) {
+        $ctx = sop_preorder_resolve_supplier_params();
+
+        if ( ! empty( $ctx['currency_code'] ) ) {
+            $supplier_currency = $ctx['currency_code'];
+        }
     }
 
     $container_selection = isset( $_GET['sop_container'] )
