@@ -81,12 +81,12 @@ class SOP_Preorder_Excel_Exporter {
             $html .= '<tr style="height:' . (int) $row_height_px . 'px;">';
 
             $img_td_style = sprintf(
-                'width:%dpx;height:%dpx;padding:%dpx;text-align:center;vertical-align:middle;',
+                'width:%dpx;height:%dpx;padding:%dpx;',
                 (int) $image_cell_size_px,
                 (int) $image_cell_size_px,
                 (int) $image_padding_px
             );
-            $html .= '<td style="' . $img_td_style . '">';
+            $html .= '<td align="center" valign="middle" style="' . $img_td_style . '">';
             if ( $image_url ) {
                 $html .= '<img src="' . esc_url( $image_url ) . '" alt="" width="58" height="58" style="display:block;margin:0 auto;" />';
             }
