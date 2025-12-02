@@ -501,8 +501,23 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
         }
 
         $categories = '';
-        if ( function_exists( 'sop_get_product_primary_category_name' ) ) {
-            $categories = sop_get_product_primary_category_name( $product_id );
+        if ( function_exists( 'sop_get_product_category_path_below_root' ) ) {
+            $categories = sop_get_product_category_path_below_root( $product_id );
+        }
+
+        $cm3_per_unit = isset( $line['cbm_per_unit'] ) ? (float) $line['cbm_per_unit'] : 0;
+        $line_cbm     = isset( $line['cbm_total_owner'] ) ? (float) $line['cbm_total_owner'] : 0;
+
+        if ( ( $cm3_per_unit <= 0 || $line_cbm <= 0 ) && $product ) {
+            $length = (float) $product->get_length();
+            $width  = (float) $product->get_width();
+            $height = (float) $product->get_height();
+            if ( $length > 0 && $width > 0 && $height > 0 ) {
+                $cm3_per_unit = $cm3_per_unit > 0 ? $cm3_per_unit : $length * $width * $height;
+                if ( $line_cbm <= 0 && isset( $line['qty_owner'] ) ) {
+                    $line_cbm = ( $cm3_per_unit * (float) $line['qty_owner'] ) / 1000000;
+                }
+            }
         }
 
         $line_rows[] = array(
@@ -520,8 +535,8 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
             'product_notes' => isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : '',
             'order_notes'   => isset( $line['order_notes_owner'] ) ? $line['order_notes_owner'] : '',
             'carton_no'     => isset( $line['carton_no'] ) ? $line['carton_no'] : '',
-            'cm3_per_unit'  => isset( $line['cbm_per_unit'] ) ? (float) $line['cbm_per_unit'] : 0,
-            'line_cbm'      => isset( $line['cbm_total_owner'] ) ? (float) $line['cbm_total_owner'] : 0,
+            'cm3_per_unit'  => $cm3_per_unit,
+            'line_cbm'      => $line_cbm,
             'image_id'      => $product_id ? get_post_thumbnail_id( $product_id ) : 0,
         );
     }
@@ -1153,6 +1168,7 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             'line_weight'         => $line_weight,
             'suggested_order_qty' => $suggested_order_qty,
             'cubic_cm'            => $cubic_cm,
+            'cbm_per_unit'        => $cubic_cm,
             'line_cbm'            => $line_cbm,
             'regular_unit_price'  => $regular_unit_price,
             'regular_line_price'  => $regular_line_price,

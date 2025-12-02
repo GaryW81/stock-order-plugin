@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.16
+ * File version: 1.0.17
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -644,6 +644,93 @@ if ( ! function_exists( 'sop_get_product_primary_category_name' ) ) {
 
         $term = reset( $terms );
         return ( $term && isset( $term->name ) ) ? (string) $term->name : '';
+    }
+}
+
+if ( ! function_exists( 'sop_get_product_category_path_below_root' ) ) {
+    /**
+     * Get a category breadcrumb path for a product below a given root slug.
+     *
+     * If multiple categories are assigned, returns the alphabetically-first
+     * breadcrumb (case-insensitive).
+     *
+     * @param int    $product_id Product or variation ID.
+     * @param string $root_slug  Root slug to exclude from the breadcrumb (default: parts-accessories).
+     * @return string
+     */
+    function sop_get_product_category_path_below_root( $product_id, $root_slug = 'parts-accessories' ) {
+        $product_id = (int) $product_id;
+        if ( $product_id <= 0 ) {
+            return '';
+        }
+
+        if ( function_exists( 'wc_get_product' ) ) {
+            $product = wc_get_product( $product_id );
+            if ( $product && $product->is_type( 'variation' ) ) {
+                $parent_id = $product->get_parent_id();
+                if ( $parent_id ) {
+                    $product_id = (int) $parent_id;
+                }
+            }
+        }
+
+        $terms = wp_get_post_terms( $product_id, 'product_cat' );
+        if ( is_wp_error( $terms ) || empty( $terms ) ) {
+            return '';
+        }
+
+        $paths = array();
+
+        foreach ( $terms as $term ) {
+            if ( ! $term || empty( $term->term_id ) ) {
+                continue;
+            }
+
+            $ancestors = get_ancestors( $term->term_id, 'product_cat' );
+            $ancestors = array_reverse( $ancestors );
+
+            $breadcrumb_terms = array();
+            $found_root       = false;
+
+            foreach ( $ancestors as $ancestor_id ) {
+                $ancestor = get_term( $ancestor_id, 'product_cat' );
+                if ( ! $ancestor || is_wp_error( $ancestor ) ) {
+                    continue;
+                }
+
+                if ( $root_slug && $ancestor->slug === $root_slug ) {
+                    $found_root = true;
+                    $breadcrumb_terms = array(); // reset to only children of root.
+                    continue;
+                }
+
+                if ( $found_root ) {
+                    $breadcrumb_terms[] = $ancestor->name;
+                } else {
+                    $breadcrumb_terms[] = $ancestor->name;
+                }
+            }
+
+            $breadcrumb_terms[] = $term->name;
+
+            $path = implode( ' / ', $breadcrumb_terms );
+            if ( $path !== '' ) {
+                $paths[] = $path;
+            }
+        }
+
+        if ( empty( $paths ) ) {
+            return '';
+        }
+
+        usort(
+            $paths,
+            static function ( $a, $b ) {
+                return strcasecmp( $a, $b );
+            }
+        );
+
+        return $paths[0];
     }
 }
 
