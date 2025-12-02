@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.17
+ * File version: 1.0.18
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -649,14 +649,11 @@ if ( ! function_exists( 'sop_get_product_primary_category_name' ) ) {
 
 if ( ! function_exists( 'sop_get_product_category_path_below_root' ) ) {
     /**
-     * Get a category breadcrumb path for a product below a given root slug.
-     *
-     * If multiple categories are assigned, returns the alphabetically-first
-     * breadcrumb (case-insensitive).
+     * Build a category breadcrumb path for a product beneath a given root slug.
      *
      * @param int    $product_id Product or variation ID.
-     * @param string $root_slug  Root slug to exclude from the breadcrumb (default: parts-accessories).
-     * @return string
+     * @param string $root_slug  Root slug to exclude (children after this root are included).
+     * @return string Breadcrumb path like "Electrical / Handlebar Switches".
      */
     function sop_get_product_category_path_below_root( $product_id, $root_slug = 'parts-accessories' ) {
         $product_id = (int) $product_id;
@@ -679,58 +676,83 @@ if ( ! function_exists( 'sop_get_product_category_path_below_root' ) ) {
             return '';
         }
 
-        $paths = array();
-
-        foreach ( $terms as $term ) {
-            if ( ! $term || empty( $term->term_id ) ) {
-                continue;
-            }
-
-            $ancestors = get_ancestors( $term->term_id, 'product_cat' );
-            $ancestors = array_reverse( $ancestors );
-
-            $breadcrumb_terms = array();
-            $found_root       = false;
-
-            foreach ( $ancestors as $ancestor_id ) {
-                $ancestor = get_term( $ancestor_id, 'product_cat' );
-                if ( ! $ancestor || is_wp_error( $ancestor ) ) {
-                    continue;
-                }
-
-                if ( $root_slug && $ancestor->slug === $root_slug ) {
-                    $found_root = true;
-                    $breadcrumb_terms = array(); // reset to only children of root.
-                    continue;
-                }
-
-                if ( $found_root ) {
-                    $breadcrumb_terms[] = $ancestor->name;
-                } else {
-                    $breadcrumb_terms[] = $ancestor->name;
-                }
-            }
-
-            $breadcrumb_terms[] = $term->name;
-
-            $path = implode( ' / ', $breadcrumb_terms );
-            if ( $path !== '' ) {
-                $paths[] = $path;
-            }
-        }
-
-        if ( empty( $paths ) ) {
-            return '';
-        }
-
+        // Pick a primary term: shortest ancestry, then alphabetical.
         usort(
-            $paths,
+            $terms,
             static function ( $a, $b ) {
-                return strcasecmp( $a, $b );
+                $a_depth = count( get_ancestors( $a->term_id, 'product_cat' ) );
+                $b_depth = count( get_ancestors( $b->term_id, 'product_cat' ) );
+
+                if ( $a_depth === $b_depth ) {
+                    return strcasecmp( $a->name, $b->name );
+                }
+
+                return ( $a_depth < $b_depth ) ? -1 : 1;
             }
         );
 
-        return $paths[0];
+        $primary = reset( $terms );
+        if ( ! $primary ) {
+            return '';
+        }
+
+        $ancestors = get_ancestors( $primary->term_id, 'product_cat' );
+        $ancestors = array_reverse( $ancestors );
+
+        $breadcrumb = array();
+        $found_root = false;
+
+        foreach ( $ancestors as $ancestor_id ) {
+            $ancestor = get_term( $ancestor_id, 'product_cat' );
+            if ( ! $ancestor || is_wp_error( $ancestor ) ) {
+                continue;
+            }
+
+            if ( $root_slug && $ancestor->slug === $root_slug ) {
+                $found_root = true;
+                $breadcrumb = array();
+                continue;
+            }
+
+            $breadcrumb[] = $ancestor->name;
+        }
+
+        $breadcrumb[] = $primary->name;
+
+        $breadcrumb = array_filter( array_map( 'trim', $breadcrumb ) );
+        if ( empty( $breadcrumb ) ) {
+            return '';
+        }
+
+        return implode( ' / ', $breadcrumb );
+    }
+}
+
+if ( ! function_exists( 'sop_get_supplier_label' ) ) {
+    /**
+     * Get a human-readable supplier label.
+     *
+     * @param int $supplier_id Supplier ID.
+     * @return string
+     */
+    function sop_get_supplier_label( $supplier_id ) {
+        $supplier_id = (int) $supplier_id;
+        if ( $supplier_id <= 0 ) {
+            return '';
+        }
+
+        if ( function_exists( 'sop_preorder_get_suppliers' ) ) {
+            $suppliers = sop_preorder_get_suppliers();
+            foreach ( $suppliers as $supplier ) {
+                if ( isset( $supplier['id'] ) && (int) $supplier['id'] === $supplier_id ) {
+                    if ( ! empty( $supplier['name'] ) ) {
+                        return $supplier['name'];
+                    }
+                }
+            }
+        }
+
+        return sprintf( __( 'Supplier #%d', 'sop' ), $supplier_id );
     }
 }
 

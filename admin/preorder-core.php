@@ -129,7 +129,7 @@ function sop_render_preorder_sheets_page() {
                     <?php foreach ( $sheets as $sheet ) : ?>
                         <tr>
                             <td><?php echo esc_html( $sheet['id'] ); ?></td>
-                            <td><?php echo esc_html( $sheet['supplier_id'] ); ?></td>
+                            <td><?php echo esc_html( function_exists( 'sop_get_supplier_label' ) ? sop_get_supplier_label( $sheet['supplier_id'] ) : $sheet['supplier_id'] ); ?></td>
                             <td><?php echo esc_html( isset( $sheet['status'] ) ? $sheet['status'] : '' ); ?></td>
                             <td><?php echo ! empty( $sheet['order_number_label'] ) ? esc_html( $sheet['order_number_label'] ) : '&mdash;'; ?></td>
                             <td><?php echo ! empty( $sheet['edit_version'] ) ? (int) $sheet['edit_version'] : 1; ?></td>
@@ -397,7 +397,10 @@ function sop_handle_export_preorder_sheet_csv() {
     list( $sheet, $lines ) = $dataset;
 
     $supplier_slug = '';
-    if ( ! empty( $sheet['title'] ) ) {
+    if ( function_exists( 'sop_get_supplier_label' ) && ! empty( $sheet['supplier_id'] ) ) {
+        $supplier_label = sop_get_supplier_label( (int) $sheet['supplier_id'] );
+        $supplier_slug  = sanitize_title( $supplier_label );
+    } elseif ( ! empty( $sheet['title'] ) ) {
         $supplier_slug = sanitize_title( $sheet['title'] );
     } elseif ( ! empty( $sheet['supplier_id'] ) ) {
         $supplier_slug = 'supplier-' . (int) $sheet['supplier_id'];
