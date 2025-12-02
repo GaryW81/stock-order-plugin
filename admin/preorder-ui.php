@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.39 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.40 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -56,6 +56,11 @@ function sop_preorder_render_admin_page() {
         if ( ! empty( $ctx['currency_code'] ) ) {
             $supplier_currency = $ctx['currency_code'];
         }
+    }
+
+    $rmb_to_usd_rate = 0.0;
+    if ( 'RMB' === $supplier_currency && $selected_supplier_id > 0 && function_exists( 'sop_get_rmb_to_usd_rate_for_supplier' ) ) {
+        $rmb_to_usd_rate = sop_get_rmb_to_usd_rate_for_supplier( $selected_supplier_id );
     }
 
     $container_selection = isset( $_GET['sop_container'] )
@@ -287,7 +292,9 @@ function sop_preorder_render_admin_page() {
         $current_updated    = ! empty( $current_sheet['updated_at'] ) ? $current_sheet['updated_at'] : '';
     }
     ?>
-    <div class="wrap sop-preorder-wrap">
+    <div id="sop-preorder-wrapper"
+         class="wrap sop-preorder-wrap"
+         data-rmb-to-usd-rate="<?php echo esc_attr( $rmb_to_usd_rate ); ?>">
         <h1><?php esc_html_e( 'Pre-Order Sheet', 'sop' ); ?></h1>
         <?php
         $sop_saved    = isset( $_GET['sop_saved'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_saved'] ) ) : '';
@@ -586,9 +593,9 @@ function sop_preorder_render_admin_page() {
                             </th>
                             <th class="column-image" data-column="image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
                             <th class="column-location" data-column="location" data-sort="location" title="<?php esc_attr_e( 'Warehouse location / bin', 'sop' ); ?>"><?php esc_html_e( 'Location', 'sop' ); ?></th>
-                            <th class="column-sku" data-column="sku" data-sort="sku" title="<?php esc_attr_e( 'SKU (stock-keeping unit)', 'sop' ); ?>"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                            <th class="column-sku" data-column="sku" data-sort="sku" data-sort-key="sku" title="<?php esc_attr_e( 'SKU (stock-keeping unit)', 'sop' ); ?>"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
                             <th class="column-brand" data-column="brand" data-sort="brand" title="<?php esc_attr_e( 'Brand / manufacturer', 'sop' ); ?>"><?php esc_html_e( 'Brand', 'sop' ); ?></th>
-                            <th class="column-category" data-column="category" data-sort="category" title="<?php esc_attr_e( 'Product categories', 'sop' ); ?>"><?php esc_html_e( 'Category', 'sop' ); ?></th>
+                            <th class="column-category" data-column="category" data-sort="category" data-sort-key="category" title="<?php esc_attr_e( 'Product categories', 'sop' ); ?>"><?php esc_html_e( 'Category', 'sop' ); ?></th>
                             <th class="column-name" data-column="product" data-sort="name" title="<?php esc_attr_e( 'Product name', 'sop' ); ?>"><?php esc_html_e( 'Product', 'sop' ); ?></th>
                             <th class="column-cost-supplier" data-column="cost_supplier" data-sort="cost" title="<?php esc_attr_e( 'Cost per unit in supplier currency (GBP, USD, EUR, RMB)', 'sop' ); ?>">
                                 <?php
@@ -600,7 +607,7 @@ function sop_preorder_render_admin_page() {
                                 ?>
                             </th>
                             <?php if ( 'RMB' === $supplier_currency ) : ?>
-                                <th class="column-cost-usd" data-column="cost_usd" data-sort="cost_usd">
+                                <th class="column-cost-usd" data-column="cost_usd" data-sort="unit_price_usd" data-sort-key="unit_price_usd">
                                     <?php esc_html_e( 'Unit price (USD)', 'sop' ); ?>
                                 </th>
                             <?php endif; ?>
@@ -660,7 +667,14 @@ function sop_preorder_render_admin_page() {
                                 $suggested_order_qty  = isset( $row['suggested_order_qty'] ) ? (float) $row['suggested_order_qty'] : 0.0;
                                 $cubic_cm             = isset( $row['cubic_cm'] ) ? (float) $row['cubic_cm'] : 0.0;
                                 $line_cbm             = isset( $row['line_cbm'] ) ? (float) $row['line_cbm'] : 0.0;
-                                $categories           = isset( $row['category'] ) ? $row['category'] : ( isset( $row['categories'] ) ? $row['categories'] : '' );
+                                $categories           = '';
+                                if ( isset( $row['category_path'] ) ) {
+                                    $categories = $row['category_path'];
+                                } elseif ( isset( $row['category'] ) ) {
+                                    $categories = $row['category'];
+                                } elseif ( isset( $row['categories'] ) ) {
+                                    $categories = $row['categories'];
+                                }
 
                                 $product              = wc_get_product( $product_id );
 
@@ -677,6 +691,9 @@ function sop_preorder_render_admin_page() {
                                 }
                                 $row_key = $product_id;
                                 $row_index = $sop_row_index;
+                                $sku_sort_source = ( '' !== $order_sku ) ? $order_sku : $sku;
+                                $sku_sort_value  = trim( preg_replace( '/\s+/', ' ', (string) $sku_sort_source ) );
+                                $category_sort_value = trim( (string) $categories );
 
                                 $image_id = 0;
                                 if ( $product ) {
@@ -716,7 +733,7 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-location" data-column="location">
                                         <?php echo esc_html( $location ); ?>
                                     </td>
-                                    <td class="column-sku" data-column="sku">
+                                    <td class="column-sku" data-column="sku" data-sort-key="sku" data-sort-value="<?php echo esc_attr( $sku_sort_value ); ?>" data-sort-text="<?php echo esc_attr( $sku_sort_value ); ?>">
                                         <input type="hidden" name="sop_product_id[]" value="<?php echo esc_attr( $product_id ); ?>" />
                                         <textarea
                                             name="sop_sku[]"
@@ -729,26 +746,38 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-brand" data-column="brand">
                                         <?php echo esc_html( $brand ); ?>
                                     </td>
-                                    <td class="column-category" data-column="category">
+                                    <td class="column-category" data-column="category" data-sort-key="category" data-sort-value="<?php echo esc_attr( $category_sort_value ); ?>">
                                         <?php echo esc_html( $categories ); ?>
                                     </td>
                                     <td class="column-name" data-column="product">
                                         <?php echo esc_html( $name ); ?>
                                     </td>
                                     <td class="column-cost-supplier" data-column="cost_supplier">
-                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier ); ?>" step="0.01" min="0" class="sop-cost-supplier-input" <?php disabled( $is_locked ); ?> />
+                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb" <?php disabled( $is_locked ); ?> />
                                     </td>
                                     <?php if ( 'RMB' === $supplier_currency ) : ?>
-                                        <td class="column-cost-usd" data-column="cost_usd">
-                                            <?php
-                                            $unit_cost_rmb = $cost_supplier;
-                                            if ( function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) && $unit_cost_rmb > 0 ) {
+                                        <?php
+                                        $unit_cost_rmb  = $cost_supplier;
+                                        $unit_cost_usd  = 0.0;
+                                        if ( $unit_cost_rmb > 0 ) {
+                                            if ( $rmb_to_usd_rate > 0 ) {
+                                                $unit_cost_usd = $unit_cost_rmb * $rmb_to_usd_rate;
+                                            } elseif ( function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
                                                 $unit_cost_usd = sop_convert_rmb_unit_cost_to_usd( $unit_cost_rmb );
-                                                echo esc_html( wc_format_decimal( $unit_cost_usd, 2 ) );
-                                            } else {
-                                                echo '&ndash;';
                                             }
-                                            ?>
+                                        }
+                                        $usd_sort_value = ( $unit_cost_usd > 0 ) ? number_format( $unit_cost_usd, 6, '.', '' ) : '';
+                                        ?>
+                                        <td class="column-cost-usd" data-column="cost_usd" data-sort-key="unit_price_usd" data-sort-value="<?php echo esc_attr( $usd_sort_value ); ?>">
+                                            <span class="sop-preorder-cost-usd">
+                                                <?php
+                                                if ( $unit_cost_usd > 0 ) {
+                                                    echo esc_html( wc_format_decimal( $unit_cost_usd, 2 ) );
+                                                } else {
+                                                    echo '&ndash;';
+                                                }
+                                                ?>
+                                            </span>
                                         </td>
                                     <?php endif; ?>
                                     <td class="column-stock" data-column="stock">
@@ -1713,6 +1742,110 @@ function sop_preorder_render_admin_page() {
                 return '<?php echo esc_js( html_entity_decode( get_woocommerce_currency_symbol(), ENT_QUOTES, 'UTF-8' ) ); ?> ' + amount.toFixed(2);
             }
 
+            function sopPreorderParseNumber(val) {
+                var num = parseFloat(String(val).replace(/,/g, ''));
+                return isNaN(num) ? 0 : num;
+            }
+
+            function sopPreorderGetSortValue($row, sortKey, columnIndex) {
+                var $cell = $row.find('td[data-sort-key="' + sortKey + '"]').first();
+
+                if ( ! $cell.length && typeof columnIndex === 'number' ) {
+                    $cell = $row.children('td').eq(columnIndex);
+                }
+
+                if ( $cell.length ) {
+                    var dataValue = $cell.data('sortValue');
+                    if ( typeof dataValue !== 'undefined' ) {
+                        return dataValue;
+                    }
+
+                    var dataNum = $cell.data('sortNum');
+                    if ( typeof dataNum !== 'undefined' ) {
+                        return dataNum;
+                    }
+
+                    var dataText = $cell.data('sortText');
+                    if ( typeof dataText !== 'undefined' ) {
+                        return dataText;
+                    }
+                }
+
+                switch ( sortKey ) {
+                    case 'sku':
+                        return ($row.find('.column-sku textarea').val() || '').replace(/\s+/g, ' ').trim();
+                    case 'name':
+                        return $row.find('.column-name').text() || '';
+                    case 'location':
+                        return $row.find('.column-location').text() || '';
+                    case 'brand':
+                        return $row.find('.column-brand').text() || '';
+                    case 'category':
+                        return $row.find('.column-category').text() || '';
+                    case 'notes':
+                        return $row.find('.column-notes textarea').val() || '';
+                    case 'order_notes':
+                        return $row.find('.column-order-notes textarea').val() || '';
+                    case 'cost':
+                        return parseFloat($row.find('.column-cost-supplier input').val()) || 0;
+                    case 'stock':
+                        return sopPreorderParseNumber($row.find('.column-stock').text());
+                    case 'inbound':
+                        return sopPreorderParseNumber($row.find('.column-inbound').text());
+                    case 'moq':
+                        return parseFloat($row.find('.column-min-order input').val()) || 0;
+                    case 'soq':
+                        return sopPreorderParseNumber($row.find('.column-suggested').text());
+                    case 'order_qty':
+                        return parseFloat($row.find('.sop-order-qty-input').val()) || 0;
+                    case 'total':
+                        return sopPreorderParseNumber($row.find('.sop-line-total-supplier').text());
+                    case 'cubic':
+                        return sopPreorderParseNumber($row.find('.column-cubic-item').text());
+                    case 'line_cbm':
+                        return sopPreorderParseNumber($row.find('.column-line-cbm').text());
+                    case 'price_ex':
+                        return sopPreorderParseNumber($row.find('.column-regular-unit').text());
+                    case 'line_ex':
+                        return sopPreorderParseNumber($row.find('.column-regular-line').text());
+                    case 'unit_price_usd':
+                    case 'cost_usd':
+                        return parseFloat($row.find('.column-cost-usd').data('sort-value')) || 0;
+                    default:
+                        return 0;
+                }
+            }
+
+            var preorderWrapper = document.getElementById('sop-preorder-wrapper');
+            var rmbToUsdRate = preorderWrapper ? parseFloat(preorderWrapper.getAttribute('data-rmb-to-usd-rate') || '0') : 0;
+
+            if ( preorderWrapper ) {
+                preorderWrapper.addEventListener('input', function( e ) {
+                    var input = e.target.closest('.sop-preorder-cost-rmb');
+                    if ( ! input || ! rmbToUsdRate ) {
+                        return;
+                    }
+
+                    var row = input.closest('.sop-preorder-row');
+                    if ( ! row ) {
+                        return;
+                    }
+
+                    var rmbValue = parseFloat(String(input.value).replace(',', '.')) || 0;
+                    var usdValue = rmbValue * rmbToUsdRate;
+
+                    var usdDisplay = row.querySelector('.sop-preorder-cost-usd');
+                    if ( usdDisplay ) {
+                        usdDisplay.textContent = usdValue > 0 ? usdValue.toFixed(2) : '–';
+                    }
+
+                    var usdTd = usdDisplay ? usdDisplay.closest('td') : null;
+                    if ( usdTd ) {
+                        usdTd.dataset.sortValue = usdValue > 0 ? usdValue.toFixed(6) : '0';
+                    }
+                });
+            }
+
             $table.on('input', '.sop-order-qty-input, .sop-cost-supplier-input', function() {
                 recalcTotals();
             });
@@ -1817,10 +1950,27 @@ function sop_preorder_render_admin_page() {
                 $table.find('[data-column="' + columnKey + '"]').toggle(show);
             });
 
+            var sopNumericSortKeys = {
+                cost: true,
+                stock: true,
+                inbound: true,
+                moq: true,
+                soq: true,
+                order_qty: true,
+                total: true,
+                cubic: true,
+                line_cbm: true,
+                price_ex: true,
+                line_ex: true,
+                unit_price_usd: true,
+                cost_usd: true
+            };
+
             $table.find('th[data-sort]').on('click', function() {
                 var $th = $(this);
-                var sortKey = $th.data('sort');
+                var sortKey = $th.data('sort-key') || $th.data('sort');
                 var isAsc = !$th.hasClass('sorted-asc');
+                var columnIndex = $th.index();
 
                 $table.find('th[data-sort]').removeClass('sorted-asc sorted-desc');
                 $th.addClass(isAsc ? 'sorted-asc' : 'sorted-desc');
@@ -1828,99 +1978,19 @@ function sop_preorder_render_admin_page() {
                 var rows = $table.find('tbody tr').get();
 
                 rows.sort(function(a, b) {
-                    var $a = $(a);
-                    var $b = $(b);
+                    var rawA = sopPreorderGetSortValue($(a), sortKey, columnIndex);
+                    var rawB = sopPreorderGetSortValue($(b), sortKey, columnIndex);
 
-                    var valA, valB, numeric = false;
-
-                    switch (sortKey) {
-                        case 'sku':
-                            valA = $a.find('.column-sku input[type="text"]').val() || '';
-                            valB = $b.find('.column-sku input[type="text"]').val() || '';
-                            break;
-                        case 'name':
-                            valA = $a.find('.column-name').text() || '';
-                            valB = $b.find('.column-name').text() || '';
-                            break;
-                        case 'location':
-                            valA = $a.find('.column-location').text() || '';
-                            valB = $b.find('.column-location').text() || '';
-                            break;
-                        case 'brand':
-                            valA = $a.find('.column-brand').text() || '';
-                            valB = $b.find('.column-brand').text() || '';
-                            break;
-                        case 'notes':
-                            valA = $a.find('.column-notes textarea').val() || '';
-                            valB = $b.find('.column-notes textarea').val() || '';
-                            break;
-                        case 'cost':
-                            valA = parseFloat($a.find('.column-cost-supplier input').val()) || 0;
-                            valB = parseFloat($b.find('.column-cost-supplier input').val()) || 0;
-                            numeric = true;
-                            break;
-                        case 'stock':
-                            valA = parseFloat($a.find('.column-stock').text()) || 0;
-                            valB = parseFloat($b.find('.column-stock').text()) || 0;
-                            numeric = true;
-                            break;
-                        case 'inbound':
-                            valA = parseFloat($a.find('.column-inbound').text()) || 0;
-                            valB = parseFloat($b.find('.column-inbound').text()) || 0;
-                            numeric = true;
-                            break;
-                        case 'moq':
-                            valA = parseFloat($a.find('.column-min-order input').val()) || 0;
-                            valB = parseFloat($b.find('.column-min-order input').val()) || 0;
-                            numeric = true;
-                            break;
-                        case 'soq':
-                            valA = parseFloat($a.find('.column-suggested').text()) || 0;
-                            valB = parseFloat($b.find('.column-suggested').text()) || 0;
-                            numeric = true;
-                            break;
-                        case 'order_qty':
-                            valA = parseFloat($a.find('.sop-order-qty-input').val()) || 0;
-                            valB = parseFloat($b.find('.sop-order-qty-input').val()) || 0;
-                            numeric = true;
-                            break;
-                        case 'total':
-                            valA = parseFloat($a.find('.sop-line-total-supplier').text()) || 0;
-                            valB = parseFloat($b.find('.sop-line-total-supplier').text()) || 0;
-                            numeric = true;
-                            break;
-                        case 'cubic':
-                            valA = parseFloat($a.find('.column-cubic-item').text()) || 0;
-                            valB = parseFloat($b.find('.column-cubic-item').text()) || 0;
-                            numeric = true;
-                            break;
-                        case 'line_cbm':
-                            valA = parseFloat($a.find('.column-line-cbm').text()) || 0;
-                            valB = parseFloat($b.find('.column-line-cbm').text()) || 0;
-                            numeric = true;
-                            break;
-                        case 'price_ex':
-                            valA = parseFloat($a.find('.column-regular-unit').text()) || 0;
-                            valB = parseFloat($b.find('.column-regular-unit').text()) || 0;
-                            numeric = true;
-                            break;
-                        case 'line_ex':
-                            valA = parseFloat($a.find('.column-regular-line').text()) || 0;
-                            valB = parseFloat($b.find('.column-regular-line').text()) || 0;
-                            numeric = true;
-                            break;
-                        default:
-                            valA = 0;
-                            valB = 0;
-                            numeric = true;
-                            break;
+                    if ( sopNumericSortKeys[sortKey] ) {
+                        var numA = sopPreorderParseNumber(rawA);
+                        var numB = sopPreorderParseNumber(rawB);
+                        return isAsc ? numA - numB : numB - numA;
                     }
 
-                    if (numeric) {
-                        return isAsc ? valA - valB : valB - valA;
-                    }
+                    var textA = $.trim(String(rawA || '')).toLowerCase();
+                    var textB = $.trim(String(rawB || '')).toLowerCase();
 
-                    return isAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                    return isAsc ? textA.localeCompare(textB) : textB.localeCompare(textA);
                 });
 
                 $.each(rows, function(index, row) {

@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.25
+ * File version: 10.26
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -1075,9 +1075,9 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         }
         $brand = is_string( $brand ) ? $brand : '';
 
-        $category = '';
-        if ( function_exists( 'sop_get_product_primary_category_name' ) ) {
-            $category = sop_get_product_primary_category_name( $product_id );
+        $category_path = '';
+        if ( function_exists( 'sop_get_product_category_path_below_root' ) ) {
+            $category_path = sop_get_product_category_path_below_root( $product_id );
         }
 
         // Weight in KG from Woo meta.
@@ -1166,7 +1166,8 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             'cost_gbp'            => $cost_gbp,
             'location'            => $location,
             'brand'               => $brand,
-            'category'            => $category,
+            'category'            => $category_path,
+            'category_path'       => $category_path,
             'weight'              => $weight,
             'line_weight'         => $line_weight,
             'suggested_order_qty' => $suggested_order_qty,

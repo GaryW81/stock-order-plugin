@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.18
+ * File version: 1.0.19
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -605,6 +605,31 @@ function sop_convert_rmb_unit_cost_to_usd( $rmb_cost ) {
     return $usd_value;
 }
 
+if ( ! function_exists( 'sop_get_rmb_to_usd_rate_for_supplier' ) ) {
+    /**
+     * Get the effective RMB -> USD conversion rate based on SOP settings.
+     *
+     * Mirrors the logic used by sop_convert_rmb_unit_cost_to_usd() so UI code can
+     * keep the displayed USD value in sync with RMB edits.
+     *
+     * @param int $supplier_id Optional supplier context (reserved for future overrides).
+     * @return float Conversion rate or 0.0 if unavailable.
+     */
+    function sop_get_rmb_to_usd_rate_for_supplier( $supplier_id = 0 ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
+        $settings   = get_option( 'sop_settings', array() );
+        $rmb_to_gbp = isset( $settings['rmb_to_gbp_rate'] ) ? (float) $settings['rmb_to_gbp_rate'] : 0.0;
+        $usd_to_gbp = isset( $settings['usd_to_gbp_rate'] ) ? (float) $settings['usd_to_gbp_rate'] : 0.0;
+
+        if ( $rmb_to_gbp <= 0 || $usd_to_gbp <= 0 ) {
+            return 0.0;
+        }
+
+        $rate = $rmb_to_gbp / $usd_to_gbp;
+
+        return ( $rate > 0 ) ? (float) $rate : 0.0;
+    }
+}
+
 if ( ! function_exists( 'sop_get_product_primary_category_name' ) ) {
     /**
      * Get the primary WooCommerce product category name for a product.
@@ -671,60 +696,123 @@ if ( ! function_exists( 'sop_get_product_category_path_below_root' ) ) {
             }
         }
 
-        $terms = wp_get_post_terms( $product_id, 'product_cat' );
+        $root_slug = sanitize_title( $root_slug );
+
+        $terms = wp_get_post_terms(
+            $product_id,
+            'product_cat',
+            array(
+                'orderby' => 'name',
+            )
+        );
         if ( is_wp_error( $terms ) || empty( $terms ) ) {
             return '';
         }
 
-        // Pick a primary term: shortest ancestry, then alphabetical.
-        usort(
-            $terms,
-            static function ( $a, $b ) {
-                $a_depth = count( get_ancestors( $a->term_id, 'product_cat' ) );
-                $b_depth = count( get_ancestors( $b->term_id, 'product_cat' ) );
+        $primary_term = null;
+        $primary_id   = (int) get_post_meta( $product_id, '_yoast_wpseo_primary_product_cat', true );
+        if ( $primary_id > 0 ) {
+            foreach ( $terms as $term_obj ) {
+                if ( (int) $term_obj->term_id === $primary_id ) {
+                    $primary_term = $term_obj;
+                    break;
+                }
+            }
+        }
 
-                if ( $a_depth === $b_depth ) {
-                    return strcasecmp( $a->name, $b->name );
+        if ( ! $primary_term ) {
+            usort(
+                $terms,
+                static function ( $a, $b ) {
+                    $a_depth = count( get_ancestors( $a->term_id, 'product_cat' ) );
+                    $b_depth = count( get_ancestors( $b->term_id, 'product_cat' ) );
+
+                    if ( $a_depth === $b_depth ) {
+                        return strcasecmp( $a->name, $b->name );
+                    }
+
+                    return ( $a_depth < $b_depth ) ? -1 : 1;
+                }
+            );
+
+            $primary_term = reset( $terms );
+        }
+
+        if ( ! $primary_term ) {
+            return '';
+        }
+
+        $candidate_paths = array();
+        $fallback_path   = array();
+
+        foreach ( $terms as $term ) {
+            $ancestors = get_ancestors( $term->term_id, 'product_cat' );
+            $ancestors = array_reverse( $ancestors );
+
+            $breadcrumb_terms = array();
+
+            foreach ( $ancestors as $ancestor_id ) {
+                $ancestor = get_term( $ancestor_id, 'product_cat' );
+                if ( ! $ancestor || is_wp_error( $ancestor ) ) {
+                    continue;
+                }
+                $breadcrumb_terms[] = $ancestor;
+            }
+
+            $breadcrumb_terms[] = $term;
+
+            $path_after_root = array();
+            $found_root      = false;
+
+            foreach ( $breadcrumb_terms as $crumb_term ) {
+                if ( $root_slug && $crumb_term->slug === $root_slug ) {
+                    $found_root      = true;
+                    $path_after_root = array();
+                    continue;
                 }
 
-                return ( $a_depth < $b_depth ) ? -1 : 1;
+                if ( isset( $crumb_term->name ) && '' !== trim( $crumb_term->name ) ) {
+                    $path_after_root[] = trim( $crumb_term->name );
+                }
             }
-        );
 
-        $primary = reset( $terms );
-        if ( ! $primary ) {
+            if ( $found_root && ! empty( $path_after_root ) ) {
+                $candidate_paths[] = $path_after_root;
+            }
+
+            if ( empty( $fallback_path ) && (int) $term->term_id === (int) $primary_term->term_id ) {
+                $fallback_path = array();
+                foreach ( $breadcrumb_terms as $crumb_term ) {
+                    if ( isset( $crumb_term->name ) && '' !== trim( $crumb_term->name ) ) {
+                        $fallback_path[] = trim( $crumb_term->name );
+                    }
+                }
+            }
+        }
+
+        if ( ! empty( $candidate_paths ) ) {
+            usort(
+                $candidate_paths,
+                static function ( $a, $b ) {
+                    $leaf_a = isset( $a[ count( $a ) - 1 ] ) ? $a[ count( $a ) - 1 ] : '';
+                    $leaf_b = isset( $b[ count( $b ) - 1 ] ) ? $b[ count( $b ) - 1 ] : '';
+
+                    return strcasecmp( $leaf_a, $leaf_b );
+                }
+            );
+
+            $selected = $candidate_paths[0];
+        } else {
+            $selected = $fallback_path;
+        }
+
+        $selected = array_filter( array_map( 'trim', (array) $selected ) );
+
+        if ( empty( $selected ) ) {
             return '';
         }
 
-        $ancestors = get_ancestors( $primary->term_id, 'product_cat' );
-        $ancestors = array_reverse( $ancestors );
-
-        $breadcrumb = array();
-        $found_root = false;
-
-        foreach ( $ancestors as $ancestor_id ) {
-            $ancestor = get_term( $ancestor_id, 'product_cat' );
-            if ( ! $ancestor || is_wp_error( $ancestor ) ) {
-                continue;
-            }
-
-            if ( $root_slug && $ancestor->slug === $root_slug ) {
-                $found_root = true;
-                $breadcrumb = array();
-                continue;
-            }
-
-            $breadcrumb[] = $ancestor->name;
-        }
-
-        $breadcrumb[] = $primary->name;
-
-        $breadcrumb = array_filter( array_map( 'trim', $breadcrumb ) );
-        if ( empty( $breadcrumb ) ) {
-            return '';
-        }
-
-        return implode( ' / ', $breadcrumb );
+        return implode( ' / ', $selected );
     }
 }
 
