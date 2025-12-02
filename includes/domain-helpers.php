@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.19
+ * File version: 1.0.20
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -627,6 +627,89 @@ if ( ! function_exists( 'sop_get_rmb_to_usd_rate_for_supplier' ) ) {
         $rate = $rmb_to_gbp / $usd_to_gbp;
 
         return ( $rate > 0 ) ? (float) $rate : 0.0;
+    }
+}
+
+if ( ! function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
+    /**
+     * Normalise a carton number string into a canonical, sortable form.
+     *
+     * Example: "A1, 7 , 3-2" => "2-3,7" (sort_min = 2)
+     *
+     * @param string $value Raw carton string.
+     * @return array {
+     *     @type string $value    Normalised string.
+     *     @type int|null $sort_min Smallest numeric value found (for sorting), or null if none.
+     * }
+     */
+    function sop_normalize_carton_numbers_for_display( $value ) {
+        $raw = (string) $value;
+
+        $cleaned = preg_replace( '/[^0-9,\-]+/i', '', $raw );
+        $cleaned = preg_replace( '/,+/', ',', $cleaned );
+        $cleaned = preg_replace( '/-+/', '-', $cleaned );
+        $cleaned = preg_replace( '/^,|,$/', '', $cleaned );
+
+        $tokens = array_filter( array_map( 'trim', explode( ',', $cleaned ) ) );
+
+        $parsed = array();
+
+        foreach ( $tokens as $token ) {
+            if ( preg_match( '/^(\d+)$/', $token, $m ) ) {
+                $num = (int) $m[1];
+                $parsed[] = array(
+                    'start'   => $num,
+                    'end'     => $num,
+                    'display' => (string) $num,
+                );
+                continue;
+            }
+
+            if ( preg_match( '/^(\d+)-(\d+)$/', $token, $m ) ) {
+                $start = (int) $m[1];
+                $end   = (int) $m[2];
+
+                if ( $start > $end ) {
+                    $tmp   = $start;
+                    $start = $end;
+                    $end   = $tmp;
+                }
+
+                $parsed[] = array(
+                    'start'   => $start,
+                    'end'     => $end,
+                    'display' => $start . '-' . $end,
+                );
+            }
+        }
+
+        if ( empty( $parsed ) ) {
+            return array(
+                'value'    => '',
+                'sort_min' => null,
+            );
+        }
+
+        usort(
+            $parsed,
+            static function ( $a, $b ) {
+                return $a['start'] <=> $b['start'];
+            }
+        );
+
+        $sort_min = isset( $parsed[0]['start'] ) ? (int) $parsed[0]['start'] : null;
+
+        $rebuilt = array();
+        foreach ( $parsed as $item ) {
+            $rebuilt[] = $item['display'];
+        }
+
+        $value = implode( ',', $rebuilt );
+
+        return array(
+            'value'    => $value,
+            'sort_min' => $sort_min,
+        );
     }
 }
 

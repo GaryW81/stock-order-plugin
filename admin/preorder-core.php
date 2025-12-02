@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.26
+ * File version: 10.27
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -260,6 +260,10 @@ function sop_handle_save_preorder_sheet() {
         $p_notes   = isset( $product_notes[ $key ] ) ? wp_kses_post( wp_unslash( $product_notes[ $key ] ) ) : '';
         $o_notes   = isset( $order_notes[ $key ] ) ? sanitize_textarea_field( $order_notes[ $key ] ) : '';
         $carton_no = isset( $carton_nos[ $key ] ) ? sanitize_text_field( $carton_nos[ $key ] ) : '';
+        if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
+            $carton_norm = sop_normalize_carton_numbers_for_display( $carton_no );
+            $carton_no   = isset( $carton_norm['value'] ) ? $carton_norm['value'] : $carton_no;
+        }
         $image_id  = isset( $image_ids[ $key ] ) ? (int) $image_ids[ $key ] : 0;
         $location  = isset( $locations[ $key ] ) ? sanitize_text_field( wp_unslash( $locations[ $key ] ) ) : '';
         $cbm_unit  = isset( $cbm_units[ $key ] ) ? floatval( wp_unslash( $cbm_units[ $key ] ) ) : 0;
@@ -508,6 +512,12 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
             $categories = sop_get_product_category_path_below_root( $product_id );
         }
 
+        $carton_no = isset( $line['carton_no'] ) ? $line['carton_no'] : '';
+        if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
+            $carton_norm = sop_normalize_carton_numbers_for_display( $carton_no );
+            $carton_no   = isset( $carton_norm['value'] ) ? $carton_norm['value'] : $carton_no;
+        }
+
         $cm3_per_unit = isset( $line['cbm_per_unit'] ) ? (float) $line['cbm_per_unit'] : 0;
         $line_cbm     = isset( $line['cbm_total_owner'] ) ? (float) $line['cbm_total_owner'] : 0;
 
@@ -537,7 +547,7 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
             'line_total_rmb'=> ( isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0 ) * ( isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0 ),
             'product_notes' => isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : '',
             'order_notes'   => isset( $line['order_notes_owner'] ) ? $line['order_notes_owner'] : '',
-            'carton_no'     => isset( $line['carton_no'] ) ? $line['carton_no'] : '',
+            'carton_no'     => $carton_no,
             'cm3_per_unit'  => $cm3_per_unit,
             'line_cbm'      => $line_cbm,
             'image_id'      => $product_id ? get_post_thumbnail_id( $product_id ) : 0,
@@ -1176,6 +1186,8 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             'line_cbm'            => $line_cbm,
             'regular_unit_price'  => $regular_unit_price,
             'regular_line_price'  => $regular_line_price,
+            'carton_no'           => '',
+            'carton_sort_min'     => null,
         ];
 
     }

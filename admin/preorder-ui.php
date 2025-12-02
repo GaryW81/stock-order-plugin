@@ -1,5 +1,5 @@
-<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.40 *
+﻿<?php
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.41 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -91,17 +91,17 @@ function sop_preorder_render_admin_page() {
 
     switch ( $container_selection ) {
         case '20ft':
-            // 20ft GP: 5.90m x 2.35m x 2.39m ≈ 33.2 CBM.
+            // 20ft GP: 5.90m x 2.35m x 2.39m â‰ˆ 33.2 CBM.
             $base_cbm   = 33.2;
             $floor_area = 5.90 * 2.35;
             break;
         case '40ft':
-            // 40ft GP: 12.03m x 2.35m x 2.39m ≈ 67.7 CBM.
+            // 40ft GP: 12.03m x 2.35m x 2.39m â‰ˆ 67.7 CBM.
             $base_cbm   = 67.7;
             $floor_area = 12.03 * 2.35;
             break;
         case '40ft_hc':
-            // 40ft HQ: 12.03m x 2.35m x 2.69m ≈ 76.3 CBM.
+            // 40ft HQ: 12.03m x 2.35m x 2.69m â‰ˆ 76.3 CBM.
             $base_cbm   = 76.3;
             $floor_area = 12.03 * 2.35;
             break;
@@ -215,6 +215,16 @@ function sop_preorder_render_admin_page() {
 
                     if ( isset( $line['product_notes_owner'] ) ) {
                         $row['notes'] = $line['product_notes_owner'];
+                    }
+
+                    if ( isset( $line['carton_no'] ) ) {
+                        $carton_val = (string) $line['carton_no'];
+                        if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
+                            $carton_norm = sop_normalize_carton_numbers_for_display( $carton_val );
+                            $carton_val  = isset( $carton_norm['value'] ) ? $carton_norm['value'] : $carton_val;
+                            $row['carton_sort_min'] = isset( $carton_norm['sort_min'] ) ? $carton_norm['sort_min'] : null;
+                        }
+                        $row['carton_no'] = $carton_val;
                     }
 
                     $overlay_stats['matched_rows']++;
@@ -560,7 +570,7 @@ function sop_preorder_render_admin_page() {
                             <label><input type="checkbox" data-column="line_total" checked="checked" /><?php esc_html_e( 'Line total', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
-                            <label><input type="checkbox" data-column="cubic" checked="checked" /><?php esc_html_e( 'cm³ per unit', 'sop' ); ?></label>
+                            <label><input type="checkbox" data-column="cubic" checked="checked" /><?php esc_html_e( 'cmÂ³ per unit', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
                             <label><input type="checkbox" data-column="line_cbm" checked="checked" /><?php esc_html_e( 'Line CBM', 'sop' ); ?></label>
@@ -632,7 +642,13 @@ function sop_preorder_render_admin_page() {
                             <th class="column-regular-line" data-column="regular_line" data-sort="line_ex" title="<?php esc_attr_e( 'Regular WooCommerce line price excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Line excl.', 'sop' ); ?></th>
                             <th class="column-notes" data-column="notes" data-sort="notes" title="<?php esc_attr_e( 'Internal notes for this product.', 'sop' ); ?>"><?php esc_html_e( 'Product notes', 'sop' ); ?></th>
                             <th class="column-order-notes" data-column="order_notes" data-sort="order_notes" title="<?php esc_attr_e( 'Order-specific notes', 'sop' ); ?>"><?php esc_html_e( 'Order notes', 'sop' ); ?></th>
-                            <th class="column-carton-no" data-column="carton_no" data-sort="carton_no" title="<?php esc_attr_e( 'Carton number', 'sop' ); ?>"><?php esc_html_e( 'Carton no.', 'sop' ); ?></th>
+                            <th class="column-carton-no"
+                                data-column="carton_no"
+                                data-sort="carton_no"
+                                data-sort-key="carton_no"
+                                title="<?php esc_attr_e( 'Carton numbers only. Use numbers & ranges: e.g. 4,7,12-13. Other packing info â†’ Order notes.', 'sop' ); ?>">
+                                <?php esc_html_e( 'Carton no.', 'sop' ); ?>
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -694,6 +710,14 @@ function sop_preorder_render_admin_page() {
                                 $sku_sort_source = ( '' !== $order_sku ) ? $order_sku : $sku;
                                 $sku_sort_value  = trim( preg_replace( '/\s+/', ' ', (string) $sku_sort_source ) );
                                 $category_sort_value = trim( (string) $categories );
+                                $carton_value = isset( $row['carton_no'] ) ? (string) $row['carton_no'] : '';
+                                $carton_sort_value = isset( $row['carton_sort_min'] ) ? $row['carton_sort_min'] : null;
+                                if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) && '' !== $carton_value ) {
+                                    $carton_norm        = sop_normalize_carton_numbers_for_display( $carton_value );
+                                    $carton_value       = isset( $carton_norm['value'] ) ? (string) $carton_norm['value'] : $carton_value;
+                                    $carton_sort_value  = isset( $carton_norm['sort_min'] ) ? $carton_norm['sort_min'] : $carton_sort_value;
+                                }
+                                $carton_sort_attr = ( '' === $carton_value || null === $carton_sort_value ) ? '' : $carton_sort_value;
 
                                 $image_id = 0;
                                 if ( $product ) {
@@ -871,12 +895,13 @@ function sop_preorder_render_admin_page() {
                                             </button>
                                         </div>
                                     </td>
-                                    <td class="column-carton-no" data-column="carton_no">
+                                    <td class="column-carton-no" data-column="carton_no" data-sort-key="carton_no" data-sort-value="<?php echo esc_attr( $carton_sort_attr ); ?>">
                                         <input
                                             type="text"
                                             name="sop_line_carton_no[<?php echo esc_attr( $row_index ); ?>]"
-                                            value="<?php echo isset( $row['carton_no'] ) ? esc_attr( $row['carton_no'] ) : ''; ?>"
-                                            class="sop-preorder-carton"
+                                            value="<?php echo esc_attr( $carton_value ); ?>"
+                                            class="sop-preorder-carton-input"
+                                            data-original-value="<?php echo esc_attr( $carton_value ); ?>"
                                             style="width: 80px;"
                                             <?php disabled( $is_locked ); ?>
                                         />
@@ -1266,6 +1291,25 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-table th[data-sort].sorted-desc::after {
             content: '\25BC';
             opacity: 1;
+        }
+
+        .sop-preorder-table input.sop-preorder-carton-input {
+            width: auto;
+            min-width: 60px;
+        }
+
+        .sop-preorder-carton-tooltip {
+            position: absolute;
+            background: #23282d;
+            color: #fff;
+            padding: 6px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            line-height: 1.4;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
         }
 
         .sop-preorder-table [data-column] {
@@ -1747,6 +1791,134 @@ function sop_preorder_render_admin_page() {
                 return isNaN(num) ? 0 : num;
             }
 
+            function sopPreorderAdjustCartonWidth(inputEl) {
+                if ( ! inputEl ) {
+                    return;
+                }
+                var len = inputEl.value.length || 1;
+                var px = Math.min(260, Math.max(60, 10 + len * 8));
+                inputEl.style.width = px + 'px';
+            }
+
+            function sopPreorderShowCartonTooltip(inputEl, message) {
+                if ( ! inputEl || ! message ) {
+                    return;
+                }
+                var rect = inputEl.getBoundingClientRect();
+                var tooltip = document.createElement('div');
+                tooltip.className = 'sop-preorder-carton-tooltip';
+                tooltip.textContent = message;
+                document.body.appendChild(tooltip);
+
+                var top = window.scrollY + rect.top - tooltip.offsetHeight - 6;
+                var left = window.scrollX + rect.left;
+                tooltip.style.top = top + 'px';
+                tooltip.style.left = left + 'px';
+
+                requestAnimationFrame(function() {
+                    tooltip.style.opacity = '1';
+                });
+
+                setTimeout(function() {
+                    tooltip.style.opacity = '0';
+                    setTimeout(function() {
+                        if ( tooltip && tooltip.parentNode ) {
+                            tooltip.parentNode.removeChild(tooltip);
+                        }
+                    }, 200);
+                }, 2300);
+            }
+
+            function sopPreorderNormalizeCartonValue(inputEl, options) {
+                if ( ! inputEl ) {
+                    return null;
+                }
+
+                var opts = options || {};
+                var silent = !!opts.silent;
+                var raw = inputEl.value || '';
+
+                var cleaned = raw.toString().replace(/[^0-9,\-]+/gi, '');
+                cleaned = cleaned.replace(/,+/g, ',').replace(/-+/g, '-');
+                cleaned = cleaned.replace(/^,|,$/g, '');
+
+                var tokens = cleaned.split(',').filter(Boolean);
+                var parsed = [];
+
+                tokens.forEach(function(token) {
+                    var singleMatch = token.match(/^(\d+)$/);
+                    if ( singleMatch ) {
+                        var num = parseInt(singleMatch[1], 10);
+                        parsed.push({ start: num, end: num, display: String(num) });
+                        return;
+                    }
+
+                    var rangeMatch = token.match(/^(\d+)-(\d+)$/);
+                    if ( rangeMatch ) {
+                        var start = parseInt(rangeMatch[1], 10);
+                        var end = parseInt(rangeMatch[2], 10);
+                        if ( start > end ) {
+                            var tmp = start;
+                            start = end;
+                            end = tmp;
+                        }
+                        parsed.push({ start: start, end: end, display: start + '-' + end });
+                    }
+                });
+
+                if ( parsed.length ) {
+                    parsed.sort(function(a, b) {
+                        return a.start - b.start;
+                    });
+                }
+
+                var rebuiltTokens = parsed.map(function(item) {
+                    return item.display;
+                });
+                var rebuilt = rebuiltTokens.join(',');
+                var sortMin = parsed.length ? parsed[0].start : null;
+
+                var row = inputEl.closest('tr.sop-preorder-row');
+                var td = inputEl.closest('td');
+
+                if ( parsed.length === 0 ) {
+                    inputEl.value = '';
+                    if ( td ) {
+                        td.dataset.sortValue = '';
+                    }
+                    if ( row ) {
+                        row.dataset.sortCartonNo = '';
+                    }
+                    if ( ! silent ) {
+                        sopPreorderShowCartonTooltip(
+                            inputEl,
+                            '<?php echo esc_js( __( 'Carton numbers only. Use numbers & ranges like 4,7,12-13.', 'sop' ) ); ?>'
+                        );
+                    }
+                    return null;
+                }
+
+                var strippedLetters = raw !== cleaned;
+                if ( rebuilt !== cleaned || strippedLetters ) {
+                    inputEl.value = rebuilt;
+                    if ( strippedLetters && ! silent ) {
+                        sopPreorderShowCartonTooltip(
+                            inputEl,
+                            '<?php echo esc_js( __( 'Letters removed. Carton numbers only, e.g. 4,7,12-13.', 'sop' ) ); ?>'
+                        );
+                    }
+                }
+
+                if ( td ) {
+                    td.dataset.sortValue = ( sortMin !== null ) ? sortMin : '';
+                }
+                if ( row ) {
+                    row.dataset.sortCartonNo = ( sortMin !== null ) ? sortMin : '';
+                }
+
+                return sortMin;
+            }
+
             function sopPreorderGetSortValue($row, sortKey, columnIndex) {
                 var $cell = $row.find('td[data-sort-key="' + sortKey + '"]').first();
 
@@ -1772,6 +1944,12 @@ function sop_preorder_render_admin_page() {
                 }
 
                 switch ( sortKey ) {
+                    case 'carton_no':
+                        var rowNode = $row.get( 0 );
+                        if ( rowNode && typeof rowNode.dataset.sortCartonNo !== 'undefined' ) {
+                            return rowNode.dataset.sortCartonNo;
+                        }
+                        return $row.find('td[data-sort-key="carton_no"]').data('sortValue');
                     case 'sku':
                         return ($row.find('.column-sku textarea').val() || '').replace(/\s+/g, ' ').trim();
                     case 'name':
@@ -1836,7 +2014,7 @@ function sop_preorder_render_admin_page() {
 
                     var usdDisplay = row.querySelector('.sop-preorder-cost-usd');
                     if ( usdDisplay ) {
-                        usdDisplay.textContent = usdValue > 0 ? usdValue.toFixed(2) : '–';
+                        usdDisplay.textContent = usdValue > 0 ? usdValue.toFixed(2) : '-';
                     }
 
                     var usdTd = usdDisplay ? usdDisplay.closest('td') : null;
@@ -1845,6 +2023,20 @@ function sop_preorder_render_admin_page() {
                     }
                 });
             }
+
+            $table.on('input', '.sop-preorder-carton-input', function() {
+                sopPreorderAdjustCartonWidth(this);
+            });
+
+            $table.on('blur change', '.sop-preorder-carton-input', function() {
+                sopPreorderNormalizeCartonValue(this);
+                sopPreorderAdjustCartonWidth(this);
+            });
+
+            $table.find('.sop-preorder-carton-input').each(function() {
+                sopPreorderNormalizeCartonValue(this, { silent: true });
+                sopPreorderAdjustCartonWidth(this);
+            });
 
             $table.on('input', '.sop-order-qty-input, .sop-cost-supplier-input', function() {
                 recalcTotals();
@@ -1951,6 +2143,7 @@ function sop_preorder_render_admin_page() {
             });
 
             var sopNumericSortKeys = {
+                carton_no: true,
                 cost: true,
                 stock: true,
                 inbound: true,
@@ -1982,6 +2175,18 @@ function sop_preorder_render_admin_page() {
                     var rawB = sopPreorderGetSortValue($(b), sortKey, columnIndex);
 
                     if ( sopNumericSortKeys[sortKey] ) {
+                        if ( sortKey === 'carton_no' ) {
+                            var numA = parseFloat(rawA);
+                            var numB = parseFloat(rawB);
+                            if ( ! isFinite(numA) ) {
+                                numA = Number.POSITIVE_INFINITY;
+                            }
+                            if ( ! isFinite(numB) ) {
+                                numB = Number.POSITIVE_INFINITY;
+                            }
+                            return isAsc ? numA - numB : numB - numA;
+                        }
+
                         var numA = sopPreorderParseNumber(rawA);
                         var numB = sopPreorderParseNumber(rawB);
                         return isAsc ? numA - numB : numB - numA;
@@ -2003,3 +2208,4 @@ function sop_preorder_render_admin_page() {
     </script>
     <?php
 }
+
