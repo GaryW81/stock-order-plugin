@@ -24,7 +24,7 @@ if ( ! class_exists( 'sop_DB' ) ) {
          * Current schema version for this project.
          * Bump this when tables/columns change in future phases.
          */
-        const VERSION = '1.1.0';
+        const VERSION = '1.2.0';
 
         /**
          * Return list of logical table keys => physical table names.
@@ -232,6 +232,8 @@ if ( ! class_exists( 'sop_DB' ) ) {
                 status VARCHAR(20) NOT NULL DEFAULT 'draft',
                 title VARCHAR(255) NOT NULL DEFAULT '',
                 order_number VARCHAR(100) NOT NULL DEFAULT '',
+                order_number_label VARCHAR(50) NOT NULL DEFAULT '',
+                edit_version INT(11) UNSIGNED NOT NULL DEFAULT 1,
                 order_date_owner DATE NULL,
                 container_load_date_owner DATE NULL,
                 arrival_date_owner DATE NULL,

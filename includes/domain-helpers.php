@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.13
+ * File version: 1.0.14
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -66,6 +66,8 @@ function sop_insert_preorder_sheet( $data ) {
         'status'                    => 'draft',
         'title'                     => '',
         'order_number'              => '',
+        'order_number_label'        => '',
+        'edit_version'              => 1,
         'order_date_owner'          => null,
         'container_load_date_owner' => null,
         'arrival_date_owner'        => null,
@@ -87,6 +89,8 @@ function sop_insert_preorder_sheet( $data ) {
         'status'                    => ( $data['status'] !== '' ) ? $data['status'] : 'draft',
         'title'                     => (string) $data['title'],
         'order_number'              => (string) $data['order_number'],
+        'order_number_label'        => (string) $data['order_number_label'],
+        'edit_version'              => (int) $data['edit_version'],
         'order_date_owner'          => $data['order_date_owner'],
         'container_load_date_owner' => $data['container_load_date_owner'],
         'arrival_date_owner'        => $data['arrival_date_owner'],
@@ -106,6 +110,8 @@ function sop_insert_preorder_sheet( $data ) {
         '%s', // status.
         '%s', // title.
         '%s', // order_number.
+        '%s', // order_number_label.
+        '%d', // edit_version.
         '%s', // order_date_owner.
         '%s', // container_load_date_owner.
         '%s', // arrival_date_owner.
@@ -233,6 +239,8 @@ function sop_update_preorder_sheet( $sheet_id, $data ) {
         'status',
         'title',
         'order_number',
+        'order_number_label',
+        'edit_version',
         'order_date_owner',
         'container_load_date_owner',
         'arrival_date_owner',
@@ -267,6 +275,9 @@ function sop_update_preorder_sheet( $sheet_id, $data ) {
             case 'deposit_fx_owner':
             case 'balance_fx_owner':
                 $formats[] = '%f';
+                break;
+            case 'edit_version':
+                $formats[] = '%d';
                 break;
             default:
                 $formats[] = '%s';
@@ -389,6 +400,42 @@ function sop_get_preorder_sheet_lines( $sheet_id ) {
     );
 
     return $wpdb->get_results( $sql, ARRAY_A );
+}
+
+/**
+ * Delete a preorder sheet and its lines.
+ *
+ * @param int $sheet_id Sheet ID.
+ * @return bool|WP_Error
+ */
+function sop_delete_preorder_sheet( $sheet_id ) {
+    global $wpdb;
+
+    $sheet_id = (int) $sheet_id;
+    if ( $sheet_id <= 0 ) {
+        return false;
+    }
+
+    $header_table = sop_get_preorder_sheet_table_name();
+    $lines_table  = sop_get_preorder_sheet_lines_table_name();
+
+    $wpdb->delete(
+        $lines_table,
+        array( 'sheet_id' => $sheet_id ),
+        array( '%d' )
+    );
+
+    $deleted_header = $wpdb->delete(
+        $header_table,
+        array( 'id' => $sheet_id ),
+        array( '%d' )
+    );
+
+    if ( false === $deleted_header ) {
+        return new WP_Error( 'sop_delete_preorder_sheet_failed', __( 'Failed to delete pre-order sheet.', 'sop' ) );
+    }
+
+    return true;
 }
 
 /**

@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.23
+ * File version: 10.24
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -70,6 +70,15 @@ function sop_render_preorder_sheets_page() {
     $suppliers = function_exists( 'sop_preorder_get_suppliers' ) ? sop_preorder_get_suppliers() : array();
     $sheets    = array();
 
+    if ( isset( $_GET['sop_deleted'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $deleted_flag = (int) $_GET['sop_deleted']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( 1 === $deleted_flag ) {
+            echo '<div class="notice notice-success"><p>' . esc_html__( 'Draft pre-order sheet deleted.', 'sop' ) . '</p></div>';
+        } else {
+            echo '<div class="notice notice-error"><p>' . esc_html__( 'Failed to delete pre-order sheet.', 'sop' ) . '</p></div>';
+        }
+    }
+
     if ( $supplier_id > 0 && function_exists( 'sop_get_preorder_sheets_for_supplier' ) ) {
         $sheets = sop_get_preorder_sheets_for_supplier( $supplier_id );
     }
@@ -108,6 +117,8 @@ function sop_render_preorder_sheets_page() {
                         <th><?php esc_html_e( 'ID', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Supplier', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Status', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Order #', 'sop' ); ?></th>
+                        <th><?php esc_html_e( 'Version', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Order date', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Container', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Last updated', 'sop' ); ?></th>
@@ -120,6 +131,8 @@ function sop_render_preorder_sheets_page() {
                             <td><?php echo esc_html( $sheet['id'] ); ?></td>
                             <td><?php echo esc_html( $sheet['supplier_id'] ); ?></td>
                             <td><?php echo esc_html( isset( $sheet['status'] ) ? $sheet['status'] : '' ); ?></td>
+                            <td><?php echo ! empty( $sheet['order_number_label'] ) ? esc_html( $sheet['order_number_label'] ) : '&mdash;'; ?></td>
+                            <td><?php echo ! empty( $sheet['edit_version'] ) ? (int) $sheet['edit_version'] : 1; ?></td>
                             <td><?php echo esc_html( isset( $sheet['order_date_owner'] ) ? $sheet['order_date_owner'] : '' ); ?></td>
                             <td><?php echo esc_html( isset( $sheet['container_type'] ) ? $sheet['container_type'] : '' ); ?></td>
                             <td><?php echo esc_html( isset( $sheet['updated_at'] ) ? $sheet['updated_at'] : '' ); ?></td>
@@ -137,6 +150,19 @@ function sop_render_preorder_sheets_page() {
                                 <a class="button" href="<?php echo esc_url( $open_url ); ?>">
                                     <?php esc_html_e( 'Open', 'sop' ); ?>
                                 </a>
+                                <?php if ( empty( $sheet['status'] ) || 'draft' === $sheet['status'] ) : ?>
+                                    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
+                                        <input type="hidden" name="action" value="sop_delete_preorder_sheet" />
+                                        <input type="hidden" name="sheet_id" value="<?php echo esc_attr( $sheet['id'] ); ?>" />
+                                        <input type="hidden" name="supplier_id" value="<?php echo esc_attr( $supplier_id ); ?>" />
+                                        <?php wp_nonce_field( 'sop_delete_preorder_sheet_' . (int) $sheet['id'] ); ?>
+                                        <button type="submit"
+                                                class="button button-link-delete"
+                                                onclick="return confirm('<?php echo esc_js( __( 'Delete this draft sheet? This cannot be undone.', 'sop' ) ); ?>');">
+                                            <?php esc_html_e( 'Delete', 'sop' ); ?>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -182,6 +208,9 @@ function sop_handle_save_preorder_sheet() {
     $now_utc        = current_time( 'mysql', true );
     $container_type = isset( $_POST['sop_container_type'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_container_type'] ) ) : '';
     $allowance      = isset( $_POST['sop_allowance_percent'] ) ? floatval( wp_unslash( $_POST['sop_allowance_percent'] ) ) : 0;
+    $order_number_label = isset( $_POST['sop_header_order_number'] )
+        ? sanitize_text_field( wp_unslash( $_POST['sop_header_order_number'] ) )
+        : '';
 
     // For now, default order date to today (UTC); this can be made editable later.
     $order_date = gmdate( 'Y-m-d' );
@@ -193,6 +222,8 @@ function sop_handle_save_preorder_sheet() {
         'container_type'   => $container_type,
         'created_at'       => $now_utc,
         'updated_at'       => $now_utc,
+        'order_number_label' => $order_number_label,
+        'edit_version'       => 1,
     );
 
     if ( ! empty( $_POST['sop_supplier_name'] ) ) {
@@ -255,6 +286,8 @@ function sop_handle_save_preorder_sheet() {
                 $sheet_id = 0;
             } else {
                 if ( function_exists( 'sop_update_preorder_sheet' ) ) {
+                    $existing_version          = ! empty( $existing_sheet['edit_version'] ) ? (int) $existing_sheet['edit_version'] : 0;
+                    $header_data['edit_version'] = max( 1, $existing_version + 1 );
                     $header_data['updated_at'] = current_time( 'mysql', true );
                     $update_result              = sop_update_preorder_sheet( $sheet_id, $header_data );
                     if ( is_wp_error( $update_result ) ) {
@@ -363,12 +396,25 @@ function sop_handle_export_preorder_sheet_csv() {
         wp_die( esc_html__( 'Supplier mismatch for export request.', 'sop' ) );
     }
 
-    $supplier_label = ! empty( $sheet['supplier_id'] ) ? 'supplier-' . (int) $sheet['supplier_id'] : 'supplier';
-    $filename       = sprintf(
-        'preorder-%s-sheet-%d-%s.csv',
-        $supplier_label,
-        (int) $sheet_id,
-        gmdate( 'Ymd-His' )
+    $supplier_slug = '';
+    if ( ! empty( $sheet['title'] ) ) {
+        $supplier_slug = sanitize_title( $sheet['title'] );
+    } elseif ( ! empty( $sheet['supplier_id'] ) ) {
+        $supplier_slug = 'supplier-' . (int) $sheet['supplier_id'];
+    } else {
+        $supplier_slug = 'supplier';
+    }
+
+    $order_number = ! empty( $sheet['order_number_label'] ) ? preg_replace( '/[^0-9A-Za-z\-_]/', '', $sheet['order_number_label'] ) : (string) (int) $sheet_id;
+    $version      = ! empty( $sheet['edit_version'] ) ? (int) $sheet['edit_version'] : 1;
+    $order_date   = ! empty( $sheet['order_date_owner'] ) ? preg_replace( '/[^0-9\-]/', '', $sheet['order_date_owner'] ) : gmdate( 'Y-m-d' );
+
+    $filename = sprintf(
+        '%s-order-%s-v%d-%s.csv',
+        $supplier_slug,
+        $order_number,
+        $version,
+        $order_date
     );
 
     nocache_headers();
@@ -432,6 +478,58 @@ function sop_handle_export_preorder_sheet_csv() {
     }
 
     fclose( $output );
+    exit;
+}
+
+/**
+ * Handle deletion of a draft preorder sheet.
+ *
+ * @return void
+ */
+add_action( 'admin_post_sop_delete_preorder_sheet', 'sop_handle_delete_preorder_sheet' );
+function sop_handle_delete_preorder_sheet() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You do not have permission to delete pre-order sheets.', 'sop' ) );
+    }
+
+    $sheet_id    = isset( $_POST['sheet_id'] ) ? (int) $_POST['sheet_id'] : 0;
+    $supplier_id = isset( $_POST['supplier_id'] ) ? (int) $_POST['supplier_id'] : 0;
+
+    $nonce_action = 'sop_delete_preorder_sheet_' . $sheet_id;
+    if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], $nonce_action ) ) {
+        wp_die( esc_html__( 'Invalid delete request.', 'sop' ) );
+    }
+
+    if ( $sheet_id <= 0 || ! function_exists( 'sop_get_preorder_sheet' ) ) {
+        wp_die( esc_html__( 'Pre-order sheet not found.', 'sop' ) );
+    }
+
+    $sheet = sop_get_preorder_sheet( $sheet_id );
+    if ( ! is_array( $sheet ) || empty( $sheet['id'] ) ) {
+        wp_die( esc_html__( 'Pre-order sheet not found.', 'sop' ) );
+    }
+
+    if ( ! empty( $sheet['status'] ) && 'draft' !== $sheet['status'] ) {
+        wp_die( esc_html__( 'Only draft sheets can be deleted.', 'sop' ) );
+    }
+
+    if ( ! function_exists( 'sop_delete_preorder_sheet' ) ) {
+        wp_die( esc_html__( 'Delete helper not available.', 'sop' ) );
+    }
+
+    $result = sop_delete_preorder_sheet( $sheet_id );
+    $flag   = ( is_wp_error( $result ) || ! $result ) ? '0' : '1';
+
+    $redirect = add_query_arg(
+        array(
+            'page'        => 'sop-preorder-sheets',
+            'supplier_id' => $supplier_id,
+            'sop_deleted' => $flag,
+        ),
+        admin_url( 'admin.php' )
+    );
+
+    wp_safe_redirect( $redirect );
     exit;
 }
 

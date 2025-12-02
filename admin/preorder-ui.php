@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.38 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.39 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -48,8 +48,27 @@ function sop_preorder_render_admin_page() {
         $selected_supplier_id = (int) $supplier['id'];
     }
 
-    $supplier_currency = 'GBP';
-    if ( $supplier ) {
+    $supplier_currency      = 'GBP';
+    switch (  ) {
+        case 'RMB':
+             = 'RMB';
+            break;
+        case 'USD':
+             = 'USD';
+            break;
+        case 'EUR':
+             = 'EUR';
+            break;
+        case 'GBP':
+        default:
+             = 'GBP';
+            break;
+    }
+
+     = '';
+        = 1;
+         = '';
+        = '';if ( $supplier ) {
         $ctx               = sop_preorder_resolve_supplier_params();
         $supplier_currency = $ctx['currency_code'];
     }
@@ -255,22 +274,32 @@ function sop_preorder_render_admin_page() {
             $used_cbm_bar = $used_cbm;
         }
     }
-
-    $currency_symbol = '£';
+    $currency_symbol = 'GBP';
     switch ( $supplier_currency ) {
         case 'RMB':
-            $currency_symbol = '¥';
+            $currency_symbol = 'RMB';
             break;
         case 'USD':
-            $currency_symbol = '$';
+            $currency_symbol = 'USD';
             break;
         case 'EUR':
-            $currency_symbol = '€';
+            $currency_symbol = 'EUR';
             break;
         case 'GBP':
         default:
-            $currency_symbol = '£';
+            $currency_symbol = 'GBP';
             break;
+    }
+
+    $order_number_value = '';
+    $current_version    = 1;
+    $current_status     = '';
+    $current_updated    = '';
+    if ( $current_sheet && is_array( $current_sheet ) ) {
+        $order_number_value = ! empty( $current_sheet['order_number_label'] ) ? $current_sheet['order_number_label'] : '';
+        $current_version    = ! empty( $current_sheet['edit_version'] ) ? (int) $current_sheet['edit_version'] : 1;
+        $current_status     = ! empty( $current_sheet['status'] ) ? $current_sheet['status'] : '';
+        $current_updated    = ! empty( $current_sheet['updated_at'] ) ? $current_sheet['updated_at'] : '';
     }
     ?>
     <div class="wrap sop-preorder-wrap">
@@ -301,11 +330,13 @@ function sop_preorder_render_admin_page() {
                 <p>
                     <?php
                     printf(
-                        /* translators: 1: sheet ID, 2: status, 3: updated date */
-                        esc_html__( 'Editing saved pre-order sheet #%1$d. Status: %2$s. Last updated: %3$s', 'sop' ),
+                        /* translators: 1: sheet ID, 2: order number, 3: version, 4: status, 5: updated date */
+                        esc_html__( 'Editing saved pre-order sheet #%1$d. Order: %2$s. Version: %3$d. Status: %4$s. Last updated: %5$s', 'sop' ),
                         (int) $current_sheet_id,
-                        esc_html( isset( $current_sheet['status'] ) ? $current_sheet['status'] : 'draft' ),
-                        esc_html( isset( $current_sheet['updated_at'] ) ? $current_sheet['updated_at'] : '' )
+                        $order_number_value ? esc_html( $order_number_value ) : esc_html__( 'N/A', 'sop' ),
+                        (int) $current_version,
+                        esc_html( $current_status ? $current_status : 'draft' ),
+                        esc_html( $current_updated )
                     );
                     ?>
                 </p>
@@ -384,7 +415,34 @@ function sop_preorder_render_admin_page() {
             <div class="sop-summary-item">
                 <strong><?php printf( esc_html__( 'Total Cost (%s)', 'sop' ), esc_html( $supplier_currency ) ); ?>:</strong>
                 <span id="sop-total-cost-supplier">
-                    <?php echo esc_html( $currency_symbol . ' ' . number_format_i18n( $total_cost_supplier, 2 ) ); ?>
+                    <?php echo esc_html(      = 'GBP';
+    switch (  ) {
+        case 'RMB':
+             = 'RMB';
+            break;
+        case 'USD':
+             = 'USD';
+            break;
+        case 'EUR':
+             = 'EUR';
+            break;
+        case 'GBP':
+        default:
+             = 'GBP';
+            break;
+    }
+
+     = '';
+        = 1;
+         = '';
+        = '';
+    if (  && is_array(  ) ) {
+         = ! empty( ['order_number_label'] ) ? ['order_number_label'] : '';
+            = ! empty( ['edit_version'] ) ? (int) ['edit_version'] : 1;
+             = ! empty( ['status'] ) ? ['status'] : '';
+            = ! empty( ['updated_at'] ) ? ['updated_at'] : '';
+    }
+    ?>
                 </span>
             </div>
         <div class="sop-summary-item sop-summary-cbm">
@@ -425,6 +483,15 @@ function sop_preorder_render_admin_page() {
 
             <div class="sop-preorder-table-toolbar">
                 <p class="sop-preorder-actions">
+                    <label for="sop-header-order-number" style="margin-right:6px;">
+                        <?php esc_html_e( 'Order #', 'sop' ); ?>
+                        <input
+                            type="text"
+                            id="sop-header-order-number"
+                            name="sop_header_order_number"
+                            value="<?php echo esc_attr( $order_number_value ); ?>"
+                            style="width: 90px;" />
+                    </label>
                     <button type="submit" class="button button-primary" name="sop_preorder_save">
                         <?php
                         echo ( $current_sheet_id > 0 )
