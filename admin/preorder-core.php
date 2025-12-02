@@ -501,12 +501,8 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
         }
 
         $categories = '';
-        if ( $product ) {
-            $cat_terms = get_the_terms( $product_id, 'product_cat' );
-            if ( is_array( $cat_terms ) && ! empty( $cat_terms ) ) {
-                $names = wp_list_pluck( $cat_terms, 'name' );
-                $categories = implode( ' > ', $names );
-            }
+        if ( function_exists( 'sop_get_product_primary_category_name' ) ) {
+            $categories = sop_get_product_primary_category_name( $product_id );
         }
 
         $line_rows[] = array(
@@ -1061,6 +1057,10 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         }
         $brand = is_string( $brand ) ? $brand : '';
 
+        $category = '';
+        if ( function_exists( 'sop_get_product_primary_category_name' ) ) {
+            $category = sop_get_product_primary_category_name( $product_id );
+        }
 
         // Weight in KG from Woo meta.
         $weight = get_post_meta( $product_id, '_weight', true );
@@ -1148,6 +1148,7 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             'cost_gbp'            => $cost_gbp,
             'location'            => $location,
             'brand'               => $brand,
+            'category'            => $category,
             'weight'              => $weight,
             'line_weight'         => $line_weight,
             'suggested_order_qty' => $suggested_order_qty,

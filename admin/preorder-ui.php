@@ -511,7 +511,25 @@ function sop_preorder_render_admin_page() {
                     </button>
                     <div class="sop-preorder-columns-panel" role="menu">
                         <div class="sop-preorder-columns-panel-item">
-                            <label><input type="checkbox" data-column="cost_supplier" checked="checked" /><?php esc_html_e( 'Cost', 'sop' ); ?></label>
+                            <label><input type="checkbox" data-column="location" checked="checked" /><?php esc_html_e( 'Location', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="sku" checked="checked" /><?php esc_html_e( 'SKU', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="brand" checked="checked" /><?php esc_html_e( 'Brand', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="category" checked="checked" /><?php esc_html_e( 'Category', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="product" checked="checked" /><?php esc_html_e( 'Product', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="cost_supplier" checked="checked" /><?php esc_html_e( 'Cost per unit', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="cost_usd" checked="checked" /><?php esc_html_e( 'Unit price (USD)', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
                             <label><input type="checkbox" data-column="stock" checked="checked" /><?php esc_html_e( 'Stock', 'sop' ); ?></label>
@@ -521,6 +539,15 @@ function sop_preorder_render_admin_page() {
                         </div>
                         <div class="sop-preorder-columns-panel-item">
                             <label><input type="checkbox" data-column="min_order" checked="checked" /><?php esc_html_e( 'MOQ', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="soq" checked="checked" /><?php esc_html_e( 'SOQ', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="order_qty" checked="checked" /><?php esc_html_e( 'Qty', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="line_total" checked="checked" /><?php esc_html_e( 'Line total', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
                             <label><input type="checkbox" data-column="cubic" checked="checked" /><?php esc_html_e( 'cm³ per unit', 'sop' ); ?></label>
@@ -535,7 +562,7 @@ function sop_preorder_render_admin_page() {
                             <label><input type="checkbox" data-column="regular_line" checked="checked" /><?php esc_html_e( 'Line excl.', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
-                            <label><input type="checkbox" data-column="notes" checked="checked" /><?php esc_html_e( 'Notes', 'sop' ); ?></label>
+                            <label><input type="checkbox" data-column="notes" checked="checked" /><?php esc_html_e( 'Product notes', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
                             <label><input type="checkbox" data-column="order_notes" checked="checked" /><?php esc_html_e( 'Order notes', 'sop' ); ?></label>
@@ -555,11 +582,11 @@ function sop_preorder_render_admin_page() {
                                 <input type="checkbox" id="sop-preorder-select-all" />
                             </th>
                             <th class="column-image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
-                            <th class="column-location" data-sort="location" title="<?php esc_attr_e( 'Warehouse location / bin', 'sop' ); ?>"><?php esc_html_e( 'Location', 'sop' ); ?></th>
-                            <th class="column-sku" data-sort="sku" title="<?php esc_attr_e( 'SKU (stock-keeping unit)', 'sop' ); ?>"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
-                            <th class="column-brand" data-sort="brand" title="<?php esc_attr_e( 'Brand / manufacturer', 'sop' ); ?>"><?php esc_html_e( 'Brand', 'sop' ); ?></th>
-                            <th class="column-category" data-sort="category" title="<?php esc_attr_e( 'Product categories', 'sop' ); ?>"><?php esc_html_e( 'Category', 'sop' ); ?></th>
-                            <th class="column-name" data-sort="name" title="<?php esc_attr_e( 'Product name', 'sop' ); ?>"><?php esc_html_e( 'Product', 'sop' ); ?></th>
+                            <th class="column-location" data-column="location" data-sort="location" title="<?php esc_attr_e( 'Warehouse location / bin', 'sop' ); ?>"><?php esc_html_e( 'Location', 'sop' ); ?></th>
+                            <th class="column-sku" data-column="sku" data-sort="sku" title="<?php esc_attr_e( 'SKU (stock-keeping unit)', 'sop' ); ?>"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                            <th class="column-brand" data-column="brand" data-sort="brand" title="<?php esc_attr_e( 'Brand / manufacturer', 'sop' ); ?>"><?php esc_html_e( 'Brand', 'sop' ); ?></th>
+                            <th class="column-category" data-column="category" data-sort="category" title="<?php esc_attr_e( 'Product categories', 'sop' ); ?>"><?php esc_html_e( 'Category', 'sop' ); ?></th>
+                            <th class="column-name" data-column="product" data-sort="name" title="<?php esc_attr_e( 'Product name', 'sop' ); ?>"><?php esc_html_e( 'Product', 'sop' ); ?></th>
                             <th class="column-cost-supplier" data-column="cost_supplier" data-sort="cost" title="<?php esc_attr_e( 'Cost per unit in supplier currency (GBP, USD, EUR, RMB)', 'sop' ); ?>">
                                 <?php
                                 printf(
@@ -570,21 +597,21 @@ function sop_preorder_render_admin_page() {
                                 ?>
                             </th>
                             <?php if ( 'RMB' === $supplier_currency ) : ?>
-                                <th class="column-cost-usd" data-sort="cost_usd">
+                                <th class="column-cost-usd" data-column="cost_usd" data-sort="cost_usd">
                                     <?php esc_html_e( 'Unit price (USD)', 'sop' ); ?>
                                 </th>
                             <?php endif; ?>
                             <th class="column-stock" data-column="stock" data-sort="stock" title="<?php esc_attr_e( 'Stock on hand', 'sop' ); ?>"><?php esc_html_e( 'Stock', 'sop' ); ?></th>
                             <th class="column-inbound" data-column="inbound" data-sort="inbound" title="<?php esc_attr_e( 'Inbound quantity on purchase orders', 'sop' ); ?>"><?php esc_html_e( 'Inbound', 'sop' ); ?></th>
                             <th class="column-min-order" data-column="min_order" data-sort="moq" title="<?php esc_attr_e( 'Minimum order quantity', 'sop' ); ?>"><?php esc_html_e( 'MOQ', 'sop' ); ?></th>
-                            <th class="column-suggested" data-sort="soq" title="<?php esc_attr_e( 'Suggested order quantity', 'sop' ); ?>"><?php esc_html_e( 'SOQ', 'sop' ); ?></th>
-                            <th class="column-order-qty" data-sort="order_qty" title="<?php esc_attr_e( 'Manual order quantity for this shipment', 'sop' ); ?>"><?php esc_html_e( 'Qty', 'sop' ); ?></th>
-                            <th class="column-line-total-supplier" data-sort="total" title="<?php esc_attr_e( 'Line total in supplier currency', 'sop' ); ?>">
+                            <th class="column-suggested" data-column="soq" data-sort="soq" title="<?php esc_attr_e( 'Suggested order quantity', 'sop' ); ?>"><?php esc_html_e( 'SOQ', 'sop' ); ?></th>
+                            <th class="column-order-qty" data-column="order_qty" data-sort="order_qty" title="<?php esc_attr_e( 'Manual order quantity for this shipment', 'sop' ); ?>"><?php esc_html_e( 'Qty', 'sop' ); ?></th>
+                            <th class="column-line-total-supplier" data-column="line_total" data-sort="total" title="<?php esc_attr_e( 'Line total in supplier currency', 'sop' ); ?>">
                                 <?php echo esc_html__( 'Line total', 'sop' ); ?>
                                 <br />
                                 <?php
-                                printf(
-                                    '(%s)',
+                                    printf(
+                                        '(%s)',
                                     esc_html( $supplier_currency )
                                 );
                                 ?>
@@ -593,7 +620,7 @@ function sop_preorder_render_admin_page() {
                             <th class="column-line-cbm" data-column="line_cbm" data-sort="line_cbm" title="<?php esc_attr_e( 'Line volume in cubic metres', 'sop' ); ?>"><?php esc_html_e( 'Line CBM', 'sop' ); ?></th>
                             <th class="column-regular-unit" data-column="regular_unit" data-sort="price_ex" title="<?php esc_attr_e( 'Regular WooCommerce price per unit excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Price excl.', 'sop' ); ?></th>
                             <th class="column-regular-line" data-column="regular_line" data-sort="line_ex" title="<?php esc_attr_e( 'Regular WooCommerce line price excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Line excl.', 'sop' ); ?></th>
-                            <th class="column-notes" data-column="notes" data-sort="notes" title="<?php esc_attr_e( 'Internal notes for this product / supplier', 'sop' ); ?>"><?php esc_html_e( 'Notes', 'sop' ); ?></th>
+                            <th class="column-notes" data-column="notes" data-sort="notes" title="<?php esc_attr_e( 'Internal notes for this product.', 'sop' ); ?>"><?php esc_html_e( 'Product notes', 'sop' ); ?></th>
                             <th class="column-order-notes" data-column="order_notes" data-sort="order_notes" title="<?php esc_attr_e( 'Order-specific notes', 'sop' ); ?>"><?php esc_html_e( 'Order notes', 'sop' ); ?></th>
                             <th class="column-carton-no" data-column="carton_no" data-sort="carton_no" title="<?php esc_attr_e( 'Carton number', 'sop' ); ?>"><?php esc_html_e( 'Carton no.', 'sop' ); ?></th>
                         </tr>
@@ -630,7 +657,7 @@ function sop_preorder_render_admin_page() {
                                 $suggested_order_qty  = isset( $row['suggested_order_qty'] ) ? (float) $row['suggested_order_qty'] : 0.0;
                                 $cubic_cm             = isset( $row['cubic_cm'] ) ? (float) $row['cubic_cm'] : 0.0;
                                 $line_cbm             = isset( $row['line_cbm'] ) ? (float) $row['line_cbm'] : 0.0;
-                                $categories           = isset( $row['categories'] ) ? $row['categories'] : '';
+                                $categories           = isset( $row['category'] ) ? $row['category'] : ( isset( $row['categories'] ) ? $row['categories'] : '' );
 
                                 $product              = wc_get_product( $product_id );
 
@@ -683,10 +710,10 @@ function sop_preorder_render_admin_page() {
                                         }
                                         ?>
                                     </td>
-                                    <td class="column-location">
+                                    <td class="column-location" data-column="location">
                                         <?php echo esc_html( $location ); ?>
                                     </td>
-                                    <td class="column-sku">
+                                    <td class="column-sku" data-column="sku">
                                         <input type="hidden" name="sop_product_id[]" value="<?php echo esc_attr( $product_id ); ?>" />
                                         <textarea
                                             name="sop_sku[]"
@@ -696,13 +723,13 @@ function sop_preorder_render_admin_page() {
                                             <?php disabled( $is_locked ); ?>
                                         ><?php echo esc_textarea( $order_sku ); ?></textarea>
                                     </td>
-                                    <td class="column-brand">
+                                    <td class="column-brand" data-column="brand">
                                         <?php echo esc_html( $brand ); ?>
                                     </td>
-                                    <td class="column-category">
+                                    <td class="column-category" data-column="category">
                                         <?php echo esc_html( $categories ); ?>
                                     </td>
-                                    <td class="column-name">
+                                    <td class="column-name" data-column="product">
                                         <?php echo esc_html( $name ); ?>
                                     </td>
                                     <td class="column-cost-supplier" data-column="cost_supplier">
@@ -730,15 +757,15 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-min-order" data-column="min_order">
                                         <input type="number" name="sop_line_moq[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $min_order_qty ); ?>" step="1" min="0" class="sop-preorder-moq" <?php disabled( $is_locked ); ?> />
                                     </td>
-                                    <td class="column-suggested">
+                                    <td class="column-suggested" data-column="soq">
                                         <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
                                             <?php echo esc_html( number_format_i18n( $suggested_order_qty, 0 ) ); ?>
                                         </span>
                                     </td>
-                                    <td class="column-order-qty" data-sort="order_qty">
+                                    <td class="column-order-qty" data-column="order_qty" data-sort="order_qty">
                                         <input type="number" name="sop_line_qty[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input sop-preorder-qty" <?php disabled( $is_locked ); ?> />
                                     </td>
-                                    <td class="column-line-total-supplier">
+                                    <td class="column-line-total-supplier" data-column="line_total">
                                         <span class="sop-line-total-gbp" data-cost-gbp="<?php echo esc_attr( $cost_gbp ); ?>" style="display:none;">
                                             <?php echo esc_html( number_format_i18n( $line_total_gbp, 2 ) ); ?>
                                         </span>

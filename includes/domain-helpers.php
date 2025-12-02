@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.15
+ * File version: 1.0.16
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -603,6 +603,48 @@ function sop_convert_rmb_unit_cost_to_usd( $rmb_cost ) {
     $usd_value = $gbp_value / $usd_to_gbp;
 
     return $usd_value;
+}
+
+if ( ! function_exists( 'sop_get_product_primary_category_name' ) ) {
+    /**
+     * Get the primary WooCommerce product category name for a product.
+     *
+     * For display/export only; does not modify taxonomy assignments.
+     *
+     * @param int $product_id Product or variation ID.
+     * @return string Category name or empty string.
+     */
+    function sop_get_product_primary_category_name( $product_id ) {
+        $product_id = (int) $product_id;
+        if ( $product_id <= 0 ) {
+            return '';
+        }
+
+        if ( function_exists( 'wc_get_product' ) ) {
+            $product = wc_get_product( $product_id );
+            if ( $product && $product->is_type( 'variation' ) ) {
+                $parent_id = $product->get_parent_id();
+                if ( $parent_id ) {
+                    $product_id = (int) $parent_id;
+                }
+            }
+        }
+
+        $terms = wp_get_post_terms( $product_id, 'product_cat' );
+        if ( is_wp_error( $terms ) || empty( $terms ) ) {
+            return '';
+        }
+
+        usort(
+            $terms,
+            static function ( $a, $b ) {
+                return strcasecmp( $a->name, $b->name );
+            }
+        );
+
+        $term = reset( $terms );
+        return ( $term && isset( $term->name ) ) ? (string) $term->name : '';
+    }
 }
 
 /**
