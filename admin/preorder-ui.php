@@ -439,7 +439,7 @@ function sop_preorder_render_admin_page() {
                                 class="button"
                                 form="sop-preorder-export-form"
                                 style="margin-left:6px;">
-                            <?php esc_html_e( 'Export Excel (.xlsx)', 'sop' ); ?>
+                            <?php esc_html_e( 'Export Excel (.xls)', 'sop' ); ?>
                         </button>
                     <?php endif; ?>
                 </p>

@@ -405,21 +405,30 @@ function sop_handle_export_preorder_sheet_csv() {
     $order_date   = ! empty( $sheet['order_date_owner'] ) ? preg_replace( '/[^0-9\-]/', '', $sheet['order_date_owner'] ) : gmdate( 'Y-m-d' );
 
     $filename = sprintf(
-        '%s-order-%s-v%d-%s.xlsx',
+        '%s-order-%s-v%d-%s.xls',
         $supplier_slug,
         $order_number,
         $version,
         $order_date
     );
 
-    $result = class_exists( 'SOP_Preorder_Excel_Exporter' )
-        ? SOP_Preorder_Excel_Exporter::export_sheet( $sheet, $lines, $filename )
+    $html = class_exists( 'SOP_Preorder_Excel_Exporter' )
+        ? SOP_Preorder_Excel_Exporter::build_html_table( $sheet, $lines )
         : new WP_Error( 'sop_export_no_exporter', __( 'Excel exporter is not available.', 'sop' ) );
 
-    if ( is_wp_error( $result ) ) {
-        $csv_filename = str_replace( '.xlsx', '.csv', $filename );
+    if ( is_wp_error( $html ) ) {
+        $csv_filename = str_replace( '.xls', '.csv', $filename );
         sop_preorder_stream_csv_export( $sheet, $lines, $csv_filename );
+        exit;
     }
+
+    nocache_headers();
+    header( 'Content-Type: application/vnd.ms-excel; charset=utf-8' );
+    header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+    header( 'Pragma: no-cache' );
+    header( 'Expires: 0' );
+
+    echo $html;
     exit;
 }
 
