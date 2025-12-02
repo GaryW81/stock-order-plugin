@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.3
+ * File version: 1.1.4
  *
  * Excel-compatible HTML export (with embedded images) for saved Pre-Order sheets.
  */
@@ -84,8 +84,6 @@ class SOP_Preorder_Excel_Exporter {
                     }
                 }
             }
-
-            $html .= '<tr style="height:' . (int) $row_height_px . 'px;">';
 
             $img_td_style = sprintf(
                 'width:%dpx;height:%dpx;border:1px solid #000;vertical-align:middle;text-align:center;',
