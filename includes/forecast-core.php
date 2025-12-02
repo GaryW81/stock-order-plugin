@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.14
+ * File version: 1.0.15
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -529,7 +529,7 @@ class Stock_Order_Plugin_Core_Engine {
             'stockout_days_legacy'=> (float) $stockout_days_legacy,
             'lead_days'         => (float) $lead_days,
             'buffer_days'       => (float) $buffer_days,
-            'demand_during_lead'=> (float) $demand_during_lead,
+            'demand_during_lead'=> (float) $lead_demand,
             'buffer_target_units'=> (float) $buffer_target_units,
             'stock_at_arrival'  => (float) $stock_at_arrival,
         );
