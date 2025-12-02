@@ -511,6 +511,9 @@ function sop_preorder_render_admin_page() {
                     </button>
                     <div class="sop-preorder-columns-panel" role="menu">
                         <div class="sop-preorder-columns-panel-item">
+                            <label><input type="checkbox" data-column="image" checked="checked" /><?php esc_html_e( 'Image', 'sop' ); ?></label>
+                        </div>
+                        <div class="sop-preorder-columns-panel-item">
                             <label><input type="checkbox" data-column="location" checked="checked" /><?php esc_html_e( 'Location', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
@@ -581,7 +584,7 @@ function sop_preorder_render_admin_page() {
                             <th class="sop-preorder-col-select">
                                 <input type="checkbox" id="sop-preorder-select-all" />
                             </th>
-                            <th class="column-image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
+                            <th class="column-image" data-column="image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
                             <th class="column-location" data-column="location" data-sort="location" title="<?php esc_attr_e( 'Warehouse location / bin', 'sop' ); ?>"><?php esc_html_e( 'Location', 'sop' ); ?></th>
                             <th class="column-sku" data-column="sku" data-sort="sku" title="<?php esc_attr_e( 'SKU (stock-keeping unit)', 'sop' ); ?>"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
                             <th class="column-brand" data-column="brand" data-sort="brand" title="<?php esc_attr_e( 'Brand / manufacturer', 'sop' ); ?>"><?php esc_html_e( 'Brand', 'sop' ); ?></th>
@@ -699,7 +702,7 @@ function sop_preorder_render_admin_page() {
                                             <?php esc_html_e( 'Restore', 'sop' ); ?>
                                         </button>
                                     </td>
-                                    <td class="column-image">
+                                    <td class="column-image" data-column="image">
                                         <?php
                                         if ( $image_id ) {
                                             // Use the smaller WooCommerce gallery thumbnail (typically 100x100).
