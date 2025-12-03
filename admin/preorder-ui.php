@@ -1,5 +1,5 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.42 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.50 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -1829,6 +1829,16 @@ function sop_preorder_render_admin_page() {
                 }, 2300);
             }
 
+            function sopPreorderShowCartonInvalidRangeTooltip(inputEl, silent) {
+                if ( silent || ! inputEl ) {
+                    return;
+                }
+                sopPreorderShowCartonTooltip(
+                    inputEl,
+                    '<?php echo esc_js( __( 'Invalid range, use e.g. 1-5,8,11-13', 'sop' ) ); ?>'
+                );
+            }
+
             function sopPreorderNormalizeCartonValue(inputEl, options) {
                 if ( ! inputEl ) {
                     return null;
@@ -1889,23 +1899,15 @@ function sop_preorder_render_admin_page() {
                     if ( row ) {
                         row.dataset.sortCartonNo = '';
                     }
-                    if ( ! silent ) {
-                        sopPreorderShowCartonTooltip(
-                            inputEl,
-                            '<?php echo esc_js( __( 'Carton numbers only. Use numbers & ranges like 4,7,12-13.', 'sop' ) ); ?>'
-                        );
-                    }
+                    sopPreorderShowCartonInvalidRangeTooltip(inputEl, silent);
                     return null;
                 }
 
                 var strippedLetters = raw !== cleaned;
                 if ( rebuilt !== cleaned || strippedLetters ) {
                     inputEl.value = rebuilt;
-                    if ( strippedLetters && ! silent ) {
-                        sopPreorderShowCartonTooltip(
-                            inputEl,
-                            '<?php echo esc_js( __( 'Invalid range, use e.g. 1-5,8,11-13', 'sop' ) ); ?>'
-                        );
+                    if ( strippedLetters ) {
+                        sopPreorderShowCartonInvalidRangeTooltip(inputEl, silent);
                     }
                 }
 
