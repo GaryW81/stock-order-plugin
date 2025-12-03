@@ -1,5 +1,5 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.55 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.56 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -1306,7 +1306,8 @@ function sop_preorder_render_admin_page() {
             border-radius: 3px;
             font-size: 12px;
             line-height: 1.4;
-            white-space: nowrap;
+            max-width: 220px;
+            white-space: normal;
             box-shadow: 0 2px 6px rgba(0,0,0,0.2);
             z-index: 9999;
             opacity: 0;
