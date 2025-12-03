@@ -1,5 +1,5 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.56 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.57 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -91,17 +91,17 @@ function sop_preorder_render_admin_page() {
 
     switch ( $container_selection ) {
         case '20ft':
-            // 20ft GP: 5.90m x 2.35m x 2.39m â‰ˆ 33.2 CBM.
+            // 20ft GP: 5.90m x 2.35m x 2.39m ≈ 33.2 CBM.
             $base_cbm   = 33.2;
             $floor_area = 5.90 * 2.35;
             break;
         case '40ft':
-            // 40ft GP: 12.03m x 2.35m x 2.39m â‰ˆ 67.7 CBM.
+            // 40ft GP: 12.03m x 2.35m x 2.39m ≈ 67.7 CBM.
             $base_cbm   = 67.7;
             $floor_area = 12.03 * 2.35;
             break;
         case '40ft_hc':
-            // 40ft HQ: 12.03m x 2.35m x 2.69m â‰ˆ 76.3 CBM.
+            // 40ft HQ: 12.03m x 2.35m x 2.69m ≈ 76.3 CBM.
             $base_cbm   = 76.3;
             $floor_area = 12.03 * 2.35;
             break;
@@ -570,7 +570,7 @@ function sop_preorder_render_admin_page() {
                             <label><input type="checkbox" data-column="line_total" checked="checked" /><?php esc_html_e( 'Line total', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
-                            <label><input type="checkbox" data-column="cubic" checked="checked" /><?php esc_html_e( 'cmÂ³ per unit', 'sop' ); ?></label>
+                            <label><input type="checkbox" data-column="cubic" checked="checked" /><?php esc_html_e( 'cm³ per unit', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
                             <label><input type="checkbox" data-column="line_cbm" checked="checked" /><?php esc_html_e( 'Line CBM', 'sop' ); ?></label>
@@ -646,7 +646,7 @@ function sop_preorder_render_admin_page() {
                                 data-column="carton_no"
                                 data-sort="carton_no"
                                 data-sort-key="carton_no"
-                                title="<?php esc_attr_e( 'Carton numbers only. Use numbers & ranges: e.g. 4,7,12-13. Other packing info â†’ Order notes.', 'sop' ); ?>">
+                                title="<?php esc_attr_e( 'Carton numbers only. Use numbers & ranges: e.g. 4,7,12-13. Other packing info → Order notes.', 'sop' ); ?>">
                                 <?php esc_html_e( 'Carton no.', 'sop' ); ?>
                             </th>
                         </tr>
