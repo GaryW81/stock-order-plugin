@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.8
+ * File version: 1.1.9
  *
  * Excel-compatible HTML export (with embedded images) for saved Pre-Order sheets.
  */
@@ -20,9 +20,9 @@ class SOP_Preorder_Excel_Exporter {
      * @return string
      */
     public static function build_html_table( $header, $lines ) {
-        $image_cell_size_px  = 72; // Outer dimension for the image column.
+        $image_cell_size_px  = 80; // Outer dimension for the image column.
         $image_padding_px    = 1;  // Padding inside the image cell.
-        $row_height_px       = 72; // Row height to match image cell.
+        $row_height_px       = 80; // Row height to match image cell.
         $image_display_size_px = 60; // Actual image size inside the cell.
 
         $html  = '<html><head><meta charset="utf-8" /></head><body>';
@@ -110,7 +110,7 @@ class SOP_Preorder_Excel_Exporter {
             $html .= '<tr style="height:' . (int) $row_height_px . 'px;">';
             $html .= '<td style="' . $img_td_style . '">';
             if ( $thumb_url ) {
-                $html .= '<img src="' . esc_url( $thumb_url ) . '" alt="" width="' . (int) $image_display_size_px . '" height="' . (int) $image_display_size_px . '" style="display:block;margin:1px auto;" />';
+                $html .= '<img src="' . esc_url( $thumb_url ) . '" alt="" width="' . (int) $image_display_size_px . '" height="' . (int) $image_display_size_px . '" style="display:block;margin:5px auto;" />';
             }
             $html .= '</td>';
             $html .= '<td>' . esc_html( $sku ) . '</td>';
