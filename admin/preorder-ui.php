@@ -1,5 +1,5 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.52 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.53 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -1815,6 +1815,31 @@ function sop_preorder_render_admin_page() {
                 var left = window.scrollX + rect.left;
                 tooltip.style.top = top + 'px';
                 tooltip.style.left = left + 'px';
+
+                // Clamp tooltip horizontally within the current viewport so it doesn't go off-screen.
+                (function() {
+                    var scrollLeft = window.pageXOffset || document.documentElement.scrollLeft || 0;
+                    var viewportWidth = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth || 0;
+                    var tooltipWidth = tooltip.offsetWidth || 0;
+                    var margin = 8;
+
+                    var currentLeft = parseFloat(tooltip.style.left) || 0;
+                    var minLeft = scrollLeft + margin;
+                    var maxLeft = scrollLeft + viewportWidth - tooltipWidth - margin;
+
+                    // If the viewport is very narrow, avoid inverting the range.
+                    if ( maxLeft < minLeft ) {
+                        maxLeft = minLeft;
+                    }
+
+                    if ( currentLeft < minLeft ) {
+                        currentLeft = minLeft;
+                    } else if ( currentLeft > maxLeft ) {
+                        currentLeft = maxLeft;
+                    }
+
+                    tooltip.style.left = currentLeft + 'px';
+                })();
 
                 requestAnimationFrame(function() {
                     tooltip.style.opacity = '1';
