@@ -468,6 +468,7 @@ function sop_preorder_render_admin_page() {
                             <?php esc_html_e( 'Update container', 'sop' ); ?>
                         </button>
                     </div>
+                </div>
 
                 <div class="sop-preorder-card-row sop-preorder-middle-bottom">
                     <div class="sop-preorder-totals">
