@@ -1048,6 +1048,19 @@ function sop_preorder_render_admin_page() {
             min-width: 240px;
         }
 
+        .sop-preorder-top-row,
+        .sop-preorder-middle-top,
+        .sop-preorder-middle-bottom,
+        .sop-preorder-bottom-row {
+            justify-content: space-between;
+            gap: 24px;
+        }
+
+        .sop-preorder-top-left,
+        .sop-preorder-top-right {
+            gap: 16px;
+        }
+
         .sop-preorder-filter-sku {
             display: inline-flex;
             align-items: center;
@@ -1146,7 +1159,7 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-columns-button {
-            min-width: 170px;
+            min-width: 190px;
             text-align: left;
         }
 
