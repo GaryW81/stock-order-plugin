@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.74 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.75 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -376,8 +376,8 @@ function sop_preorder_render_admin_page() {
             <?php endif; ?>
 
             <div class="sop-preorder-card sop-preorder-card--top">
-                <div class="sop-preorder-card-row">
-                    <div class="sop-preorder-card-section sop-preorder-card-section--supplier">
+                <div class="sop-preorder-card-row sop-preorder-top-row">
+                    <div class="sop-preorder-top-left">
                         <label>
                             <?php esc_html_e( 'Supplier:', 'sop' ); ?>
                             <select name="sop_supplier_id" form="sop-preorder-filter-form">
@@ -388,18 +388,18 @@ function sop_preorder_render_admin_page() {
                                 <?php endforeach; ?>
                             </select>
                         </label>
-                    </div>
-                    <div class="sop-preorder-card-section sop-preorder-card-section--actions">
-                        <label for="sop-header-order-number">
+
+                        <label for="sop-header-order-number" class="sop-preorder-order-label">
                             <?php esc_html_e( 'Order #', 'sop' ); ?>
                             <input type="text"
                                    id="sop-header-order-number"
                                    name="sop_header_order_number"
                                    value="<?php echo esc_attr( $order_number_value ); ?>"
-                                   style="width: 100px;"
+                                   style="width: 110px;"
                                    form="sop-preorder-sheet-form" />
                         </label>
-
+                    </div>
+                    <div class="sop-preorder-top-right">
                         <?php if ( $current_sheet_id > 0 ) : ?>
                             <button type="submit"
                                     class="button"
@@ -441,7 +441,7 @@ function sop_preorder_render_admin_page() {
             </div>
 
             <div class="sop-preorder-card sop-preorder-card--planning">
-                <div class="sop-preorder-card-row">
+                <div class="sop-preorder-card-row sop-preorder-middle-top">
                     <div class="sop-preorder-card-section sop-preorder-card-section--container">
                         <label>
                             <?php esc_html_e( 'Container:', 'sop' ); ?>
@@ -469,41 +469,26 @@ function sop_preorder_render_admin_page() {
                         </button>
                     </div>
 
-                    <div class="sop-preorder-card-section sop-preorder-card-section--summary">
-                        <div class="sop-preorder-summary-bar">
-                            <div class="sop-summary-item">
-                                <strong><?php esc_html_e( 'Total Units', 'sop' ); ?>:</strong>
-                                <span id="sop-total-units"><?php echo esc_html( number_format_i18n( $total_units, 0 ) ); ?></span>
-                            </div>
-                            <div class="sop-summary-item">
-                                <strong><?php esc_html_e( 'Total SKUs', 'sop' ); ?>:</strong>
-                                <span id="sop-total-skus"><?php echo esc_html( number_format_i18n( $total_skus, 0 ) ); ?></span>
-                            </div>
-                            <div class="sop-summary-item">
-                                <strong><?php esc_html_e( 'Total Cost (GBP)', 'sop' ); ?>:</strong>
-                                <span id="sop-total-cost-gbp"><?php echo esc_html( wc_price( $total_cost_gbp ) ); ?></span>
-                            </div>
-                            <div class="sop-summary-item">
-                                <strong><?php printf( esc_html__( 'Total Cost (%s)', 'sop' ), esc_html( $supplier_currency ) ); ?>:</strong>
-                                <span id="sop-total-cost-supplier">
-                                    <?php echo esc_html( $currency_symbol . ' ' . number_format_i18n( $total_cost_supplier, 2 ) ); ?>
-                                </span>
-                            </div>
+                <div class="sop-preorder-card-row sop-preorder-middle-bottom">
+                    <div class="sop-preorder-totals">
+                        <span><strong><?php esc_html_e( 'Total Units', 'sop' ); ?>:</strong> <span id="sop-total-units"><?php echo esc_html( number_format_i18n( $total_units, 0 ) ); ?></span></span>
+                        <span><strong><?php esc_html_e( 'Total SKUs', 'sop' ); ?>:</strong> <span id="sop-total-skus"><?php echo esc_html( number_format_i18n( $total_skus, 0 ) ); ?></span></span>
+                        <span><strong><?php esc_html_e( 'Total Cost (GBP)', 'sop' ); ?>:</strong> <span id="sop-total-cost-gbp"><?php echo esc_html( wc_price( $total_cost_gbp ) ); ?></span></span>
+                        <span><strong><?php printf( esc_html__( 'Total Cost (%s)', 'sop' ), esc_html( $supplier_currency ) ); ?>:</strong> <span id="sop-total-cost-supplier"><?php echo esc_html( $currency_symbol . ' ' . number_format_i18n( $total_cost_supplier, 2 ) ); ?></span></span>
+                    </div>
+                    <div class="sop-preorder-fill">
+                        <strong><?php esc_html_e( 'Container Fill', 'sop' ); ?>:</strong>
+                        <div class="sop-cbm-bar-wrapper" title="<?php echo esc_attr( $used_cbm ); ?>%">
+                            <div class="sop-cbm-bar" style="width: <?php echo esc_attr( $used_cbm ); ?>%;"></div>
                         </div>
-                        <div class="sop-summary-item sop-summary-cbm">
-                            <strong><?php esc_html_e( 'Container Fill', 'sop' ); ?>:</strong>
-                            <div class="sop-cbm-bar-wrapper" title="<?php echo esc_attr( $used_cbm ); ?>%">
-                                <div class="sop-cbm-bar" style="width: <?php echo esc_attr( $used_cbm ); ?>%;"></div>
-                            </div>
-                            <span class="sop-cbm-label" id="sop-cbm-label"><?php echo esc_html( number_format_i18n( $used_cbm, 1 ) ); ?>%</span>
-                        </div>
+                        <span class="sop-cbm-label" id="sop-cbm-label"><?php echo esc_html( number_format_i18n( $used_cbm, 1 ) ); ?>%</span>
                     </div>
                 </div>
             </div>
 
             <div class="sop-preorder-card sop-preorder-card--tools">
-                <div class="sop-preorder-card-row sop-preorder-toolbar">
-                    <div class="sop-preorder-card-section sop-preorder-toolbar-group sop-preorder-toolbar-rounding">
+                <div class="sop-preorder-card-row sop-preorder-bottom-row">
+                    <div class="sop-preorder-bottom-left">
                         <span><?php esc_html_e( 'Rounding:', 'sop' ); ?></span>
                         <?php if ( ! $is_locked ) : ?>
                             <label class="sop-round-step-label">
@@ -521,9 +506,9 @@ function sop_preorder_render_admin_page() {
                     </div>
 
                     <?php if ( ! $is_locked ) : ?>
-                        <div class="sop-preorder-card-section sop-preorder-toolbar-group sop-preorder-toolbar-rows">
-                            <button type="button" class="button" id="sop-preorder-remove-selected"><?php esc_html_e( 'Remove selected', 'sop' ); ?></button>
+                        <div class="sop-preorder-bottom-middle">
                             <button type="button" class="button" id="sop-apply-soq-to-qty"><?php esc_html_e( 'Apply SOQ to Qty', 'sop' ); ?></button>
+                            <button type="button" class="button" id="sop-preorder-remove-selected"><?php esc_html_e( 'Remove selected', 'sop' ); ?></button>
                             <label for="sop-preorder-show-removed" class="sop-preorder-show-removed">
                                 <input type="checkbox" id="sop-preorder-show-removed" />
                                 <?php esc_html_e( 'Show removed rows', 'sop' ); ?>
@@ -531,7 +516,7 @@ function sop_preorder_render_admin_page() {
                         </div>
                     <?php endif; ?>
 
-                    <div class="sop-preorder-card-section sop-preorder-toolbar-group sop-preorder-toolbar-columns">
+                    <div class="sop-preorder-bottom-right">
                         <div class="sop-preorder-filter-sku">
                             <label for="sop_sku_filter" class="screen-reader-text">
                                 <?php esc_html_e( 'Search by SKU', 'sop' ); ?>
@@ -547,7 +532,7 @@ function sop_preorder_render_admin_page() {
                             </div>
                         </div>
                         <span class="sop-preorder-columns-label"><?php esc_html_e( 'Columns', 'sop' ); ?>:</span>
-                        <button type="button" class="button sop-preorder-columns-toggle" aria-expanded="false">
+                        <button type="button" class="button sop-preorder-columns-toggle sop-preorder-columns-button" aria-expanded="false">
                             <?php esc_html_e( 'Select', 'sop' ); ?>
                         </button>
                         <div class="sop-preorder-columns-panel" role="menu">
@@ -1012,47 +997,51 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-card {
             background: #ffffff;
-            border: 1px solid #e3e6ea;
-            border-radius: 12px;
-            box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
             padding: 16px 20px;
             margin-bottom: 16px;
         }
 
-        .sop-preorder-header-row {
+        .sop-preorder-card-row {
             display: flex;
             flex-wrap: wrap;
-            align-items: flex-end;
-            gap: 12px 16px;
+            align-items: center;
+            gap: 16px;
             justify-content: space-between;
         }
 
-        .sop-preorder-header-row--planning .sop-preorder-header-container {
-            flex: 1 1 auto;
-            min-width: 260px;
-        }
-
-        .sop-preorder-header-row--planning .sop-preorder-header-search {
-            flex: 0 0 auto;
-            justify-content: flex-end;
-        }
-
-        .sop-preorder-header-row--sheet .sop-preorder-header-sheet-actions {
-            flex: 1 1 auto;
-            justify-content: flex-end;
-        }
-
-        .sop-preorder-header-group {
+        .sop-preorder-top-left,
+        .sop-preorder-top-right,
+        .sop-preorder-middle-top,
+        .sop-preorder-middle-bottom,
+        .sop-preorder-bottom-left,
+        .sop-preorder-bottom-middle,
+        .sop-preorder-bottom-right {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
             align-items: center;
+            gap: 12px;
         }
 
-        .sop-preorder-header-context label,
-        .sop-preorder-header-container label,
-        .sop-preorder-header-actions label {
-            margin-right: 4px;
+        .sop-preorder-top-left {
+            gap: 16px;
+        }
+
+        .sop-preorder-top-right {
+            margin-left: auto;
+            gap: 12px;
+        }
+
+        .sop-preorder-middle-top,
+        .sop-preorder-middle-bottom,
+        .sop-preorder-bottom-row {
+            width: 100%;
+        }
+
+        .sop-preorder-bottom-right {
+            margin-left: auto;
         }
 
         .sop-preorder-header select[name="sop_supplier_id"] {
@@ -1079,23 +1068,25 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-summary-bar {
             display: flex;
             flex-wrap: wrap;
-            gap: 1rem;
-            padding: 0.75rem 1rem;
-            background: #f6f7f7;
-            border: 1px solid #ccd0d4;
-            border-radius: 4px;
-            margin-bottom: 1rem;
+            gap: 12px;
+            padding: 0;
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            margin: 0;
         }
 
-        .sop-summary-item {
+        .sop-preorder-totals span + span {
+            margin-left: 16px;
+        }
+
+        .sop-preorder-fill {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-        }
-
-        .sop-summary-cbm {
-            flex: 1;
-            min-width: 200px;
+            gap: 8px;
+            min-width: 260px;
+            justify-content: flex-end;
+            flex: 1 0 auto;
         }
 
         .sop-cbm-bar-wrapper {
@@ -1145,14 +1136,18 @@ function sop_preorder_render_admin_page() {
             justify-content: space-between;
             margin-top: 8px;
             margin-bottom: 8px;
-            padding: 0.5rem 0;
-            border-top: 1px solid #e2e4e7;
-            border-bottom: 1px solid #e2e4e7;
-            background-color: #fdfdfd;
+            padding: 0;
+            border: 0;
+            background-color: transparent;
         }
 
         .sop-preorder-table-toolbar {
             width: 100%;
+        }
+
+        .sop-preorder-columns-button {
+            min-width: 170px;
+            text-align: left;
         }
 
         .sop-preorder-toolbar-group {
