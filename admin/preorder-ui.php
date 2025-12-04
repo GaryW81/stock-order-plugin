@@ -1,5 +1,5 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.62 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.63 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -1454,6 +1454,17 @@ function sop_preorder_render_admin_page() {
             var $columnsPanel        = $columnsWrapper.find('.sop-preorder-columns-panel');
             var $columnCheckboxes    = $columnsPanel.find('input[type="checkbox"]');
 
+            function sopPreorderApplyColumnVisibility() {
+                $columnCheckboxes.each(function() {
+                    var columnKey = $(this).data('column');
+                    if ( ! columnKey ) {
+                        return;
+                    }
+                    var show = $(this).is(':checked');
+                    $table.find('[data-column="' + columnKey + '"]').toggle(show);
+                });
+            }
+
             // Any text/number input or textarea inside the table is considered an edit.
             $table.on('change input', 'input[type="text"], input[type="number"], textarea', function() {
                 hasUnsavedChanges = true;
@@ -1525,6 +1536,7 @@ function sop_preorder_render_admin_page() {
 
             if ( $columnsWrapper.length && $columnsToggleButton.length && $columnsPanel.length ) {
                 sopPreorderUpdateColumnsToggleLabel();
+                sopPreorderApplyColumnVisibility();
 
                 $columnsToggleButton.on( 'click', function( e ) {
                     e.preventDefault();
@@ -1535,6 +1547,7 @@ function sop_preorder_render_admin_page() {
 
                 $columnCheckboxes.on( 'change', function() {
                     sopPreorderUpdateColumnsToggleLabel();
+                    sopPreorderApplyColumnVisibility();
                 } );
 
                 $( document ).on( 'click', function( e ) {
@@ -2186,13 +2199,6 @@ function sop_preorder_render_admin_page() {
                 });
 
                 recalcTotals();
-            });
-
-            $('.sop-column-visibility input[type="checkbox"]').on('change', function() {
-                var columnKey = $(this).data('column');
-                var show = $(this).is(':checked');
-
-                $table.find('[data-column="' + columnKey + '"]').toggle(show);
             });
 
             var sopNumericSortKeys = {
