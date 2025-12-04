@@ -1,5 +1,5 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.63 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.64 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -618,7 +618,8 @@ function sop_preorder_render_admin_page() {
                             </th>
                             <?php if ( 'RMB' === $supplier_currency ) : ?>
                                 <th class="column-cost-usd" data-column="cost_usd" data-sort="unit_price_usd" data-sort-key="unit_price_usd">
-                                    <?php esc_html_e( 'Unit price (USD)', 'sop' ); ?>
+                                    <?php echo esc_html__( 'Unit price', 'stock-order-plugin' ); ?><br>
+                                    <?php echo esc_html__( '(USD)', 'stock-order-plugin' ); ?>
                                 </th>
                             <?php endif; ?>
                             <th class="column-stock" data-column="stock" data-sort="stock" title="<?php esc_attr_e( 'Stock on hand', 'sop' ); ?>"><?php esc_html_e( 'Stock', 'sop' ); ?></th>
@@ -636,7 +637,10 @@ function sop_preorder_render_admin_page() {
                                 );
                                 ?>
                             </th>
-                            <th class="column-cubic-item" data-column="cubic" data-sort="cubic" title="<?php esc_attr_e( 'Cubic centimetres per unit', 'sop' ); ?>"><?php esc_html_e( 'cm3 per unit', 'sop' ); ?></th>
+                            <th class="column-cubic-item" data-column="cubic" data-sort="cubic" title="<?php esc_attr_e( 'Cubic centimetres per unit', 'sop' ); ?>">
+                                <?php echo esc_html__( 'cm3', 'stock-order-plugin' ); ?><br>
+                                <?php echo esc_html__( 'per unit', 'stock-order-plugin' ); ?>
+                            </th>
                             <th class="column-line-cbm" data-column="line_cbm" data-sort="line_cbm" title="<?php esc_attr_e( 'Line volume in cubic metres', 'sop' ); ?>"><?php esc_html_e( 'Line CBM', 'sop' ); ?></th>
                             <th class="column-regular-unit" data-column="regular_unit" data-sort="price_ex" title="<?php esc_attr_e( 'Regular WooCommerce price per unit excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Price excl.', 'sop' ); ?></th>
                             <th class="column-regular-line" data-column="regular_line" data-sort="line_ex" title="<?php esc_attr_e( 'Regular WooCommerce line price excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Line excl.', 'sop' ); ?></th>
