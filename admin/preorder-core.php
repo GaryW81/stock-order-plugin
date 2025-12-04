@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.27
+ * File version: 10.28
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -171,6 +171,85 @@ function sop_render_preorder_sheets_page() {
         <?php endif; ?>
     </div>
     <?php
+}
+
+/**
+ * Handle filter submissions for the Pre-Order Sheet, including container updates on saved sheets.
+ */
+add_action( 'admin_post_sop_preorder_filter', 'sop_handle_preorder_filter' );
+function sop_handle_preorder_filter() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You do not have permission to update preorder filters.', 'sop' ) );
+    }
+
+    check_admin_referer( 'sop_preorder_filter', 'sop_preorder_filter_nonce' );
+
+    $supplier_id    = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
+    $sheet_id       = isset( $_POST['sop_preorder_sheet_id'] ) ? (int) $_POST['sop_preorder_sheet_id'] : 0;
+    $container_type = isset( $_POST['sop_container'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_container'] ) ) : '';
+    $pallet_layer   = ! empty( $_POST['sop_pallet_layer'] ) ? 1 : 0;
+    $allowance      = isset( $_POST['sop_allowance'] ) ? floatval( wp_unslash( $_POST['sop_allowance'] ) ) : 0;
+    $sku_filter     = isset( $_POST['sop_sku_filter'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_sku_filter'] ) ) : '';
+
+    if ( $sheet_id <= 0 && isset( $_POST['sop_sheet_id'] ) ) {
+        $sheet_id = (int) $_POST['sop_sheet_id'];
+    }
+
+    if ( $allowance < -50 ) {
+        $allowance = -50;
+    } elseif ( $allowance > 50 ) {
+        $allowance = 50;
+    }
+
+    $redirect_args = array(
+        'page'            => 'sop-preorder-sheet',
+        'sop_supplier_id' => $supplier_id,
+        'sop_container'   => $container_type,
+        'sop_allowance'   => $allowance,
+    );
+
+    if ( $pallet_layer ) {
+        $redirect_args['sop_pallet_layer'] = 1;
+    }
+
+    if ( '' !== $sku_filter ) {
+        $redirect_args['sop_sku_filter'] = $sku_filter;
+    }
+
+    if ( $sheet_id > 0 ) {
+        $redirect_args['sop_sheet_id'] = $sheet_id;
+    }
+
+    $is_update_container = isset( $_POST['sop_preorder_update_container'] );
+
+    if ( $is_update_container && $sheet_id > 0 && function_exists( 'sop_get_preorder_sheet' ) && function_exists( 'sop_update_preorder_sheet' ) ) {
+        $existing_sheet = sop_get_preorder_sheet( $sheet_id );
+
+        if ( $existing_sheet && is_array( $existing_sheet ) ) {
+            $sheet_supplier_id = isset( $existing_sheet['supplier_id'] ) ? (int) $existing_sheet['supplier_id'] : 0;
+            if ( $sheet_supplier_id > 0 ) {
+                $redirect_args['sop_supplier_id'] = $sheet_supplier_id;
+            }
+
+            $update_data = array(
+                'container_type' => $container_type,
+            );
+
+            if ( isset( $existing_sheet['edit_version'] ) ) {
+                $update_data['edit_version'] = max( 1, (int) $existing_sheet['edit_version'] + 1 );
+            }
+
+            $update_result = sop_update_preorder_sheet( $sheet_id, $update_data );
+
+            if ( is_wp_error( $update_result ) ) {
+                $redirect_args['sop_saved'] = '0';
+            }
+        }
+    }
+
+    $redirect = add_query_arg( $redirect_args, admin_url( 'admin.php' ) );
+    wp_safe_redirect( $redirect );
+    exit;
 }
 
 /**

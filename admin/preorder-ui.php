@@ -1,5 +1,5 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.67 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.68 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -32,6 +32,9 @@ function sop_preorder_render_admin_page() {
         ? (int) $_GET['sop_supplier_id']
         : 0;
     $current_sheet_id     = isset( $_GET['sop_sheet_id'] ) ? (int) $_GET['sop_sheet_id'] : 0;
+    if ( 0 === $current_sheet_id && isset( $_GET['sop_preorder_sheet_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $current_sheet_id = (int) $_GET['sop_preorder_sheet_id']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    }
     $current_sheet        = null;
     $current_lines        = array();
 
@@ -85,47 +88,11 @@ function sop_preorder_render_admin_page() {
         $sku_filter = sanitize_text_field( wp_unslash( $_GET['sop_sku_filter'] ) );
     }
 
-    // Base CBM and floor area per container type using real internal dimensions.
-    $base_cbm   = 0.0;
-    $floor_area = 0.0;
-
-    switch ( $container_selection ) {
-        case '20ft':
-            // 20ft GP: 5.90m x 2.35m x 2.39m ≈ 33.2 CBM.
-            $base_cbm   = 33.2;
-            $floor_area = 5.90 * 2.35;
-            break;
-        case '40ft':
-            // 40ft GP: 12.03m x 2.35m x 2.39m ≈ 67.7 CBM.
-            $base_cbm   = 67.7;
-            $floor_area = 12.03 * 2.35;
-            break;
-        case '40ft_hc':
-            // 40ft HQ: 12.03m x 2.35m x 2.69m ≈ 76.3 CBM.
-            $base_cbm   = 76.3;
-            $floor_area = 12.03 * 2.35;
-            break;
-        default:
-            $base_cbm   = 0.0;
-            $floor_area = 0.0;
-            break;
-    }
-
-    // Apply 150mm pallet layer if enabled.
-    $container_cbm = $base_cbm;
-    if ( $pallet_layer && $floor_area > 0 ) {
-        $lost_cubic    = $floor_area * 0.15; // 150mm height.
-        $container_cbm = max( 0.0, $container_cbm - $lost_cubic );
-    }
-
-    // Apply allowance percentage.
-    $effective_cbm = $container_cbm;
-    if ( $effective_cbm > 0 && 0.0 !== $allowance ) {
-        $effective_cbm = $effective_cbm * ( 1 - ( $allowance / 100 ) );
-    }
-    if ( $effective_cbm < 0 ) {
-        $effective_cbm = 0.0;
-    }
+    // Container metrics are resolved after sheet context is loaded.
+    $base_cbm      = 0.0;
+    $floor_area    = 0.0;
+    $container_cbm = 0.0;
+    $effective_cbm = 0.0;
 
     $lock_timestamp = $supplier ? sop_preorder_get_lock_timestamp( $supplier['id'] ) : 0;
     $is_locked      = $lock_timestamp > 0;
@@ -181,6 +148,10 @@ function sop_preorder_render_admin_page() {
                 $current_lines = array();
             }
 
+            if ( '' === $container_selection && ! empty( $current_sheet['container_type'] ) ) {
+                $container_selection = (string) $current_sheet['container_type'];
+            }
+
             if ( ! empty( $current_lines ) ) {
                 $lines_by_product = array();
                 foreach ( $current_lines as $line ) {
@@ -232,6 +203,45 @@ function sop_preorder_render_admin_page() {
                 unset( $row );
             }
         }
+    }
+
+    // Base CBM and floor area per container type using real internal dimensions.
+    switch ( $container_selection ) {
+        case '20ft':
+            // 20ft GP: 5.90m x 2.35m x 2.39m ~ 33.2 CBM.
+            $base_cbm   = 33.2;
+            $floor_area = 5.90 * 2.35;
+            break;
+        case '40ft':
+            // 40ft GP: 12.03m x 2.35m x 2.39m ~ 67.7 CBM.
+            $base_cbm   = 67.7;
+            $floor_area = 12.03 * 2.35;
+            break;
+        case '40ft_hc':
+            // 40ft HQ: 12.03m x 2.35m x 2.69m ~ 76.3 CBM.
+            $base_cbm   = 76.3;
+            $floor_area = 12.03 * 2.35;
+            break;
+        default:
+            $base_cbm   = 0.0;
+            $floor_area = 0.0;
+            break;
+    }
+
+    // Apply 150mm pallet layer if enabled.
+    $container_cbm = $base_cbm;
+    if ( $pallet_layer && $floor_area > 0 ) {
+        $lost_cubic    = $floor_area * 0.15; // 150mm height.
+        $container_cbm = max( 0.0, $container_cbm - $lost_cubic );
+    }
+
+    // Apply allowance percentage.
+    $effective_cbm = $container_cbm;
+    if ( $effective_cbm > 0 && 0.0 !== $allowance ) {
+        $effective_cbm = $effective_cbm * ( 1 - ( $allowance / 100 ) );
+    }
+    if ( $effective_cbm < 0 ) {
+        $effective_cbm = 0.0;
     }
 
     $total_units          = 0.0;
@@ -345,8 +355,14 @@ function sop_preorder_render_admin_page() {
             </div>
         <?php endif; ?>
 
-        <form id="sop-preorder-filter-form" method="get" action="">
+        <form id="sop-preorder-filter-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+            <?php wp_nonce_field( 'sop_preorder_filter', 'sop_preorder_filter_nonce' ); ?>
+            <input type="hidden" name="action" value="sop_preorder_filter" />
             <input type="hidden" name="page" value="sop-preorder-sheet" />
+            <?php if ( $current_sheet_id > 0 ) : ?>
+                <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+                <input type="hidden" name="sop_preorder_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+            <?php endif; ?>
 
             <div class="sop-preorder-controls">
                 <label>
@@ -395,8 +411,8 @@ function sop_preorder_render_admin_page() {
                     </div>
                 </div>
 
-                <button type="submit" class="button button-secondary">
-                    <?php esc_html_e( 'Update Filter', 'sop' ); ?>
+                <button type="submit" class="button button-secondary" name="sop_preorder_update_container" value="1">
+                    <?php esc_html_e( 'Update container', 'sop' ); ?>
                 </button>
             </div>
         </form>
@@ -570,7 +586,7 @@ function sop_preorder_render_admin_page() {
                             <label><input type="checkbox" data-column="line_total" checked="checked" /><?php esc_html_e( 'Line total', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
-                            <label><input type="checkbox" data-column="cubic" checked="checked" /><?php esc_html_e( 'cm³ per unit', 'sop' ); ?></label>
+                            <label><input type="checkbox" data-column="cubic" checked="checked" /><?php esc_html_e( 'cm� per unit', 'sop' ); ?></label>
                         </div>
                         <div class="sop-preorder-columns-panel-item">
                             <label><input type="checkbox" data-column="line_cbm" checked="checked" /><?php esc_html_e( 'Line CBM', 'sop' ); ?></label>
@@ -654,7 +670,7 @@ function sop_preorder_render_admin_page() {
                                 data-column="carton_no"
                                 data-sort="carton_no"
                                 data-sort-key="carton_no"
-                                title="<?php esc_attr_e( 'Carton numbers only. Use numbers & ranges: e.g. 4,7,12-13. Other packing info → Order notes.', 'sop' ); ?>">
+                                title="<?php esc_attr_e( 'Carton numbers only. Use numbers & ranges: e.g. 4,7,12-13. Other packing info ? Order notes.', 'sop' ); ?>">
                                 <?php esc_html_e( 'Carton no.', 'sop' ); ?>
                             </th>
                         </tr>
@@ -2318,4 +2334,6 @@ function sop_preorder_render_admin_page() {
     </script>
     <?php
 }
+
+
 
