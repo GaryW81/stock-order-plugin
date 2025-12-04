@@ -1,5 +1,5 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.69 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.70 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -355,23 +355,17 @@ function sop_preorder_render_admin_page() {
             </div>
         <?php endif; ?>
 
-        <?php
-        $filter_button_label = ( $current_sheet_id > 0 )
-            ? esc_html__( 'Update container', 'sop' )
-            : esc_html__( 'Update filter', 'sop' );
-        ?>
+        <div class="sop-preorder-header">
+            <form id="sop-preorder-filter-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <?php wp_nonce_field( 'sop_preorder_filter', 'sop_preorder_filter_nonce' ); ?>
+                <input type="hidden" name="action" value="sop_preorder_filter" />
+                <input type="hidden" name="page" value="sop-preorder-sheet" />
+                <?php if ( $current_sheet_id > 0 ) : ?>
+                    <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+                    <input type="hidden" name="sop_preorder_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+                <?php endif; ?>
 
-        <form id="sop-preorder-filter-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-            <?php wp_nonce_field( 'sop_preorder_filter', 'sop_preorder_filter_nonce' ); ?>
-            <input type="hidden" name="action" value="sop_preorder_filter" />
-            <input type="hidden" name="page" value="sop-preorder-sheet" />
-            <?php if ( $current_sheet_id > 0 ) : ?>
-                <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
-                <input type="hidden" name="sop_preorder_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
-            <?php endif; ?>
-
-            <div class="sop-preorder-controls">
-                <div class="sop-preorder-controls-group sop-preorder-controls-group--context">
+                <div class="sop-preorder-header-group sop-preorder-header-context">
                     <label>
                         <?php esc_html_e( 'Supplier:', 'sop' ); ?>
                         <select name="sop_supplier_id">
@@ -384,7 +378,7 @@ function sop_preorder_render_admin_page() {
                     </label>
                 </div>
 
-                <div class="sop-preorder-controls-group sop-preorder-controls-group--container">
+                <div class="sop-preorder-header-group sop-preorder-header-container">
                     <label>
                         <?php esc_html_e( 'Container:', 'sop' ); ?>
                         <select name="sop_container">
@@ -405,9 +399,13 @@ function sop_preorder_render_admin_page() {
                         <input type="number" name="sop_allowance" value="<?php echo esc_attr( $allowance ); ?>" step="1" min="-50" max="50" />
                         %
                     </label>
+
+                    <button type="submit" class="button button-secondary" name="sop_preorder_update_container" value="1">
+                        <?php esc_html_e( 'Update container', 'sop' ); ?>
+                    </button>
                 </div>
 
-                <div class="sop-preorder-controls-group sop-preorder-controls-group--search">
+                <div class="sop-preorder-header-group sop-preorder-header-actions">
                     <div class="sop-preorder-filter-sku">
                         <label for="sop_sku_filter" class="screen-reader-text">
                             <?php esc_html_e( 'Search by SKU', 'sop' ); ?>
@@ -421,13 +419,8 @@ function sop_preorder_render_admin_page() {
                                    class="regular-text" />
                         </div>
                     </div>
-
-                    <button type="submit" class="button button-secondary" name="sop_preorder_update_container" value="1">
-                        <?php echo $filter_button_label; ?>
-                    </button>
                 </div>
-            </div>
-        </form>
+            </form>
 
         <?php if ( $current_sheet_id > 0 ) : ?>
             <form id="sop-preorder-export-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:none;">
@@ -438,17 +431,16 @@ function sop_preorder_render_admin_page() {
             </form>
         <?php endif; ?>
 
-        <form id="sop-preorder-sheet-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-            <?php wp_nonce_field( 'sop_save_preorder_sheet', 'sop_save_preorder_sheet_nonce' ); ?>
-            <input type="hidden" name="action" value="sop_save_preorder_sheet" />
-            <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
-            <input type="hidden" name="sop_supplier_id" value="<?php echo esc_attr( $selected_supplier_id ); ?>" />
-            <input type="hidden" name="sop_supplier_name" value="<?php echo isset( $supplier['name'] ) ? esc_attr( $supplier['name'] ) : ''; ?>" />
-            <input type="hidden" name="sop_container_type" value="<?php echo esc_attr( $container_selection ); ?>" />
-            <input type="hidden" name="sop_allowance_percent" value="<?php echo esc_attr( $allowance ); ?>" />
+            <form id="sop-preorder-sheet-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <?php wp_nonce_field( 'sop_save_preorder_sheet', 'sop_save_preorder_sheet_nonce' ); ?>
+                <input type="hidden" name="action" value="sop_save_preorder_sheet" />
+                <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+                <input type="hidden" name="sop_supplier_id" value="<?php echo esc_attr( $selected_supplier_id ); ?>" />
+                <input type="hidden" name="sop_supplier_name" value="<?php echo isset( $supplier['name'] ) ? esc_attr( $supplier['name'] ) : ''; ?>" />
+                <input type="hidden" name="sop_container_type" value="<?php echo esc_attr( $container_selection ); ?>" />
+                <input type="hidden" name="sop_allowance_percent" value="<?php echo esc_attr( $allowance ); ?>" />
 
-            <div class="sop-preorder-actions">
-                <div class="sop-preorder-actions-left">
+                <div class="sop-preorder-header-group sop-preorder-header-context">
                     <label for="sop-header-order-number" style="margin-right:6px;">
                         <?php esc_html_e( 'Order #', 'sop' ); ?>
                         <input type="text"
@@ -459,7 +451,7 @@ function sop_preorder_render_admin_page() {
                     </label>
                 </div>
 
-                <div class="sop-preorder-actions-right">
+                <div class="sop-preorder-header-group sop-preorder-header-actions">
                     <button type="submit" class="button button-primary" name="sop_preorder_save">
                         <?php
                         echo ( $current_sheet_id > 0 )
@@ -490,7 +482,7 @@ function sop_preorder_render_admin_page() {
                         </button>
                     <?php endif; ?>
                 </div>
-            </div>
+        </div>
 
             <div class="sop-preorder-summary-bar">
             <div class="sop-summary-item">
@@ -527,8 +519,8 @@ function sop_preorder_render_admin_page() {
             </div>
         </div>
 
-            <div class="sop-preorder-table-toolbar">
-                <div class="sop-rounding-controls">
+            <div class="sop-preorder-table-toolbar sop-preorder-toolbar">
+                <div class="sop-rounding-controls sop-preorder-toolbar-group sop-preorder-toolbar-rounding">
                     <span><?php esc_html_e( 'Rounding:', 'sop' ); ?></span>
                     <?php if ( ! $is_locked ) : ?>
                         <label class="sop-round-step-label">
@@ -546,7 +538,7 @@ function sop_preorder_render_admin_page() {
                 </div>
 
                 <?php if ( ! $is_locked ) : ?>
-                    <div class="sop-row-actions">
+                    <div class="sop-row-actions sop-preorder-toolbar-group sop-preorder-toolbar-rows">
                         <button type="button" class="button" id="sop-preorder-remove-selected"><?php esc_html_e( 'Remove selected', 'sop' ); ?></button>
                         <button type="button" class="button" id="sop-apply-soq-to-qty"><?php esc_html_e( 'Apply SOQ to Qty', 'sop' ); ?></button>
                         <label for="sop-preorder-show-removed" style="margin-left: 10px;">
@@ -556,7 +548,7 @@ function sop_preorder_render_admin_page() {
                     </div>
                 <?php endif; ?>
 
-                <div class="sop-preorder-columns">
+                <div class="sop-preorder-columns sop-preorder-toolbar-group sop-preorder-toolbar-columns">
                     <span class="sop-preorder-columns-label"><?php esc_html_e( 'Columns', 'sop' ); ?>:</span>
                     <button type="button" class="button sop-preorder-columns-toggle" aria-expanded="false">
                         <?php esc_html_e( 'Select', 'sop' ); ?>
@@ -1004,42 +996,36 @@ function sop_preorder_render_admin_page() {
             max-width: 100%;
         }
 
-        .sop-preorder-controls {
+        .sop-preorder-header {
             display: flex;
             flex-wrap: wrap;
-            gap: 1rem;
+            gap: 12px 24px;
             align-items: flex-end;
-            margin-bottom: 1rem;
+            justify-content: space-between;
+            margin-bottom: 12px;
         }
 
-        .sop-preorder-controls-group {
+        .sop-preorder-header-group {
             display: flex;
             flex-wrap: wrap;
+            gap: 8px 12px;
             align-items: center;
-            gap: 0.5rem 0.75rem;
         }
 
-        .sop-preorder-controls-group--context {
-            min-width: 260px;
+        .sop-preorder-header-context label,
+        .sop-preorder-header-container label,
+        .sop-preorder-header-actions label {
+            margin-right: 4px;
         }
 
-        .sop-preorder-controls-group--container {
-            padding-left: 1rem;
-            border-left: 1px solid #e2e4e7;
-        }
-
-        .sop-preorder-controls-group--search {
-            margin-left: auto;
-            justify-content: flex-end;
-        }
-
-        .sop-preorder-controls select[name="sop_supplier_id"] {
-            min-width: 260px;
+        .sop-preorder-header select[name="sop_supplier_id"] {
+            min-width: 240px;
         }
 
         .sop-preorder-filter-sku {
-            display: inline-block;
-            margin-left: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .sop-preorder-filter-sku-field {
@@ -1114,17 +1100,30 @@ function sop_preorder_render_admin_page() {
             color: #fff;
         }
 
-        .sop-preorder-table-toolbar {
+        .sop-preorder-toolbar {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 1rem 0;
-            gap: 1rem;
             flex-wrap: wrap;
+            gap: 8px 16px;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+            margin-bottom: 8px;
             padding: 0.5rem 0;
             border-top: 1px solid #e2e4e7;
             border-bottom: 1px solid #e2e4e7;
             background-color: #fdfdfd;
+        }
+
+        .sop-preorder-toolbar-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .sop-preorder-toolbar-columns {
+            margin-left: auto;
+            text-align: right;
         }
 
         .sop-round-step-label {
@@ -1308,20 +1307,6 @@ function sop_preorder_render_admin_page() {
             font-size: inherit;
         }
 
-        /* Columns dropdown control */
-        .sop-preorder-columns {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.5rem;
-            position: relative;
-            margin-left: auto;
-        }
-
-        .sop-preorder-columns-label {
-            margin-right: 4px;
-            font-weight: 500;
-        }
 
         .sop-preorder-columns-toggle {
             margin-left: 2px;
@@ -1357,20 +1342,6 @@ function sop_preorder_render_admin_page() {
             display: block;
         }
 
-        /* Columns dropdown control */
-        .sop-preorder-columns {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.5rem;
-            position: relative;
-            margin-left: auto;
-        }
-
-        .sop-preorder-columns-label {
-            margin-right: 4px;
-            font-weight: 500;
-        }
 
         .sop-preorder-columns-toggle {
             margin-left: 2px;
@@ -2426,3 +2397,6 @@ function sop_preorder_render_admin_page() {
 
 
 
+        .sop-preorder-table-toolbar {
+            width: 100%;
+        }
