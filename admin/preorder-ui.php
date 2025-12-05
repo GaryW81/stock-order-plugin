@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.75 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.76 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -441,8 +441,8 @@ function sop_preorder_render_admin_page() {
             </div>
 
             <div class="sop-preorder-card sop-preorder-card--planning">
-                <div class="sop-preorder-card-row sop-preorder-middle-top">
-                    <div class="sop-preorder-card-section sop-preorder-card-section--container">
+                <div class="sop-preorder-card__row sop-preorder-card__row--container-top">
+                    <div class="sop-preorder-container-item sop-preorder-container-item--select">
                         <label>
                             <?php esc_html_e( 'Container:', 'sop' ); ?>
                             <select name="sop_container" form="sop-preorder-filter-form">
@@ -452,18 +452,24 @@ function sop_preorder_render_admin_page() {
                                 <option value="40ft_hc" <?php selected( $container_selection, '40ft_hc' ); ?>>40&#39; HQ (76.3 CBM)</option>
                             </select>
                         </label>
+                    </div>
 
+                    <div class="sop-preorder-container-item sop-preorder-container-item--pallet">
                         <label class="sop-pallet-layer-label">
                             <input type="checkbox" name="sop_pallet_layer" value="1" <?php checked( $pallet_layer ); ?> form="sop-preorder-filter-form" />
                             <?php esc_html_e( '150mm pallet layer', 'sop' ); ?>
                         </label>
+                    </div>
 
+                    <div class="sop-preorder-container-item sop-preorder-container-item--allowance">
                         <label class="sop-allowance-label">
                             <?php esc_html_e( 'Allowance:', 'sop' ); ?>
                             <input type="number" name="sop_allowance" value="<?php echo esc_attr( $allowance ); ?>" step="1" min="-50" max="50" form="sop-preorder-filter-form" />
                             %
                         </label>
+                    </div>
 
+                    <div class="sop-preorder-container-item sop-preorder-container-item--button">
                         <button type="submit" class="button button-secondary" name="sop_preorder_update_container" value="1" form="sop-preorder-filter-form">
                             <?php esc_html_e( 'Update container', 'sop' ); ?>
                         </button>
@@ -1068,6 +1074,26 @@ function sop_preorder_render_admin_page() {
             display: inline-flex;
             align-items: center;
             gap: 6px;
+        }
+
+        .sop-preorder-card__row--container-top {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-container-item {
+            flex: 1 1 0;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sop-preorder-container-item--button {
+            justify-content: flex-end;
         }
 
         .sop-preorder-filter-sku-field {
