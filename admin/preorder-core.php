@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.10
+ * File version: 11.11
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -77,7 +77,12 @@ function sop_render_preorder_sheets_page() {
     }
 
     if ( $supplier_id > 0 && function_exists( 'sop_get_preorder_sheets_for_supplier' ) ) {
-        $sheets = sop_get_preorder_sheets_for_supplier( $supplier_id );
+        $sheets = sop_get_preorder_sheets_for_supplier(
+            $supplier_id,
+            array(
+                'status' => array( 'draft', 'locked' ),
+            )
+        );
     }
     ?>
     <div class="wrap">
