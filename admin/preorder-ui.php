@@ -1,6 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.89 *
- * - Adjust SKU quick finder scroll to use wrapper-relative absolute offset.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.90 *
+ * - Adjust SKU quick finder scroll offset so matched row stays in view.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -2548,17 +2548,21 @@ function sop_preorder_render_admin_page() {
                         return;
                     }
 
-                    var rowEl       = $row[0];
-                    var rowOffsetTop = 0;
-                    var el           = rowEl;
+                    var rowEl = $row[0];
 
-                    while ( el && el !== wrapper ) {
-                        rowOffsetTop += el.offsetTop;
-                        el = el.offsetParent;
-                    }
+                    // Get bounding rects of the wrapper and the target row
+                    var wrapperRect = wrapper.getBoundingClientRect();
+                    var rowRect     = rowEl.getBoundingClientRect();
 
-                    var padding = 4;
-                    wrapper.scrollTop = rowOffsetTop - padding;
+                    // Optional comfort offset so the row appears slightly below the top
+                    // Tune this if needed. ~40px works well for the current row height.
+                    var COMFORT_OFFSET = 40;
+
+                    // How far the row's top is from where we want it (wrapper top + offset)
+                    var delta = rowRect.top - ( wrapperRect.top + COMFORT_OFFSET );
+
+                    // Adjust scrollTop relative to current position
+                    wrapper.scrollTop += delta;
                 }
 
                 function scrollToSku( rawSku ) {
