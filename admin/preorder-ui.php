@@ -1056,6 +1056,7 @@ function sop_preorder_render_admin_page() {
             position: absolute;
             top: 100%;
             right: 0;
+            left: auto;
             margin-top: 4px;
             background: #fff;
             border: 1px solid #d0d0d0;
@@ -1103,7 +1104,7 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-sku-search .sop-preorder-sku-input {
             width: 100%;
-            padding-right: 2.2rem;
+            padding-right: 28px;
             padding-left: 0.6rem;
             box-sizing: border-box;
         }
@@ -1114,11 +1115,14 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-sku-search .sop-preorder-sku-icon {
             position: absolute;
-            right: 0.6rem;
+            right: 8px;
             top: 50%;
             transform: translateY(-50%);
-            font-size: 14px;
-            color: #9ca3af;
+            font-size: 18px;
+            line-height: 1;
+            width: 18px;
+            height: 18px;
+            color: #000;
             pointer-events: none;
         }
 
