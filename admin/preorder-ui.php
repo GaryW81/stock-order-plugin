@@ -1057,12 +1057,11 @@ function sop_preorder_render_admin_page() {
             top: 100%;
             right: 0;
             left: auto;
-            margin-top: 4px;
-            background: #fff;
-            border: 1px solid #d0d0d0;
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
-            padding: 4px 0;
+            margin-top: 6px;
+            background: #ffffff;
+            border: 1px solid #d4d4d4;
+            border-radius: 2px;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
             z-index: 1000;
             max-height: 260px;
             overflow-y: auto;
@@ -1075,22 +1074,22 @@ function sop_preorder_render_admin_page() {
         }
 
         /* The inner list of options */
-        .sop-preorder-columns-list {
-            list-style: none;
+        .sop-preorder-columns-popover ul {
             margin: 0;
-            padding: 0 8px;
+            padding: 4px 0;
+            list-style: none;
         }
 
         /* Each row = one checkbox + label on a single line */
-        .sop-preorder-columns-list li {
+        .sop-preorder-columns-popover li {
             display: flex;
             align-items: center;
             gap: 6px;
-            padding: 2px 0;
+            padding: 2px 4px;
             white-space: nowrap;
         }
 
-        .sop-preorder-columns-list input[type="checkbox"] {
+        .sop-preorder-columns-popover input[type="checkbox"] {
             margin: 0;
         }
 
