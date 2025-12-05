@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.86 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.87 *
+ * - Adjust SKU quick finder scroll logic to be wrapper-relative.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -2541,6 +2542,20 @@ function sop_preorder_render_admin_page() {
                     return;
                 }
 
+                function sopScrollRowIntoView( $row ) {
+                    var wrapper = document.querySelector( '.sop-preorder-table-wrapper' );
+                    if ( ! wrapper || ! $row || ! $row.length ) {
+                        return;
+                    }
+
+                    var rowEl       = $row[0];
+                    var wrapperRect = wrapper.getBoundingClientRect();
+                    var rowRect     = rowEl.getBoundingClientRect();
+                    var delta       = rowRect.top - wrapperRect.top;
+
+                    wrapper.scrollTop += delta;
+                }
+
                 function scrollToSku( rawSku ) {
                     var sku = $.trim( rawSku || '' );
                     if ( ! sku ) {
@@ -2562,14 +2577,7 @@ function sop_preorder_render_admin_page() {
                     $tableLocal.find( 'tr.sop-preorder-sku-hit' ).removeClass( 'sop-preorder-sku-hit' );
                     $row.addClass( 'sop-preorder-sku-hit' );
 
-                    var headerHeight = $tableLocal.find( 'thead' ).outerHeight() || 0;
-                    var offsetTop    = $row.position().top + $tableFrame.scrollTop() - headerHeight - 8;
-
-                    if ( offsetTop < 0 ) {
-                        offsetTop = 0;
-                    }
-
-                    $tableFrame.stop().animate( { scrollTop: offsetTop }, 200 );
+                    sopScrollRowIntoView( $row );
                 }
 
                 $skuInput.on( 'keydown', function( e ) {
