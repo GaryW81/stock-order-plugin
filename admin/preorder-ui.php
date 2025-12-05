@@ -1043,28 +1043,31 @@ function sop_preorder_render_admin_page() {
             margin-left: auto;
         }
 
-        /* Columns dropdown wrapper */
+        /* Columns toggle + popover (tile 3) */
         .sop-preorder-columns {
             position: relative;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
         }
 
-        /* The popover itself – single column with scroll */
+        .sop-preorder-columns-toggle {
+            width: auto;
+        }
+
         .sop-preorder-columns-popover {
             position: absolute;
             top: 100%;
+            margin-top: 6px;
             right: 0;
             left: auto;
-            margin-top: 6px;
-            background: #ffffff;
-            border: 1px solid #d4d4d4;
-            border-radius: 2px;
-            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
             z-index: 1000;
+            background: #fff;
+            border: 1px solid #dcdcde;
+            border-radius: 3px;
+            box-shadow: 0 2px 6px rgba(0,0,0,.12);
             max-height: 260px;
             overflow-y: auto;
+            padding: 8px 10px;
             min-width: 220px;
             display: none;
         }
@@ -1073,24 +1076,18 @@ function sop_preorder_render_admin_page() {
             display: block;
         }
 
-        /* The inner list of options */
         .sop-preorder-columns-popover ul {
-            margin: 0;
-            padding: 4px 0;
             list-style: none;
+            margin: 0;
+            padding: 0;
         }
 
-        /* Each row = one checkbox + label on a single line */
         .sop-preorder-columns-popover li {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 2px 4px;
             white-space: nowrap;
-        }
-
-        .sop-preorder-columns-popover input[type="checkbox"] {
-            margin: 0;
+            gap: 6px;
+            padding: 2px 0;
         }
 
         .sop-preorder-sku-search {
