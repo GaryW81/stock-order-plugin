@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.83 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.84 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -995,13 +995,11 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-card {
-            background: #fff;
-            /* match WP admin table border colour (top/left lines) */
-            border: 1px solid var( --wp-admin-border-color, #dcdcde );
+            background: #ffffff;
+            border: 1px solid #c3c4c7; /* match main table border */
             border-radius: 8px;
             padding: 16px 20px 18px;
             margin-bottom: 12px;
-            /* slightly stronger outer shadow for all three tiles */
             box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
         }
 
