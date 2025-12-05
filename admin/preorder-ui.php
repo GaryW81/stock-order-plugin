@@ -1043,39 +1043,45 @@ function sop_preorder_render_admin_page() {
             margin-left: auto;
         }
 
-        /* Columns toggle + popover (tile 3) */
+        /* Columns toggle + popover */
         .sop-preorder-columns {
             position: relative;
-            display: inline-flex;
-            align-items: center;
+            display: inline-block;
         }
 
         .sop-preorder-columns-toggle {
-            width: auto;
+            min-width: 180px;
         }
 
+        /* Popover is hidden by default */
         .sop-preorder-columns-popover {
             position: absolute;
-            top: 100%;
-            margin-top: 6px;
+            top: calc(100% + 6px);
             right: 0;
             left: auto;
             z-index: 1000;
-            background: #fff;
-            border: 1px solid #dcdcde;
-            border-radius: 3px;
-            box-shadow: 0 2px 6px rgba(0,0,0,.12);
+
+            width: 220px;
             max-height: 260px;
             overflow-y: auto;
+
             padding: 8px 10px;
-            min-width: 220px;
+            margin: 0;
+
+            background: #ffffff;
+            border: 1px solid #ccd0d4;
+            border-radius: 3px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.18);
+
             display: none;
         }
 
-        .sop-preorder-columns-popover.is-open {
+        /* When wrapper has .is-open, show the popover */
+        .sop-preorder-columns.is-open .sop-preorder-columns-popover {
             display: block;
         }
 
+        /* List layout: single column, no wrapping */
         .sop-preorder-columns-popover ul {
             list-style: none;
             margin: 0;
@@ -1083,11 +1089,20 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-columns-popover li {
+            margin: 0;
+            padding: 2px 0;
+            white-space: nowrap;
             display: flex;
             align-items: center;
-            white-space: nowrap;
-            gap: 6px;
-            padding: 2px 0;
+            gap: 4px;
+            font-size: 13px;
+        }
+
+        .sop-preorder-columns-popover label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
         }
 
         .sop-preorder-sku-search {
@@ -1730,34 +1745,10 @@ function sop_preorder_render_admin_page() {
 
                 $columnsToggleButton.on( 'click', function( e ) {
                     e.preventDefault();
-                    var isOpen = $columnsPanel.hasClass( 'is-open' );
-                    var offset      = $columnsToggleButton.offset();
-                    var height      = $columnsToggleButton.outerHeight();
-                    var toggleWidth = $columnsToggleButton.outerWidth();
+                    var $columnsContainer = $columnsToggleButton.closest( '.sop-preorder-columns' );
+                    var isOpen = $columnsContainer.hasClass( 'is-open' );
 
-                    // Estimate popover width; outerWidth() is 0 when hidden, so fall back.
-                    var panelWidth  = $columnsPanel.outerWidth();
-                    if ( ! panelWidth ) {
-                        panelWidth = 260; // a bit above CSS min-width to be safe
-                    }
-
-                    var viewportWidth = $( window ).width();
-                    var left          = offset.left;
-
-                    // If it would overflow off the right edge, shift it left so the
-                    // right edge lines up with the toggle button (or at least the viewport).
-                    if ( left + panelWidth > viewportWidth - 16 ) {
-                        left = offset.left + toggleWidth - panelWidth; // align right edges
-                        if ( left < 8 ) {
-                            left = 8; // don’t go off the left edge either
-                        }
-                    }
-
-                    $columnsPanel.css( {
-                        top:  offset.top + height + 8,
-                        left: left
-                    } );
-                    $columnsPanel.toggleClass( 'is-open', ! isOpen );
+                    $columnsContainer.toggleClass( 'is-open', ! isOpen );
                     $columnsToggleButton.attr( 'aria-expanded', ! isOpen );
                 } );
 
@@ -1768,8 +1759,9 @@ function sop_preorder_render_admin_page() {
 
                 $( document ).on( 'click', function( e ) {
                     if ( ! $( e.target ).closest( '.sop-preorder-columns-popover, .sop-preorder-columns-toggle' ).length ) {
-                        if ( $columnsPanel.hasClass( 'is-open' ) ) {
-                            $columnsPanel.removeClass( 'is-open' );
+                        var $columnsContainer = $columnsToggleButton.closest( '.sop-preorder-columns' );
+                        if ( $columnsContainer.hasClass( 'is-open' ) ) {
+                            $columnsContainer.removeClass( 'is-open' );
                             $columnsToggleButton.attr( 'aria-expanded', 'false' );
                         }
                     }
