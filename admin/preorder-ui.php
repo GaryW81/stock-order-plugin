@@ -995,12 +995,14 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-card {
-            background: #ffffff;
-            border: 1px solid #e0e0e0;
+            background: #fff;
+            /* match WP admin table border colour (top/left lines) */
+            border: 1px solid var( --wp-admin-border-color, #dcdcde );
             border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-            padding: 16px 20px;
-            margin-bottom: 16px;
+            padding: 16px 20px 18px;
+            margin-bottom: 12px;
+            /* slightly stronger outer shadow for all three tiles */
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
         }
 
         .sop-preorder-card-row {
