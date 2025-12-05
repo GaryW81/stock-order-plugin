@@ -1,6 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.92 *
- * - Adjust SKU quick finder scroll to wrapper-relative absolute offset.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.93 *
+ * - Adjust SKU quick finder scroll alignment to use wrapper-relative position.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -2549,16 +2549,23 @@ function sop_preorder_render_admin_page() {
                     }
 
                     var rowEl = $row[0];
-                    var rowOffsetTop = 0;
-                    var el = rowEl;
 
-                    while ( el && el !== wrapper ) {
-                        rowOffsetTop += el.offsetTop;
-                        el = el.offsetParent;
-                    }
+                    // Get bounding rects for wrapper and row.
+                    var wrapperRect = wrapper.getBoundingClientRect();
+                    var rowRect     = rowEl.getBoundingClientRect();
 
-                    var padding = 4; // px
-                    wrapper.scrollTop = rowOffsetTop - padding;
+                    // Row’s current position inside the wrapper viewport (can be negative if above).
+                    var rowTopInsideWrapper = rowRect.top - wrapperRect.top;
+
+                    // Convert that to a content-space coordinate by adding the current scrollTop.
+                    // This gives us a stable "row top within the scrollable content".
+                    var rowTopInContent = wrapper.scrollTop + rowTopInsideWrapper;
+
+                    // We want the row to sit right at (or just below) the top of the wrapper.
+                    // Use a small padding so it’s fully visible and not touching the border.
+                    var targetScrollTop = Math.max( rowTopInContent - 4, 0 );
+
+                    wrapper.scrollTop = targetScrollTop;
                 }
 
                 function scrollToSku( rawSku ) {
