@@ -541,7 +541,7 @@ function sop_preorder_render_admin_page() {
                         <span class="sop-preorder-columns-label"><?php esc_html_e( 'Columns', 'sop' ); ?>:</span>
                         <button type="button" class="button sop-preorder-columns-toggle sop-preorder-columns-button" aria-expanded="false">
                             <?php
-                            $sop_initial_column_count = 25;
+                            $sop_initial_column_count = 21;
                             echo esc_html(
                                 sprintf(
                                     _n( '%d column selected', '%d columns selected', $sop_initial_column_count, 'sop' ),
@@ -1105,6 +1105,13 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-container-item--button {
             justify-content: flex-end;
+        }
+
+        .sop-preorder-columns-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
         }
 
         .sop-preorder-columns-popover {
