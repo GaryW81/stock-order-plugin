@@ -1,20 +1,17 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.95 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.00 *
  * - Fix SKU quick finder so searched SKU scrolls to the top of the table wrapper.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
  * - Supplier currency-aware costs using plugin meta:
  *      _sop_cost_rmb, _sop_cost_usd, _sop_cost_eur, fallback _cogs_value for GBP.
- * - Editable & persisted per product (when sheet is not locked):
+ * - Editable & persisted per product:
  *      SKU                -> meta: _sku
  *      Notes              -> meta: _sop_preorder_notes
  *      Min order qty      -> meta: _sop_min_order_qty
  *      Manual order qty   -> meta: _sop_preorder_order_qty
  *      Cost per unit      -> meta: _sop_cost_rmb / _sop_cost_usd / _sop_cost_eur / _cogs_value
- * - Sheet lock / unlock per supplier:
- *      Option: sop_preorder_lock_{supplier_id} stores lock timestamp.
- *      When locked, inputs are disabled, rounding buttons are hidden, and Save is disabled.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -94,9 +91,6 @@ function sop_preorder_render_admin_page() {
     $floor_area    = 0.0;
     $container_cbm = 0.0;
     $effective_cbm = 0.0;
-
-    $lock_timestamp = $supplier ? sop_preorder_get_lock_timestamp( $supplier['id'] ) : 0;
-    $is_locked      = $lock_timestamp > 0;
 
     $rows = [];
     $overlay_stats = array(
@@ -430,17 +424,11 @@ function sop_preorder_render_admin_page() {
 
                             <button type="submit" class="button button-primary" name="sop_preorder_save" form="sop-preorder-sheet-form">
                                 <?php
-                                echo ( $current_sheet_id > 0 )
-                                    ? esc_html__( 'Update sheet', 'sop' )
-                                    : esc_html__( 'Save sheet', 'sop' );
-                                ?>
-                            </button>
-
-                            <?php if ( $is_locked ) : ?>
-                                <span class="sop-lock-status sop-locked"><?php esc_html_e( 'Sheet is LOCKED', 'sop' ); ?></span>
-                            <?php else : ?>
-                                <span class="sop-lock-status sop-unlocked"><?php esc_html_e( 'Sheet is UNLOCKED', 'sop' ); ?></span>
-                            <?php endif; ?>
+                            echo ( $current_sheet_id > 0 )
+                                ? esc_html__( 'Update sheet', 'sop' )
+                                : esc_html__( 'Save sheet', 'sop' );
+                            ?>
+                        </button>
                         </div>
                     </div>
                 </div>
@@ -508,11 +496,10 @@ function sop_preorder_render_admin_page() {
                 <div class="sop-preorder-card-icon sop-preorder-card-icon--planner" aria-hidden="true">
                     <span class="dashicons dashicons-clipboard"></span>
                 </div>
-                <div class="sop-preorder-card-main sop-preorder-card-main--tools">
-                    <div class="sop-preorder-card-row sop-preorder-bottom-row">
-                        <div class="sop-preorder-bottom-left">
-                            <span><?php esc_html_e( 'Rounding:', 'sop' ); ?></span>
-                            <?php if ( ! $is_locked ) : ?>
+                    <div class="sop-preorder-card-main sop-preorder-card-main--tools">
+                        <div class="sop-preorder-card-row sop-preorder-bottom-row">
+                            <div class="sop-preorder-bottom-left">
+                                <span><?php esc_html_e( 'Rounding:', 'sop' ); ?></span>
                                 <label class="sop-round-step-label">
                                     <?php esc_html_e( 'Step:', 'sop' ); ?>
                                     <select class="sop-round-step">
@@ -522,12 +509,8 @@ function sop_preorder_render_admin_page() {
                                 </label>
                                 <button type="button" class="button" data-round-mode="up"><?php esc_html_e( 'Round Up', 'sop' ); ?></button>
                                 <button type="button" class="button" data-round-mode="down"><?php esc_html_e( 'Round Down', 'sop' ); ?></button>
-                            <?php else : ?>
-                                <span class="description"><?php esc_html_e( 'Rounding disabled for locked sheet.', 'sop' ); ?></span>
-                            <?php endif; ?>
-                        </div>
+                            </div>
 
-                        <?php if ( ! $is_locked ) : ?>
                             <div class="sop-preorder-bottom-middle">
                                 <button type="button" class="button" id="sop-apply-soq-to-qty"><?php esc_html_e( 'Apply SOQ to Qty', 'sop' ); ?></button>
                                 <button type="button" class="button" id="sop-preorder-remove-selected"><?php esc_html_e( 'Remove selected', 'sop' ); ?></button>
@@ -536,9 +519,8 @@ function sop_preorder_render_admin_page() {
                                     <?php esc_html_e( 'Show removed rows', 'sop' ); ?>
                                 </label>
                             </div>
-                        <?php endif; ?>
 
-                        <div class="sop-preorder-bottom-right">
+                            <div class="sop-preorder-bottom-right">
                             <div class="sop-preorder-filter-sku">
                                 <label for="sop_sku_filter" class="screen-reader-text">
                                     <?php esc_html_e( 'Search by SKU', 'sop' ); ?>
@@ -805,7 +787,6 @@ function sop_preorder_render_admin_page() {
                                             rows="2"
                                             class="sop-preorder-sku small-text"
                                             title="<?php echo esc_attr( $order_sku ); ?>"
-                                            <?php disabled( $is_locked ); ?>
                                         ><?php echo esc_textarea( $order_sku ); ?></textarea>
                                     </td>
                                     <td class="column-brand" data-column="brand">
@@ -818,7 +799,7 @@ function sop_preorder_render_admin_page() {
                                         <?php echo esc_html( $name ); ?>
                                     </td>
                                     <td class="column-cost-supplier" data-column="cost_supplier">
-                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb" <?php disabled( $is_locked ); ?> />
+                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb" />
                                     </td>
                                     <?php if ( 'RMB' === $supplier_currency ) : ?>
                                         <?php
@@ -852,7 +833,7 @@ function sop_preorder_render_admin_page() {
                                         <?php echo esc_html( number_format_i18n( $inbound_qty, 0 ) ); ?>
                                     </td>
                                     <td class="column-min-order" data-column="min_order">
-                                        <input type="number" name="sop_line_moq[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $min_order_qty ); ?>" step="1" min="0" class="sop-preorder-moq" <?php disabled( $is_locked ); ?> />
+                                        <input type="number" name="sop_line_moq[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $min_order_qty ); ?>" step="1" min="0" class="sop-preorder-moq" />
                                     </td>
                                     <td class="column-suggested" data-column="soq">
                                         <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
@@ -860,7 +841,7 @@ function sop_preorder_render_admin_page() {
                                         </span>
                                     </td>
                                     <td class="column-order-qty" data-column="order_qty" data-sort="order_qty">
-                                        <input type="number" name="sop_line_qty[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input sop-preorder-qty" <?php disabled( $is_locked ); ?> />
+                                        <input type="number" name="sop_line_qty[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input sop-preorder-qty" />
                                     </td>
                                     <td class="column-line-total-supplier" data-column="line_total">
                                         <span class="sop-line-total-gbp" data-cost-gbp="<?php echo esc_attr( $cost_gbp ); ?>" style="display:none;">
@@ -894,7 +875,6 @@ function sop_preorder_render_admin_page() {
                                                 title="<?php echo esc_attr( $notes ); ?>"
                                                 data-row-index="<?php echo esc_attr( $row_index ); ?>"
                                                 data-notes-type="product"
-                                                <?php disabled( $is_locked ); ?>
                                             ><?php echo esc_textarea( $notes ); ?></textarea>
 
                                             <button type="button"
@@ -923,7 +903,6 @@ function sop_preorder_render_admin_page() {
                                                 style="width: 100%; resize: none;"
                                                 data-row-index="<?php echo esc_attr( $row_index ); ?>"
                                                 data-notes-type="order"
-                                                <?php disabled( $is_locked ); ?>
                                             ><?php echo isset( $row['order_notes'] ) ? esc_textarea( $row['order_notes'] ) : ''; ?></textarea>
 
                                             <button type="button"
@@ -944,7 +923,6 @@ function sop_preorder_render_admin_page() {
                                             class="sop-preorder-carton-input"
                                             data-original-value="<?php echo esc_attr( $carton_value ); ?>"
                                             style="width: 80px;"
-                                            <?php disabled( $is_locked ); ?>
                                         />
                                     </td>
                                 </tr>
@@ -978,21 +956,13 @@ function sop_preorder_render_admin_page() {
             </div>
 
             <div class="sop-preorder-actions">
-                <?php if ( ! $is_locked ) : ?>
-                    <button type="submit" name="sop_save_sheet" value="1" class="button button-primary">
-                        <?php
-                        echo ( $current_sheet_id > 0 )
-                            ? esc_html__( 'Update sheet', 'sop' )
-                            : esc_html__( 'Save sheet', 'sop' );
-                        ?>
-                    </button>
-                    <button type="submit" name="sop_lock_sheet" value="1" class="button button-secondary sop-lock-button">
-                        <?php esc_html_e( 'Lock Sheet', 'sop' ); ?>
-                    </button>
-                <?php else : ?>
-                    <button type="submit" name="sop_unlock_sheet" value="1" class="button button-secondary sop-unlock-button">
-                        <?php esc_html_e( 'Unlock Sheet', 'sop' ); ?></button>
-                <?php endif; ?>
+                <button type="submit" name="sop_save_sheet" value="1" class="button button-primary">
+                    <?php
+                    echo ( $current_sheet_id > 0 )
+                        ? esc_html__( 'Update sheet', 'sop' )
+                        : esc_html__( 'Save sheet', 'sop' );
+                    ?>
+                </button>
             </div>
         </form>
     </div>
@@ -2542,42 +2512,38 @@ function sop_preorder_render_admin_page() {
                     return;
                 }
 
-                                                function sopScrollRowIntoView( $row ) {
+                function sopScrollRowIntoView( $row ) {
                     if ( ! $row || ! $row.length ) {
                         return;
                     }
 
                     var rowEl = $row[0];
 
-                    // Prefer scrolling inside the pre-order table wrapper so the row appears just under the sticky header.
-                    var $wrapper = $row.closest( '.sop-preorder-table-wrapper' );
-
-                    // Fallback: let the browser scroll the page if no wrapper is found.
-                    if ( ! $wrapper.length ) {
+                    // Find the scrollable wrapper for the pre-order table.
+                    var wrapper = document.querySelector( '.sop-preorder-table-wrapper' );
+                    if ( ! wrapper ) {
                         if ( rowEl && rowEl.scrollIntoView ) {
-                            rowEl.scrollIntoView( {
-                                behavior: 'auto',
-                                block: 'start',
-                                inline: 'nearest'
-                            } );
+                            rowEl.scrollIntoView( { behavior: 'auto', block: 'start', inline: 'nearest' } );
                         }
                         return;
                     }
 
-                    var $thead = $wrapper.find( 'thead' ).first();
-                    var headerHeight = $thead.length ? $thead.outerHeight() : 0;
+                    // Get bounding rects for wrapper and row.
+                    var wrapperRect = wrapper.getBoundingClientRect();
+                    var rowRect     = rowEl.getBoundingClientRect();
 
-                    var wrapperTop = $wrapper.offset().top;
-                    var rowTop     = $row.offset().top;
+                    // Row's current position inside the wrapper viewport (can be negative if above).
+                    var rowTopInsideWrapper = rowRect.top - wrapperRect.top;
 
-                    var currentScroll = $wrapper.scrollTop();
-                    var targetScroll  = currentScroll + ( rowTop - wrapperTop ) - headerHeight - 4;
+                    // Convert that to a content-space coordinate by adding the current scrollTop.
+                    // This gives us a stable "row top within the scrollable content".
+                    var rowTopInContent = wrapper.scrollTop + rowTopInsideWrapper;
 
-                    if ( targetScroll < 0 ) {
-                        targetScroll = 0;
-                    }
+                    // We want the row to sit right at (or just below) the top of the wrapper.
+                    // Use a small padding so it's fully visible and not touching the border.
+                    var targetScrollTop = Math.max( rowTopInContent - 4, 0 );
 
-                    $wrapper.scrollTop( targetScroll );
+                    wrapper.scrollTop = targetScrollTop;
                 }
 
                 function scrollToSku( rawSku ) {

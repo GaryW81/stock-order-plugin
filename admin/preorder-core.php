@@ -1,20 +1,17 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 10.28
+ * File version: 11.00
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
  *      _sop_cost_rmb, _sop_cost_usd, _sop_cost_eur, fallback _cogs_value for GBP.
- * - Editable & persisted per product (when sheet is not locked):
+ * - Editable & persisted per product:
  *      Order SKU (sheet-only) -> meta: _sop_preorder_order_sku
  *      Notes              -> meta: _sop_preorder_notes
  *      Min order qty      -> meta: _sop_min_order_qty
  *      Manual order qty   -> meta: _sop_preorder_order_qty
  *      Cost per unit      -> meta: _sop_cost_rmb / _sop_cost_usd / _sop_cost_eur / _cogs_value
- * - Sheet lock / unlock per supplier:
- *      Option: sop_preorder_lock_{supplier_id} stores lock timestamp.
- *      When locked, inputs are disabled, rounding buttons are hidden, and Save is disabled.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1297,21 +1294,6 @@ function sop_preorder_handle_post() {
     $supplier_id = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
 
     if ( $supplier_id <= 0 ) {
-        return;
-    }
-
-    if ( isset( $_POST['sop_lock_sheet'] ) && $_POST['sop_lock_sheet'] === '1' ) {
-        sop_preorder_lock_sheet( $supplier_id );
-        return;
-    }
-
-    if ( isset( $_POST['sop_unlock_sheet'] ) && $_POST['sop_unlock_sheet'] === '1' ) {
-        sop_preorder_unlock_sheet( $supplier_id );
-        return;
-    }
-
-    $locked_ts = sop_preorder_get_lock_timestamp( $supplier_id );
-    if ( $locked_ts > 0 ) {
         return;
     }
 
