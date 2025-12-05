@@ -1116,7 +1116,7 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-columns-popover {
             position: absolute;
-            z-index: 1000;
+            z-index: 2000;
             background: #fff;
             border: 1px solid #dcdcde;
             border-radius: 4px;
@@ -1781,6 +1781,10 @@ function sop_preorder_render_admin_page() {
                 $columnsToggleButton.on( 'click', function( e ) {
                     e.preventDefault();
                     var isOpen = $columnsPanel.hasClass( 'is-open' );
+                    // Move popover to body to avoid clipping by parent containers.
+                    if ( ! $.contains( document.body, $columnsPanel[0] ) ) {
+                        $columnsPanel.appendTo( 'body' );
+                    }
                     var offset = $columnsToggleButton.offset();
                     var height = $columnsToggleButton.outerHeight();
                     $columnsPanel.css( {
