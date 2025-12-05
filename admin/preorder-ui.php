@@ -1,6 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.93 *
- * - Adjust SKU quick finder scroll alignment to use wrapper-relative position.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.94 *
+ * - Adjust SKU quick finder to use scrollIntoView for wrapper-relative scrolling.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -2543,29 +2543,39 @@ function sop_preorder_render_admin_page() {
                 }
 
                 function sopScrollRowIntoView( $row ) {
-                    var wrapper = document.querySelector( '.sop-preorder-table-wrapper' );
-                    if ( ! wrapper || ! $row || ! $row.length ) {
+                    if ( ! $row || ! $row.length ) {
                         return;
                     }
 
                     var rowEl = $row[0];
 
-                    // Get bounding rects for wrapper and row.
-                    var wrapperRect = wrapper.getBoundingClientRect();
-                    var rowRect     = rowEl.getBoundingClientRect();
+                    // Find the scrollable wrapper for the pre-order table.
+                    var wrapper = rowEl.closest( '.sop-preorder-table-wrapper' ) ||
+                                  document.querySelector( '.sop-preorder-table-wrapper' );
 
-                    // Row’s current position inside the wrapper viewport (can be negative if above).
-                    var rowTopInsideWrapper = rowRect.top - wrapperRect.top;
+                    // Fallback: if we somehow don’t have a wrapper, just let the browser do its best.
+                    if ( ! wrapper ) {
+                        if ( rowEl.scrollIntoView ) {
+                            rowEl.scrollIntoView( { behavior: 'auto', block: 'start', inline: 'nearest' } );
+                        }
+                        return;
+                    }
 
-                    // Convert that to a content-space coordinate by adding the current scrollTop.
-                    // This gives us a stable "row top within the scrollable content".
-                    var rowTopInContent = wrapper.scrollTop + rowTopInsideWrapper;
+                    // Use native scrollIntoView so the browser handles all the geometry
+                    // inside the scrollable wrapper, rather than us trying to guess offsets.
+                    if ( rowEl.scrollIntoView ) {
+                        rowEl.scrollIntoView( {
+                            behavior: 'auto',
+                            block: 'start',
+                            inline: 'nearest'
+                        } );
+                    }
 
-                    // We want the row to sit right at (or just below) the top of the wrapper.
-                    // Use a small padding so it’s fully visible and not touching the border.
-                    var targetScrollTop = Math.max( rowTopInContent - 4, 0 );
-
-                    wrapper.scrollTop = targetScrollTop;
+                    // Small nudge so there is a tiny visual gap above the highlighted row.
+                    // This is a fixed pixel tweak, not a second “big scroll”, so repeated calls
+                    // still land the row in the same place.
+                    var topPadding = 4; // adjust if needed, but keep small (2–6px)
+                    wrapper.scrollTop = wrapper.scrollTop - topPadding;
                 }
 
                 function scrollToSku( rawSku ) {
