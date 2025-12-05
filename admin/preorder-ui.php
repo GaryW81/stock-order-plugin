@@ -553,46 +553,48 @@ function sop_preorder_render_admin_page() {
 
                             <div class="sop-preorder-columns-popover" aria-hidden="true">
                                 <div class="sop-preorder-columns-panel">
-                                    <?php
-                                    $sop_column_labels = array(
-                                        'image'         => __( 'Image', 'sop' ),
-                                        'location'      => __( 'Location', 'sop' ),
-                                        'sku'           => __( 'SKU', 'sop' ),
-                                        'brand'         => __( 'Brand', 'sop' ),
-                                        'category'      => __( 'Category', 'sop' ),
-                                        'product'       => __( 'Product', 'sop' ),
-                                        'cost_supplier' => __( 'Cost per unit', 'sop' ),
-                                        'cost_usd'      => __( 'Unit price (USD)', 'sop' ),
-                                        'stock'         => __( 'Stock', 'sop' ),
-                                        'inbound'       => __( 'Inbound', 'sop' ),
-                                        'min_order'     => __( 'MOQ', 'sop' ),
-                                        'soq'           => __( 'SOQ', 'sop' ),
-                                        'order_qty'     => __( 'Qty', 'sop' ),
-                                        'line_total'    => __( 'Line total', 'sop' ),
-                                        'cubic'         => __( 'cm3 per unit', 'sop' ),
-                                        'line_cbm'      => __( 'Line CBM', 'sop' ),
-                                        'regular_unit'  => __( 'Price excl.', 'sop' ),
-                                        'regular_line'  => __( 'Line excl.', 'sop' ),
-                                        'notes'         => __( 'Product notes', 'sop' ),
-                                        'order_notes'   => __( 'Order notes', 'sop' ),
-                                        'carton_no'     => __( 'Carton no.', 'sop' ),
-                                    );
-
-                                    foreach ( $sop_column_labels as $column_key => $column_label ) :
-                                        ?>
-                                        <div class="sop-preorder-columns-panel-item">
-                                            <label>
-                                                <input
-                                                    type="checkbox"
-                                                    data-column="<?php echo esc_attr( $column_key ); ?>"
-                                                    checked="checked"
-                                                />
-                                                <?php echo esc_html( $column_label ); ?>
-                                            </label>
-                                        </div>
+                                    <ul class="sop-preorder-columns-list">
                                         <?php
-                                    endforeach;
-                                    ?>
+                                        $sop_column_labels = array(
+                                            'image'         => __( 'Image', 'sop' ),
+                                            'location'      => __( 'Location', 'sop' ),
+                                            'sku'           => __( 'SKU', 'sop' ),
+                                            'brand'         => __( 'Brand', 'sop' ),
+                                            'category'      => __( 'Category', 'sop' ),
+                                            'product'       => __( 'Product', 'sop' ),
+                                            'cost_supplier' => __( 'Cost per unit', 'sop' ),
+                                            'cost_usd'      => __( 'Unit price (USD)', 'sop' ),
+                                            'stock'         => __( 'Stock', 'sop' ),
+                                            'inbound'       => __( 'Inbound', 'sop' ),
+                                            'min_order'     => __( 'MOQ', 'sop' ),
+                                            'soq'           => __( 'SOQ', 'sop' ),
+                                            'order_qty'     => __( 'Qty', 'sop' ),
+                                            'line_total'    => __( 'Line total', 'sop' ),
+                                            'cubic'         => __( 'cm3 per unit', 'sop' ),
+                                            'line_cbm'      => __( 'Line CBM', 'sop' ),
+                                            'regular_unit'  => __( 'Price excl.', 'sop' ),
+                                            'regular_line'  => __( 'Line excl.', 'sop' ),
+                                            'notes'         => __( 'Product notes', 'sop' ),
+                                            'order_notes'   => __( 'Order notes', 'sop' ),
+                                            'carton_no'     => __( 'Carton no.', 'sop' ),
+                                        );
+
+                                        foreach ( $sop_column_labels as $column_key => $column_label ) :
+                                            ?>
+                                            <li>
+                                                <label>
+                                                    <input
+                                                        type="checkbox"
+                                                        data-column="<?php echo esc_attr( $column_key ); ?>"
+                                                        checked="checked"
+                                                    />
+                                                    <?php echo esc_html( $column_label ); ?>
+                                                </label>
+                                            </li>
+                                            <?php
+                                        endforeach;
+                                        ?>
+                                    </ul>
                                 </div><!-- .sop-preorder-columns-panel -->
                             </div><!-- .sop-preorder-columns-popover -->
                         </div><!-- .sop-preorder-columns -->
@@ -1042,30 +1044,29 @@ function sop_preorder_render_admin_page() {
             margin-left: auto;
         }
 
+        /* Columns dropdown wrapper */
         .sop-preorder-columns {
             position: relative;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
-        .sop-preorder-columns-toggle {
-            min-width: 180px;
-        }
-
+        /* The popover itself – single column with scroll */
         .sop-preorder-columns-popover {
             position: absolute;
-            top: calc(100% + 6px);
+            top: 100%;
             right: 0;
-            z-index: 2000;
+            margin-top: 4px;
             background: #fff;
+            border: 1px solid #d0d0d0;
             border-radius: 4px;
-            border: 1px solid #dcdcde;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
-            min-width: 220px;
-            max-height: 280px;
-            padding: 6px 10px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+            padding: 4px 0;
+            z-index: 1000;
+            max-height: 260px;
             overflow-y: auto;
+            min-width: 220px;
             display: none;
         }
 
@@ -1073,17 +1074,24 @@ function sop_preorder_render_admin_page() {
             display: block;
         }
 
-        .sop-preorder-columns-panel {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 4px 12px;
+        /* The inner list of options */
+        .sop-preorder-columns-list {
+            list-style: none;
+            margin: 0;
+            padding: 0 8px;
         }
 
-        .sop-preorder-columns-panel-item label {
+        /* Each row = one checkbox + label on a single line */
+        .sop-preorder-columns-list li {
             display: flex;
             align-items: center;
             gap: 6px;
-            font-size: 13px;
+            padding: 2px 0;
+            white-space: nowrap;
+        }
+
+        .sop-preorder-columns-list input[type="checkbox"] {
+            margin: 0;
         }
 
         .sop-preorder-header select[name="sop_supplier_id"] {
