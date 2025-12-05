@@ -1731,10 +1731,31 @@ function sop_preorder_render_admin_page() {
                 $columnsToggleButton.on( 'click', function( e ) {
                     e.preventDefault();
                     var isOpen = $columnsPanel.hasClass( 'is-open' );
-                    var height = $columnsToggleButton.outerHeight();
+                    var offset      = $columnsToggleButton.offset();
+                    var height      = $columnsToggleButton.outerHeight();
+                    var toggleWidth = $columnsToggleButton.outerWidth();
+
+                    // Estimate popover width; outerWidth() is 0 when hidden, so fall back.
+                    var panelWidth  = $columnsPanel.outerWidth();
+                    if ( ! panelWidth ) {
+                        panelWidth = 260; // a bit above CSS min-width to be safe
+                    }
+
+                    var viewportWidth = $( window ).width();
+                    var left          = offset.left;
+
+                    // If it would overflow off the right edge, shift it left so the
+                    // right edge lines up with the toggle button (or at least the viewport).
+                    if ( left + panelWidth > viewportWidth - 16 ) {
+                        left = offset.left + toggleWidth - panelWidth; // align right edges
+                        if ( left < 8 ) {
+                            left = 8; // don’t go off the left edge either
+                        }
+                    }
+
                     $columnsPanel.css( {
-                        top: height + 8,
-                        left: 0
+                        top:  offset.top + height + 8,
+                        left: left
                     } );
                     $columnsPanel.toggleClass( 'is-open', ! isOpen );
                     $columnsToggleButton.attr( 'aria-expanded', ! isOpen );
