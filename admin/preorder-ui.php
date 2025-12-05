@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.85 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.86 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -549,8 +549,7 @@ function sop_preorder_render_admin_page() {
                                                name="sop_sku_filter"
                                                value="<?php echo esc_attr( $sku_filter ); ?>"
                                                placeholder="<?php esc_attr_e( 'Search SKU', 'stock-order-plugin' ); ?>"
-                                               class="regular-text sop-preorder-sku-input"
-                                               form="sop-preorder-filter-form" />
+                                               class="regular-text sop-preorder-sku-input" />
                                         <span class="dashicons dashicons-search sop-preorder-sku-icon" aria-hidden="true"></span>
                                     </div>
                                 </div>
@@ -1384,6 +1383,11 @@ function sop_preorder_render_admin_page() {
             width: 1px;
             background-color: #e3e3e3;
             pointer-events: none;
+        }
+
+        .sop-preorder-table tr.sop-preorder-sku-hit {
+            background-color: #fff8d7;
+            transition: background-color 0.4s ease;
         }
 
         .sop-preorder-table th .sop-preorder-header-label--wrap-2 {
@@ -2517,6 +2521,69 @@ function sop_preorder_render_admin_page() {
                     $table.find('tbody').append(row);
                 });
             });
+
+            // ------------------------------------------------------------------
+            // Quick SKU finder: behave like Ctrl+F on the current table
+            // ------------------------------------------------------------------
+            (function() {
+                var $skuInput = $('#sop_sku_filter');
+                if ( ! $skuInput.length ) {
+                    return;
+                }
+
+                var $tableFrame = $('.sop-preorder-table-frame');
+                if ( ! $tableFrame.length ) {
+                    $tableFrame = $('.sop-preorder-table-wrapper');
+                }
+
+                var $tableLocal = $tableFrame.find('table.sop-preorder-table');
+                if ( ! $tableLocal.length ) {
+                    return;
+                }
+
+                function scrollToSku( rawSku ) {
+                    var sku = $.trim( rawSku || '' );
+                    if ( ! sku ) {
+                        return;
+                    }
+
+                    var $skuCell = $tableLocal.find( 'td.column-sku input, td.column-sku' ).filter( function() {
+                        var $el = $( this );
+                        var val = $el.is( 'input' ) ? $el.val() : $el.text();
+                        return $.trim( val ) === sku;
+                    } ).first();
+
+                    if ( ! $skuCell.length ) {
+                        return;
+                    }
+
+                    var $row = $skuCell.closest( 'tr' );
+
+                    $tableLocal.find( 'tr.sop-preorder-sku-hit' ).removeClass( 'sop-preorder-sku-hit' );
+                    $row.addClass( 'sop-preorder-sku-hit' );
+
+                    var headerHeight = $tableLocal.find( 'thead' ).outerHeight() || 0;
+                    var offsetTop    = $row.position().top + $tableFrame.scrollTop() - headerHeight - 8;
+
+                    if ( offsetTop < 0 ) {
+                        offsetTop = 0;
+                    }
+
+                    $tableFrame.stop().animate( { scrollTop: offsetTop }, 200 );
+                }
+
+                $skuInput.on( 'keydown', function( e ) {
+                    if ( e.key === 'Enter' || e.keyCode === 13 ) {
+                        e.preventDefault();
+                        scrollToSku( $skuInput.val() );
+                    }
+                } );
+
+                $( '.sop-preorder-sku-icon' ).on( 'click', function( e ) {
+                    e.preventDefault();
+                    scrollToSku( $skuInput.val() );
+                } );
+            })();
 
             recalcTotals();
         });
