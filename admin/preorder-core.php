@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.00
+ * File version: 11.10
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -135,6 +135,7 @@ function sop_render_preorder_sheets_page() {
                             <td><?php echo esc_html( isset( $sheet['updated_at'] ) ? $sheet['updated_at'] : '' ); ?></td>
                             <td>
                                 <?php
+                                $sheet_status = isset( $sheet['status'] ) ? $sheet['status'] : '';
                                 $open_url = add_query_arg(
                                     array(
                                         'page'         => 'sop-preorder-sheet',
@@ -147,7 +148,24 @@ function sop_render_preorder_sheets_page() {
                                 <a class="button" href="<?php echo esc_url( $open_url ); ?>">
                                     <?php esc_html_e( 'Open', 'sop' ); ?>
                                 </a>
-                                <?php if ( empty( $sheet['status'] ) || 'draft' === $sheet['status'] ) : ?>
+                                <?php if ( empty( $sheet_status ) || 'draft' === $sheet_status ) : ?>
+                                    <?php
+                                    $lock_url = wp_nonce_url(
+                                        add_query_arg(
+                                            array(
+                                                'action'      => 'sop_preorder_lock_sheet',
+                                                'sheet_id'    => isset( $sheet['id'] ) ? (int) $sheet['id'] : 0,
+                                                'supplier_id' => isset( $sheet['supplier_id'] ) ? (int) $sheet['supplier_id'] : 0,
+                                            ),
+                                            admin_url( 'admin-post.php' )
+                                        ),
+                                        'sop_preorder_lock_sheet_' . ( isset( $sheet['id'] ) ? (int) $sheet['id'] : 0 )
+                                    );
+                                    ?>
+                                    <a class="button" href="<?php echo esc_url( $lock_url ); ?>"
+                                       onclick="return confirm('<?php echo esc_js( __( 'Lock this saved pre-order sheet? You will need to unlock it to edit.', 'sop' ) ); ?>');">
+                                        <?php esc_html_e( 'Lock', 'sop' ); ?>
+                                    </a>
                                     <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;">
                                         <input type="hidden" name="action" value="sop_delete_preorder_sheet" />
                                         <input type="hidden" name="sheet_id" value="<?php echo esc_attr( $sheet['id'] ); ?>" />
@@ -159,6 +177,24 @@ function sop_render_preorder_sheets_page() {
                                             <?php esc_html_e( 'Delete', 'sop' ); ?>
                                         </button>
                                     </form>
+                                <?php elseif ( 'locked' === $sheet_status ) : ?>
+                                    <?php
+                                    $unlock_url = wp_nonce_url(
+                                        add_query_arg(
+                                            array(
+                                                'action'      => 'sop_preorder_unlock_sheet',
+                                                'sheet_id'    => isset( $sheet['id'] ) ? (int) $sheet['id'] : 0,
+                                                'supplier_id' => isset( $sheet['supplier_id'] ) ? (int) $sheet['supplier_id'] : 0,
+                                            ),
+                                            admin_url( 'admin-post.php' )
+                                        ),
+                                        'sop_preorder_unlock_sheet_' . ( isset( $sheet['id'] ) ? (int) $sheet['id'] : 0 )
+                                    );
+                                    ?>
+                                    <a class="button" href="<?php echo esc_url( $unlock_url ); ?>"
+                                       onclick="return confirm('<?php echo esc_js( __( 'Unlock this saved pre-order sheet to allow editing?', 'sop' ) ); ?>');">
+                                        <?php esc_html_e( 'Unlock', 'sop' ); ?>
+                                    </a>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -174,6 +210,8 @@ function sop_render_preorder_sheets_page() {
  * Handle filter submissions for the Pre-Order Sheet, including container updates on saved sheets.
  */
 add_action( 'admin_post_sop_preorder_filter', 'sop_handle_preorder_filter' );
+add_action( 'admin_post_sop_preorder_lock_sheet', 'sop_preorder_handle_lock_sheet' );
+add_action( 'admin_post_sop_preorder_unlock_sheet', 'sop_preorder_handle_unlock_sheet' );
 function sop_handle_preorder_filter() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to update preorder filters.', 'sop' ) );
@@ -268,6 +306,13 @@ function sop_handle_save_preorder_sheet() {
 
     $supplier_id = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
     $sheet_id    = isset( $_POST['sop_sheet_id'] ) ? (int) $_POST['sop_sheet_id'] : 0;
+
+    if ( $sheet_id > 0 && function_exists( 'sop_get_preorder_sheet' ) ) {
+        $existing_sheet = sop_get_preorder_sheet( $sheet_id );
+        if ( is_array( $existing_sheet ) && ! empty( $existing_sheet['status'] ) && 'draft' !== $existing_sheet['status'] ) {
+            wp_die( esc_html__( 'This saved pre-order sheet is locked and cannot be edited. Please unlock it first.', 'sop' ) );
+        }
+    }
 
     if ( $supplier_id < 1 ) {
         $redirect = add_query_arg(
@@ -729,6 +774,108 @@ function sop_handle_delete_preorder_sheet() {
             'page'        => 'sop-preorder-sheets',
             'supplier_id' => $supplier_id,
             'sop_deleted' => $flag,
+        ),
+        admin_url( 'admin.php' )
+    );
+
+    wp_safe_redirect( $redirect );
+    exit;
+}
+
+/**
+ * Lock a saved pre-order sheet by setting its status to 'locked'.
+ *
+ * @return void
+ */
+function sop_preorder_handle_lock_sheet() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You do not have permission to lock pre-order sheets.', 'sop' ) );
+    }
+
+    $sheet_id    = isset( $_GET['sheet_id'] ) ? (int) $_GET['sheet_id'] : 0;
+    $supplier_id = isset( $_GET['supplier_id'] ) ? (int) $_GET['supplier_id'] : 0;
+
+    $nonce_action = 'sop_preorder_lock_sheet_' . $sheet_id;
+    if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], $nonce_action ) ) {
+        wp_die( esc_html__( 'Invalid lock request.', 'sop' ) );
+    }
+
+    if ( $sheet_id <= 0 || ! function_exists( 'sop_get_preorder_sheet' ) || ! function_exists( 'sop_update_preorder_sheet' ) ) {
+        wp_die( esc_html__( 'Pre-order sheet not found.', 'sop' ) );
+    }
+
+    $sheet = sop_get_preorder_sheet( $sheet_id );
+    if ( ! is_array( $sheet ) || empty( $sheet['id'] ) ) {
+        wp_die( esc_html__( 'Pre-order sheet not found.', 'sop' ) );
+    }
+
+    $status = isset( $sheet['status'] ) ? $sheet['status'] : '';
+    if ( empty( $status ) || 'draft' === $status ) {
+        $update_data = array(
+            'status' => 'locked',
+        );
+        sop_update_preorder_sheet( $sheet_id, $update_data );
+    }
+
+    if ( empty( $supplier_id ) && isset( $sheet['supplier_id'] ) ) {
+        $supplier_id = (int) $sheet['supplier_id'];
+    }
+
+    $redirect = add_query_arg(
+        array(
+            'page'        => 'sop-preorder-sheets',
+            'supplier_id' => $supplier_id,
+        ),
+        admin_url( 'admin.php' )
+    );
+
+    wp_safe_redirect( $redirect );
+    exit;
+}
+
+/**
+ * Unlock a saved pre-order sheet by setting its status back to 'draft'.
+ *
+ * @return void
+ */
+function sop_preorder_handle_unlock_sheet() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You do not have permission to unlock pre-order sheets.', 'sop' ) );
+    }
+
+    $sheet_id    = isset( $_GET['sheet_id'] ) ? (int) $_GET['sheet_id'] : 0;
+    $supplier_id = isset( $_GET['supplier_id'] ) ? (int) $_GET['supplier_id'] : 0;
+
+    $nonce_action = 'sop_preorder_unlock_sheet_' . $sheet_id;
+    if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], $nonce_action ) ) {
+        wp_die( esc_html__( 'Invalid unlock request.', 'sop' ) );
+    }
+
+    if ( $sheet_id <= 0 || ! function_exists( 'sop_get_preorder_sheet' ) || ! function_exists( 'sop_update_preorder_sheet' ) ) {
+        wp_die( esc_html__( 'Pre-order sheet not found.', 'sop' ) );
+    }
+
+    $sheet = sop_get_preorder_sheet( $sheet_id );
+    if ( ! is_array( $sheet ) || empty( $sheet['id'] ) ) {
+        wp_die( esc_html__( 'Pre-order sheet not found.', 'sop' ) );
+    }
+
+    $status = isset( $sheet['status'] ) ? $sheet['status'] : '';
+    if ( 'locked' === $status ) {
+        $update_data = array(
+            'status' => 'draft',
+        );
+        sop_update_preorder_sheet( $sheet_id, $update_data );
+    }
+
+    if ( empty( $supplier_id ) && isset( $sheet['supplier_id'] ) ) {
+        $supplier_id = (int) $sheet['supplier_id'];
+    }
+
+    $redirect = add_query_arg(
+        array(
+            'page'        => 'sop-preorder-sheets',
+            'supplier_id' => $supplier_id,
         ),
         admin_url( 'admin.php' )
     );
