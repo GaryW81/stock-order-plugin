@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.76 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.77 *
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -540,73 +540,84 @@ function sop_preorder_render_admin_page() {
                         </div>
                         <span class="sop-preorder-columns-label"><?php esc_html_e( 'Columns', 'sop' ); ?>:</span>
                         <button type="button" class="button sop-preorder-columns-toggle sop-preorder-columns-button" aria-expanded="false">
-                            <?php esc_html_e( 'Select', 'sop' ); ?>
+                            <?php
+                            $sop_initial_column_count = 25;
+                            echo esc_html(
+                                sprintf(
+                                    _n( '%d column selected', '%d columns selected', $sop_initial_column_count, 'sop' ),
+                                    $sop_initial_column_count
+                                )
+                            );
+                            ?>
                         </button>
-                        <div class="sop-preorder-columns-panel" role="menu">
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="image" checked="checked" /><?php esc_html_e( 'Image', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="location" checked="checked" /><?php esc_html_e( 'Location', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="sku" checked="checked" /><?php esc_html_e( 'SKU', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="brand" checked="checked" /><?php esc_html_e( 'Brand', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="category" checked="checked" /><?php esc_html_e( 'Category', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="product" checked="checked" /><?php esc_html_e( 'Product', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="cost_supplier" checked="checked" /><?php esc_html_e( 'Cost per unit', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="cost_usd" checked="checked" /><?php esc_html_e( 'Unit price (USD)', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="stock" checked="checked" /><?php esc_html_e( 'Stock', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="inbound" checked="checked" /><?php esc_html_e( 'Inbound', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="min_order" checked="checked" /><?php esc_html_e( 'MOQ', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="soq" checked="checked" /><?php esc_html_e( 'SOQ', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="order_qty" checked="checked" /><?php esc_html_e( 'Qty', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="line_total" checked="checked" /><?php esc_html_e( 'Line total', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="cubic" checked="checked" /><?php esc_html_e( 'cm? per unit', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="line_cbm" checked="checked" /><?php esc_html_e( 'Line CBM', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="regular_unit" checked="checked" /><?php esc_html_e( 'Price excl.', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="regular_line" checked="checked" /><?php esc_html_e( 'Line excl.', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="notes" checked="checked" /><?php esc_html_e( 'Product notes', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="order_notes" checked="checked" /><?php esc_html_e( 'Order notes', 'sop' ); ?></label>
-                            </div>
-                            <div class="sop-preorder-columns-panel-item">
-                                <label><input type="checkbox" data-column="carton_no" checked="checked" /><?php esc_html_e( 'Carton no.', 'sop' ); ?></label>
-                            </div>
-                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sop-preorder-columns-popover" role="menu">
+                <div class="sop-preorder-columns-panel">
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="image" checked="checked" /><?php esc_html_e( 'Image', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="location" checked="checked" /><?php esc_html_e( 'Location', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="sku" checked="checked" /><?php esc_html_e( 'SKU', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="brand" checked="checked" /><?php esc_html_e( 'Brand', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="category" checked="checked" /><?php esc_html_e( 'Category', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="product" checked="checked" /><?php esc_html_e( 'Product', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="cost_supplier" checked="checked" /><?php esc_html_e( 'Cost per unit', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="cost_usd" checked="checked" /><?php esc_html_e( 'Unit price (USD)', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="stock" checked="checked" /><?php esc_html_e( 'Stock', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="inbound" checked="checked" /><?php esc_html_e( 'Inbound', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="min_order" checked="checked" /><?php esc_html_e( 'MOQ', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="soq" checked="checked" /><?php esc_html_e( 'SOQ', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="order_qty" checked="checked" /><?php esc_html_e( 'Qty', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="line_total" checked="checked" /><?php esc_html_e( 'Line total', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="cubic" checked="checked" /><?php esc_html_e( 'cm? per unit', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="line_cbm" checked="checked" /><?php esc_html_e( 'Line CBM', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="regular_unit" checked="checked" /><?php esc_html_e( 'Price excl.', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="regular_line" checked="checked" /><?php esc_html_e( 'Line excl.', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="notes" checked="checked" /><?php esc_html_e( 'Product notes', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="order_notes" checked="checked" /><?php esc_html_e( 'Order notes', 'sop' ); ?></label>
+                    </div>
+                    <div class="sop-preorder-columns-panel-item">
+                        <label><input type="checkbox" data-column="carton_no" checked="checked" /><?php esc_html_e( 'Carton no.', 'sop' ); ?></label>
                     </div>
                 </div>
             </div>
@@ -1094,6 +1105,24 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-container-item--button {
             justify-content: flex-end;
+        }
+
+        .sop-preorder-columns-popover {
+            position: absolute;
+            z-index: 1000;
+            background: #fff;
+            border: 1px solid #dcdcde;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 8px 10px;
+            min-width: 220px;
+            max-height: 280px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .sop-preorder-columns-popover.is-open {
+            display: block;
         }
 
         .sop-preorder-filter-sku-field {
@@ -1655,7 +1684,7 @@ function sop_preorder_render_admin_page() {
             var $sheetForm           = $('#sop-preorder-sheet-form');
             var $columnsWrapper      = $('.sop-preorder-columns');
             var $columnsToggleButton = $columnsWrapper.find('.sop-preorder-columns-toggle');
-            var $columnsPanel        = $columnsWrapper.find('.sop-preorder-columns-panel');
+            var $columnsPanel        = $('.sop-preorder-columns-popover');
             var $columnCheckboxes    = $columnsPanel.find('input[type="checkbox"]');
 
             function sopPreorderApplyColumnVisibility() {
@@ -1744,8 +1773,14 @@ function sop_preorder_render_admin_page() {
 
                 $columnsToggleButton.on( 'click', function( e ) {
                     e.preventDefault();
-                    var isOpen = $columnsWrapper.hasClass( 'is-open' );
-                    $columnsWrapper.toggleClass( 'is-open', ! isOpen );
+                    var isOpen = $columnsPanel.hasClass( 'is-open' );
+                    var offset = $columnsToggleButton.offset();
+                    var height = $columnsToggleButton.outerHeight();
+                    $columnsPanel.css( {
+                        top: offset.top + height + 8,
+                        left: offset.left
+                    } );
+                    $columnsPanel.toggleClass( 'is-open', ! isOpen );
                     $columnsToggleButton.attr( 'aria-expanded', ! isOpen );
                 } );
 
@@ -1755,9 +1790,9 @@ function sop_preorder_render_admin_page() {
                 } );
 
                 $( document ).on( 'click', function( e ) {
-                    if ( ! $( e.target ).closest( '.sop-preorder-columns' ).length ) {
-                        if ( $columnsWrapper.hasClass( 'is-open' ) ) {
-                            $columnsWrapper.removeClass( 'is-open' );
+                    if ( ! $( e.target ).closest( '.sop-preorder-columns-popover, .sop-preorder-columns-toggle' ).length ) {
+                        if ( $columnsPanel.hasClass( 'is-open' ) ) {
+                            $columnsPanel.removeClass( 'is-open' );
                             $columnsToggleButton.attr( 'aria-expanded', 'false' );
                         }
                     }
