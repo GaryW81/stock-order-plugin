@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.26
+ * File version: 1.5.27
+ * - Adds supplier-level defaults for Pre-Order container settings.
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -1559,6 +1560,44 @@ class sop_Admin_Settings {
             $settings_array['buffer_months_override'] = (float) $buffer_override;
         }
 
+        // Pre-Order container defaults.
+        $container_type_raw = isset( $_POST['sop_supplier_preorder_container_type'] )
+            ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_preorder_container_type'] ) )
+            : '';
+        $allowed_container_types = array( '', '20ft', '40ft', '40ft_hc' );
+        if ( ! in_array( $container_type_raw, $allowed_container_types, true ) ) {
+            $container_type_raw = '';
+        }
+
+        if ( '' === $container_type_raw ) {
+            unset( $settings_array['preorder_default_container_type'] );
+        } else {
+            $settings_array['preorder_default_container_type'] = $container_type_raw;
+        }
+
+        $pallet_default = ! empty( $_POST['sop_supplier_preorder_pallet_layer'] ) ? 1 : 0;
+        if ( $pallet_default ) {
+            $settings_array['preorder_default_pallet_layer'] = 1;
+        } else {
+            unset( $settings_array['preorder_default_pallet_layer'] );
+        }
+
+        $allowance_raw = isset( $_POST['sop_supplier_preorder_allowance'] )
+            ? trim( wp_unslash( $_POST['sop_supplier_preorder_allowance'] ) )
+            : '';
+
+        if ( '' === $allowance_raw ) {
+            unset( $settings_array['preorder_default_container_allowance'] );
+        } else {
+            $allowance_val = (float) $allowance_raw;
+            if ( $allowance_val < -50 ) {
+                $allowance_val = -50;
+            } elseif ( $allowance_val > 50 ) {
+                $allowance_val = 50;
+            }
+            $settings_array['preorder_default_container_allowance'] = $allowance_val;
+        }
+
         $settings_json = ! empty( $settings_array ) ? wp_json_encode( $settings_array ) : null;
 
         $args = array(
@@ -1704,6 +1743,9 @@ class sop_Admin_Settings {
             $lead_time_val       = 0;
             $active_val          = 1;
             $buffer_override_val = '';
+            $preorder_container_type_val      = '';
+            $preorder_pallet_layer_val        = 0;
+            $preorder_container_allowance_val = '';
 
             if ( $editing ) {
                 $editing_id_val    = (int) $editing->id;
@@ -1715,6 +1757,20 @@ class sop_Admin_Settings {
                 $settings_arr = $editing->settings_json ? json_decode( $editing->settings_json, true ) : array();
                 if ( is_array( $settings_arr ) && isset( $settings_arr['buffer_months_override'] ) ) {
                     $buffer_override_val = (float) $settings_arr['buffer_months_override'];
+                }
+                if ( is_array( $settings_arr ) && ! empty( $settings_arr['preorder_default_container_type'] ) ) {
+                    $preorder_container_type_val = (string) $settings_arr['preorder_default_container_type'];
+                }
+                if ( is_array( $settings_arr ) && ! empty( $settings_arr['preorder_default_pallet_layer'] ) ) {
+                    $preorder_pallet_layer_val = 1;
+                }
+                if ( is_array( $settings_arr ) && array_key_exists( 'preorder_default_container_allowance', $settings_arr ) ) {
+                    $preorder_container_allowance_val = (float) $settings_arr['preorder_default_container_allowance'];
+                    if ( $preorder_container_allowance_val < -50 ) {
+                        $preorder_container_allowance_val = -50;
+                    } elseif ( $preorder_container_allowance_val > 50 ) {
+                        $preorder_container_allowance_val = 50;
+                    }
                 }
             }
             ?>
@@ -1817,6 +1873,63 @@ class sop_Admin_Settings {
                                        class="small-text" />
                                 <p class="description">
                                     <?php esc_html_e( 'Optional override for this supplier. Leave blank to use the global buffer months.', 'sop' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_preorder_container_type">
+                                    <?php esc_html_e( 'Default Pre-Order container', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <select id="sop_supplier_preorder_container_type" name="sop_supplier_preorder_container_type">
+                                    <option value=""><?php esc_html_e( 'None (no default)', 'sop' ); ?></option>
+                                    <option value="20ft" <?php selected( $preorder_container_type_val, '20ft' ); ?>>20&#39; (33.2 CBM)</option>
+                                    <option value="40ft" <?php selected( $preorder_container_type_val, '40ft' ); ?>>40&#39; (67.7 CBM)</option>
+                                    <option value="40ft_hc" <?php selected( $preorder_container_type_val, '40ft_hc' ); ?>>40&#39; HQ (76.3 CBM)</option>
+                                </select>
+                                <p class="description">
+                                    <?php esc_html_e( 'Optional default container type when starting a new Pre-Order sheet for this supplier.', 'sop' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_preorder_pallet_layer">
+                                    <?php esc_html_e( 'Default 150mm pallet layer', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <label>
+                                    <input type="checkbox"
+                                           id="sop_supplier_preorder_pallet_layer"
+                                           name="sop_supplier_preorder_pallet_layer"
+                                           value="1" <?php checked( 1, (int) $preorder_pallet_layer_val ); ?> />
+                                    <?php esc_html_e( 'Apply the 150mm pallet layer by default on new Pre-Order sheets for this supplier.', 'sop' ); ?>
+                                </label>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_preorder_allowance">
+                                    <?php esc_html_e( 'Default container allowance (%)', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="number"
+                                       id="sop_supplier_preorder_allowance"
+                                       name="sop_supplier_preorder_allowance"
+                                       value="<?php echo esc_attr( $preorder_container_allowance_val ); ?>"
+                                       step="1"
+                                       min="-50"
+                                       max="50"
+                                       class="small-text" />
+                                <p class="description">
+                                    <?php esc_html_e( 'Allowance for container planning on new Pre-Order sheets (e.g. 5 = 5% spare, -5 = slight overfill). Leave blank to use the plugin default (5%).', 'sop' ); ?>
                                 </p>
                             </td>
                         </tr>

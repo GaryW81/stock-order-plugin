@@ -1,6 +1,7 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.10 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.20 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
+ * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -64,16 +65,59 @@ function sop_preorder_render_admin_page() {
         $rmb_to_usd_rate = sop_get_rmb_to_usd_rate_for_supplier( $selected_supplier_id );
     }
 
-    $container_selection = isset( $_GET['sop_container'] )
-        ? sanitize_text_field( wp_unslash( $_GET['sop_container'] ) )
-        : '';
+    // Supplier-level defaults for new sheets (not applied to saved sheets).
+    $sop_default_container_type       = '';
+    $sop_default_pallet_layer         = 0;
+    $sop_default_container_allowance  = 5.0;
+
+    if ( $current_sheet_id <= 0 && $selected_supplier_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
+        $supplier_obj = sop_supplier_get_by_id( (int) $selected_supplier_id );
+        if ( $supplier_obj && ! empty( $supplier_obj->settings_json ) ) {
+            $supplier_settings = json_decode( $supplier_obj->settings_json, true );
+            if ( is_array( $supplier_settings ) ) {
+                if ( ! empty( $supplier_settings['preorder_default_container_type'] ) ) {
+                    $allowed_types = array( '20ft', '40ft', '40ft_hc' );
+                    if ( in_array( $supplier_settings['preorder_default_container_type'], $allowed_types, true ) ) {
+                        $sop_default_container_type = (string) $supplier_settings['preorder_default_container_type'];
+                    }
+                }
+
+                if ( ! empty( $supplier_settings['preorder_default_pallet_layer'] ) ) {
+                    $sop_default_pallet_layer = 1;
+                }
+
+                if ( array_key_exists( 'preorder_default_container_allowance', $supplier_settings ) ) {
+                    $tmp_allowance = (float) $supplier_settings['preorder_default_container_allowance'];
+                    if ( $tmp_allowance < -50 ) {
+                        $tmp_allowance = -50;
+                    } elseif ( $tmp_allowance > 50 ) {
+                        $tmp_allowance = 50;
+                    }
+                    $sop_default_container_allowance = $tmp_allowance;
+                }
+            }
+        }
+    }
+
+    // Container selection: GET overrides supplier defaults.
+    if ( isset( $_GET['sop_container'] ) ) {
+        $container_selection = sanitize_text_field( wp_unslash( $_GET['sop_container'] ) );
+    } else {
+        $container_selection = $sop_default_container_type;
+    }
 
     // Additional container controls.
-    $pallet_layer = isset( $_GET['sop_pallet_layer'] ) ? 1 : 0;
+    if ( isset( $_GET['sop_pallet_layer'] ) ) {
+        $pallet_layer = 1;
+    } else {
+        $pallet_layer = (int) $sop_default_pallet_layer;
+    }
 
-    $allowance = isset( $_GET['sop_allowance'] )
-        ? (float) $_GET['sop_allowance']
-        : 5.0;
+    if ( isset( $_GET['sop_allowance'] ) ) {
+        $allowance = (float) $_GET['sop_allowance'];
+    } else {
+        $allowance = (float) $sop_default_container_allowance;
+    }
     if ( $allowance < -50 ) {
         $allowance = -50;
     } elseif ( $allowance > 50 ) {
