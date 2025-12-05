@@ -1,6 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.94 *
- * - Adjust SKU quick finder to use scrollIntoView for wrapper-relative scrolling.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.95 *
+ * - Fix SKU quick finder so searched SKU scrolls to the top of the table wrapper.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -1358,7 +1358,7 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-table-wrapper {
             max-height: 90vh;
             overflow-x: auto;
-            overflow-y: visible;
+            overflow-y: auto;
             border: 1px solid #ccd0d4;
         }
 
@@ -2542,40 +2542,42 @@ function sop_preorder_render_admin_page() {
                     return;
                 }
 
-                function sopScrollRowIntoView( $row ) {
+                                                function sopScrollRowIntoView( $row ) {
                     if ( ! $row || ! $row.length ) {
                         return;
                     }
 
                     var rowEl = $row[0];
 
-                    // Find the scrollable wrapper for the pre-order table.
-                    var wrapper = rowEl.closest( '.sop-preorder-table-wrapper' ) ||
-                                  document.querySelector( '.sop-preorder-table-wrapper' );
+                    // Prefer scrolling inside the pre-order table wrapper so the row appears just under the sticky header.
+                    var $wrapper = $row.closest( '.sop-preorder-table-wrapper' );
 
-                    // Fallback: if we somehow don’t have a wrapper, just let the browser do its best.
-                    if ( ! wrapper ) {
-                        if ( rowEl.scrollIntoView ) {
-                            rowEl.scrollIntoView( { behavior: 'auto', block: 'start', inline: 'nearest' } );
+                    // Fallback: let the browser scroll the page if no wrapper is found.
+                    if ( ! $wrapper.length ) {
+                        if ( rowEl && rowEl.scrollIntoView ) {
+                            rowEl.scrollIntoView( {
+                                behavior: 'auto',
+                                block: 'start',
+                                inline: 'nearest'
+                            } );
                         }
                         return;
                     }
 
-                    // Use native scrollIntoView so the browser handles all the geometry
-                    // inside the scrollable wrapper, rather than us trying to guess offsets.
-                    if ( rowEl.scrollIntoView ) {
-                        rowEl.scrollIntoView( {
-                            behavior: 'auto',
-                            block: 'start',
-                            inline: 'nearest'
-                        } );
+                    var $thead = $wrapper.find( 'thead' ).first();
+                    var headerHeight = $thead.length ? $thead.outerHeight() : 0;
+
+                    var wrapperTop = $wrapper.offset().top;
+                    var rowTop     = $row.offset().top;
+
+                    var currentScroll = $wrapper.scrollTop();
+                    var targetScroll  = currentScroll + ( rowTop - wrapperTop ) - headerHeight - 4;
+
+                    if ( targetScroll < 0 ) {
+                        targetScroll = 0;
                     }
 
-                    // Small nudge so there is a tiny visual gap above the highlighted row.
-                    // This is a fixed pixel tweak, not a second “big scroll”, so repeated calls
-                    // still land the row in the same place.
-                    var topPadding = 4; // adjust if needed, but keep small (2–6px)
-                    wrapper.scrollTop = wrapper.scrollTop - topPadding;
+                    $wrapper.scrollTop( targetScroll );
                 }
 
                 function scrollToSku( rawSku ) {
@@ -2620,3 +2622,5 @@ function sop_preorder_render_admin_page() {
     </script>
     <?php
 }
+
+
