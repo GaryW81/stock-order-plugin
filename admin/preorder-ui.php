@@ -1,6 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.87 *
- * - Adjust SKU quick finder scroll logic to be wrapper-relative.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V10.88 *
+ * - Adjust SKU quick finder scroll logic to sit below sticky header.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -2549,10 +2549,28 @@ function sop_preorder_render_admin_page() {
                     }
 
                     var rowEl       = $row[0];
+
+                    // Base rects for the wrapper and the target row
                     var wrapperRect = wrapper.getBoundingClientRect();
                     var rowRect     = rowEl.getBoundingClientRect();
-                    var delta       = rowRect.top - wrapperRect.top;
 
+                    // Try to account for the sticky header inside the wrapper
+                    var header    = wrapper.querySelector( '.sop-preorder-table thead' );
+                    var topOffset = wrapperRect.top;
+
+                    if ( header ) {
+                        var headerRect = header.getBoundingClientRect();
+                        // Align to just under the header, not the very top of the wrapper
+                        topOffset = headerRect.bottom;
+                    }
+
+                    // Add a small visual margin (4px) so the row isn’t jammed against the header
+                    var desiredTop = topOffset + 4;
+
+                    // Delta from the row’s current position to the desired visual top
+                    var delta = rowRect.top - desiredTop;
+
+                    // Adjust scrollTop relative to the current scroll position
                     wrapper.scrollTop += delta;
                 }
 
