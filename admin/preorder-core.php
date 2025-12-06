@@ -1,9 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.16
+ * File version: 11.17
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
- * - 11.16 - PO modal save: explicit POST → header mapping.
+ * - 11.17 - Ensure Purchase Order modal fields are explicitly persisted on save (insert/update).
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -583,6 +583,33 @@ function sop_handle_save_preorder_sheet() {
             exit;
         }
         $sheet_id = (int) $sheet_id;
+    }
+
+    // Explicitly persist Purchase Order header fields for both inserts and updates.
+    if ( $sheet_id > 0 && function_exists( 'sop_update_preorder_sheet' ) ) {
+        $po_header_update = array(
+            'order_date_owner'          => ( '' !== $po_order_date ) ? $po_order_date : null,
+            'container_load_date_owner' => ( '' !== $po_load_date ) ? $po_load_date : null,
+            'arrival_date_owner'        => ( '' !== $po_arrival_date ) ? $po_arrival_date : null,
+            'deposit_fx_owner'          => $po_deposit_rmb,
+            'balance_fx_owner'          => $po_deposit_usd,
+            'header_notes_owner'        => $header_notes_owner,
+        );
+
+        $po_update_result = sop_update_preorder_sheet( $sheet_id, $po_header_update );
+        if ( is_wp_error( $po_update_result ) ) {
+            $redirect = add_query_arg(
+                array(
+                    'page'        => 'sop-preorder-sheet',
+                    'supplier_id' => $supplier_id,
+                    'sop_saved'   => '0',
+                    'sop_sheet_id'=> (int) $sheet_id,
+                ),
+                admin_url( 'admin.php' )
+            );
+            wp_safe_redirect( $redirect );
+            exit;
+        }
     }
 
     $lines_result = function_exists( 'sop_replace_preorder_sheet_lines' )
