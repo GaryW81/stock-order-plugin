@@ -1,7 +1,8 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.20 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.30 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
+ * - Adds Rates & Dates modal with supplier PI and company profile details for saved sheets.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -65,10 +66,31 @@ function sop_preorder_render_admin_page() {
         $rmb_to_usd_rate = sop_get_rmb_to_usd_rate_for_supplier( $selected_supplier_id );
     }
 
+    // Company profile (buyer) details.
+    $sop_company_profile   = function_exists( 'sop_get_company_profile' ) ? sop_get_company_profile() : array();
+    $company_name          = isset( $sop_company_profile['company_name'] ) ? $sop_company_profile['company_name'] : '';
+    $company_billing       = isset( $sop_company_profile['billing_address'] ) ? $sop_company_profile['billing_address'] : '';
+    $company_shipping      = isset( $sop_company_profile['shipping_address'] ) ? $sop_company_profile['shipping_address'] : '';
+    $company_email         = isset( $sop_company_profile['email'] ) ? $sop_company_profile['email'] : '';
+    $company_phone_land    = isset( $sop_company_profile['phone_landline'] ) ? $sop_company_profile['phone_landline'] : '';
+    $company_phone_mob     = isset( $sop_company_profile['phone_mobile'] ) ? $sop_company_profile['phone_mobile'] : '';
+    $company_crn           = isset( $sop_company_profile['company_reg_number'] ) ? $sop_company_profile['company_reg_number'] : '';
+    $company_vat           = isset( $sop_company_profile['vat_number'] ) ? $sop_company_profile['vat_number'] : '';
+
     // Supplier-level defaults for new sheets (not applied to saved sheets).
     $sop_default_container_type       = '';
     $sop_default_pallet_layer         = 0;
     $sop_default_container_allowance  = 5.0;
+    $supplier_settings                = array();
+
+    // Supplier PI / Rates & Dates values.
+    $pi_company_name    = '';
+    $pi_company_address = '';
+    $pi_company_phone   = '';
+    $pi_company_email   = '';
+    $pi_contact_name    = '';
+    $pi_bank_details    = '';
+    $pi_payment_terms   = '';
 
     if ( $current_sheet_id <= 0 && $selected_supplier_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
         $supplier_obj = sop_supplier_get_by_id( (int) $selected_supplier_id );
@@ -94,6 +116,56 @@ function sop_preorder_render_admin_page() {
                         $tmp_allowance = 50;
                     }
                     $sop_default_container_allowance = $tmp_allowance;
+                }
+
+                if ( array_key_exists( 'pi_company_name', $supplier_settings ) ) {
+                    $pi_company_name = (string) $supplier_settings['pi_company_name'];
+                }
+                if ( array_key_exists( 'pi_company_address', $supplier_settings ) ) {
+                    $pi_company_address = (string) $supplier_settings['pi_company_address'];
+                }
+                if ( array_key_exists( 'pi_company_phone', $supplier_settings ) ) {
+                    $pi_company_phone = (string) $supplier_settings['pi_company_phone'];
+                }
+                if ( array_key_exists( 'pi_company_email', $supplier_settings ) ) {
+                    $pi_company_email = (string) $supplier_settings['pi_company_email'];
+                }
+                if ( array_key_exists( 'pi_contact_name', $supplier_settings ) ) {
+                    $pi_contact_name = (string) $supplier_settings['pi_contact_name'];
+                }
+                if ( array_key_exists( 'pi_bank_details', $supplier_settings ) ) {
+                    $pi_bank_details = (string) $supplier_settings['pi_bank_details'];
+                }
+                if ( array_key_exists( 'pi_payment_terms', $supplier_settings ) ) {
+                    $pi_payment_terms = (string) $supplier_settings['pi_payment_terms'];
+                }
+            }
+        }
+    } elseif ( $selected_supplier_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
+        $supplier_obj = sop_supplier_get_by_id( (int) $selected_supplier_id );
+        if ( $supplier_obj && ! empty( $supplier_obj->settings_json ) ) {
+            $supplier_settings = json_decode( $supplier_obj->settings_json, true );
+            if ( is_array( $supplier_settings ) ) {
+                if ( array_key_exists( 'pi_company_name', $supplier_settings ) ) {
+                    $pi_company_name = (string) $supplier_settings['pi_company_name'];
+                }
+                if ( array_key_exists( 'pi_company_address', $supplier_settings ) ) {
+                    $pi_company_address = (string) $supplier_settings['pi_company_address'];
+                }
+                if ( array_key_exists( 'pi_company_phone', $supplier_settings ) ) {
+                    $pi_company_phone = (string) $supplier_settings['pi_company_phone'];
+                }
+                if ( array_key_exists( 'pi_company_email', $supplier_settings ) ) {
+                    $pi_company_email = (string) $supplier_settings['pi_company_email'];
+                }
+                if ( array_key_exists( 'pi_contact_name', $supplier_settings ) ) {
+                    $pi_contact_name = (string) $supplier_settings['pi_contact_name'];
+                }
+                if ( array_key_exists( 'pi_bank_details', $supplier_settings ) ) {
+                    $pi_bank_details = (string) $supplier_settings['pi_bank_details'];
+                }
+                if ( array_key_exists( 'pi_payment_terms', $supplier_settings ) ) {
+                    $pi_payment_terms = (string) $supplier_settings['pi_payment_terms'];
                 }
             }
         }
@@ -458,6 +530,9 @@ function sop_preorder_render_admin_page() {
                                         class="button"
                                         form="sop-preorder-export-form">
                                     <?php esc_html_e( 'Export Excel (.xls)', 'sop' ); ?>
+                                </button>
+                                <button type="button" class="button sop-rates-dates-toggle">
+                                    <?php esc_html_e( 'Rates & Dates', 'sop' ); ?>
                                 </button>
                             <?php endif; ?>
 
@@ -1034,6 +1109,43 @@ function sop_preorder_render_admin_page() {
         </form>
     </div>
 
+    <div id="sop-rates-dates-overlay" class="sop-rates-dates-overlay" style="display:none;">
+        <div class="sop-rates-dates-modal">
+            <button type="button" class="sop-rates-dates-close notice-dismiss" aria-label="<?php esc_attr_e( 'Close Rates & Dates', 'sop' ); ?>">
+                <span class="screen-reader-text"><?php esc_html_e( 'Close', 'sop' ); ?></span>
+            </button>
+            <h2><?php esc_html_e( 'Rates & Dates', 'sop' ); ?></h2>
+
+            <div class="sop-rates-dates-columns">
+                <div class="sop-rates-dates-column">
+                    <h3><?php esc_html_e( 'Buyer', 'sop' ); ?></h3>
+                    <p><strong><?php esc_html_e( 'Company:', 'sop' ); ?></strong> <?php echo esc_html( $company_name ); ?></p>
+                    <p><strong><?php esc_html_e( 'Billing address:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $company_billing ) ); ?></p>
+                    <p><strong><?php esc_html_e( 'Shipping address:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $company_shipping ) ); ?></p>
+                    <p><strong><?php esc_html_e( 'Email:', 'sop' ); ?></strong> <?php echo esc_html( $company_email ); ?></p>
+                    <p><strong><?php esc_html_e( 'Phone (landline):', 'sop' ); ?></strong> <?php echo esc_html( $company_phone_land ); ?></p>
+                    <p><strong><?php esc_html_e( 'Phone (mobile):', 'sop' ); ?></strong> <?php echo esc_html( $company_phone_mob ); ?></p>
+                    <p><strong><?php esc_html_e( 'Company reg no.:', 'sop' ); ?></strong> <?php echo esc_html( $company_crn ); ?></p>
+                    <p><strong><?php esc_html_e( 'VAT no.:', 'sop' ); ?></strong> <?php echo esc_html( $company_vat ); ?></p>
+                </div>
+                <div class="sop-rates-dates-column">
+                    <h3><?php esc_html_e( 'Seller', 'sop' ); ?></h3>
+                    <p><strong><?php esc_html_e( 'Company:', 'sop' ); ?></strong> <?php echo esc_html( $pi_company_name ); ?></p>
+                    <p><strong><?php esc_html_e( 'Address:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $pi_company_address ) ); ?></p>
+                    <p><strong><?php esc_html_e( 'Contact:', 'sop' ); ?></strong> <?php echo esc_html( $pi_contact_name ); ?></p>
+                    <p><strong><?php esc_html_e( 'Telephone:', 'sop' ); ?></strong> <?php echo esc_html( $pi_company_phone ); ?></p>
+                    <p><strong><?php esc_html_e( 'Email:', 'sop' ); ?></strong> <?php echo esc_html( $pi_company_email ); ?></p>
+                    <p><strong><?php esc_html_e( 'Bank details:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $pi_bank_details ) ); ?></p>
+                </div>
+            </div>
+
+            <div class="sop-rates-dates-terms">
+                <h3><?php esc_html_e( 'Payment terms', 'sop' ); ?></h3>
+                <p><?php echo nl2br( esc_html( $pi_payment_terms ) ); ?></p>
+            </div>
+        </div>
+    </div>
+
     <style>
         .sop-preorder-wrap {
             max-width: 100%;
@@ -1426,6 +1538,58 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-table tr.sop-preorder-sku-hit {
             background-color: #fff8d7;
             transition: background-color 0.4s ease;
+        }
+
+        /* Rates & Dates modal */
+        .sop-rates-dates-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            display: none;
+        }
+
+        .sop-rates-dates-modal {
+            position: relative;
+            max-width: 1000px;
+            width: 100%;
+            background: #fff;
+            padding: 20px 24px;
+            border-radius: 6px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .sop-rates-dates-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+
+        .sop-rates-dates-columns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            margin-top: 12px;
+        }
+
+        .sop-rates-dates-column {
+            flex: 1 1 300px;
+            background: #f9f9f9;
+            border: 1px solid #e2e4e7;
+            border-radius: 4px;
+            padding: 12px 14px;
+        }
+
+        .sop-rates-dates-terms {
+            margin-top: 16px;
         }
 
         .sop-preorder-table th .sop-preorder-header-label--wrap-2 {
@@ -2647,6 +2811,38 @@ function sop_preorder_render_admin_page() {
                 $( '.sop-preorder-sku-icon' ).on( 'click', function( e ) {
                     e.preventDefault();
                     scrollToSku( $skuInput.val() );
+                } );
+            })();
+
+            // ------------------------------------------------------------------
+            // Rates & Dates modal
+            // ------------------------------------------------------------------
+            (function() {
+                var $overlay = $( '#sop-rates-dates-overlay' );
+                var $toggle  = $( '.sop-rates-dates-toggle' );
+                if ( ! $overlay.length || ! $toggle.length ) {
+                    return;
+                }
+
+                var $close = $overlay.find( '.sop-rates-dates-close' );
+
+                function closeModal() {
+                    $overlay.css( 'display', 'none' );
+                }
+
+                $toggle.on( 'click', function() {
+                    $overlay.css( 'display', 'flex' );
+                } );
+
+                $close.on( 'click', function( e ) {
+                    e.preventDefault();
+                    closeModal();
+                } );
+
+                $overlay.on( 'click', function( e ) {
+                    if ( e.target === $overlay.get( 0 ) ) {
+                        closeModal();
+                    }
                 } );
             })();
 

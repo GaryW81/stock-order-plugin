@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.20
+ * File version: 1.0.21
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -20,6 +20,48 @@ if ( ! class_exists( 'sop_DB' ) ) {
 /* -------------------------------------------------------------------------
  * Supplier helpers
  * ---------------------------------------------------------------------- */
+
+/**
+ * Get the stored company profile (buyer) details with defaults.
+ *
+ * @return array
+ */
+if ( ! function_exists( 'sop_get_company_profile' ) ) {
+    function sop_get_company_profile() {
+        $defaults = array(
+            'company_name'       => '',
+            'billing_address'    => '',
+            'shipping_address'   => '',
+            'email'              => '',
+            'phone_landline'     => '',
+            'phone_mobile'       => '',
+            'company_reg_number' => '',
+            'vat_number'         => '',
+        );
+
+        $stored = get_option( 'sop_company_profile' );
+        if ( ! is_array( $stored ) ) {
+            $stored = array();
+        }
+
+        return array_merge( $defaults, array_intersect_key( $stored, $defaults ) );
+    }
+}
+
+/**
+ * Update the stored company profile (buyer) details.
+ *
+ * @param array $data Sanitised profile data.
+ *
+ * @return void
+ */
+if ( ! function_exists( 'sop_update_company_profile' ) ) {
+    function sop_update_company_profile( array $data ) {
+        $defaults = sop_get_company_profile();
+        $filtered = array_merge( $defaults, array_intersect_key( $data, $defaults ) );
+        update_option( 'sop_company_profile', $filtered );
+    }
+}
 
 /**
  * Get the preorder sheet header table name.

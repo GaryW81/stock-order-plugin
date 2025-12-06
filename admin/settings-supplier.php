@@ -2,8 +2,9 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.27
+ * File version: 1.5.28
  * - Adds supplier-level defaults for Pre-Order container settings.
+ * - Adds company profile + supplier PI details for Rates & Dates view.
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -1598,6 +1599,57 @@ class sop_Admin_Settings {
             $settings_array['preorder_default_container_allowance'] = $allowance_val;
         }
 
+        // Supplier PI / Rates & Dates defaults.
+        $pi_company_name   = isset( $_POST['sop_supplier_pi_company_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_pi_company_name'] ) ) : '';
+        $pi_company_address = isset( $_POST['sop_supplier_pi_company_address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['sop_supplier_pi_company_address'] ) ) : '';
+        $pi_company_phone  = isset( $_POST['sop_supplier_pi_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_pi_phone'] ) ) : '';
+        $pi_company_email  = isset( $_POST['sop_supplier_pi_email'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_pi_email'] ) ) : '';
+        $pi_contact_name   = isset( $_POST['sop_supplier_pi_contact_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_pi_contact_name'] ) ) : '';
+        $pi_bank_details   = isset( $_POST['sop_supplier_pi_bank_details'] ) ? sanitize_textarea_field( wp_unslash( $_POST['sop_supplier_pi_bank_details'] ) ) : '';
+        $pi_payment_terms  = isset( $_POST['sop_supplier_pi_payment_terms'] ) ? sanitize_textarea_field( wp_unslash( $_POST['sop_supplier_pi_payment_terms'] ) ) : '';
+
+        if ( '' === $pi_company_name ) {
+            unset( $settings_array['pi_company_name'] );
+        } else {
+            $settings_array['pi_company_name'] = $pi_company_name;
+        }
+
+        if ( '' === $pi_company_address ) {
+            unset( $settings_array['pi_company_address'] );
+        } else {
+            $settings_array['pi_company_address'] = $pi_company_address;
+        }
+
+        if ( '' === $pi_company_phone ) {
+            unset( $settings_array['pi_company_phone'] );
+        } else {
+            $settings_array['pi_company_phone'] = $pi_company_phone;
+        }
+
+        if ( '' === $pi_company_email ) {
+            unset( $settings_array['pi_company_email'] );
+        } else {
+            $settings_array['pi_company_email'] = $pi_company_email;
+        }
+
+        if ( '' === $pi_contact_name ) {
+            unset( $settings_array['pi_contact_name'] );
+        } else {
+            $settings_array['pi_contact_name'] = $pi_contact_name;
+        }
+
+        if ( '' === $pi_bank_details ) {
+            unset( $settings_array['pi_bank_details'] );
+        } else {
+            $settings_array['pi_bank_details'] = $pi_bank_details;
+        }
+
+        if ( '' === $pi_payment_terms ) {
+            unset( $settings_array['pi_payment_terms'] );
+        } else {
+            $settings_array['pi_payment_terms'] = $pi_payment_terms;
+        }
+
         $settings_json = ! empty( $settings_array ) ? wp_json_encode( $settings_array ) : null;
 
         $args = array(
@@ -1634,6 +1686,37 @@ class sop_Admin_Settings {
      * Render the Suppliers tab: list + add/edit form.
      */
     protected function render_suppliers_tab() {
+        // Handle company profile save.
+        if ( ! empty( $_POST['sop_company_profile_action'] ) && 'save' === $_POST['sop_company_profile_action'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+            check_admin_referer( 'sop_company_profile_save', 'sop_company_profile_nonce' );
+
+            $profile_data = array(
+                'company_name'       => isset( $_POST['sop_company_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_company_name'] ) ) : '',
+                'billing_address'    => isset( $_POST['sop_company_billing_address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['sop_company_billing_address'] ) ) : '',
+                'shipping_address'   => isset( $_POST['sop_company_shipping_address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['sop_company_shipping_address'] ) ) : '',
+                'email'              => isset( $_POST['sop_company_email'] ) ? sanitize_email( wp_unslash( $_POST['sop_company_email'] ) ) : '',
+                'phone_landline'     => isset( $_POST['sop_company_phone_landline'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_company_phone_landline'] ) ) : '',
+                'phone_mobile'       => isset( $_POST['sop_company_phone_mobile'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_company_phone_mobile'] ) ) : '',
+                'company_reg_number' => isset( $_POST['sop_company_crn'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_company_crn'] ) ) : '',
+                'vat_number'         => isset( $_POST['sop_company_vat'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_company_vat'] ) ) : '',
+            );
+
+            if ( function_exists( 'sop_update_company_profile' ) ) {
+                sop_update_company_profile( $profile_data );
+                add_settings_error( 'sop_company_profile', 'sop_company_profile_saved', __( 'Company details saved.', 'sop' ), 'updated' );
+            }
+        }
+
+        $company_profile = function_exists( 'sop_get_company_profile' ) ? sop_get_company_profile() : array();
+        $company_name_val = isset( $company_profile['company_name'] ) ? $company_profile['company_name'] : '';
+        $company_billing_val = isset( $company_profile['billing_address'] ) ? $company_profile['billing_address'] : '';
+        $company_shipping_val = isset( $company_profile['shipping_address'] ) ? $company_profile['shipping_address'] : '';
+        $company_email_val = isset( $company_profile['email'] ) ? $company_profile['email'] : '';
+        $company_phone_landline_val = isset( $company_profile['phone_landline'] ) ? $company_profile['phone_landline'] : '';
+        $company_phone_mobile_val = isset( $company_profile['phone_mobile'] ) ? $company_profile['phone_mobile'] : '';
+        $company_crn_val = isset( $company_profile['company_reg_number'] ) ? $company_profile['company_reg_number'] : '';
+        $company_vat_val = isset( $company_profile['vat_number'] ) ? $company_profile['vat_number'] : '';
+
         $editing_id = isset( $_GET['supplier_id'] ) ? (int) $_GET['supplier_id'] : 0;
         $editing    = null;
 
@@ -1647,6 +1730,71 @@ class sop_Admin_Settings {
             esc_html_e( 'Supplier saved.', 'sop' );
             echo '</p></div>';
         }
+
+        settings_errors( 'sop_company_profile' );
+
+        ?>
+        <h2><?php esc_html_e( 'Company details', 'sop' ); ?></h2>
+        <form method="post" action="<?php echo esc_url( add_query_arg( array( 'page' => 'sop_stock_order', 'tab' => 'suppliers' ), admin_url( 'admin.php' ) ) ); ?>">
+            <?php wp_nonce_field( 'sop_company_profile_save', 'sop_company_profile_nonce' ); ?>
+            <input type="hidden" name="sop_company_profile_action" value="save" />
+            <table class="form-table" role="presentation">
+                <tbody>
+                    <tr>
+                        <th scope="row"><label for="sop_company_name"><?php esc_html_e( 'Company name', 'sop' ); ?></label></th>
+                        <td>
+                            <input type="text" id="sop_company_name" name="sop_company_name" class="regular-text" value="<?php echo esc_attr( $company_name_val ); ?>" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="sop_company_billing_address"><?php esc_html_e( 'Billing address', 'sop' ); ?></label></th>
+                        <td>
+                            <textarea id="sop_company_billing_address" name="sop_company_billing_address" rows="3" class="large-text"><?php echo esc_textarea( $company_billing_val ); ?></textarea>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="sop_company_shipping_address"><?php esc_html_e( 'Shipping address', 'sop' ); ?></label></th>
+                        <td>
+                            <textarea id="sop_company_shipping_address" name="sop_company_shipping_address" rows="3" class="large-text"><?php echo esc_textarea( $company_shipping_val ); ?></textarea>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="sop_company_email"><?php esc_html_e( 'Email', 'sop' ); ?></label></th>
+                        <td>
+                            <input type="email" id="sop_company_email" name="sop_company_email" class="regular-text" value="<?php echo esc_attr( $company_email_val ); ?>" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="sop_company_phone_landline"><?php esc_html_e( 'Phone (landline)', 'sop' ); ?></label></th>
+                        <td>
+                            <input type="text" id="sop_company_phone_landline" name="sop_company_phone_landline" class="regular-text" value="<?php echo esc_attr( $company_phone_landline_val ); ?>" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="sop_company_phone_mobile"><?php esc_html_e( 'Phone (mobile)', 'sop' ); ?></label></th>
+                        <td>
+                            <input type="text" id="sop_company_phone_mobile" name="sop_company_phone_mobile" class="regular-text" value="<?php echo esc_attr( $company_phone_mobile_val ); ?>" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="sop_company_crn"><?php esc_html_e( 'Company registration number (CRN)', 'sop' ); ?></label></th>
+                        <td>
+                            <input type="text" id="sop_company_crn" name="sop_company_crn" class="regular-text" value="<?php echo esc_attr( $company_crn_val ); ?>" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="sop_company_vat"><?php esc_html_e( 'VAT number', 'sop' ); ?></label></th>
+                        <td>
+                            <input type="text" id="sop_company_vat" name="sop_company_vat" class="regular-text" value="<?php echo esc_attr( $company_vat_val ); ?>" />
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <?php submit_button( __( 'Save company details', 'sop' ) ); ?>
+        </form>
+
+        <hr />
+        <?php
 
         // Fetch all suppliers for list.
         $suppliers = sop_supplier_get_all();
@@ -1746,6 +1894,13 @@ class sop_Admin_Settings {
             $preorder_container_type_val      = '';
             $preorder_pallet_layer_val        = 0;
             $preorder_container_allowance_val = '';
+            $pi_company_name_val              = '';
+            $pi_company_address_val           = '';
+            $pi_company_phone_val             = '';
+            $pi_company_email_val             = '';
+            $pi_contact_name_val              = '';
+            $pi_bank_details_val              = '';
+            $pi_payment_terms_val             = '';
 
             if ( $editing ) {
                 $editing_id_val    = (int) $editing->id;
@@ -1771,6 +1926,27 @@ class sop_Admin_Settings {
                     } elseif ( $preorder_container_allowance_val > 50 ) {
                         $preorder_container_allowance_val = 50;
                     }
+                }
+                if ( is_array( $settings_arr ) && array_key_exists( 'pi_company_name', $settings_arr ) ) {
+                    $pi_company_name_val = (string) $settings_arr['pi_company_name'];
+                }
+                if ( is_array( $settings_arr ) && array_key_exists( 'pi_company_address', $settings_arr ) ) {
+                    $pi_company_address_val = (string) $settings_arr['pi_company_address'];
+                }
+                if ( is_array( $settings_arr ) && array_key_exists( 'pi_company_phone', $settings_arr ) ) {
+                    $pi_company_phone_val = (string) $settings_arr['pi_company_phone'];
+                }
+                if ( is_array( $settings_arr ) && array_key_exists( 'pi_company_email', $settings_arr ) ) {
+                    $pi_company_email_val = (string) $settings_arr['pi_company_email'];
+                }
+                if ( is_array( $settings_arr ) && array_key_exists( 'pi_contact_name', $settings_arr ) ) {
+                    $pi_contact_name_val = (string) $settings_arr['pi_contact_name'];
+                }
+                if ( is_array( $settings_arr ) && array_key_exists( 'pi_bank_details', $settings_arr ) ) {
+                    $pi_bank_details_val = (string) $settings_arr['pi_bank_details'];
+                }
+                if ( is_array( $settings_arr ) && array_key_exists( 'pi_payment_terms', $settings_arr ) ) {
+                    $pi_payment_terms_val = (string) $settings_arr['pi_payment_terms'];
                 }
             }
             ?>
@@ -1930,6 +2106,117 @@ class sop_Admin_Settings {
                                        class="small-text" />
                                 <p class="description">
                                     <?php esc_html_e( 'Allowance for container planning on new Pre-Order sheets (e.g. 5 = 5% spare, -5 = slight overfill). Leave blank to use the plugin default (5%).', 'sop' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row" colspan="2">
+                                <h4><?php esc_html_e( 'Proforma / Rates & Dates details', 'sop' ); ?></h4>
+                            </th>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_pi_company_name">
+                                    <?php esc_html_e( 'PI company name', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       id="sop_supplier_pi_company_name"
+                                       name="sop_supplier_pi_company_name"
+                                       class="regular-text"
+                                       value="<?php echo esc_attr( $pi_company_name_val ); ?>" />
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_pi_company_address">
+                                    <?php esc_html_e( 'PI address', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <textarea id="sop_supplier_pi_company_address"
+                                          name="sop_supplier_pi_company_address"
+                                          rows="3"
+                                          class="large-text"><?php echo esc_textarea( $pi_company_address_val ); ?></textarea>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_pi_contact_name">
+                                    <?php esc_html_e( 'PI contact name', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       id="sop_supplier_pi_contact_name"
+                                       name="sop_supplier_pi_contact_name"
+                                       class="regular-text"
+                                       value="<?php echo esc_attr( $pi_contact_name_val ); ?>" />
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_pi_phone">
+                                    <?php esc_html_e( 'PI telephone', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       id="sop_supplier_pi_phone"
+                                       name="sop_supplier_pi_phone"
+                                       class="regular-text"
+                                       value="<?php echo esc_attr( $pi_company_phone_val ); ?>" />
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_pi_email">
+                                    <?php esc_html_e( 'PI email', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="text"
+                                       id="sop_supplier_pi_email"
+                                       name="sop_supplier_pi_email"
+                                       class="regular-text"
+                                       value="<?php echo esc_attr( $pi_company_email_val ); ?>" />
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_pi_bank_details">
+                                    <?php esc_html_e( 'Bank details', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <textarea id="sop_supplier_pi_bank_details"
+                                          name="sop_supplier_pi_bank_details"
+                                          rows="3"
+                                          class="large-text"><?php echo esc_textarea( $pi_bank_details_val ); ?></textarea>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_pi_payment_terms">
+                                    <?php esc_html_e( 'Payment terms / notes', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <textarea id="sop_supplier_pi_payment_terms"
+                                          name="sop_supplier_pi_payment_terms"
+                                          rows="4"
+                                          class="large-text"><?php echo esc_textarea( $pi_payment_terms_val ); ?></textarea>
+                                <p class="description">
+                                    <?php esc_html_e( 'Use this for Rates & Dates notes such as payment terms, FOB/EXW, deposit schedules, RMB locks, etc.', 'sop' ); ?>
                                 </p>
                             </td>
                         </tr>
