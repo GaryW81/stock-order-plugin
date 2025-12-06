@@ -2464,15 +2464,66 @@ class sop_Admin_Settings {
                     </tbody>
                 </table>
 
-                <?php
-                if ( $editing ) {
-                    submit_button( __( 'Update supplier', 'sop' ) );
-                } else {
-                    submit_button( __( 'Add supplier', 'sop' ) );
-                }
-                ?>
-            </form>
-        </div>
+        <?php
+        if ( $editing ) {
+            submit_button( __( 'Update supplier', 'sop' ) );
+        } else {
+            submit_button( __( 'Add supplier', 'sop' ) );
+        }
+        ?>
+    </form>
+</div>
+
+<style type="text/css">
+    #sop-supplier-holiday-periods th,
+    #sop-supplier-holiday-periods td {
+        padding: 8px 10px;
+    }
+    #sop-supplier-holiday-periods .column-actions {
+        width: 40px;
+        text-align: center;
+    }
+</style>
+
+<script type="text/javascript">
+jQuery(function($) {
+    var $holidayTable = $('#sop-supplier-holiday-periods');
+    var $tbody        = $holidayTable.find('tbody');
+
+    if (! $holidayTable.length || ! $tbody.length) {
+        return;
+    }
+
+    // Add extra dates row.
+    $('.sop-supplier-holiday-add').on('click', function(e) {
+        e.preventDefault();
+
+        var $rows = $tbody.find('tr.sop-supplier-holiday-row');
+        var $last = $rows.last();
+        var $clone = $last.clone();
+
+        $clone.find('input[type="number"]').val('');
+        $clone.find('select').val('0');
+
+        $tbody.append($clone);
+    });
+
+    // Remove row (delegated so it works on new rows too).
+    $tbody.on('click', '.sop-supplier-holiday-remove', function(e) {
+        e.preventDefault();
+
+        var $rows = $tbody.find('tr.sop-supplier-holiday-row');
+
+        if ($rows.length > 1) {
+            $(this).closest('tr.sop-supplier-holiday-row').remove();
+        } else {
+            // If we only have one row, just clear it instead of removing.
+            $rows.find('input[type="number"]').val('');
+            $rows.find('select').val('0');
+        }
+    });
+});
+</script>
         <?php
     }
 }

@@ -1,8 +1,9 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.70 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.81 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
+ * - Fix shipping time unit handling for PO date suggestions.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -82,10 +83,7 @@ function sop_preorder_render_admin_page() {
     $sop_default_pallet_layer         = 0;
     $sop_default_container_allowance  = 5.0;
     $supplier_settings                = array();
-    $holiday_start_month              = 0;
-    $holiday_start_day                = 0;
-    $holiday_end_month                = 0;
-    $holiday_end_day                  = 0;
+    $holiday_periods                  = array();
     $shipping_days                    = 0;
     $supplier_lead_weeks              = 0;
 
@@ -145,20 +143,65 @@ function sop_preorder_render_admin_page() {
                 if ( array_key_exists( 'pi_payment_terms', $supplier_settings ) ) {
                     $pi_payment_terms = (string) $supplier_settings['pi_payment_terms'];
                 }
-                if ( isset( $supplier_settings['holiday_start_month'] ) ) {
-                    $holiday_start_month = (int) $supplier_settings['holiday_start_month'];
+                if ( isset( $supplier_settings['holiday_periods'] ) && is_array( $supplier_settings['holiday_periods'] ) ) {
+                    foreach ( $supplier_settings['holiday_periods'] as $period ) {
+                        $sd = isset( $period['start_day'] ) ? (int) $period['start_day'] : 0;
+                        $sm = isset( $period['start_month'] ) ? (int) $period['start_month'] : 0;
+                        $ed = isset( $period['end_day'] ) ? (int) $period['end_day'] : 0;
+                        $em = isset( $period['end_month'] ) ? (int) $period['end_month'] : 0;
+
+                        if ( $sd >= 1 && $sd <= 31 && $sm >= 1 && $sm <= 12 && $ed >= 1 && $ed <= 31 && $em >= 1 && $em <= 12 ) {
+                            $holiday_periods[] = array(
+                                'start_day'   => $sd,
+                                'start_month' => $sm,
+                                'end_day'     => $ed,
+                                'end_month'   => $em,
+                            );
+                        }
+                    }
+                } else {
+                    $legacy_sd = isset( $supplier_settings['holiday_start_day'] ) ? (int) $supplier_settings['holiday_start_day'] : 0;
+                    $legacy_sm = isset( $supplier_settings['holiday_start_month'] ) ? (int) $supplier_settings['holiday_start_month'] : 0;
+                    $legacy_ed = isset( $supplier_settings['holiday_end_day'] ) ? (int) $supplier_settings['holiday_end_day'] : 0;
+                    $legacy_em = isset( $supplier_settings['holiday_end_month'] ) ? (int) $supplier_settings['holiday_end_month'] : 0;
+
+                    if ( $legacy_sd && $legacy_sm && $legacy_ed && $legacy_em ) {
+                        $holiday_periods[] = array(
+                            'start_day'   => $legacy_sd,
+                            'start_month' => $legacy_sm,
+                            'end_day'     => $legacy_ed,
+                            'end_month'   => $legacy_em,
+                        );
+                    }
                 }
-                if ( isset( $supplier_settings['holiday_start_day'] ) ) {
-                    $holiday_start_day = (int) $supplier_settings['holiday_start_day'];
-                }
-                if ( isset( $supplier_settings['holiday_end_month'] ) ) {
-                    $holiday_end_month = (int) $supplier_settings['holiday_end_month'];
-                }
-                if ( isset( $supplier_settings['holiday_end_day'] ) ) {
-                    $holiday_end_day = (int) $supplier_settings['holiday_end_day'];
-                }
+
+                // Effective shipping days, preferring stored shipping_days.
+                $shipping_days = 0;
+
+                // First use explicit shipping_days if present.
                 if ( isset( $supplier_settings['shipping_days'] ) ) {
                     $shipping_days = (int) $supplier_settings['shipping_days'];
+                }
+
+                // If shipping_days is not set or zero, derive it from shipping_value/unit.
+                if ( $shipping_days <= 0 ) {
+                    $shipping_value = isset( $supplier_settings['shipping_value'] ) ? (int) $supplier_settings['shipping_value'] : 0;
+                    $shipping_unit  = isset( $supplier_settings['shipping_unit'] ) ? (string) $supplier_settings['shipping_unit'] : 'days';
+
+                    if ( $shipping_value < 0 ) {
+                        $shipping_value = 0;
+                    }
+                    if ( ! in_array( $shipping_unit, array( 'days', 'weeks' ), true ) ) {
+                        $shipping_unit = 'days';
+                    }
+
+                    if ( $shipping_value > 0 ) {
+                        $shipping_days = ( 'weeks' === $shipping_unit ) ? ( $shipping_value * 7 ) : $shipping_value;
+                    }
+                }
+
+                if ( $shipping_days < 0 ) {
+                    $shipping_days = 0;
                 }
             }
         }
@@ -191,25 +234,91 @@ function sop_preorder_render_admin_page() {
                 if ( array_key_exists( 'pi_payment_terms', $supplier_settings ) ) {
                     $pi_payment_terms = (string) $supplier_settings['pi_payment_terms'];
                 }
-                if ( isset( $supplier_settings['holiday_start_month'] ) ) {
-                    $holiday_start_month = (int) $supplier_settings['holiday_start_month'];
+                if ( isset( $supplier_settings['holiday_periods'] ) && is_array( $supplier_settings['holiday_periods'] ) ) {
+                    foreach ( $supplier_settings['holiday_periods'] as $period ) {
+                        $sd = isset( $period['start_day'] ) ? (int) $period['start_day'] : 0;
+                        $sm = isset( $period['start_month'] ) ? (int) $period['start_month'] : 0;
+                        $ed = isset( $period['end_day'] ) ? (int) $period['end_day'] : 0;
+                        $em = isset( $period['end_month'] ) ? (int) $period['end_month'] : 0;
+
+                        if ( $sd >= 1 && $sd <= 31 && $sm >= 1 && $sm <= 12 && $ed >= 1 && $ed <= 31 && $em >= 1 && $em <= 12 ) {
+                            $holiday_periods[] = array(
+                                'start_day'   => $sd,
+                                'start_month' => $sm,
+                                'end_day'     => $ed,
+                                'end_month'   => $em,
+                            );
+                        }
+                    }
+                } else {
+                    $legacy_sd = isset( $supplier_settings['holiday_start_day'] ) ? (int) $supplier_settings['holiday_start_day'] : 0;
+                    $legacy_sm = isset( $supplier_settings['holiday_start_month'] ) ? (int) $supplier_settings['holiday_start_month'] : 0;
+                    $legacy_ed = isset( $supplier_settings['holiday_end_day'] ) ? (int) $supplier_settings['holiday_end_day'] : 0;
+                    $legacy_em = isset( $supplier_settings['holiday_end_month'] ) ? (int) $supplier_settings['holiday_end_month'] : 0;
+
+                    if ( $legacy_sd && $legacy_sm && $legacy_ed && $legacy_em ) {
+                        $holiday_periods[] = array(
+                            'start_day'   => $legacy_sd,
+                            'start_month' => $legacy_sm,
+                            'end_day'     => $legacy_ed,
+                            'end_month'   => $legacy_em,
+                        );
+                    }
                 }
-                if ( isset( $supplier_settings['holiday_start_day'] ) ) {
-                    $holiday_start_day = (int) $supplier_settings['holiday_start_day'];
-                }
-                if ( isset( $supplier_settings['holiday_end_month'] ) ) {
-                    $holiday_end_month = (int) $supplier_settings['holiday_end_month'];
-                }
-                if ( isset( $supplier_settings['holiday_end_day'] ) ) {
-                    $holiday_end_day = (int) $supplier_settings['holiday_end_day'];
-                }
+
+                // Effective shipping days, preferring stored shipping_days.
+                $shipping_days = 0;
+
+                // First use explicit shipping_days if present.
                 if ( isset( $supplier_settings['shipping_days'] ) ) {
                     $shipping_days = (int) $supplier_settings['shipping_days'];
+                }
+
+                // If shipping_days is not set or zero, derive it from shipping_value/unit.
+                if ( $shipping_days <= 0 ) {
+                    $shipping_value = isset( $supplier_settings['shipping_value'] ) ? (int) $supplier_settings['shipping_value'] : 0;
+                    $shipping_unit  = isset( $supplier_settings['shipping_unit'] ) ? (string) $supplier_settings['shipping_unit'] : 'days';
+
+                    if ( $shipping_value < 0 ) {
+                        $shipping_value = 0;
+                    }
+                    if ( ! in_array( $shipping_unit, array( 'days', 'weeks' ), true ) ) {
+                        $shipping_unit = 'days';
+                    }
+
+                    if ( $shipping_value > 0 ) {
+                        $shipping_days = ( 'weeks' === $shipping_unit ) ? ( $shipping_value * 7 ) : $shipping_value;
+                    }
+                }
+
+                if ( $shipping_days < 0 ) {
+                    $shipping_days = 0;
                 }
             }
         }
         if ( $supplier_obj && isset( $supplier_obj->lead_time_weeks ) ) {
             $supplier_lead_weeks = (int) $supplier_obj->lead_time_weeks;
+        }
+    }
+
+    // Flatten holiday periods for JS (month-day pairs).
+    $holiday_periods_md = array();
+    foreach ( $holiday_periods as $period ) {
+        if (
+            isset( $period['start_month'], $period['start_day'], $period['end_month'], $period['end_day'] )
+            && $period['start_month'] >= 1
+            && $period['start_month'] <= 12
+            && $period['start_day'] >= 1
+            && $period['start_day'] <= 31
+            && $period['end_month'] >= 1
+            && $period['end_month'] <= 12
+            && $period['end_day'] >= 1
+            && $period['end_day'] <= 31
+        ) {
+            $holiday_periods_md[] = array(
+                'start' => sprintf( '%02d-%02d', (int) $period['start_month'], (int) $period['start_day'] ),
+                'end'   => sprintf( '%02d-%02d', (int) $period['end_month'], (int) $period['end_day'] ),
+            );
         }
     }
 
@@ -1469,8 +1578,7 @@ function sop_preorder_render_admin_page() {
                         <input type="hidden" id="sop-po-rmb-per-usd" value="<?php echo esc_attr( $po_rmb_per_usd ); ?>" />
                         <input type="hidden" id="sop-po-lead-weeks" value="<?php echo esc_attr( $supplier_lead_weeks ); ?>" />
                         <input type="hidden" id="sop-po-shipping-days" value="<?php echo esc_attr( $shipping_days ); ?>" />
-                        <input type="hidden" id="sop-po-supplier-holiday-start-md" value="<?php echo esc_attr( ( $holiday_start_month && $holiday_start_day ) ? sprintf( '%02d-%02d', $holiday_start_month, $holiday_start_day ) : '' ); ?>" />
-                        <input type="hidden" id="sop-po-supplier-holiday-end-md" value="<?php echo esc_attr( ( $holiday_end_month && $holiday_end_day ) ? sprintf( '%02d-%02d', $holiday_end_month, $holiday_end_day ) : '' ); ?>" />
+                        <input type="hidden" id="sop-po-supplier-holiday-periods" value="<?php echo esc_attr( wp_json_encode( $holiday_periods_md ) ); ?>" />
                     </div>
 
                     <div class="sop-rates-dates-terms">
@@ -3359,8 +3467,18 @@ function sop_preorder_render_admin_page() {
                     supplierShippingDays = 30;
                 }
 
-                var supplierHolidayStartMd = $( '#sop-po-supplier-holiday-start-md' ).val() || '';
-                var supplierHolidayEndMd   = $( '#sop-po-supplier-holiday-end-md' ).val() || '';
+                var holidayPeriodsMd = [];
+                try {
+                    var rawMd = $( '#sop-po-supplier-holiday-periods' ).val();
+                    if ( rawMd ) {
+                        var decoded = JSON.parse( rawMd );
+                        if ( Array.isArray( decoded ) ) {
+                            holidayPeriodsMd = decoded;
+                        }
+                    }
+                } catch ( e ) {
+                    holidayPeriodsMd = [];
+                }
 
                 function sopAddDaysToDate( ymd, days ) {
                     if ( ! ymd ) {
@@ -3455,36 +3573,67 @@ function sop_preorder_render_admin_page() {
                         return;
                     }
 
+                    // Holiday overrides for this PO.
                     var holidayStartYmd = $holidayStart.val();
                     var holidayEndYmd   = $holidayEnd.val();
 
-                    if ( ! holidayStartYmd && supplierHolidayStartMd ) {
-                        holidayStartYmd = sopBuildHolidayYmdFromMd( orderYmd, supplierHolidayStartMd );
-                        if ( holidayStartYmd ) {
-                            $holidayStart.val( holidayStartYmd );
+                    // Prefill PO holiday fields from supplier periods if blank.
+                    if ( ! holidayStartYmd && holidayPeriodsMd.length ) {
+                        var first = holidayPeriodsMd[0];
+                        if ( first && first.start ) {
+                            holidayStartYmd = sopBuildHolidayYmdFromMd( orderYmd, first.start );
+                            if ( holidayStartYmd ) {
+                                $holidayStart.val( holidayStartYmd );
+                            }
                         }
                     }
-                    if ( ! holidayEndYmd && supplierHolidayEndMd ) {
-                        var endCandidate = sopBuildHolidayYmdFromMd( orderYmd, supplierHolidayEndMd );
-                        if ( endCandidate ) {
-                            if ( holidayStartYmd ) {
+                    if ( ! holidayEndYmd && holidayPeriodsMd.length ) {
+                        var firstEndMd = holidayPeriodsMd[0].end || '';
+                        if ( firstEndMd ) {
+                            var tmpEnd = sopBuildHolidayYmdFromMd( orderYmd, firstEndMd );
+                            if ( tmpEnd && holidayStartYmd ) {
                                 var startDate = new Date( holidayStartYmd );
-                                var endDate   = new Date( endCandidate );
+                                var endDate   = new Date( tmpEnd );
                                 if ( endDate < startDate ) {
-                                    var parts = endCandidate.split( '-' );
+                                    var parts = tmpEnd.split( '-' );
                                     var ny = startDate.getFullYear() + 1;
-                                    endCandidate = ny + '-' + parts[1] + '-' + parts[2];
+                                    tmpEnd = ny + '-' + parts[1] + '-' + parts[2];
                                 }
                             }
-                            holidayEndYmd = endCandidate;
+                            holidayEndYmd = tmpEnd;
                             $holidayEnd.val( holidayEndYmd );
                         }
                     }
 
                     var baseArrivalYmd = sopAddDaysToDate( orderYmd, baseLeadDays );
-                    var holidayDays = sopCountHolidayDays( orderYmd, baseArrivalYmd, holidayStartYmd, holidayEndYmd );
+                    var totalHolidayDays = 0;
 
-                    var totalLeadDays = baseLeadDays + holidayDays;
+                    if ( holidayPeriodsMd.length ) {
+                        for ( var i = 0; i < holidayPeriodsMd.length; i++ ) {
+                            var hp = holidayPeriodsMd[ i ];
+                            if ( ! hp || ! hp.start || ! hp.end ) {
+                                continue;
+                            }
+                            var hsYmd = sopBuildHolidayYmdFromMd( orderYmd, hp.start );
+                            var heYmd = sopBuildHolidayYmdFromMd( orderYmd, hp.end );
+                            if ( hsYmd && heYmd ) {
+                                var hsDate = new Date( hsYmd );
+                                var heDate = new Date( heYmd );
+                                if ( heDate < hsDate ) {
+                                    var partsEnd = heYmd.split( '-' );
+                                    var ny2 = hsDate.getFullYear() + 1;
+                                    heYmd = ny2 + '-' + partsEnd[1] + '-' + partsEnd[2];
+                                }
+                                totalHolidayDays += sopCountHolidayDays( orderYmd, baseArrivalYmd, hsYmd, heYmd );
+                            }
+                        }
+                    }
+
+                    if ( totalHolidayDays < 0 ) {
+                        totalHolidayDays = 0;
+                    }
+
+                    var totalLeadDays = baseLeadDays + totalHolidayDays;
                     var etaYmd        = sopAddDaysToDate( orderYmd, totalLeadDays );
                     $arrivalDate.val( etaYmd );
 
