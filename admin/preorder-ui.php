@@ -69,6 +69,7 @@ function sop_preorder_render_admin_page() {
     if ( 'RMB' === $supplier_currency && $selected_supplier_id > 0 && function_exists( 'sop_get_rmb_to_usd_rate_for_supplier' ) ) {
         $rmb_to_usd_rate = sop_get_rmb_to_usd_rate_for_supplier( $selected_supplier_id );
     }
+    $po_rmb_per_usd = ( $rmb_to_usd_rate > 0 ) ? $rmb_to_usd_rate : 1.0;
 
     // Company profile (buyer) details.
     $sop_company_profile   = function_exists( 'sop_get_company_profile' ) ? sop_get_company_profile() : array();
@@ -586,6 +587,10 @@ function sop_preorder_render_admin_page() {
     $po_arrival_date = '';
     $po_deposit_rmb  = 0.0;
     $po_deposit_usd  = 0.0;
+    $po_deposit_fx_rate   = 0.0;
+    $po_deposit_fx_locked = 0;
+    $po_balance_fx_rate   = 0.0;
+    $po_balance_usd       = 0.0;
     $po_extras       = array();
     $po_holiday_start = '';
     $po_holiday_end   = '';
@@ -665,15 +670,6 @@ function sop_preorder_render_admin_page() {
     if ( $po_balance_fx_rate > 0 ) {
         $po_balance_usd = $po_balance_rmb / $po_balance_fx_rate;
     }
-
-    $po_rmb_per_usd = 1.0;
-    if ( $rmb_to_usd_rate > 0 ) {
-        $po_rmb_per_usd = $rmb_to_usd_rate;
-    }
-    $po_deposit_fx_rate   = 0.0;
-    $po_deposit_fx_locked = false;
-    $po_balance_fx_rate   = 0.0;
-    $po_balance_usd       = 0.0;
     $sheet_order_number_label = $order_number_value ? $order_number_value : $current_sheet_id;
     ?>
     <div id="sop-preorder-wrapper"
