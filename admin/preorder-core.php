@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.13
- * - Add Purchase Order header fields (dates, deposits, PO extras) for saved sheets with FX data.
+ * File version: 11.14
+ * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -362,6 +362,8 @@ function sop_handle_save_preorder_sheet() {
     if ( $po_balance_usd < 0 ) {
         $po_balance_usd = 0.0;
     }
+    $po_holiday_start = isset( $_POST['sop_po_holiday_start'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_holiday_start'] ) ) : '';
+    $po_holiday_end   = isset( $_POST['sop_po_holiday_end'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_holiday_end'] ) ) : '';
 
     if ( $po_deposit_rmb < 0 ) {
         $po_deposit_rmb = 0.0;
@@ -434,6 +436,18 @@ function sop_handle_save_preorder_sheet() {
         $header_notes_owner_data['balance_usd'] = $po_balance_usd;
     } else {
         unset( $header_notes_owner_data['balance_usd'] );
+    }
+
+    if ( '' !== $po_holiday_start ) {
+        $header_notes_owner_data['po_holiday_start'] = $po_holiday_start;
+    } else {
+        unset( $header_notes_owner_data['po_holiday_start'] );
+    }
+
+    if ( '' !== $po_holiday_end ) {
+        $header_notes_owner_data['po_holiday_end'] = $po_holiday_end;
+    } else {
+        unset( $header_notes_owner_data['po_holiday_end'] );
     }
 
     $header_notes_owner = '';

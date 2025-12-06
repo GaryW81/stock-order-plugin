@@ -1,8 +1,8 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.60 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.70 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
- * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX).
+ * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -82,6 +82,12 @@ function sop_preorder_render_admin_page() {
     $sop_default_pallet_layer         = 0;
     $sop_default_container_allowance  = 5.0;
     $supplier_settings                = array();
+    $holiday_start_month              = 0;
+    $holiday_start_day                = 0;
+    $holiday_end_month                = 0;
+    $holiday_end_day                  = 0;
+    $shipping_days                    = 0;
+    $supplier_lead_weeks              = 0;
 
     // Supplier PI / Rates & Dates values.
     $pi_company_name    = '';
@@ -139,7 +145,25 @@ function sop_preorder_render_admin_page() {
                 if ( array_key_exists( 'pi_payment_terms', $supplier_settings ) ) {
                     $pi_payment_terms = (string) $supplier_settings['pi_payment_terms'];
                 }
+                if ( isset( $supplier_settings['holiday_start_month'] ) ) {
+                    $holiday_start_month = (int) $supplier_settings['holiday_start_month'];
+                }
+                if ( isset( $supplier_settings['holiday_start_day'] ) ) {
+                    $holiday_start_day = (int) $supplier_settings['holiday_start_day'];
+                }
+                if ( isset( $supplier_settings['holiday_end_month'] ) ) {
+                    $holiday_end_month = (int) $supplier_settings['holiday_end_month'];
+                }
+                if ( isset( $supplier_settings['holiday_end_day'] ) ) {
+                    $holiday_end_day = (int) $supplier_settings['holiday_end_day'];
+                }
+                if ( isset( $supplier_settings['shipping_days'] ) ) {
+                    $shipping_days = (int) $supplier_settings['shipping_days'];
+                }
             }
+        }
+        if ( $supplier_obj && isset( $supplier_obj->lead_time_weeks ) ) {
+            $supplier_lead_weeks = (int) $supplier_obj->lead_time_weeks;
         }
     } elseif ( $selected_supplier_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
         $supplier_obj = sop_supplier_get_by_id( (int) $selected_supplier_id );
@@ -167,7 +191,25 @@ function sop_preorder_render_admin_page() {
                 if ( array_key_exists( 'pi_payment_terms', $supplier_settings ) ) {
                     $pi_payment_terms = (string) $supplier_settings['pi_payment_terms'];
                 }
+                if ( isset( $supplier_settings['holiday_start_month'] ) ) {
+                    $holiday_start_month = (int) $supplier_settings['holiday_start_month'];
+                }
+                if ( isset( $supplier_settings['holiday_start_day'] ) ) {
+                    $holiday_start_day = (int) $supplier_settings['holiday_start_day'];
+                }
+                if ( isset( $supplier_settings['holiday_end_month'] ) ) {
+                    $holiday_end_month = (int) $supplier_settings['holiday_end_month'];
+                }
+                if ( isset( $supplier_settings['holiday_end_day'] ) ) {
+                    $holiday_end_day = (int) $supplier_settings['holiday_end_day'];
+                }
+                if ( isset( $supplier_settings['shipping_days'] ) ) {
+                    $shipping_days = (int) $supplier_settings['shipping_days'];
+                }
             }
+        }
+        if ( $supplier_obj && isset( $supplier_obj->lead_time_weeks ) ) {
+            $supplier_lead_weeks = (int) $supplier_obj->lead_time_weeks;
         }
     }
 
@@ -433,6 +475,8 @@ function sop_preorder_render_admin_page() {
     $po_deposit_rmb  = 0.0;
     $po_deposit_usd  = 0.0;
     $po_extras       = array();
+    $po_holiday_start = '';
+    $po_holiday_end   = '';
 
     $header_notes_owner = '';
     if ( $current_sheet_id > 0 && $current_sheet ) {
@@ -470,6 +514,12 @@ function sop_preorder_render_admin_page() {
                 }
                 if ( isset( $decoded['balance_usd'] ) ) {
                     $po_balance_usd = (float) $decoded['balance_usd'];
+                }
+                if ( isset( $decoded['po_holiday_start'] ) ) {
+                    $po_holiday_start = (string) $decoded['po_holiday_start'];
+                }
+                if ( isset( $decoded['po_holiday_end'] ) ) {
+                    $po_holiday_end = (string) $decoded['po_holiday_end'];
                 }
             }
         }
@@ -1239,14 +1289,26 @@ function sop_preorder_render_admin_page() {
                                 <label><?php esc_html_e( 'Purchase order #', 'sop' ); ?></label>
                                 <span><?php echo esc_html( $sheet_order_number_label ); ?></span>
                             </div>
-                            <div class="sop-po-field">
-                                <label><?php esc_html_e( 'Order date', 'sop' ); ?></label>
-                                <input type="date" name="sop_po_order_date" value="<?php echo esc_attr( $po_order_date ); ?>"<?php echo $po_disabled_attr; ?> />
+                        <div class="sop-po-field">
+                            <label><?php esc_html_e( 'Order date', 'sop' ); ?></label>
+                            <input type="date" name="sop_po_order_date" value="<?php echo esc_attr( $po_order_date ); ?>"<?php echo $po_disabled_attr; ?> />
+                        </div>
+                        <div class="sop-po-field">
+                            <label><?php esc_html_e( 'Holiday period', 'sop' ); ?></label>
+                            <div class="sop-po-holiday-range">
+                                <input type="date"
+                                       name="sop_po_holiday_start"
+                                       value="<?php echo esc_attr( $po_holiday_start ); ?>"<?php echo $po_disabled_attr; ?> />
+                                <span class="sop-po-holiday-separator">–</span>
+                                <input type="date"
+                                       name="sop_po_holiday_end"
+                                       value="<?php echo esc_attr( $po_holiday_end ); ?>"<?php echo $po_disabled_attr; ?> />
                             </div>
-                            <div class="sop-po-field">
-                                <label><?php esc_html_e( 'Container load date', 'sop' ); ?></label>
-                                <input type="date" name="sop_po_load_date" value="<?php echo esc_attr( $po_load_date ); ?>"<?php echo $po_disabled_attr; ?> />
-                            </div>
+                        </div>
+                        <div class="sop-po-field">
+                            <label><?php esc_html_e( 'Container load date', 'sop' ); ?></label>
+                            <input type="date" name="sop_po_load_date" value="<?php echo esc_attr( $po_load_date ); ?>"<?php echo $po_disabled_attr; ?> />
+                        </div>
                             <div class="sop-po-field">
                                 <label><?php esc_html_e( 'ETA UK / delivery date', 'sop' ); ?></label>
                                 <input type="date" name="sop_po_arrival_date" value="<?php echo esc_attr( $po_arrival_date ); ?>"<?php echo $po_disabled_attr; ?> />
@@ -1405,6 +1467,10 @@ function sop_preorder_render_admin_page() {
                         </div>
 
                         <input type="hidden" id="sop-po-rmb-per-usd" value="<?php echo esc_attr( $po_rmb_per_usd ); ?>" />
+                        <input type="hidden" id="sop-po-lead-weeks" value="<?php echo esc_attr( $supplier_lead_weeks ); ?>" />
+                        <input type="hidden" id="sop-po-shipping-days" value="<?php echo esc_attr( $shipping_days ); ?>" />
+                        <input type="hidden" id="sop-po-supplier-holiday-start-md" value="<?php echo esc_attr( ( $holiday_start_month && $holiday_start_day ) ? sprintf( '%02d-%02d', $holiday_start_month, $holiday_start_day ) : '' ); ?>" />
+                        <input type="hidden" id="sop-po-supplier-holiday-end-md" value="<?php echo esc_attr( ( $holiday_end_month && $holiday_end_day ) ? sprintf( '%02d-%02d', $holiday_end_month, $holiday_end_day ) : '' ); ?>" />
                     </div>
 
                     <div class="sop-rates-dates-terms">
@@ -1913,6 +1979,20 @@ function sop_preorder_render_admin_page() {
             gap: 12px;
             margin-top: 10px;
             margin-bottom: 10px;
+        }
+
+        .sop-po-holiday-range {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .sop-po-holiday-range input[type="date"] {
+            max-width: 150px;
+        }
+
+        .sop-po-holiday-separator {
+            padding: 0 2px;
         }
 
         .sop-preorder-table th .sop-preorder-header-label--wrap-2 {
@@ -3264,12 +3344,23 @@ function sop_preorder_render_admin_page() {
             })();
 
             // ------------------------------------------------------------------
-            // PO dates auto-suggest (load/arrival based on order date)
+            // PO dates auto-suggest (load/arrival based on order date + holidays + shipping)
             // ------------------------------------------------------------------
             (function() {
-                var $orderDate   = $( 'input[name=\"sop_po_order_date\"]' );
-                var $loadDate    = $( 'input[name=\"sop_po_load_date\"]' );
-                var $arrivalDate = $( 'input[name=\"sop_po_arrival_date\"]' );
+                var $orderDate    = $( 'input[name=\"sop_po_order_date\"]' );
+                var $loadDate     = $( 'input[name=\"sop_po_load_date\"]' );
+                var $arrivalDate  = $( 'input[name=\"sop_po_arrival_date\"]' );
+                var $holidayStart = $( 'input[name=\"sop_po_holiday_start\"]' );
+                var $holidayEnd   = $( 'input[name=\"sop_po_holiday_end\"]' );
+
+                var leadWeeks = parseInt( $( '#sop-po-lead-weeks' ).val(), 10 ) || 0;
+                var supplierShippingDays = parseInt( $( '#sop-po-shipping-days' ).val(), 10 );
+                if ( isNaN( supplierShippingDays ) || supplierShippingDays < 0 ) {
+                    supplierShippingDays = 30;
+                }
+
+                var supplierHolidayStartMd = $( '#sop-po-supplier-holiday-start-md' ).val() || '';
+                var supplierHolidayEndMd   = $( '#sop-po-supplier-holiday-end-md' ).val() || '';
 
                 function sopAddDaysToDate( ymd, days ) {
                     if ( ! ymd ) {
@@ -3283,7 +3374,7 @@ function sop_preorder_render_admin_page() {
                     var month = parseInt( parts[1], 10 ) - 1;
                     var day   = parseInt( parts[2], 10 );
                     var d     = new Date( year, month, day );
-                    if ( ! d || isNaN( d.getTime() ) ) {
+                    if ( isNaN( d.getTime() ) ) {
                         return ymd;
                     }
                     d.setDate( d.getDate() + days );
@@ -3295,18 +3386,117 @@ function sop_preorder_render_admin_page() {
                     return yyyy + '-' + m + '-' + dd;
                 }
 
-                if ( $orderDate.length && $loadDate.length && $arrivalDate.length ) {
-                    $orderDate.on( 'change', function() {
-                        var orderYmd = $orderDate.val();
-                        if ( orderYmd ) {
-                            if ( ! $loadDate.val() ) {
-                                $loadDate.val( sopAddDaysToDate( orderYmd, 60 ) );
-                            }
-                            if ( ! $arrivalDate.val() ) {
-                                $arrivalDate.val( sopAddDaysToDate( orderYmd, 90 ) );
-                            }
+                function sopBuildHolidayYmdFromMd( orderYmd, md ) {
+                    if ( ! orderYmd || ! md ) {
+                        return '';
+                    }
+                    var parts = orderYmd.split( '-' );
+                    if ( parts.length !== 3 ) {
+                        return '';
+                    }
+                    var year  = parseInt( parts[0], 10 );
+                    var mdParts = md.split( '-' );
+                    if ( mdParts.length !== 2 ) {
+                        return '';
+                    }
+                    var month = parseInt( mdParts[0], 10 );
+                    var day   = parseInt( mdParts[1], 10 );
+                    if ( ! month || ! day ) {
+                        return '';
+                    }
+                    var m  = ( month < 10 ? '0' + month : '' + month );
+                    var dd = ( day < 10 ? '0' + day : '' + day );
+                    return year + '-' + m + '-' + dd;
+                }
+
+                function sopCountHolidayDays( orderYmd, baseArrivalYmd, holidayStartYmd, holidayEndYmd ) {
+                    if ( ! orderYmd || ! baseArrivalYmd || ! holidayStartYmd || ! holidayEndYmd ) {
+                        return 0;
+                    }
+
+                    var start = new Date( orderYmd );
+                    var end   = new Date( baseArrivalYmd );
+                    var hStart = new Date( holidayStartYmd );
+                    var hEnd   = new Date( holidayEndYmd );
+
+                    if ( isNaN( start.getTime() ) || isNaN( end.getTime() ) || isNaN( hStart.getTime() ) || isNaN( hEnd.getTime() ) ) {
+                        return 0;
+                    }
+
+                    if ( hEnd < hStart ) {
+                        return 0;
+                    }
+
+                    var dayMs = 24 * 60 * 60 * 1000;
+                    var overlapStart = start > hStart ? start : hStart;
+                    var overlapEnd   = end < hEnd ? end : hEnd;
+
+                    if ( overlapEnd <= overlapStart ) {
+                        return 0;
+                    }
+
+                    var diffMs = overlapEnd.getTime() - overlapStart.getTime();
+                    var days   = Math.round( diffMs / dayMs );
+                    return days > 0 ? days : 0;
+                }
+
+                function sopRecalcPoDatesFromOrder() {
+                    if ( ! $orderDate.length || ! $loadDate.length || ! $arrivalDate.length ) {
+                        return;
+                    }
+
+                    var orderYmd = $orderDate.val();
+                    if ( ! orderYmd ) {
+                        return;
+                    }
+
+                    var baseLeadDays = leadWeeks * 7;
+                    if ( ! baseLeadDays ) {
+                        return;
+                    }
+
+                    var holidayStartYmd = $holidayStart.val();
+                    var holidayEndYmd   = $holidayEnd.val();
+
+                    if ( ! holidayStartYmd && supplierHolidayStartMd ) {
+                        holidayStartYmd = sopBuildHolidayYmdFromMd( orderYmd, supplierHolidayStartMd );
+                        if ( holidayStartYmd ) {
+                            $holidayStart.val( holidayStartYmd );
                         }
-                    } );
+                    }
+                    if ( ! holidayEndYmd && supplierHolidayEndMd ) {
+                        var endCandidate = sopBuildHolidayYmdFromMd( orderYmd, supplierHolidayEndMd );
+                        if ( endCandidate ) {
+                            if ( holidayStartYmd ) {
+                                var startDate = new Date( holidayStartYmd );
+                                var endDate   = new Date( endCandidate );
+                                if ( endDate < startDate ) {
+                                    var parts = endCandidate.split( '-' );
+                                    var ny = startDate.getFullYear() + 1;
+                                    endCandidate = ny + '-' + parts[1] + '-' + parts[2];
+                                }
+                            }
+                            holidayEndYmd = endCandidate;
+                            $holidayEnd.val( holidayEndYmd );
+                        }
+                    }
+
+                    var baseArrivalYmd = sopAddDaysToDate( orderYmd, baseLeadDays );
+                    var holidayDays = sopCountHolidayDays( orderYmd, baseArrivalYmd, holidayStartYmd, holidayEndYmd );
+
+                    var totalLeadDays = baseLeadDays + holidayDays;
+                    var etaYmd        = sopAddDaysToDate( orderYmd, totalLeadDays );
+                    $arrivalDate.val( etaYmd );
+
+                    var shippingDays = supplierShippingDays;
+                    if ( shippingDays > 0 ) {
+                        var loadYmd = sopAddDaysToDate( etaYmd, -shippingDays );
+                        $loadDate.val( loadYmd );
+                    }
+                }
+
+                if ( $orderDate.length ) {
+                    $orderDate.on( 'change', sopRecalcPoDatesFromOrder );
                 }
             })();
 

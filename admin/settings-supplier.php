@@ -2091,6 +2091,87 @@ class sop_Admin_Settings {
 
                         <tr>
                             <th scope="row">
+                                <label for="sop_supplier_holiday_start_month">
+                                    <?php esc_html_e( 'Holiday period', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <fieldset>
+                                    <legend class="screen-reader-text"><?php esc_html_e( 'Holiday period', 'sop' ); ?></legend>
+                                    <span>
+                                        <?php esc_html_e( 'From', 'sop' ); ?>
+                                        <input type="number"
+                                               id="sop_supplier_holiday_start_day"
+                                               name="sop_supplier_holiday_start_day"
+                                               class="small-text"
+                                               min="1"
+                                               max="31"
+                                               value="<?php echo esc_attr( $holiday_start_day_val ); ?>" />
+                                        <select id="sop_supplier_holiday_start_month" name="sop_supplier_holiday_start_month">
+                                            <option value="0"><?php esc_html_e( 'Month', 'sop' ); ?></option>
+                                            <?php
+                                            for ( $m = 1; $m <= 12; $m++ ) {
+                                                printf(
+                                                    '<option value="%1$d"%2$s>%3$s</option>',
+                                                    $m,
+                                                    selected( $holiday_start_month_val, $m, false ),
+                                                    esc_html( date_i18n( 'F', mktime( 0, 0, 0, $m, 1 ) ) )
+                                                );
+                                            }
+                                            ?>
+                                        </select>
+                                    </span>
+                                    <span style="margin-left:10px;">
+                                        <?php esc_html_e( 'to', 'sop' ); ?>
+                                        <input type="number"
+                                               id="sop_supplier_holiday_end_day"
+                                               name="sop_supplier_holiday_end_day"
+                                               class="small-text"
+                                               min="1"
+                                               max="31"
+                                               value="<?php echo esc_attr( $holiday_end_day_val ); ?>" />
+                                        <select id="sop_supplier_holiday_end_month" name="sop_supplier_holiday_end_month">
+                                            <option value="0"><?php esc_html_e( 'Month', 'sop' ); ?></option>
+                                            <?php
+                                            for ( $m = 1; $m <= 12; $m++ ) {
+                                                printf(
+                                                    '<option value="%1$d"%2$s>%3$s</option>',
+                                                    $m,
+                                                    selected( $holiday_end_month_val, $m, false ),
+                                                    esc_html( date_i18n( 'F', mktime( 0, 0, 0, $m, 1 ) ) )
+                                                );
+                                            }
+                                            ?>
+                                        </select>
+                                    </span>
+                                    <p class="description">
+                                        <?php esc_html_e( 'Recurring holiday period (no year). Used when calculating Purchase Order dates if the lead window overlaps.', 'sop' ); ?>
+                                    </p>
+                                </fieldset>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_shipping_days">
+                                    <?php esc_html_e( 'Shipping time (days)', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="number"
+                                       id="sop_supplier_shipping_days"
+                                       name="sop_supplier_shipping_days"
+                                       class="small-text"
+                                       min="0"
+                                       value="<?php echo esc_attr( $shipping_days_val ); ?>" />
+                                <p class="description">
+                                    <?php esc_html_e( 'Typical time from container load to goods arriving in the UK. Used to suggest container load and ETA dates on Purchase Orders.', 'sop' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
                                 <label for="sop_supplier_buffer_months_override">
                                     <?php esc_html_e( 'Stock buffer override (months)', 'sop' ); ?>
                                 </label>
