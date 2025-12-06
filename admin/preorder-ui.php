@@ -1,9 +1,9 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.81 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.82 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
- * - Fix shipping time unit handling for PO date suggestions.
+ * - Fix shipping time unit handling for PO date suggestions and adjust PO date calc so holidays only extend handling days.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -3568,86 +3568,99 @@ function sop_preorder_render_admin_page() {
                         return;
                     }
 
-                    var baseLeadDays = leadWeeks * 7;
-                    if ( ! baseLeadDays ) {
-                        return;
-                    }
+                var baseLeadDays = leadWeeks * 7;
+                if ( ! baseLeadDays ) {
+                    return;
+                }
 
-                    // Holiday overrides for this PO.
-                    var holidayStartYmd = $holidayStart.val();
-                    var holidayEndYmd   = $holidayEnd.val();
+                // Handling portion excludes shipping.
+                var handlingDays = baseLeadDays - supplierShippingDays;
+                if ( handlingDays < 0 ) {
+                    handlingDays = 0;
+                }
 
-                    // Prefill PO holiday fields from supplier periods if blank.
-                    if ( ! holidayStartYmd && holidayPeriodsMd.length ) {
-                        var first = holidayPeriodsMd[0];
-                        if ( first && first.start ) {
-                            holidayStartYmd = sopBuildHolidayYmdFromMd( orderYmd, first.start );
-                            if ( holidayStartYmd ) {
-                                $holidayStart.val( holidayStartYmd );
-                            }
+                // Holiday overrides for this PO.
+                var holidayStartYmd = $holidayStart.val();
+                var holidayEndYmd   = $holidayEnd.val();
+
+                // Prefill PO holiday fields from supplier periods if blank.
+                if ( ! holidayStartYmd && holidayPeriodsMd.length ) {
+                    var first = holidayPeriodsMd[0];
+                    if ( first && first.start ) {
+                        holidayStartYmd = sopBuildHolidayYmdFromMd( orderYmd, first.start );
+                        if ( holidayStartYmd ) {
+                            $holidayStart.val( holidayStartYmd );
                         }
                     }
-                    if ( ! holidayEndYmd && holidayPeriodsMd.length ) {
-                        var firstEndMd = holidayPeriodsMd[0].end || '';
-                        if ( firstEndMd ) {
-                            var tmpEnd = sopBuildHolidayYmdFromMd( orderYmd, firstEndMd );
-                            if ( tmpEnd && holidayStartYmd ) {
-                                var startDate = new Date( holidayStartYmd );
-                                var endDate   = new Date( tmpEnd );
-                                if ( endDate < startDate ) {
-                                    var parts = tmpEnd.split( '-' );
-                                    var ny = startDate.getFullYear() + 1;
-                                    tmpEnd = ny + '-' + parts[1] + '-' + parts[2];
-                                }
-                            }
-                            holidayEndYmd = tmpEnd;
-                            $holidayEnd.val( holidayEndYmd );
-                        }
-                    }
-
-                    var baseArrivalYmd = sopAddDaysToDate( orderYmd, baseLeadDays );
-                    var totalHolidayDays = 0;
-
-                    if ( holidayPeriodsMd.length ) {
-                        for ( var i = 0; i < holidayPeriodsMd.length; i++ ) {
-                            var hp = holidayPeriodsMd[ i ];
-                            if ( ! hp || ! hp.start || ! hp.end ) {
-                                continue;
-                            }
-                            var hsYmd = sopBuildHolidayYmdFromMd( orderYmd, hp.start );
-                            var heYmd = sopBuildHolidayYmdFromMd( orderYmd, hp.end );
-                            if ( hsYmd && heYmd ) {
-                                var hsDate = new Date( hsYmd );
-                                var heDate = new Date( heYmd );
-                                if ( heDate < hsDate ) {
-                                    var partsEnd = heYmd.split( '-' );
-                                    var ny2 = hsDate.getFullYear() + 1;
-                                    heYmd = ny2 + '-' + partsEnd[1] + '-' + partsEnd[2];
-                                }
-                                totalHolidayDays += sopCountHolidayDays( orderYmd, baseArrivalYmd, hsYmd, heYmd );
+                }
+                if ( ! holidayEndYmd && holidayPeriodsMd.length ) {
+                    var firstEndMd = holidayPeriodsMd[0].end || '';
+                    if ( firstEndMd ) {
+                        var tmpEnd = sopBuildHolidayYmdFromMd( orderYmd, firstEndMd );
+                        if ( tmpEnd && holidayStartYmd ) {
+                            var startDate = new Date( holidayStartYmd );
+                            var endDate   = new Date( tmpEnd );
+                            if ( endDate < startDate ) {
+                                var parts = tmpEnd.split( '-' );
+                                var ny    = startDate.getFullYear() + 1;
+                                tmpEnd    = ny + '-' + parts[1] + '-' + parts[2];
                             }
                         }
-                    }
-
-                    if ( totalHolidayDays < 0 ) {
-                        totalHolidayDays = 0;
-                    }
-
-                    var totalLeadDays = baseLeadDays + totalHolidayDays;
-                    var etaYmd        = sopAddDaysToDate( orderYmd, totalLeadDays );
-                    $arrivalDate.val( etaYmd );
-
-                    var shippingDays = supplierShippingDays;
-                    if ( shippingDays > 0 ) {
-                        var loadYmd = sopAddDaysToDate( etaYmd, -shippingDays );
-                        $loadDate.val( loadYmd );
+                        holidayEndYmd = tmpEnd;
+                        $holidayEnd.val( holidayEndYmd );
                     }
                 }
 
-                if ( $orderDate.length ) {
-                    $orderDate.on( 'change', sopRecalcPoDatesFromOrder );
+                // Handling window end (ignoring holidays).
+                var handlingEndYmd = sopAddDaysToDate( orderYmd, handlingDays );
+
+                var totalHolidayDays = 0;
+
+                // Holidays only extend handling, not shipping.
+                if ( holidayPeriodsMd.length && handlingDays > 0 ) {
+                    for ( var i = 0; i < holidayPeriodsMd.length; i++ ) {
+                        var hp = holidayPeriodsMd[ i ];
+                        if ( ! hp || ! hp.start || ! hp.end ) {
+                            continue;
+                        }
+                        var hsYmd = sopBuildHolidayYmdFromMd( orderYmd, hp.start );
+                        var heYmd = sopBuildHolidayYmdFromMd( orderYmd, hp.end );
+                        if ( hsYmd && heYmd ) {
+                            var hsDate = new Date( hsYmd );
+                            var heDate = new Date( heYmd );
+                            if ( heDate < hsDate ) {
+                                var partsEnd = heYmd.split( '-' );
+                                var ny2      = hsDate.getFullYear() + 1;
+                                heYmd        = ny2 + '-' + partsEnd[1] + '-' + partsEnd[2];
+                            }
+                            totalHolidayDays += sopCountHolidayDays( orderYmd, handlingEndYmd, hsYmd, heYmd );
+                        }
+                    }
                 }
-            })();
+
+                if ( totalHolidayDays < 0 ) {
+                    totalHolidayDays = 0;
+                }
+
+                var adjustedHandlingDays = handlingDays + totalHolidayDays;
+
+                // Container load date: order date + adjusted handling.
+                var loadYmd = sopAddDaysToDate( orderYmd, adjustedHandlingDays );
+                $loadDate.val( loadYmd );
+
+                // ETA: load date + shipping days (holidays do not affect shipping).
+                var etaYmd = sopAddDaysToDate( loadYmd, supplierShippingDays );
+                $arrivalDate.val( etaYmd );
+            }
+
+            if ( $orderDate.length ) {
+                $orderDate.on( 'change', sopRecalcPoDatesFromOrder );
+                // Recalculate on load if an order date already exists.
+                if ( $orderDate.val() ) {
+                    sopRecalcPoDatesFromOrder();
+                }
+            }
+        })();
 
             recalcTotals();
         });
