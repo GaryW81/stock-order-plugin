@@ -1,12 +1,12 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.87 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.88 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
  * - Fix shipping time unit handling for PO date suggestions and adjust PO date calc so holidays only extend handling days.
  * - PO details grid layout and explicit PO field wiring for saved sheets.
  * - PO details row: PO# then single-line dates.
- * - V11.87 - PO details row spacing tweak and explicit PO modal load/save wiring.
+ * - V11.88 - PO details row spacing tweak, explicit PO modal load/save wiring, and PO debug line for saved sheets.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -728,6 +728,37 @@ function sop_preorder_render_admin_page() {
                     </p>
                 </div>
             <?php endif; ?>
+            <?php
+            // PO debug: show raw saved header values for this sheet.
+            $dbg_order_date   = isset( $current_sheet['order_date_owner'] ) ? $current_sheet['order_date_owner'] : '';
+            $dbg_load_date    = isset( $current_sheet['container_load_date_owner'] ) ? $current_sheet['container_load_date_owner'] : '';
+            $dbg_arrival_date = isset( $current_sheet['arrival_date_owner'] ) ? $current_sheet['arrival_date_owner'] : '';
+            $dbg_deposit_rmb  = isset( $current_sheet['deposit_fx_owner'] ) ? $current_sheet['deposit_fx_owner'] : '';
+            $dbg_balance_usd  = isset( $current_sheet['balance_fx_owner'] ) ? $current_sheet['balance_fx_owner'] : '';
+            $dbg_notes_raw    = isset( $current_sheet['header_notes_owner'] ) ? $current_sheet['header_notes_owner'] : '';
+
+            $dbg_notes = $dbg_notes_raw;
+            if ( is_string( $dbg_notes ) && strlen( $dbg_notes ) > 140 ) {
+                $dbg_notes = substr( $dbg_notes, 0, 140 ) . '…';
+            }
+            ?>
+            <div class="notice notice-info inline sop-po-debug-line">
+                <p>
+                    <strong><?php esc_html_e( 'PO debug:', 'sop' ); ?></strong>
+                    <?php
+                    printf(
+                        /* translators: 1: order date, 2: container load date, 3: arrival date, 4: deposit RMB, 5: balance USD, 6: header notes */
+                        esc_html__( 'order=%1$s | load=%2$s | arrival=%3$s | deposit_rmb=%4$s | balance_usd=%5$s | notes=%6$s', 'sop' ),
+                        esc_html( (string) $dbg_order_date ),
+                        esc_html( (string) $dbg_load_date ),
+                        esc_html( (string) $dbg_arrival_date ),
+                        esc_html( (string) $dbg_deposit_rmb ),
+                        esc_html( (string) $dbg_balance_usd ),
+                        esc_html( (string) $dbg_notes )
+                    );
+                    ?>
+                </p>
+            </div>
         <?php endif; ?>
 
         <div class="sop-preorder-header">
@@ -2110,6 +2141,11 @@ function sop_preorder_render_admin_page() {
 
         .sop-po-holiday-separator {
             padding: 0 2px;
+        }
+
+        .sop-po-debug-line {
+            margin-top: 8px;
+            margin-bottom: 12px;
         }
 
         .sop-po-items-table .column-amount {
