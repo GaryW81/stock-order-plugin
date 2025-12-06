@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.11
+ * File version: 11.12
+ * - Add Purchase Order header fields (dates, deposits, PO extras) for saved sheets.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -338,13 +339,61 @@ function sop_handle_save_preorder_sheet() {
         ? sanitize_text_field( wp_unslash( $_POST['sop_header_order_number'] ) )
         : '';
 
-    // For now, default order date to today (UTC); this can be made editable later.
-    $order_date = gmdate( 'Y-m-d' );
+    // Purchase Order header fields.
+    $po_order_date   = isset( $_POST['sop_po_order_date'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_order_date'] ) ) : '';
+    $po_load_date    = isset( $_POST['sop_po_load_date'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_load_date'] ) ) : '';
+    $po_arrival_date = isset( $_POST['sop_po_arrival_date'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_arrival_date'] ) ) : '';
+
+    $po_deposit_rmb = isset( $_POST['sop_po_deposit_rmb'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_rmb'] ) : 0.0;
+    $po_deposit_usd = isset( $_POST['sop_po_deposit_usd'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_usd'] ) : 0.0;
+
+    if ( $po_deposit_rmb < 0 ) {
+        $po_deposit_rmb = 0.0;
+    }
+    if ( $po_deposit_usd < 0 ) {
+        $po_deposit_usd = 0.0;
+    }
+
+    $extra_labels  = isset( $_POST['sop_po_extra_label'] ) && is_array( $_POST['sop_po_extra_label'] ) ? array_map( 'wp_unslash', $_POST['sop_po_extra_label'] ) : array();
+    $extra_amounts = isset( $_POST['sop_po_extra_amount'] ) && is_array( $_POST['sop_po_extra_amount'] ) ? array_map( 'wp_unslash', $_POST['sop_po_extra_amount'] ) : array();
+
+    $po_extras = array();
+    $max_count = max( count( $extra_labels ), count( $extra_amounts ) );
+    for ( $i = 0; $i < $max_count; $i++ ) {
+        $label_raw  = isset( $extra_labels[ $i ] ) ? $extra_labels[ $i ] : '';
+        $amount_raw = isset( $extra_amounts[ $i ] ) ? $extra_amounts[ $i ] : '';
+
+        $label  = trim( sanitize_text_field( $label_raw ) );
+        $amount = (float) $amount_raw;
+
+        if ( '' === $label && 0.0 === $amount ) {
+            continue;
+        }
+
+        $po_extras[] = array(
+            'label'      => $label,
+            'amount_rmb' => $amount,
+        );
+    }
+
+    $header_notes_owner = '';
+    if ( ! empty( $po_extras ) ) {
+        $header_notes_owner = wp_json_encode(
+            array(
+                'po_extras' => $po_extras,
+            )
+        );
+    }
 
     $header_data = array(
         'supplier_id'      => $supplier_id,
         'status'           => 'draft',
-        'order_date_owner' => $order_date,
+        'order_date_owner' => ( '' !== $po_order_date ) ? $po_order_date : null,
+        'container_load_date_owner' => ( '' !== $po_load_date ) ? $po_load_date : null,
+        'arrival_date_owner' => ( '' !== $po_arrival_date ) ? $po_arrival_date : null,
+        'deposit_fx_owner' => $po_deposit_rmb,
+        'balance_fx_owner' => $po_deposit_usd,
+        'header_notes_owner' => $header_notes_owner,
         'container_type'   => $container_type,
         'created_at'       => $now_utc,
         'updated_at'       => $now_utc,

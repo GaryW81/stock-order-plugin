@@ -424,11 +424,76 @@ function sop_preorder_render_admin_page() {
     }
     $sop_sheet_is_locked = ( $current_sheet_id > 0 && 'locked' === $current_status );
     $sop_disabled_attr   = $sop_sheet_is_locked ? ' disabled="disabled"' : '';
+    $po_disabled_attr    = $sop_disabled_attr;
+
+    // Purchase Order (Saved Sheet) values.
+    $po_order_date   = '';
+    $po_load_date    = '';
+    $po_arrival_date = '';
+    $po_deposit_rmb  = 0.0;
+    $po_deposit_usd  = 0.0;
+    $po_extras       = array();
+
+    $header_notes_owner = '';
+    if ( $current_sheet_id > 0 && $current_sheet ) {
+        $po_order_date   = isset( $current_sheet['order_date_owner'] ) ? (string) $current_sheet['order_date_owner'] : '';
+        $po_load_date    = isset( $current_sheet['container_load_date_owner'] ) ? (string) $current_sheet['container_load_date_owner'] : '';
+        $po_arrival_date = isset( $current_sheet['arrival_date_owner'] ) ? (string) $current_sheet['arrival_date_owner'] : '';
+        $po_deposit_rmb  = isset( $current_sheet['deposit_fx_owner'] ) ? (float) $current_sheet['deposit_fx_owner'] : 0.0;
+        $po_deposit_usd  = isset( $current_sheet['balance_fx_owner'] ) ? (float) $current_sheet['balance_fx_owner'] : 0.0;
+        $header_notes_owner = isset( $current_sheet['header_notes_owner'] ) ? $current_sheet['header_notes_owner'] : '';
+
+        if ( is_string( $header_notes_owner ) && '' !== trim( $header_notes_owner ) ) {
+            $decoded = json_decode( $header_notes_owner, true );
+            if ( is_array( $decoded ) && isset( $decoded['po_extras'] ) && is_array( $decoded['po_extras'] ) ) {
+                foreach ( $decoded['po_extras'] as $extra_row ) {
+                    if ( ! is_array( $extra_row ) ) {
+                        continue;
+                    }
+                    $label  = isset( $extra_row['label'] ) ? (string) $extra_row['label'] : '';
+                    $amount = isset( $extra_row['amount_rmb'] ) ? (float) $extra_row['amount_rmb'] : 0.0;
+                    $po_extras[] = array(
+                        'label'      => $label,
+                        'amount_rmb' => $amount,
+                    );
+                }
+            }
+        }
+    }
+
+    $po_base_total_rmb   = isset( $total_cost_supplier ) ? (float) $total_cost_supplier : 0.0;
+    $po_extras_total_rmb = 0.0;
+    foreach ( $po_extras as $extra_row ) {
+        if ( isset( $extra_row['amount_rmb'] ) ) {
+            $po_extras_total_rmb += (float) $extra_row['amount_rmb'];
+        }
+    }
+    $po_total_rmb = $po_base_total_rmb + $po_extras_total_rmb;
+    if ( $po_total_rmb < 0 ) {
+        $po_total_rmb = 0.0;
+    }
+    $po_balance_rmb = $po_total_rmb - $po_deposit_rmb;
+    if ( $po_balance_rmb < 0 ) {
+        $po_balance_rmb = 0.0;
+    }
+
+    $po_rmb_per_usd = 1.0;
+    if ( $rmb_to_usd_rate > 0 ) {
+        $po_rmb_per_usd = $rmb_to_usd_rate;
+    }
     ?>
     <div id="sop-preorder-wrapper"
          class="wrap sop-preorder-wrap"
          data-rmb-to-usd-rate="<?php echo esc_attr( $rmb_to_usd_rate ); ?>">
-        <h1><?php esc_html_e( 'Pre-Order Sheet', 'sop' ); ?></h1>
+        <h1>
+            <?php
+            if ( $current_sheet_id > 0 ) {
+                esc_html_e( 'Purchase Order', 'sop' );
+            } else {
+                esc_html_e( 'Pre-Order Sheet', 'sop' );
+            }
+            ?>
+        </h1>
         <?php
         $sop_saved    = isset( $_GET['sop_saved'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_saved'] ) ) : '';
         $sop_sheet_id = isset( $_GET['sop_sheet_id'] ) ? absint( $_GET['sop_sheet_id'] ) : 0;
@@ -532,7 +597,7 @@ function sop_preorder_render_admin_page() {
                                     <?php esc_html_e( 'Export Excel (.xls)', 'sop' ); ?>
                                 </button>
                                 <button type="button" class="button sop-rates-dates-toggle">
-                                    <?php esc_html_e( 'Rates & Dates', 'sop' ); ?>
+                                    <?php esc_html_e( 'Purchase Order', 'sop' ); ?>
                                 </button>
                             <?php endif; ?>
 
@@ -1106,44 +1171,141 @@ function sop_preorder_render_admin_page() {
                     </button>
                 <?php endif; ?>
             </div>
+
+            <div id="sop-rates-dates-overlay" class="sop-rates-dates-overlay" style="display:none;">
+                <div class="sop-rates-dates-modal">
+                    <button type="button" class="sop-rates-dates-close notice-dismiss" aria-label="<?php esc_attr_e( 'Close Purchase Order', 'sop' ); ?>">
+                        <span class="screen-reader-text"><?php esc_html_e( 'Close', 'sop' ); ?></span>
+                    </button>
+                    <h2><?php esc_html_e( 'Purchase Order', 'sop' ); ?></h2>
+
+                    <div class="sop-rates-dates-columns">
+                        <div class="sop-rates-dates-column">
+                            <h3><?php esc_html_e( 'Buyer', 'sop' ); ?></h3>
+                            <p><strong><?php esc_html_e( 'Company:', 'sop' ); ?></strong> <?php echo esc_html( $company_name ); ?></p>
+                            <p><strong><?php esc_html_e( 'Billing address:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $company_billing ) ); ?></p>
+                            <p><strong><?php esc_html_e( 'Shipping address:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $company_shipping ) ); ?></p>
+                            <p><strong><?php esc_html_e( 'Email:', 'sop' ); ?></strong> <?php echo esc_html( $company_email ); ?></p>
+                            <p><strong><?php esc_html_e( 'Phone (landline):', 'sop' ); ?></strong> <?php echo esc_html( $company_phone_land ); ?></p>
+                            <p><strong><?php esc_html_e( 'Phone (mobile):', 'sop' ); ?></strong> <?php echo esc_html( $company_phone_mob ); ?></p>
+                            <p><strong><?php esc_html_e( 'Company reg no.:', 'sop' ); ?></strong> <?php echo esc_html( $company_crn ); ?></p>
+                            <p><strong><?php esc_html_e( 'VAT no.:', 'sop' ); ?></strong> <?php echo esc_html( $company_vat ); ?></p>
+                        </div>
+                        <div class="sop-rates-dates-column">
+                            <h3><?php esc_html_e( 'Seller', 'sop' ); ?></h3>
+                            <p><strong><?php esc_html_e( 'Company:', 'sop' ); ?></strong> <?php echo esc_html( $pi_company_name ); ?></p>
+                            <p><strong><?php esc_html_e( 'Address:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $pi_company_address ) ); ?></p>
+                            <p><strong><?php esc_html_e( 'Contact:', 'sop' ); ?></strong> <?php echo esc_html( $pi_contact_name ); ?></p>
+                            <p><strong><?php esc_html_e( 'Telephone:', 'sop' ); ?></strong> <?php echo esc_html( $pi_company_phone ); ?></p>
+                            <p><strong><?php esc_html_e( 'Email:', 'sop' ); ?></strong> <?php echo esc_html( $pi_company_email ); ?></p>
+                            <p><strong><?php esc_html_e( 'Bank details:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $pi_bank_details ) ); ?></p>
+                        </div>
+                    </div>
+
+                    <div class="sop-po-summary">
+                        <h3><?php esc_html_e( 'Purchase Order details', 'sop' ); ?></h3>
+                        <table class="form-table">
+                            <tbody>
+                                <tr>
+                                    <th scope="row"><?php esc_html_e( 'Purchase order #', 'sop' ); ?></th>
+                                    <td><?php echo $order_number_value ? esc_html( $order_number_value ) : esc_html( $current_sheet_id ); ?></td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><?php esc_html_e( 'Order date', 'sop' ); ?></th>
+                                    <td>
+                                        <input type="date" name="sop_po_order_date" value="<?php echo esc_attr( $po_order_date ); ?>"<?php echo $po_disabled_attr; ?> />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><?php esc_html_e( 'Container load date', 'sop' ); ?></th>
+                                    <td>
+                                        <input type="date" name="sop_po_load_date" value="<?php echo esc_attr( $po_load_date ); ?>"<?php echo $po_disabled_attr; ?> />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><?php esc_html_e( 'ETA UK / delivery date', 'sop' ); ?></th>
+                                    <td>
+                                        <input type="date" name="sop_po_arrival_date" value="<?php echo esc_attr( $po_arrival_date ); ?>"<?php echo $po_disabled_attr; ?> />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><?php esc_html_e( 'Order total (RMB)', 'sop' ); ?></th>
+                                    <td>
+                                        <span id="sop-po-order-total-rmb"
+                                              data-base-total-rmb="<?php echo esc_attr( $po_base_total_rmb ); ?>"
+                                              data-extras-total-rmb="<?php echo esc_attr( $po_extras_total_rmb ); ?>">
+                                            <?php echo esc_html( number_format_i18n( $po_total_rmb, 2 ) ); ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><?php esc_html_e( 'Deposit (USD)', 'sop' ); ?></th>
+                                    <td>
+                                        <input type="number" step="0.01" name="sop_po_deposit_usd" value="<?php echo esc_attr( $po_deposit_usd ); ?>"<?php echo $po_disabled_attr; ?> />
+                                        <input type="hidden" id="sop-po-rmb-per-usd" value="<?php echo esc_attr( $po_rmb_per_usd ); ?>" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><?php esc_html_e( 'Deposit (RMB)', 'sop' ); ?></th>
+                                    <td>
+                                        <input type="number" step="0.01" id="sop-po-deposit-rmb" name="sop_po_deposit_rmb" value="<?php echo esc_attr( $po_deposit_rmb ); ?>"<?php echo $po_disabled_attr; ?> />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><?php esc_html_e( 'Balance (RMB)', 'sop' ); ?></th>
+                                    <td>
+                                        <span id="sop-po-balance-rmb"><?php echo esc_html( number_format_i18n( $po_balance_rmb, 2 ) ); ?></span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="sop-po-extras">
+                        <h3><?php esc_html_e( 'Additional items / credits', 'sop' ); ?></h3>
+                        <table class="widefat fixed striped sop-po-extras-table" data-locked="<?php echo esc_attr( $sop_sheet_is_locked ? '1' : '0' ); ?>">
+                            <thead>
+                                <tr>
+                                    <th><?php esc_html_e( 'Label', 'sop' ); ?></th>
+                                    <th><?php esc_html_e( 'Amount (RMB)', 'sop' ); ?></th>
+                                    <?php if ( ! $sop_sheet_is_locked ) : ?>
+                                        <th></th>
+                                    <?php endif; ?>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php
+                                $po_extras_rows = ! empty( $po_extras ) ? $po_extras : array( array( 'label' => '', 'amount_rmb' => 0 ) );
+                                foreach ( $po_extras_rows as $extra_row ) :
+                                    $extra_label = isset( $extra_row['label'] ) ? $extra_row['label'] : '';
+                                    $extra_amount = isset( $extra_row['amount_rmb'] ) ? (float) $extra_row['amount_rmb'] : 0.0;
+                                    ?>
+                                    <tr>
+                                        <td>
+                                            <input type="text" name="sop_po_extra_label[]" value="<?php echo esc_attr( $extra_label ); ?>"<?php echo $po_disabled_attr; ?> />
+                                        </td>
+                                        <td>
+                                            <input type="number" step="0.01" class="sop-po-extra-amount" name="sop_po_extra_amount[]" value="<?php echo esc_attr( $extra_amount ); ?>"<?php echo $po_disabled_attr; ?> />
+                                        </td>
+                                        <?php if ( ! $sop_sheet_is_locked ) : ?>
+                                            <td><button type="button" class="button-link sop-po-extra-remove">&times;</button></td>
+                                        <?php endif; ?>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        <?php if ( ! $sop_sheet_is_locked ) : ?>
+                            <p><button type="button" class="button sop-po-add-extra"><?php esc_html_e( 'Add item', 'sop' ); ?></button></p>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="sop-rates-dates-terms">
+                        <h3><?php esc_html_e( 'Payment terms', 'sop' ); ?></h3>
+                        <p><?php echo nl2br( esc_html( $pi_payment_terms ) ); ?></p>
+                    </div>
+                </div>
+            </div>
         </form>
-    </div>
-
-    <div id="sop-rates-dates-overlay" class="sop-rates-dates-overlay" style="display:none;">
-        <div class="sop-rates-dates-modal">
-            <button type="button" class="sop-rates-dates-close notice-dismiss" aria-label="<?php esc_attr_e( 'Close Rates & Dates', 'sop' ); ?>">
-                <span class="screen-reader-text"><?php esc_html_e( 'Close', 'sop' ); ?></span>
-            </button>
-            <h2><?php esc_html_e( 'Rates & Dates', 'sop' ); ?></h2>
-
-            <div class="sop-rates-dates-columns">
-                <div class="sop-rates-dates-column">
-                    <h3><?php esc_html_e( 'Buyer', 'sop' ); ?></h3>
-                    <p><strong><?php esc_html_e( 'Company:', 'sop' ); ?></strong> <?php echo esc_html( $company_name ); ?></p>
-                    <p><strong><?php esc_html_e( 'Billing address:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $company_billing ) ); ?></p>
-                    <p><strong><?php esc_html_e( 'Shipping address:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $company_shipping ) ); ?></p>
-                    <p><strong><?php esc_html_e( 'Email:', 'sop' ); ?></strong> <?php echo esc_html( $company_email ); ?></p>
-                    <p><strong><?php esc_html_e( 'Phone (landline):', 'sop' ); ?></strong> <?php echo esc_html( $company_phone_land ); ?></p>
-                    <p><strong><?php esc_html_e( 'Phone (mobile):', 'sop' ); ?></strong> <?php echo esc_html( $company_phone_mob ); ?></p>
-                    <p><strong><?php esc_html_e( 'Company reg no.:', 'sop' ); ?></strong> <?php echo esc_html( $company_crn ); ?></p>
-                    <p><strong><?php esc_html_e( 'VAT no.:', 'sop' ); ?></strong> <?php echo esc_html( $company_vat ); ?></p>
-                </div>
-                <div class="sop-rates-dates-column">
-                    <h3><?php esc_html_e( 'Seller', 'sop' ); ?></h3>
-                    <p><strong><?php esc_html_e( 'Company:', 'sop' ); ?></strong> <?php echo esc_html( $pi_company_name ); ?></p>
-                    <p><strong><?php esc_html_e( 'Address:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $pi_company_address ) ); ?></p>
-                    <p><strong><?php esc_html_e( 'Contact:', 'sop' ); ?></strong> <?php echo esc_html( $pi_contact_name ); ?></p>
-                    <p><strong><?php esc_html_e( 'Telephone:', 'sop' ); ?></strong> <?php echo esc_html( $pi_company_phone ); ?></p>
-                    <p><strong><?php esc_html_e( 'Email:', 'sop' ); ?></strong> <?php echo esc_html( $pi_company_email ); ?></p>
-                    <p><strong><?php esc_html_e( 'Bank details:', 'sop' ); ?></strong><br /><?php echo nl2br( esc_html( $pi_bank_details ) ); ?></p>
-                </div>
-            </div>
-
-            <div class="sop-rates-dates-terms">
-                <h3><?php esc_html_e( 'Payment terms', 'sop' ); ?></h3>
-                <p><?php echo nl2br( esc_html( $pi_payment_terms ) ); ?></p>
-            </div>
-        </div>
     </div>
 
     <style>
@@ -2826,12 +2988,81 @@ function sop_preorder_render_admin_page() {
 
                 var $close = $overlay.find( '.sop-rates-dates-close' );
 
+                var $poTotalLabel      = $( '#sop-po-order-total-rmb' );
+                var $poBalanceLabel    = $( '#sop-po-balance-rmb' );
+                var $depositUsdInput   = $( 'input[name=\"sop_po_deposit_usd\"]' );
+                var $depositRmbInput   = $( '#sop-po-deposit-rmb' );
+                var $extrasTable       = $( '.sop-po-extras-table' );
+                var $extrasAmountInputs = $extrasTable.find( '.sop-po-extra-amount' );
+                var baseTotalRmb       = parseFloat( $poTotalLabel.data( 'base-total-rmb' ) ) || 0;
+                var extrasTotalRmb     = parseFloat( $poTotalLabel.data( 'extras-total-rmb' ) ) || 0;
+                var rmbPerUsd          = parseFloat( $( '#sop-po-rmb-per-usd' ).val() ) || 1;
+                var isLockedExtras     = $extrasTable.data( 'locked' ) === 1 || $extrasTable.data( 'locked' ) === '1';
+
+                function recalcPoTotals() {
+                    extrasTotalRmb = 0;
+                    $extrasAmountInputs.each( function() {
+                        var v = parseFloat( $( this ).val() );
+                        if ( ! isNaN( v ) ) {
+                            extrasTotalRmb += v;
+                        }
+                    } );
+
+                    var poTotal = baseTotalRmb + extrasTotalRmb;
+                    var depositUsd = parseFloat( $depositUsdInput.val() );
+                    if ( isNaN( depositUsd ) ) {
+                        depositUsd = 0;
+                    }
+
+                    var depositRmbFromUsd = depositUsd * rmbPerUsd;
+                    $depositRmbInput.val( depositRmbFromUsd ? depositRmbFromUsd.toFixed( 2 ) : '' );
+
+                    var depositRmbVal = parseFloat( $depositRmbInput.val() );
+                    if ( isNaN( depositRmbVal ) ) {
+                        depositRmbVal = 0;
+                    }
+
+                    var balance = poTotal - depositRmbVal;
+                    $poTotalLabel.text( poTotal.toFixed( 2 ) );
+                    $poBalanceLabel.text( balance.toFixed( 2 ) );
+                }
+
+                function bindExtras() {
+                    $extrasAmountInputs = $extrasTable.find( '.sop-po-extra-amount' );
+                    $extrasAmountInputs.off( 'input change' ).on( 'input change', recalcPoTotals );
+                }
+
+                if ( ! isLockedExtras ) {
+                    $( '.sop-po-add-extra' ).on( 'click', function() {
+                        var removeCell = '<td><button type=\"button\" class=\"button-link sop-po-extra-remove\">&times;</button></td>';
+                        var rowHtml = '<tr>' +
+                            '<td><input type=\"text\" name=\"sop_po_extra_label[]\" value=\"\" /></td>' +
+                            '<td><input type=\"number\" step=\"0.01\" class=\"sop-po-extra-amount\" name=\"sop_po_extra_amount[]\" value=\"0\" /></td>' +
+                            removeCell +
+                            '</tr>';
+                        $extrasTable.find( 'tbody' ).append( rowHtml );
+                        bindExtras();
+                        recalcPoTotals();
+                    } );
+
+                    $extrasTable.on( 'click', '.sop-po-extra-remove', function( e ) {
+                        e.preventDefault();
+                        $( this ).closest( 'tr' ).remove();
+                        bindExtras();
+                        recalcPoTotals();
+                    } );
+                }
+
+                bindExtras();
+                recalcPoTotals();
+
                 function closeModal() {
                     $overlay.css( 'display', 'none' );
                 }
 
                 $toggle.on( 'click', function() {
                     $overlay.css( 'display', 'flex' );
+                    recalcPoTotals();
                 } );
 
                 $close.on( 'click', function( e ) {
