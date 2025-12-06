@@ -1,12 +1,12 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.86 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.87 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
  * - Fix shipping time unit handling for PO date suggestions and adjust PO date calc so holidays only extend handling days.
  * - PO details grid layout and explicit PO field wiring for saved sheets.
  * - PO details row: PO# then single-line dates.
- * - V11.86 - PO details row spacing tweak.
+ * - V11.87 - PO details row spacing tweak and explicit PO modal load/save wiring.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
