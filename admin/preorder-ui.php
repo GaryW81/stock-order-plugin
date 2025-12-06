@@ -705,12 +705,12 @@ function sop_preorder_render_admin_page() {
         }
         ?>
 
-        <?php if ( $current_sheet_id > 0 && $current_sheet ) : ?>
-            <div class="notice notice-info sop-preorder-sheet-banner">
-                <p>
-                    <?php
-                    printf(
-                        /* translators: 1: sheet ID, 2: order number, 3: version, 4: status, 5: updated date */
+<?php if ( $current_sheet_id > 0 && $current_sheet ) : ?>
+    <div class="notice notice-info sop-preorder-sheet-banner">
+        <p>
+            <?php
+            printf(
+                /* translators: 1: sheet ID, 2: order number, 3: version, 4: status, 5: updated date */
                         esc_html__( 'Editing saved pre-order sheet #%1$d. Order: %2$s. Version: %3$d. Status: %4$s. Last updated: %5$s', 'sop' ),
                         (int) $current_sheet_id,
                         $order_number_value ? esc_html( $order_number_value ) : esc_html__( 'N/A', 'sop' ),
