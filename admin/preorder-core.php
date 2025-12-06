@@ -1,9 +1,10 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.17
+ * File version: 11.18
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
  * - 11.17 - Ensure Purchase Order modal fields are explicitly persisted on save (insert/update).
+ * - 11.18 - Parse PO JSON payload (sop_po_payload) and log last POST for debugging.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -68,20 +69,121 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
         return;
     }
 
-    // Dates.
-    $po_order_date   = isset( $_POST['sop_po_order_date'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_order_date'] ) ) : '';
-    $po_load_date    = isset( $_POST['sop_po_load_date'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_load_date'] ) ) : '';
-    $po_arrival_date = isset( $_POST['sop_po_arrival_date'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_arrival_date'] ) ) : '';
-    $po_holiday_start = isset( $_POST['sop_po_holiday_start'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_holiday_start'] ) ) : '';
-    $po_holiday_end   = isset( $_POST['sop_po_holiday_end'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_holiday_end'] ) ) : '';
+    $payload_raw = isset( $_POST['sop_po_payload'] ) ? wp_unslash( $_POST['sop_po_payload'] ) : '';
+    $payload     = array();
+    if ( '' !== $payload_raw ) {
+        $decoded = json_decode( $payload_raw, true );
+        if ( is_array( $decoded ) ) {
+            $payload = $decoded;
+        }
+    }
 
-    // Numeric values.
-    $po_deposit_rmb = isset( $_POST['sop_po_deposit_rmb'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_rmb'] ) : 0.0;
-    $po_deposit_usd = isset( $_POST['sop_po_deposit_usd'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_usd'] ) : 0.0;
-    $po_deposit_fx_rate = isset( $_POST['sop_po_deposit_fx_rate'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_fx_rate'] ) : 0.0;
-    $po_balance_fx_rate = isset( $_POST['sop_po_balance_fx_rate'] ) ? (float) wp_unslash( $_POST['sop_po_balance_fx_rate'] ) : 0.0;
-    $po_balance_usd     = isset( $_POST['sop_po_balance_usd'] ) ? (float) wp_unslash( $_POST['sop_po_balance_usd'] ) : 0.0;
-    $po_deposit_fx_locked = ! empty( $_POST['sop_po_deposit_fx_locked'] ) ? 1 : 0;
+    $po_order_date        = '';
+    $po_load_date         = '';
+    $po_arrival_date      = '';
+    $po_holiday_start     = '';
+    $po_holiday_end       = '';
+    $po_deposit_rmb       = 0.0;
+    $po_deposit_usd       = 0.0;
+    $po_deposit_fx_rate   = 0.0;
+    $po_deposit_fx_locked = 0;
+    $po_balance_fx_rate   = 0.0;
+    $po_balance_usd       = 0.0;
+    $po_extras            = array();
+
+    // Prefer JSON payload if present.
+    $payload_raw = isset( $_POST['sop_po_payload'] ) ? wp_unslash( $_POST['sop_po_payload'] ) : '';
+    $payload     = array();
+    if ( '' !== $payload_raw ) {
+        $decoded = json_decode( $payload_raw, true );
+        if ( is_array( $decoded ) ) {
+            $payload = $decoded;
+        }
+    }
+
+    if ( ! empty( $payload ) ) {
+        $po_order_date   = isset( $payload['order_date'] ) ? sanitize_text_field( $payload['order_date'] ) : '';
+        $po_load_date    = isset( $payload['load_date'] ) ? sanitize_text_field( $payload['load_date'] ) : '';
+        $po_arrival_date = isset( $payload['arrival_date'] ) ? sanitize_text_field( $payload['arrival_date'] ) : '';
+
+        $po_holiday_start = isset( $payload['holiday_start'] ) ? sanitize_text_field( $payload['holiday_start'] ) : '';
+        $po_holiday_end   = isset( $payload['holiday_end'] ) ? sanitize_text_field( $payload['holiday_end'] ) : '';
+
+        $po_deposit_usd = isset( $payload['deposit_usd'] ) ? (float) $payload['deposit_usd'] : 0.0;
+        $po_deposit_rmb = isset( $payload['deposit_rmb'] ) ? (float) $payload['deposit_rmb'] : 0.0;
+
+        $po_deposit_fx_rate   = isset( $payload['deposit_fx_rate'] ) ? (float) $payload['deposit_fx_rate'] : 0.0;
+        $po_deposit_fx_locked = ! empty( $payload['deposit_fx_locked'] ) ? 1 : 0;
+
+        $po_balance_fx_rate = isset( $payload['balance_fx_rate'] ) ? (float) $payload['balance_fx_rate'] : 0.0;
+        $po_balance_usd     = isset( $payload['balance_usd'] ) ? (float) $payload['balance_usd'] : 0.0;
+
+        if ( ! empty( $payload['extras'] ) && is_array( $payload['extras'] ) ) {
+            foreach ( $payload['extras'] as $extra_row ) {
+                $label  = isset( $extra_row['label'] ) ? sanitize_text_field( $extra_row['label'] ) : '';
+                $amount = isset( $extra_row['amount_rmb'] ) ? (float) $extra_row['amount_rmb'] : 0.0;
+                if ( '' === $label && 0.0 === $amount ) {
+                    continue;
+                }
+                $po_extras[] = array(
+                    'label'      => $label,
+                    'amount_rmb' => $amount,
+                );
+            }
+        }
+    } else {
+        // Fallback to individual fields.
+        $po_order_date   = isset( $_POST['sop_po_order_date'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_order_date'] ) ) : '';
+        $po_load_date    = isset( $_POST['sop_po_load_date'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_load_date'] ) ) : '';
+        $po_arrival_date = isset( $_POST['sop_po_arrival_date'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_arrival_date'] ) ) : '';
+        $po_holiday_start = isset( $_POST['sop_po_holiday_start'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_holiday_start'] ) ) : '';
+        $po_holiday_end   = isset( $_POST['sop_po_holiday_end'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_po_holiday_end'] ) ) : '';
+
+        $po_deposit_rmb = isset( $_POST['sop_po_deposit_rmb'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_rmb'] ) : 0.0;
+        $po_deposit_usd = isset( $_POST['sop_po_deposit_usd'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_usd'] ) : 0.0;
+        $po_deposit_fx_rate = isset( $_POST['sop_po_deposit_fx_rate'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_fx_rate'] ) : 0.0;
+        $po_balance_fx_rate = isset( $_POST['sop_po_balance_fx_rate'] ) ? (float) wp_unslash( $_POST['sop_po_balance_fx_rate'] ) : 0.0;
+        $po_balance_usd     = isset( $_POST['sop_po_balance_usd'] ) ? (float) wp_unslash( $_POST['sop_po_balance_usd'] ) : 0.0;
+        $po_deposit_fx_locked = ! empty( $_POST['sop_po_deposit_fx_locked'] ) ? 1 : 0;
+
+        $labels_raw  = isset( $_POST['sop_po_extra_label'] ) && is_array( $_POST['sop_po_extra_label'] ) ? array_map( 'wp_unslash', (array) $_POST['sop_po_extra_label'] ) : array();
+        $amounts_raw = isset( $_POST['sop_po_extra_amount'] ) && is_array( $_POST['sop_po_extra_amount'] ) ? array_map( 'wp_unslash', (array) $_POST['sop_po_extra_amount'] ) : array();
+
+        $max_extras  = max( count( $labels_raw ), count( $amounts_raw ) );
+        for ( $i = 0; $i < $max_extras; $i++ ) {
+            $label  = isset( $labels_raw[ $i ] ) ? sanitize_text_field( $labels_raw[ $i ] ) : '';
+            $amount = isset( $amounts_raw[ $i ] ) ? (float) $amounts_raw[ $i ] : 0.0;
+
+            if ( '' === $label && 0.0 === $amount ) {
+                continue;
+            }
+
+            $po_extras[] = array(
+                'label'      => $label,
+                'amount_rmb' => $amount,
+            );
+        }
+    }
+
+    if ( $po_deposit_rmb < 0 ) {
+        $po_deposit_rmb = 0.0;
+    }
+    if ( $po_deposit_usd < 0 ) {
+        $po_deposit_usd = 0.0;
+    }
+    if ( $po_deposit_fx_rate < 0 ) {
+        $po_deposit_fx_rate = 0.0;
+    }
+    if ( $po_balance_fx_rate < 0 ) {
+        $po_balance_fx_rate = 0.0;
+    }
+    if ( $po_balance_usd < 0 ) {
+        $po_balance_usd = 0.0;
+    }
+
+    if ( $po_deposit_rmb <= 0 && $po_deposit_usd > 0 && $po_deposit_fx_rate > 0 ) {
+        $po_deposit_rmb = $po_deposit_usd * $po_deposit_fx_rate;
+    }
 
     if ( $po_deposit_rmb < 0 ) {
         $po_deposit_rmb = 0.0;
@@ -124,6 +226,7 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
         'post_balance_usd'     => isset( $_POST['sop_po_balance_usd'] ) ? (string) wp_unslash( $_POST['sop_po_balance_usd'] ) : '',
         'post_holiday_start'   => isset( $_POST['sop_po_holiday_start'] ) ? (string) wp_unslash( $_POST['sop_po_holiday_start'] ) : '',
         'post_holiday_end'     => isset( $_POST['sop_po_holiday_end'] ) ? (string) wp_unslash( $_POST['sop_po_holiday_end'] ) : '',
+        'payload_raw'          => $payload_raw,
         'parsed' => array(
             'po_order_date'   => isset( $po_order_date ) ? $po_order_date : '',
             'po_load_date'    => isset( $po_load_date ) ? $po_load_date : '',

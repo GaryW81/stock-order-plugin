@@ -1,12 +1,12 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.90 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.91 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
  * - Fix shipping time unit handling for PO date suggestions and adjust PO date calc so holidays only extend handling days.
  * - PO details grid layout and explicit PO field wiring for saved sheets.
  * - PO details row: PO# then single-line dates.
- * - V11.90 - PO modal: enable inputs for drafts, save button inside modal, debug line for saved sheets.
+ * - V11.91 - PO modal: enable inputs for drafts, save button inside modal, JSON payload + debug line.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -1056,6 +1056,7 @@ function sop_preorder_render_admin_page() {
                 <input type="hidden" name="sop_supplier_name" value="<?php echo isset( $supplier['name'] ) ? esc_attr( $supplier['name'] ) : ''; ?>" />
                 <input type="hidden" name="sop_container_type" value="<?php echo esc_attr( $container_selection ); ?>" />
                 <input type="hidden" name="sop_allowance_percent" value="<?php echo esc_attr( $allowance ); ?>" />
+                <input type="hidden" name="sop_po_payload" id="sop-po-payload" value="" />
 
                 <div class="sop-preorder-table-wrapper">
                 <table class="wp-list-table widefat fixed striped sop-preorder-table">
@@ -3765,16 +3766,80 @@ function sop_preorder_render_admin_page() {
                 $arrivalDate.val( etaYmd );
             }
 
-            if ( $orderDate.length ) {
-                $orderDate.on( 'change', sopRecalcPoDatesFromOrder );
-                // Recalculate on load if an order date already exists.
-                if ( $orderDate.val() ) {
-                    sopRecalcPoDatesFromOrder();
+                if ( $orderDate.length ) {
+                    $orderDate.on( 'change', sopRecalcPoDatesFromOrder );
+                    // Recalculate on load if an order date already exists.
+                    if ( $orderDate.val() ) {
+                        sopRecalcPoDatesFromOrder();
+                    }
                 }
-            }
-        })();
+            })();
 
             recalcTotals();
+
+            // ------------------------------------------------------------------
+            // PO payload bundling: pack modal fields into JSON before submit
+            // ------------------------------------------------------------------
+            (function() {
+                var $form = $( '#sop-preorder-sheet-form' );
+
+                function sopPoBuildPayload() {
+                    var orderDate    = $( 'input[name=\"sop_po_order_date\"]' ).val() || '';
+                    var loadDate     = $( 'input[name=\"sop_po_load_date\"]' ).val() || '';
+                    var arrivalDate  = $( 'input[name=\"sop_po_arrival_date\"]' ).val() || '';
+                    var holidayStart = $( 'input[name=\"sop_po_holiday_start\"]' ).val() || '';
+                    var holidayEnd   = $( 'input[name=\"sop_po_holiday_end\"]' ).val() || '';
+
+                    var depositUsd   = $( 'input[name=\"sop_po_deposit_usd\"]' ).val() || '';
+                    var depositRmb   = $( 'input[name=\"sop_po_deposit_rmb\"]' ).val() || '';
+                    var depositFx    = $( 'input[name=\"sop_po_deposit_fx_rate\"]' ).val() || '';
+                    var depositLocked = $( 'input[name=\"sop_po_deposit_fx_locked\"]' ).is( ':checked' ) ? 1 : 0;
+
+                    var balanceFx    = $( 'input[name=\"sop_po_balance_fx_rate\"]' ).val() || '';
+                    var balanceUsd   = $( 'input[name=\"sop_po_balance_usd\"]' ).val() || '';
+
+                    var extras = [];
+                    var $extraLabels  = $( 'input[name=\"sop_po_extra_label[]\"]' );
+                    var $extraAmounts = $( 'input[name=\"sop_po_extra_amount[]\"]' );
+                    $extraLabels.each( function( index ) {
+                        var label  = $( this ).val() || '';
+                        var amount = '';
+                        if ( $extraAmounts.length > index ) {
+                            amount = $extraAmounts.eq( index ).val() || '';
+                        }
+
+                        if ( '' !== label || '' !== amount ) {
+                            extras.push( {
+                                label: label,
+                                amount_rmb: amount
+                            } );
+                        }
+                    } );
+
+                    var payload = {
+                        order_date: orderDate,
+                        load_date: loadDate,
+                        arrival_date: arrivalDate,
+                        holiday_start: holidayStart,
+                        holiday_end: holidayEnd,
+                        deposit_usd: depositUsd,
+                        deposit_rmb: depositRmb,
+                        deposit_fx_rate: depositFx,
+                        deposit_fx_locked: depositLocked,
+                        balance_fx_rate: balanceFx,
+                        balance_usd: balanceUsd,
+                        extras: extras
+                    };
+
+                    $( '#sop-po-payload' ).val( JSON.stringify( payload ) );
+                }
+
+                if ( $form.length ) {
+                    $form.on( 'submit', function() {
+                        sopPoBuildPayload();
+                    } );
+                }
+            })();
         });
     </script>
     <?php
