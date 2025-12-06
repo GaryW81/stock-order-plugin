@@ -2,9 +2,10 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.28
+ * File version: 1.5.29
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
+ * - Adds supplier holiday/shipping settings for PO date suggestions.
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -1650,6 +1651,41 @@ class sop_Admin_Settings {
             $settings_array['pi_payment_terms'] = $pi_payment_terms;
         }
 
+        // Supplier holiday + shipping settings.
+        $holiday_start_month_raw = isset( $_POST['sop_supplier_holiday_start_month'] ) ? (int) $_POST['sop_supplier_holiday_start_month'] : 0;
+        $holiday_start_day_raw   = isset( $_POST['sop_supplier_holiday_start_day'] ) ? (int) $_POST['sop_supplier_holiday_start_day'] : 0;
+        $holiday_end_month_raw   = isset( $_POST['sop_supplier_holiday_end_month'] ) ? (int) $_POST['sop_supplier_holiday_end_month'] : 0;
+        $holiday_end_day_raw     = isset( $_POST['sop_supplier_holiday_end_day'] ) ? (int) $_POST['sop_supplier_holiday_end_day'] : 0;
+        $shipping_days_raw       = isset( $_POST['sop_supplier_shipping_days'] ) ? (int) $_POST['sop_supplier_shipping_days'] : 0;
+
+        if ( $holiday_start_month_raw < 1 || $holiday_start_month_raw > 12 ) {
+            $holiday_start_month_raw = 0;
+        }
+        if ( $holiday_end_month_raw < 1 || $holiday_end_month_raw > 12 ) {
+            $holiday_end_month_raw = 0;
+        }
+        if ( $holiday_start_day_raw < 1 || $holiday_start_day_raw > 31 ) {
+            $holiday_start_day_raw = 0;
+        }
+        if ( $holiday_end_day_raw < 1 || $holiday_end_day_raw > 31 ) {
+            $holiday_end_day_raw = 0;
+        }
+
+        if ( $holiday_start_month_raw && $holiday_start_day_raw && $holiday_end_month_raw && $holiday_end_day_raw ) {
+            $settings_array['holiday_start_month'] = $holiday_start_month_raw;
+            $settings_array['holiday_start_day']   = $holiday_start_day_raw;
+            $settings_array['holiday_end_month']   = $holiday_end_month_raw;
+            $settings_array['holiday_end_day']     = $holiday_end_day_raw;
+        } else {
+            unset( $settings_array['holiday_start_month'], $settings_array['holiday_start_day'], $settings_array['holiday_end_month'], $settings_array['holiday_end_day'] );
+        }
+
+        if ( $shipping_days_raw > 0 ) {
+            $settings_array['shipping_days'] = $shipping_days_raw;
+        } else {
+            unset( $settings_array['shipping_days'] );
+        }
+
         $settings_json = ! empty( $settings_array ) ? wp_json_encode( $settings_array ) : null;
 
         $args = array(
@@ -1901,6 +1937,11 @@ class sop_Admin_Settings {
             $pi_contact_name_val              = '';
             $pi_bank_details_val              = '';
             $pi_payment_terms_val             = '';
+            $holiday_start_month_val          = 0;
+            $holiday_start_day_val            = 0;
+            $holiday_end_month_val            = 0;
+            $holiday_end_day_val              = 0;
+            $shipping_days_val                = 0;
 
             if ( $editing ) {
                 $editing_id_val    = (int) $editing->id;
@@ -1947,6 +1988,21 @@ class sop_Admin_Settings {
                 }
                 if ( is_array( $settings_arr ) && array_key_exists( 'pi_payment_terms', $settings_arr ) ) {
                     $pi_payment_terms_val = (string) $settings_arr['pi_payment_terms'];
+                }
+                if ( is_array( $settings_arr ) && isset( $settings_arr['holiday_start_month'] ) ) {
+                    $holiday_start_month_val = (int) $settings_arr['holiday_start_month'];
+                }
+                if ( is_array( $settings_arr ) && isset( $settings_arr['holiday_start_day'] ) ) {
+                    $holiday_start_day_val = (int) $settings_arr['holiday_start_day'];
+                }
+                if ( is_array( $settings_arr ) && isset( $settings_arr['holiday_end_month'] ) ) {
+                    $holiday_end_month_val = (int) $settings_arr['holiday_end_month'];
+                }
+                if ( is_array( $settings_arr ) && isset( $settings_arr['holiday_end_day'] ) ) {
+                    $holiday_end_day_val = (int) $settings_arr['holiday_end_day'];
+                }
+                if ( is_array( $settings_arr ) && isset( $settings_arr['shipping_days'] ) ) {
+                    $shipping_days_val = (int) $settings_arr['shipping_days'];
                 }
             }
             ?>
