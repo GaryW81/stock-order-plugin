@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.12
- * - Add Purchase Order header fields (dates, deposits, PO extras) for saved sheets.
+ * File version: 11.13
+ * - Add Purchase Order header fields (dates, deposits, PO extras) for saved sheets with FX data.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -313,6 +313,8 @@ function sop_handle_save_preorder_sheet() {
     $supplier_id = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
     $sheet_id    = isset( $_POST['sop_sheet_id'] ) ? (int) $_POST['sop_sheet_id'] : 0;
 
+    $existing_sheet = null;
+
     if ( $sheet_id > 0 && function_exists( 'sop_get_preorder_sheet' ) ) {
         $existing_sheet = sop_get_preorder_sheet( $sheet_id );
         if ( is_array( $existing_sheet ) && ! empty( $existing_sheet['status'] ) && 'draft' !== $existing_sheet['status'] ) {
@@ -346,12 +348,30 @@ function sop_handle_save_preorder_sheet() {
 
     $po_deposit_rmb = isset( $_POST['sop_po_deposit_rmb'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_rmb'] ) : 0.0;
     $po_deposit_usd = isset( $_POST['sop_po_deposit_usd'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_usd'] ) : 0.0;
+    $po_deposit_fx_rate = isset( $_POST['sop_po_deposit_fx_rate'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_fx_rate'] ) : 0.0;
+    if ( $po_deposit_fx_rate < 0 ) {
+        $po_deposit_fx_rate = 0.0;
+    }
+    $po_deposit_fx_locked = ! empty( $_POST['sop_po_deposit_fx_locked'] ) ? 1 : 0;
+
+    $po_balance_fx_rate = isset( $_POST['sop_po_balance_fx_rate'] ) ? (float) wp_unslash( $_POST['sop_po_balance_fx_rate'] ) : 0.0;
+    if ( $po_balance_fx_rate < 0 ) {
+        $po_balance_fx_rate = 0.0;
+    }
+    $po_balance_usd = isset( $_POST['sop_po_balance_usd'] ) ? (float) wp_unslash( $_POST['sop_po_balance_usd'] ) : 0.0;
+    if ( $po_balance_usd < 0 ) {
+        $po_balance_usd = 0.0;
+    }
 
     if ( $po_deposit_rmb < 0 ) {
         $po_deposit_rmb = 0.0;
     }
     if ( $po_deposit_usd < 0 ) {
         $po_deposit_usd = 0.0;
+    }
+
+    if ( $po_deposit_rmb <= 0 && $po_deposit_usd > 0 && $po_deposit_fx_rate > 0 ) {
+        $po_deposit_rmb = $po_deposit_usd * $po_deposit_fx_rate;
     }
 
     $extra_labels  = isset( $_POST['sop_po_extra_label'] ) && is_array( $_POST['sop_po_extra_label'] ) ? array_map( 'wp_unslash', $_POST['sop_po_extra_label'] ) : array();
@@ -376,13 +396,49 @@ function sop_handle_save_preorder_sheet() {
         );
     }
 
-    $header_notes_owner = '';
+    // Build header_notes_owner JSON with extras + FX metadata (preserve existing keys when possible).
+    $header_notes_owner_data = array();
+    $existing_header_notes_owner = '';
+    if ( $existing_sheet && is_array( $existing_sheet ) && ! empty( $existing_sheet['header_notes_owner'] ) ) {
+        $existing_header_notes_owner = $existing_sheet['header_notes_owner'];
+    }
+
+    if ( is_string( $existing_header_notes_owner ) && '' !== trim( $existing_header_notes_owner ) ) {
+        $decoded_notes = json_decode( $existing_header_notes_owner, true );
+        if ( is_array( $decoded_notes ) ) {
+            $header_notes_owner_data = $decoded_notes;
+        }
+    }
+
     if ( ! empty( $po_extras ) ) {
-        $header_notes_owner = wp_json_encode(
-            array(
-                'po_extras' => $po_extras,
-            )
-        );
+        $header_notes_owner_data['po_extras'] = $po_extras;
+    } else {
+        unset( $header_notes_owner_data['po_extras'] );
+    }
+
+    if ( $po_deposit_fx_rate > 0 ) {
+        $header_notes_owner_data['deposit_fx_rate'] = $po_deposit_fx_rate;
+    } else {
+        unset( $header_notes_owner_data['deposit_fx_rate'] );
+    }
+
+    $header_notes_owner_data['deposit_fx_locked'] = (bool) $po_deposit_fx_locked;
+
+    if ( $po_balance_fx_rate > 0 ) {
+        $header_notes_owner_data['balance_fx_rate'] = $po_balance_fx_rate;
+    } else {
+        unset( $header_notes_owner_data['balance_fx_rate'] );
+    }
+
+    if ( $po_balance_usd > 0 ) {
+        $header_notes_owner_data['balance_usd'] = $po_balance_usd;
+    } else {
+        unset( $header_notes_owner_data['balance_usd'] );
+    }
+
+    $header_notes_owner = '';
+    if ( ! empty( $header_notes_owner_data ) ) {
+        $header_notes_owner = wp_json_encode( $header_notes_owner_data );
     }
 
     $header_data = array(
