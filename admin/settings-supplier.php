@@ -2,10 +2,10 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.29
+ * File version: 1.5.30
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
- * - Adds supplier holiday/shipping settings for PO date suggestions.
+ * - Adds supplier holiday/shipping settings (multiple periods + units) for PO date suggestions.
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -1651,39 +1651,68 @@ class sop_Admin_Settings {
             $settings_array['pi_payment_terms'] = $pi_payment_terms;
         }
 
-        // Supplier holiday + shipping settings.
-        $holiday_start_month_raw = isset( $_POST['sop_supplier_holiday_start_month'] ) ? (int) $_POST['sop_supplier_holiday_start_month'] : 0;
-        $holiday_start_day_raw   = isset( $_POST['sop_supplier_holiday_start_day'] ) ? (int) $_POST['sop_supplier_holiday_start_day'] : 0;
-        $holiday_end_month_raw   = isset( $_POST['sop_supplier_holiday_end_month'] ) ? (int) $_POST['sop_supplier_holiday_end_month'] : 0;
-        $holiday_end_day_raw     = isset( $_POST['sop_supplier_holiday_end_day'] ) ? (int) $_POST['sop_supplier_holiday_end_day'] : 0;
-        $shipping_days_raw       = isset( $_POST['sop_supplier_shipping_days'] ) ? (int) $_POST['sop_supplier_shipping_days'] : 0;
+        // Supplier holiday + shipping settings (multiple periods + units).
+        $holiday_start_days   = isset( $_POST['sop_supplier_holiday_start_day'] ) && is_array( $_POST['sop_supplier_holiday_start_day'] ) ? array_map( 'intval', $_POST['sop_supplier_holiday_start_day'] ) : array();
+        $holiday_start_months = isset( $_POST['sop_supplier_holiday_start_month'] ) && is_array( $_POST['sop_supplier_holiday_start_month'] ) ? array_map( 'intval', $_POST['sop_supplier_holiday_start_month'] ) : array();
+        $holiday_end_days     = isset( $_POST['sop_supplier_holiday_end_day'] ) && is_array( $_POST['sop_supplier_holiday_end_day'] ) ? array_map( 'intval', $_POST['sop_supplier_holiday_end_day'] ) : array();
+        $holiday_end_months   = isset( $_POST['sop_supplier_holiday_end_month'] ) && is_array( $_POST['sop_supplier_holiday_end_month'] ) ? array_map( 'intval', $_POST['sop_supplier_holiday_end_month'] ) : array();
 
-        if ( $holiday_start_month_raw < 1 || $holiday_start_month_raw > 12 ) {
-            $holiday_start_month_raw = 0;
-        }
-        if ( $holiday_end_month_raw < 1 || $holiday_end_month_raw > 12 ) {
-            $holiday_end_month_raw = 0;
-        }
-        if ( $holiday_start_day_raw < 1 || $holiday_start_day_raw > 31 ) {
-            $holiday_start_day_raw = 0;
-        }
-        if ( $holiday_end_day_raw < 1 || $holiday_end_day_raw > 31 ) {
-            $holiday_end_day_raw = 0;
+        $holiday_periods = array();
+        $max_holidays    = max(
+            count( $holiday_start_days ),
+            count( $holiday_start_months ),
+            count( $holiday_end_days ),
+            count( $holiday_end_months )
+        );
+
+        for ( $i = 0; $i < $max_holidays; $i++ ) {
+            $sd = isset( $holiday_start_days[ $i ] ) ? (int) $holiday_start_days[ $i ] : 0;
+            $sm = isset( $holiday_start_months[ $i ] ) ? (int) $holiday_start_months[ $i ] : 0;
+            $ed = isset( $holiday_end_days[ $i ] ) ? (int) $holiday_end_days[ $i ] : 0;
+            $em = isset( $holiday_end_months[ $i ] ) ? (int) $holiday_end_months[ $i ] : 0;
+
+            if ( $sd < 1 || $sd > 31 || $sm < 1 || $sm > 12 || $ed < 1 || $ed > 31 || $em < 1 || $em > 12 ) {
+                continue;
+            }
+
+            $holiday_periods[] = array(
+                'start_day'   => $sd,
+                'start_month' => $sm,
+                'end_day'     => $ed,
+                'end_month'   => $em,
+            );
         }
 
-        if ( $holiday_start_month_raw && $holiday_start_day_raw && $holiday_end_month_raw && $holiday_end_day_raw ) {
-            $settings_array['holiday_start_month'] = $holiday_start_month_raw;
-            $settings_array['holiday_start_day']   = $holiday_start_day_raw;
-            $settings_array['holiday_end_month']   = $holiday_end_month_raw;
-            $settings_array['holiday_end_day']     = $holiday_end_day_raw;
+        if ( ! empty( $holiday_periods ) ) {
+            $settings_array['holiday_periods'] = $holiday_periods;
         } else {
-            unset( $settings_array['holiday_start_month'], $settings_array['holiday_start_day'], $settings_array['holiday_end_month'], $settings_array['holiday_end_day'] );
+            unset( $settings_array['holiday_periods'] );
         }
 
-        if ( $shipping_days_raw > 0 ) {
-            $settings_array['shipping_days'] = $shipping_days_raw;
+        unset(
+            $settings_array['holiday_start_day'],
+            $settings_array['holiday_start_month'],
+            $settings_array['holiday_end_day'],
+            $settings_array['holiday_end_month']
+        );
+
+        $shipping_value_raw = isset( $_POST['sop_supplier_shipping_value'] ) ? (int) $_POST['sop_supplier_shipping_value'] : 0;
+        $shipping_unit_raw  = isset( $_POST['sop_supplier_shipping_unit'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_shipping_unit'] ) ) : 'days';
+
+        if ( $shipping_value_raw < 0 ) {
+            $shipping_value_raw = 0;
+        }
+
+        $shipping_unit = in_array( $shipping_unit_raw, array( 'days', 'weeks' ), true ) ? $shipping_unit_raw : 'days';
+
+        if ( $shipping_value_raw > 0 ) {
+            $settings_array['shipping_value'] = $shipping_value_raw;
+            $settings_array['shipping_unit']  = $shipping_unit;
+            $settings_array['shipping_days']  = ( 'weeks' === $shipping_unit )
+                ? ( $shipping_value_raw * 7 )
+                : $shipping_value_raw;
         } else {
-            unset( $settings_array['shipping_days'] );
+            unset( $settings_array['shipping_value'], $settings_array['shipping_unit'], $settings_array['shipping_days'] );
         }
 
         $settings_json = ! empty( $settings_array ) ? wp_json_encode( $settings_array ) : null;
@@ -1937,11 +1966,16 @@ class sop_Admin_Settings {
             $pi_contact_name_val              = '';
             $pi_bank_details_val              = '';
             $pi_payment_terms_val             = '';
-            $holiday_start_month_val          = 0;
-            $holiday_start_day_val            = 0;
-            $holiday_end_month_val            = 0;
-            $holiday_end_day_val              = 0;
-            $shipping_days_val                = 0;
+            $holiday_periods_val              = array(
+                array(
+                    'start_day'   => 0,
+                    'start_month' => 0,
+                    'end_day'     => 0,
+                    'end_month'   => 0,
+                ),
+            );
+            $shipping_value_val = 0;
+            $shipping_unit_val  = 'days';
 
             if ( $editing ) {
                 $editing_id_val    = (int) $editing->id;
@@ -1989,20 +2023,53 @@ class sop_Admin_Settings {
                 if ( is_array( $settings_arr ) && array_key_exists( 'pi_payment_terms', $settings_arr ) ) {
                     $pi_payment_terms_val = (string) $settings_arr['pi_payment_terms'];
                 }
-                if ( is_array( $settings_arr ) && isset( $settings_arr['holiday_start_month'] ) ) {
-                    $holiday_start_month_val = (int) $settings_arr['holiday_start_month'];
+                if ( is_array( $settings_arr ) && isset( $settings_arr['holiday_periods'] ) && is_array( $settings_arr['holiday_periods'] ) ) {
+                    $holiday_periods_val = array();
+                    foreach ( $settings_arr['holiday_periods'] as $period ) {
+                        $holiday_periods_val[] = array(
+                            'start_day'   => isset( $period['start_day'] ) ? (int) $period['start_day'] : 0,
+                            'start_month' => isset( $period['start_month'] ) ? (int) $period['start_month'] : 0,
+                            'end_day'     => isset( $period['end_day'] ) ? (int) $period['end_day'] : 0,
+                            'end_month'   => isset( $period['end_month'] ) ? (int) $period['end_month'] : 0,
+                        );
+                    }
+                } else {
+                    $legacy_sd = isset( $settings_arr['holiday_start_day'] ) ? (int) $settings_arr['holiday_start_day'] : 0;
+                    $legacy_sm = isset( $settings_arr['holiday_start_month'] ) ? (int) $settings_arr['holiday_start_month'] : 0;
+                    $legacy_ed = isset( $settings_arr['holiday_end_day'] ) ? (int) $settings_arr['holiday_end_day'] : 0;
+                    $legacy_em = isset( $settings_arr['holiday_end_month'] ) ? (int) $settings_arr['holiday_end_month'] : 0;
+
+                    if ( $legacy_sd && $legacy_sm && $legacy_ed && $legacy_em ) {
+                        $holiday_periods_val = array(
+                            array(
+                                'start_day'   => $legacy_sd,
+                                'start_month' => $legacy_sm,
+                                'end_day'     => $legacy_ed,
+                                'end_month'   => $legacy_em,
+                            ),
+                        );
+                    }
                 }
-                if ( is_array( $settings_arr ) && isset( $settings_arr['holiday_start_day'] ) ) {
-                    $holiday_start_day_val = (int) $settings_arr['holiday_start_day'];
+
+                if ( empty( $holiday_periods_val ) ) {
+                    $holiday_periods_val = array(
+                        array(
+                            'start_day'   => 0,
+                            'start_month' => 0,
+                            'end_day'     => 0,
+                            'end_month'   => 0,
+                        ),
+                    );
                 }
-                if ( is_array( $settings_arr ) && isset( $settings_arr['holiday_end_month'] ) ) {
-                    $holiday_end_month_val = (int) $settings_arr['holiday_end_month'];
+
+                if ( is_array( $settings_arr ) && isset( $settings_arr['shipping_value'] ) ) {
+                    $shipping_value_val = (int) $settings_arr['shipping_value'];
+                } elseif ( is_array( $settings_arr ) && isset( $settings_arr['shipping_days'] ) ) {
+                    $shipping_value_val = (int) $settings_arr['shipping_days'];
                 }
-                if ( is_array( $settings_arr ) && isset( $settings_arr['holiday_end_day'] ) ) {
-                    $holiday_end_day_val = (int) $settings_arr['holiday_end_day'];
-                }
-                if ( is_array( $settings_arr ) && isset( $settings_arr['shipping_days'] ) ) {
-                    $shipping_days_val = (int) $settings_arr['shipping_days'];
+
+                if ( is_array( $settings_arr ) && isset( $settings_arr['shipping_unit'] ) && in_array( $settings_arr['shipping_unit'], array( 'days', 'weeks' ), true ) ) {
+                    $shipping_unit_val = $settings_arr['shipping_unit'];
                 }
             }
             ?>
@@ -2091,61 +2158,80 @@ class sop_Admin_Settings {
 
                         <tr>
                             <th scope="row">
-                                <label for="sop_supplier_holiday_start_month">
-                                    <?php esc_html_e( 'Holiday period', 'sop' ); ?>
-                                </label>
+                                <label><?php esc_html_e( 'Holiday periods', 'sop' ); ?></label>
                             </th>
                             <td>
                                 <fieldset>
-                                    <legend class="screen-reader-text"><?php esc_html_e( 'Holiday period', 'sop' ); ?></legend>
-                                    <span>
-                                        <?php esc_html_e( 'From', 'sop' ); ?>
-                                        <input type="number"
-                                               id="sop_supplier_holiday_start_day"
-                                               name="sop_supplier_holiday_start_day"
-                                               class="small-text"
-                                               min="1"
-                                               max="31"
-                                               value="<?php echo esc_attr( $holiday_start_day_val ); ?>" />
-                                        <select id="sop_supplier_holiday_start_month" name="sop_supplier_holiday_start_month">
-                                            <option value="0"><?php esc_html_e( 'Month', 'sop' ); ?></option>
-                                            <?php
-                                            for ( $m = 1; $m <= 12; $m++ ) {
-                                                printf(
-                                                    '<option value="%1$d"%2$s>%3$s</option>',
-                                                    $m,
-                                                    selected( $holiday_start_month_val, $m, false ),
-                                                    esc_html( date_i18n( 'F', mktime( 0, 0, 0, $m, 1 ) ) )
-                                                );
-                                            }
-                                            ?>
-                                        </select>
-                                    </span>
-                                    <span style="margin-left:10px;">
-                                        <?php esc_html_e( 'to', 'sop' ); ?>
-                                        <input type="number"
-                                               id="sop_supplier_holiday_end_day"
-                                               name="sop_supplier_holiday_end_day"
-                                               class="small-text"
-                                               min="1"
-                                               max="31"
-                                               value="<?php echo esc_attr( $holiday_end_day_val ); ?>" />
-                                        <select id="sop_supplier_holiday_end_month" name="sop_supplier_holiday_end_month">
-                                            <option value="0"><?php esc_html_e( 'Month', 'sop' ); ?></option>
-                                            <?php
-                                            for ( $m = 1; $m <= 12; $m++ ) {
-                                                printf(
-                                                    '<option value="%1$d"%2$s>%3$s</option>',
-                                                    $m,
-                                                    selected( $holiday_end_month_val, $m, false ),
-                                                    esc_html( date_i18n( 'F', mktime( 0, 0, 0, $m, 1 ) ) )
-                                                );
-                                            }
-                                            ?>
-                                        </select>
-                                    </span>
+                                    <legend class="screen-reader-text"><?php esc_html_e( 'Holiday periods', 'sop' ); ?></legend>
+                                    <table class="widefat striped" id="sop-supplier-holiday-periods">
+                                        <thead>
+                                            <tr>
+                                                <th><?php esc_html_e( 'From (day / month)', 'sop' ); ?></th>
+                                                <th><?php esc_html_e( 'To (day / month)', 'sop' ); ?></th>
+                                                <th class="column-actions"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ( $holiday_periods_val as $period ) : ?>
+                                                <tr class="sop-supplier-holiday-row">
+                                                    <td>
+                                                        <input type="number"
+                                                               name="sop_supplier_holiday_start_day[]"
+                                                               class="small-text"
+                                                               min="1"
+                                                               max="31"
+                                                               value="<?php echo esc_attr( $period['start_day'] ); ?>" />
+                                                        <select name="sop_supplier_holiday_start_month[]">
+                                                            <option value="0"><?php esc_html_e( 'Month', 'sop' ); ?></option>
+                                                            <?php
+                                                            for ( $m = 1; $m <= 12; $m++ ) {
+                                                                printf(
+                                                                    '<option value="%1$d"%2$s>%3$s</option>',
+                                                                    $m,
+                                                                    selected( $period['start_month'], $m, false ),
+                                                                    esc_html( date_i18n( 'F', mktime( 0, 0, 0, $m, 1 ) ) )
+                                                                );
+                                                            }
+                                                            ?>
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <input type="number"
+                                                               name="sop_supplier_holiday_end_day[]"
+                                                               class="small-text"
+                                                               min="1"
+                                                               max="31"
+                                                               value="<?php echo esc_attr( $period['end_day'] ); ?>" />
+                                                        <select name="sop_supplier_holiday_end_month[]">
+                                                            <option value="0"><?php esc_html_e( 'Month', 'sop' ); ?></option>
+                                                            <?php
+                                                            for ( $m = 1; $m <= 12; $m++ ) {
+                                                                printf(
+                                                                    '<option value="%1$d"%2$s>%3$s</option>',
+                                                                    $m,
+                                                                    selected( $period['end_month'], $m, false ),
+                                                                    esc_html( date_i18n( 'F', mktime( 0, 0, 0, $m, 1 ) ) )
+                                                                );
+                                                            }
+                                                            ?>
+                                                        </select>
+                                                    </td>
+                                                    <td class="column-actions">
+                                                        <button type="button" class="button-link sop-supplier-holiday-remove">&times;</button>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+
+                                    <p>
+                                        <button type="button" class="button sop-supplier-holiday-add">
+                                            <?php esc_html_e( 'Add extra dates', 'sop' ); ?>
+                                        </button>
+                                    </p>
+
                                     <p class="description">
-                                        <?php esc_html_e( 'Recurring holiday period (no year). Used when calculating Purchase Order dates if the lead window overlaps.', 'sop' ); ?>
+                                        <?php esc_html_e( 'Recurring holiday periods (no year). Used when calculating Purchase Order dates if the lead window overlaps. Add multiple ranges for New Year, Golden Week, etc.', 'sop' ); ?>
                                     </p>
                                 </fieldset>
                             </td>
@@ -2153,17 +2239,21 @@ class sop_Admin_Settings {
 
                         <tr>
                             <th scope="row">
-                                <label for="sop_supplier_shipping_days">
-                                    <?php esc_html_e( 'Shipping time (days)', 'sop' ); ?>
+                                <label for="sop_supplier_shipping_value">
+                                    <?php esc_html_e( 'Shipping time', 'sop' ); ?>
                                 </label>
                             </th>
                             <td>
                                 <input type="number"
-                                       id="sop_supplier_shipping_days"
-                                       name="sop_supplier_shipping_days"
+                                       id="sop_supplier_shipping_value"
+                                       name="sop_supplier_shipping_value"
                                        class="small-text"
                                        min="0"
-                                       value="<?php echo esc_attr( $shipping_days_val ); ?>" />
+                                       value="<?php echo esc_attr( $shipping_value_val ); ?>" />
+                                <select id="sop_supplier_shipping_unit" name="sop_supplier_shipping_unit">
+                                    <option value="days"<?php selected( $shipping_unit_val, 'days' ); ?>><?php esc_html_e( 'Days', 'sop' ); ?></option>
+                                    <option value="weeks"<?php selected( $shipping_unit_val, 'weeks' ); ?>><?php esc_html_e( 'Weeks', 'sop' ); ?></option>
+                                </select>
                                 <p class="description">
                                     <?php esc_html_e( 'Typical time from container load to goods arriving in the UK. Used to suggest container load and ETA dates on Purchase Orders.', 'sop' ); ?>
                                 </p>
