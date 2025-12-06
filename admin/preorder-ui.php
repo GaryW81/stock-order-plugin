@@ -758,6 +758,37 @@ function sop_preorder_render_admin_page() {
                     );
                     ?>
                 </p>
+                <?php
+                $po_debug_last_post = get_option( 'sop_po_debug_last_post' );
+                if ( is_array( $po_debug_last_post ) ) {
+                    $post_keys = isset( $po_debug_last_post['post_keys'] ) && is_array( $po_debug_last_post['post_keys'] )
+                        ? implode( ',', $po_debug_last_post['post_keys'] )
+                        : '';
+
+                    $parsed = isset( $po_debug_last_post['parsed'] ) && is_array( $po_debug_last_post['parsed'] )
+                        ? $po_debug_last_post['parsed']
+                        : array();
+
+                    $parsed_order   = isset( $parsed['po_order_date'] ) ? $parsed['po_order_date'] : '';
+                    $parsed_deposit = isset( $parsed['po_deposit_rmb'] ) ? $parsed['po_deposit_rmb'] : 0;
+                    $parsed_extras  = isset( $parsed['extras_count'] ) ? (int) $parsed['extras_count'] : 0;
+                    ?>
+                    <p>
+                        <strong><?php esc_html_e( 'PO POST debug:', 'sop' ); ?></strong>
+                        <?php
+                        printf(
+                            /* translators: 1: post keys, 2: parsed order date, 3: parsed deposit RMB, 4: extras count */
+                            esc_html__( 'keys=[%1$s] | parsed_order=%2$s | parsed_deposit_rmb=%3$s | extras=%4$d', 'sop' ),
+                            esc_html( $post_keys ),
+                            esc_html( (string) $parsed_order ),
+                            esc_html( (string) $parsed_deposit ),
+                            $parsed_extras
+                        );
+                        ?>
+                    </p>
+                    <?php
+                }
+                ?>
             </div>
         <?php endif; ?>
 
