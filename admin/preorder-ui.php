@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.92 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.93 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
@@ -7,6 +7,7 @@
  * - PO details grid layout and explicit PO field wiring for saved sheets.
  * - PO details row: PO# then single-line dates.
  * - V11.92 - PO modal: enable inputs for drafts, save button inside modal, JSON payload + debug line, load PO extras from header notes.
+ * - V11.93 - Ensure PO extras load/persist reliably; debug shows extras count.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -606,20 +607,23 @@ function sop_preorder_render_admin_page() {
 
         if ( is_string( $header_notes_owner ) && '' !== trim( $header_notes_owner ) ) {
             $decoded = json_decode( $header_notes_owner, true );
-            if ( is_array( $decoded ) && isset( $decoded['po_extras'] ) && is_array( $decoded['po_extras'] ) ) {
-                foreach ( $decoded['po_extras'] as $extra_row ) {
-                    if ( ! is_array( $extra_row ) ) {
-                        continue;
-                    }
-                    $label  = isset( $extra_row['label'] ) ? (string) $extra_row['label'] : '';
-                    $amount = isset( $extra_row['amount_rmb'] ) ? (float) $extra_row['amount_rmb'] : 0.0;
-                    $po_extras[] = array(
-                        'label'      => $label,
-                        'amount_rmb' => $amount,
-                    );
-                }
-            }
             if ( is_array( $decoded ) ) {
+                if ( isset( $decoded['po_extras'] ) && is_array( $decoded['po_extras'] ) ) {
+                    foreach ( $decoded['po_extras'] as $extra_row ) {
+                        if ( ! is_array( $extra_row ) ) {
+                            continue;
+                        }
+                        $label  = isset( $extra_row['label'] ) ? (string) $extra_row['label'] : '';
+                        $amount = isset( $extra_row['amount_rmb'] ) ? (string) $extra_row['amount_rmb'] : '';
+                        if ( '' === $label && '' === $amount ) {
+                            continue;
+                        }
+                        $po_extras[] = array(
+                            'label'      => $label,
+                            'amount_rmb' => $amount,
+                        );
+                    }
+                }
                 if ( isset( $decoded['deposit_fx_rate'] ) ) {
                     $po_deposit_fx_rate = (float) $decoded['deposit_fx_rate'];
                 }
@@ -640,6 +644,15 @@ function sop_preorder_render_admin_page() {
                 }
             }
         }
+    }
+    $po_extras_loaded_count = is_array( $po_extras ) ? count( $po_extras ) : 0;
+    if ( empty( $po_extras ) ) {
+        $po_extras = array(
+            array(
+                'label'      => '',
+                'amount_rmb' => '',
+            ),
+        );
     }
 
     $po_base_total_rmb   = isset( $total_cost_supplier ) ? (float) $total_cost_supplier : 0.0;
@@ -747,14 +760,15 @@ function sop_preorder_render_admin_page() {
                     <strong><?php esc_html_e( 'PO debug:', 'sop' ); ?></strong>
                     <?php
                     printf(
-                        /* translators: 1: order date, 2: container load date, 3: arrival date, 4: deposit RMB, 5: balance USD, 6: header notes */
-                        esc_html__( 'order=%1$s | load=%2$s | arrival=%3$s | deposit_rmb=%4$s | balance_usd=%5$s | notes=%6$s', 'sop' ),
+                        /* translators: 1: order date, 2: container load date, 3: arrival date, 4: deposit RMB, 5: balance USD, 6: header notes, 7: extras loaded */
+                        esc_html__( 'order=%1$s | load=%2$s | arrival=%3$s | deposit_rmb=%4$s | balance_usd=%5$s | notes=%6$s | extras_header=%7$d', 'sop' ),
                         esc_html( (string) $dbg_order_date ),
                         esc_html( (string) $dbg_load_date ),
                         esc_html( (string) $dbg_arrival_date ),
                         esc_html( (string) $dbg_deposit_rmb ),
                         esc_html( (string) $dbg_balance_usd ),
-                        esc_html( (string) $dbg_notes )
+                        esc_html( (string) $dbg_notes ),
+                        (int) $po_extras_loaded_count
                     );
                     ?>
                 </p>
@@ -769,20 +783,22 @@ function sop_preorder_render_admin_page() {
                         ? $po_debug_last_post['parsed']
                         : array();
 
-                    $parsed_order   = isset( $parsed['po_order_date'] ) ? $parsed['po_order_date'] : '';
-                    $parsed_deposit = isset( $parsed['po_deposit_rmb'] ) ? $parsed['po_deposit_rmb'] : 0;
-                    $parsed_extras  = isset( $parsed['extras_count'] ) ? (int) $parsed['extras_count'] : 0;
+                    $parsed_order        = isset( $parsed['po_order_date'] ) ? $parsed['po_order_date'] : '';
+                    $parsed_deposit      = isset( $parsed['po_deposit_rmb'] ) ? $parsed['po_deposit_rmb'] : 0;
+                    $parsed_extras       = isset( $parsed['extras_count'] ) ? (int) $parsed['extras_count'] : 0;
+                    $parsed_extras_saved = isset( $po_debug_last_post['po_extras_saved_count'] ) ? (int) $po_debug_last_post['po_extras_saved_count'] : 0;
                     ?>
                     <p>
                         <strong><?php esc_html_e( 'PO POST debug:', 'sop' ); ?></strong>
                         <?php
                         printf(
-                            /* translators: 1: post keys, 2: parsed order date, 3: parsed deposit RMB, 4: extras count */
-                            esc_html__( 'keys=[%1$s] | parsed_order=%2$s | parsed_deposit_rmb=%3$s | extras=%4$d', 'sop' ),
+                            /* translators: 1: post keys, 2: parsed order date, 3: parsed deposit RMB, 4: extras count, 5: extras saved count */
+                            esc_html__( 'keys=[%1$s] | parsed_order=%2$s | parsed_deposit_rmb=%3$s | extras=%4$d | extras_saved=%5$d', 'sop' ),
                             esc_html( $post_keys ),
                             esc_html( (string) $parsed_order ),
                             esc_html( (string) $parsed_deposit ),
-                            $parsed_extras
+                            $parsed_extras,
+                            $parsed_extras_saved
                         );
                         ?>
                     </p>
@@ -1536,7 +1552,7 @@ function sop_preorder_render_admin_page() {
                                 </tr>
 
                                 <?php
-                                $po_extras_rows = ! empty( $po_extras ) ? $po_extras : array( array( 'label' => '', 'amount_rmb' => 0.0 ) );
+                                $po_extras_rows = $po_extras;
                                 foreach ( $po_extras_rows as $extra_row ) :
                                     $extra_label  = isset( $extra_row['label'] ) ? (string) $extra_row['label'] : '';
                                     $extra_amount = isset( $extra_row['amount_rmb'] ) ? (float) $extra_row['amount_rmb'] : 0.0;

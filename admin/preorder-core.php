@@ -1,12 +1,14 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.20
+ * File version: 11.22
+ * - Ensure PO extras persist consistently and add saved extras debug count.
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
  * - 11.17 - Ensure Purchase Order modal fields are explicitly persisted on save (insert/update).
  * - 11.18 - Parse PO JSON payload (sop_po_payload) and log last POST for debugging.
  * - 11.19 - Persist PO extras within header_notes_owner.
  * - 11.20 - Ensure PO extras are normalised and stored under header_notes_owner['po_extras'].
+ * - 11.21 - Add PO extras debug count and JSON payload persistence tweaks.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -262,6 +264,7 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
             'extras_count'         => isset( $po_extras ) && is_array( $po_extras ) ? count( $po_extras ) : 0,
         ),
     );
+    $debug_data['po_extras_saved_count'] = is_array( $po_extras ) ? count( $po_extras ) : 0;
 
     // Store this so the UI can show what the last save handler actually saw.
     update_option( 'sop_po_debug_last_post', $debug_data, false );
