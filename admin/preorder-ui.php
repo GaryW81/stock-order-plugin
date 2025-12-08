@@ -981,13 +981,13 @@ function sop_preorder_render_admin_page() {
                             <?php endif; ?>
 
                             <?php if ( ! $sop_sheet_is_locked ) : ?>
-                                <button type="submit" class="button button-primary" name="sop_preorder_save" form="sop-preorder-sheet-form">
+                                <button type="button" class="button button-primary">
                                     <?php
                                 echo ( $current_sheet_id > 0 )
                                     ? esc_html__( 'Update sheet', 'sop' )
                                     : esc_html__( 'Save sheet', 'sop' );
                                 ?>
-                            </button>
+                                </button>
                             <?php endif; ?>
                         </div>
                     </div>
