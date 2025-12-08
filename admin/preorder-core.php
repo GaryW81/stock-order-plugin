@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.23
- * - Store full PO payload JSON in header_notes_owner; persist extras consistently.
+ * File version: 11.24
+ * - Store full PO payload JSON in header_notes_owner; guarantee PO extras persist.
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
  * - 11.17 - Ensure Purchase Order modal fields are explicitly persisted on save (insert/update).
  * - 11.18 - Parse PO JSON payload (sop_po_payload) and log last POST for debugging.
@@ -219,6 +219,12 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
     }
     $po_extras = $po_extras_normalised;
 
+    // Always write normalised extras back into the payload for storage.
+    if ( ! is_array( $payload ) ) {
+        $payload = array();
+    }
+    $payload['extras'] = is_array( $po_extras ) ? array_values( $po_extras ) : array();
+
     // Debug: record last PO POST state for inspection in UI.
     $debug_post_keys = array();
     foreach ( array_keys( $_POST ) as $post_key ) {
@@ -255,7 +261,8 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
             'extras_count'         => isset( $po_extras ) && is_array( $po_extras ) ? count( $po_extras ) : 0,
         ),
     );
-    $debug_data['po_extras_saved_count'] = isset( $payload['extras'] ) && is_array( $payload['extras'] ) ? count( $payload['extras'] ) : 0;
+    $extras_saved_count                   = ( isset( $payload['extras'] ) && is_array( $payload['extras'] ) ) ? count( $payload['extras'] ) : 0;
+    $debug_data['po_extras_saved_count']  = $extras_saved_count;
 
     // Store this so the UI can show what the last save handler actually saw.
     update_option( 'sop_po_debug_last_post', $debug_data, false );
@@ -297,7 +304,7 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
     $payload['deposit_fx_locked'] = (bool) $po_deposit_fx_locked;
     $payload['balance_fx_rate']   = (float) $po_balance_fx_rate;
     $payload['balance_usd']       = (float) $po_balance_usd;
-    $payload['extras']            = $po_extras;
+    $payload['extras']            = is_array( $po_extras ) ? array_values( $po_extras ) : array();
 
     $header_notes_owner = wp_json_encode( $payload );
 

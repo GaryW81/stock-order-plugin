@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.94 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.95 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
@@ -9,6 +9,7 @@
  * - V11.92 - PO modal: enable inputs for drafts, save button inside modal, JSON payload + debug line, load PO extras from header notes.
  * - V11.93 - Ensure PO extras load/persist reliably; debug shows extras count.
  * - V11.94 - Treat header_notes_owner as PO payload JSON (with legacy fallback).
+ * - V11.95 - Load PO payload extras directly; persist reliably.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -593,8 +594,8 @@ function sop_preorder_render_admin_page() {
     $po_deposit_fx_locked = 0;
     $po_balance_fx_rate   = 0.0;
     $po_balance_usd       = 0.0;
-    $po_payload      = array();
-    $po_extras       = array();
+    $po_payload       = array();
+    $po_extras        = array();
     $po_holiday_start = '';
     $po_holiday_end   = '';
 
@@ -699,7 +700,8 @@ function sop_preorder_render_admin_page() {
             }
         }
     }
-    $po_extras_loaded_count = is_array( $po_extras ) ? count( $po_extras ) : 0;
+    $po_extras_loaded_count  = is_array( $po_extras ) ? count( $po_extras ) : 0;
+    $po_extras_header_count  = isset( $po_payload['extras'] ) && is_array( $po_payload['extras'] ) ? count( $po_payload['extras'] ) : 0;
     if ( empty( $po_extras ) ) {
         $po_extras = array(
             array(
@@ -822,7 +824,7 @@ function sop_preorder_render_admin_page() {
                         esc_html( (string) $dbg_deposit_rmb ),
                         esc_html( (string) $dbg_balance_usd ),
                         esc_html( (string) $dbg_notes ),
-                        (int) $po_extras_loaded_count
+                        (int) $po_extras_header_count
                     );
                     ?>
                 </p>
