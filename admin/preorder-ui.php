@@ -1610,7 +1610,7 @@ function sop_preorder_render_admin_page() {
                         </div>
                     </div>
 
-                    <div class="sop-po-section sop-po-values">
+                    <div class="sop-po-section sop-po-values sop-po-values-grid">
                         <h3><?php esc_html_e( 'Purchase order values', 'sop' ); ?></h3>
                         <table class="widefat fixed striped sop-po-items-table" data-locked="<?php echo esc_attr( $sop_sheet_is_locked ? '1' : '0' ); ?>">
                             <thead>
@@ -1637,10 +1637,10 @@ function sop_preorder_render_admin_page() {
                                         ?>
                                     </td>
                                     <td class="column-amount">
-                                        <span id="sop-po-base-total-rmb"
-                                              data-base-total-rmb="<?php echo esc_attr( $po_base_total_rmb ); ?>">
-                                            <?php echo esc_html( number_format( $po_base_total_rmb, 2 ) ); ?>
-                                        </span>
+                    <span id="sop-po-base-total-rmb" class="sop-po-amount"
+                          data-base-total-rmb="<?php echo esc_attr( $po_base_total_rmb ); ?>">
+                        <?php echo esc_html( number_format( $po_base_total_rmb, 2 ) ); ?>
+                    </span>
                                     </td>
                                     <?php if ( ! $sop_sheet_is_locked ) : ?>
                                         <td></td>
@@ -1662,7 +1662,7 @@ function sop_preorder_render_admin_page() {
                                         <td class="column-amount">
                                             <input type="number"
                                                    step="0.01"
-                                                   class="sop-po-extra-amount"
+                                                   class="sop-po-extra-amount sop-po-amount"
                                                    name="sop_po_extra_amount[]"
                                                    value="<?php echo esc_attr( $extra_amount ); ?>"<?php echo $po_disabled_attr; ?> />
                                         </td>
@@ -1678,7 +1678,7 @@ function sop_preorder_render_admin_page() {
                                 <tr class="sop-po-total-row">
                                     <th><?php esc_html_e( 'Total (RMB)', 'sop' ); ?></th>
                                     <th class="column-amount">
-                                        <span id="sop-po-total-rmb"><?php echo esc_html( number_format( $po_total_rmb, 2 ) ); ?></span>
+                                        <span id="sop-po-total-rmb" class="sop-po-amount"><?php echo esc_html( number_format( $po_total_rmb, 2 ) ); ?></span>
                                     </th>
                                     <?php if ( ! $sop_sheet_is_locked ) : ?>
                                         <th></th>
@@ -1733,6 +1733,7 @@ function sop_preorder_render_admin_page() {
                                        step="0.01"
                                        id="sop-po-deposit-rmb"
                                        name="sop_po_deposit_rmb"
+                                       class="sop-po-amount"
                                        value="<?php echo esc_attr( $po_deposit_rmb ); ?>"<?php echo $po_disabled_attr; ?> />
                             </div>
                         </div>
@@ -1773,7 +1774,7 @@ function sop_preorder_render_admin_page() {
 
                             <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Balance (RMB)', 'sop' ); ?></label>
-                                <span id="sop-po-balance-rmb" class="sop-po-amount-readonly">
+                                <span id="sop-po-balance-rmb" class="sop-po-amount sop-po-amount-readonly">
                                     <?php echo esc_html( number_format( $po_balance_rmb, 2 ) ); ?>
                                 </span>
                             </div>
@@ -2313,7 +2314,7 @@ function sop_preorder_render_admin_page() {
 
         .sop-po-items-table .column-amount {
             text-align: right;
-            width: 140px;
+            width: var(--sop-po-amount-width, 160px);
         }
 
         .sop-po-items-table .column-actions {
@@ -2325,23 +2326,35 @@ function sop_preorder_render_admin_page() {
             font-weight: 700;
         }
 
+        .sop-po-values-grid {
+            --sop-po-amount-width: 160px;
+            display: grid;
+            grid-template-columns: 1fr var(--sop-po-amount-width);
+        }
+
         .sop-po-totals-panel {
+            display: grid;
+            grid-auto-rows: auto;
+            justify-content: flex-end;
             max-width: 640px;
             margin-left: auto;
+            --sop-po-amount-width: 160px;
         }
 
         .sop-po-totals-row {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) var(--sop-po-amount-width);
             column-gap: 16px;
-            align-items: flex-start;
+            align-items: center;
             margin-top: 12px;
         }
 
         .sop-po-totals-field input[type="number"],
         .sop-po-totals-field input[type="text"],
-        .sop-po-amount-readonly {
+        .sop-po-amount-readonly,
+        .sop-po-amount {
             text-align: right;
+            width: 100%;
         }
 
         .sop-po-fx-input {
