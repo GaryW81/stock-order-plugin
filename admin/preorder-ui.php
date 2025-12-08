@@ -2337,20 +2337,25 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-po-totals-panel {
-            display: grid;
-            grid-auto-rows: auto;
-            justify-content: flex-end;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
             max-width: 640px;
             margin-left: auto;
+            padding-right: 60px;
             --sop-po-amount-width: 160px;
         }
 
         .sop-po-totals-row {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) var(--sop-po-amount-width);
-            column-gap: 16px;
-            align-items: center;
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-end;
+            gap: 24px;
             margin-top: 12px;
+            width: 100%;
+        }
+        .sop-po-totals-row .sop-po-totals-field:last-child {
+            min-width: var(--sop-po-amount-width);
         }
 
         .sop-po-totals-field input[type="number"],
@@ -2359,6 +2364,15 @@ function sop_preorder_render_admin_page() {
         .sop-po-amount {
             text-align: right;
             width: 100%;
+        }
+
+        .sop-po-totals-row > .sop-po-totals-field {
+            min-width: 200px;
+        }
+
+        .sop-po-totals-field label {
+            display: block;
+            margin-bottom: 4px;
         }
 
         .sop-po-fx-input {
