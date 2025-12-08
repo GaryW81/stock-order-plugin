@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.93 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.94 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
@@ -8,6 +8,7 @@
  * - PO details row: PO# then single-line dates.
  * - V11.92 - PO modal: enable inputs for drafts, save button inside modal, JSON payload + debug line, load PO extras from header notes.
  * - V11.93 - Ensure PO extras load/persist reliably; debug shows extras count.
+ * - V11.94 - Treat header_notes_owner as PO payload JSON (with legacy fallback).
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - 90vh scroll, sticky header, sortable columns, column visibility, rounding, CBM bar.
@@ -592,6 +593,7 @@ function sop_preorder_render_admin_page() {
     $po_deposit_fx_locked = 0;
     $po_balance_fx_rate   = 0.0;
     $po_balance_usd       = 0.0;
+    $po_payload      = array();
     $po_extras       = array();
     $po_holiday_start = '';
     $po_holiday_end   = '';
@@ -606,42 +608,94 @@ function sop_preorder_render_admin_page() {
         $header_notes_owner = isset( $current_sheet['header_notes_owner'] ) ? $current_sheet['header_notes_owner'] : '';
 
         if ( is_string( $header_notes_owner ) && '' !== trim( $header_notes_owner ) ) {
-            $decoded = json_decode( $header_notes_owner, true );
-            if ( is_array( $decoded ) ) {
-                if ( isset( $decoded['po_extras'] ) && is_array( $decoded['po_extras'] ) ) {
-                    foreach ( $decoded['po_extras'] as $extra_row ) {
-                        if ( ! is_array( $extra_row ) ) {
-                            continue;
-                        }
-                        $label  = isset( $extra_row['label'] ) ? (string) $extra_row['label'] : '';
-                        $amount = isset( $extra_row['amount_rmb'] ) ? (string) $extra_row['amount_rmb'] : '';
-                        if ( '' === $label && '' === $amount ) {
-                            continue;
-                        }
-                        $po_extras[] = array(
-                            'label'      => $label,
-                            'amount_rmb' => $amount,
-                        );
+            $po_payload = json_decode( $header_notes_owner, true );
+            if ( ! is_array( $po_payload ) ) {
+                $po_payload = array();
+            }
+        }
+    }
+
+    // Prefer payload-style storage for PO values.
+    if ( ! empty( $po_payload ) ) {
+        $po_order_date   = isset( $po_payload['order_date'] ) ? (string) $po_payload['order_date'] : $po_order_date;
+        $po_load_date    = isset( $po_payload['load_date'] ) ? (string) $po_payload['load_date'] : $po_load_date;
+        $po_arrival_date = isset( $po_payload['arrival_date'] ) ? (string) $po_payload['arrival_date'] : $po_arrival_date;
+
+        $po_holiday_start = isset( $po_payload['holiday_start'] ) ? (string) $po_payload['holiday_start'] : $po_holiday_start;
+        $po_holiday_end   = isset( $po_payload['holiday_end'] ) ? (string) $po_payload['holiday_end'] : $po_holiday_end;
+
+        if ( isset( $po_payload['deposit_fx_rate'] ) ) {
+            $po_deposit_fx_rate = (float) $po_payload['deposit_fx_rate'];
+        }
+        if ( isset( $po_payload['deposit_fx_locked'] ) ) {
+            $po_deposit_fx_locked = (bool) $po_payload['deposit_fx_locked'];
+        }
+        if ( isset( $po_payload['balance_fx_rate'] ) ) {
+            $po_balance_fx_rate = (float) $po_payload['balance_fx_rate'];
+        }
+        if ( isset( $po_payload['balance_usd'] ) ) {
+            $po_balance_usd = (float) $po_payload['balance_usd'];
+        }
+        if ( isset( $po_payload['deposit_rmb'] ) ) {
+            $po_deposit_rmb = (float) $po_payload['deposit_rmb'];
+        }
+        if ( isset( $po_payload['deposit_usd'] ) ) {
+            $po_deposit_usd = (float) $po_payload['deposit_usd'];
+        }
+
+        if ( isset( $po_payload['extras'] ) && is_array( $po_payload['extras'] ) ) {
+            foreach ( $po_payload['extras'] as $extra_row ) {
+                if ( ! is_array( $extra_row ) ) {
+                    continue;
+                }
+                $label  = isset( $extra_row['label'] ) ? (string) $extra_row['label'] : '';
+                $amount = isset( $extra_row['amount_rmb'] ) ? (string) $extra_row['amount_rmb'] : '';
+                if ( '' === $label && '' === $amount ) {
+                    continue;
+                }
+                $po_extras[] = array(
+                    'label'      => $label,
+                    'amount_rmb' => $amount,
+                );
+            }
+        }
+    } elseif ( ! empty( $header_notes_owner ) ) {
+        // Backward compatibility for legacy structure.
+        $decoded = json_decode( $header_notes_owner, true );
+        if ( is_array( $decoded ) ) {
+            if ( isset( $decoded['po_extras'] ) && is_array( $decoded['po_extras'] ) ) {
+                foreach ( $decoded['po_extras'] as $extra_row ) {
+                    if ( ! is_array( $extra_row ) ) {
+                        continue;
                     }
+                    $label  = isset( $extra_row['label'] ) ? (string) $extra_row['label'] : '';
+                    $amount = isset( $extra_row['amount_rmb'] ) ? (string) $extra_row['amount_rmb'] : '';
+                    if ( '' === $label && '' === $amount ) {
+                        continue;
+                    }
+                    $po_extras[] = array(
+                        'label'      => $label,
+                        'amount_rmb' => $amount,
+                    );
                 }
-                if ( isset( $decoded['deposit_fx_rate'] ) ) {
-                    $po_deposit_fx_rate = (float) $decoded['deposit_fx_rate'];
-                }
-                if ( isset( $decoded['deposit_fx_locked'] ) ) {
-                    $po_deposit_fx_locked = (bool) $decoded['deposit_fx_locked'];
-                }
-                if ( isset( $decoded['balance_fx_rate'] ) ) {
-                    $po_balance_fx_rate = (float) $decoded['balance_fx_rate'];
-                }
-                if ( isset( $decoded['balance_usd'] ) ) {
-                    $po_balance_usd = (float) $decoded['balance_usd'];
-                }
-                if ( isset( $decoded['po_holiday_start'] ) ) {
-                    $po_holiday_start = (string) $decoded['po_holiday_start'];
-                }
-                if ( isset( $decoded['po_holiday_end'] ) ) {
-                    $po_holiday_end = (string) $decoded['po_holiday_end'];
-                }
+            }
+            if ( isset( $decoded['deposit_fx_rate'] ) ) {
+                $po_deposit_fx_rate = (float) $decoded['deposit_fx_rate'];
+            }
+            if ( isset( $decoded['deposit_fx_locked'] ) ) {
+                $po_deposit_fx_locked = (bool) $decoded['deposit_fx_locked'];
+            }
+            if ( isset( $decoded['balance_fx_rate'] ) ) {
+                $po_balance_fx_rate = (float) $decoded['balance_fx_rate'];
+            }
+            if ( isset( $decoded['balance_usd'] ) ) {
+                $po_balance_usd = (float) $decoded['balance_usd'];
+            }
+            if ( isset( $decoded['po_holiday_start'] ) ) {
+                $po_holiday_start = (string) $decoded['po_holiday_start'];
+            }
+            if ( isset( $decoded['po_holiday_end'] ) ) {
+                $po_holiday_end = (string) $decoded['po_holiday_end'];
             }
         }
     }

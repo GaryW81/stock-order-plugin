@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.22
- * - Ensure PO extras persist consistently and add saved extras debug count.
+ * File version: 11.23
+ * - Store full PO payload JSON in header_notes_owner; persist extras consistently.
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
  * - 11.17 - Ensure Purchase Order modal fields are explicitly persisted on save (insert/update).
  * - 11.18 - Parse PO JSON payload (sop_po_payload) and log last POST for debugging.
@@ -71,15 +71,6 @@ function sop_preorder_register_admin_menu() {
 function sop_preorder_update_po_header_from_post( $sheet_id ) {
     if ( $sheet_id <= 0 || ! function_exists( 'sop_update_preorder_sheet' ) ) {
         return;
-    }
-
-    $payload_raw = isset( $_POST['sop_po_payload'] ) ? wp_unslash( $_POST['sop_po_payload'] ) : '';
-    $payload     = array();
-    if ( '' !== $payload_raw ) {
-        $decoded = json_decode( $payload_raw, true );
-        if ( is_array( $decoded ) ) {
-            $payload = $decoded;
-        }
     }
 
     $po_order_date        = '';
@@ -264,7 +255,7 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
             'extras_count'         => isset( $po_extras ) && is_array( $po_extras ) ? count( $po_extras ) : 0,
         ),
     );
-    $debug_data['po_extras_saved_count'] = is_array( $po_extras ) ? count( $po_extras ) : 0;
+    $debug_data['po_extras_saved_count'] = isset( $payload['extras'] ) && is_array( $payload['extras'] ) ? count( $payload['extras'] ) : 0;
 
     // Store this so the UI can show what the last save handler actually saw.
     update_option( 'sop_po_debug_last_post', $debug_data, false );
@@ -289,32 +280,26 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
         );
     }
 
-    $header_notes_owner_data = array();
-
-    // Persist PO extras consistently.
-    $header_notes_owner_data['po_extras'] = $po_extras;
-
-    if ( $po_deposit_fx_rate > 0 ) {
-        $header_notes_owner_data['deposit_fx_rate'] = $po_deposit_fx_rate;
+    // Normalise payload before storing as header_notes_owner.
+    if ( ! is_array( $payload ) ) {
+        $payload = array();
     }
 
-    $header_notes_owner_data['deposit_fx_locked'] = (bool) $po_deposit_fx_locked;
+    // Ensure expected keys are present for consistent UI behaviour.
+    $payload['order_date']     = $po_order_date;
+    $payload['load_date']      = $po_load_date;
+    $payload['arrival_date']   = $po_arrival_date;
+    $payload['holiday_start']  = $po_holiday_start;
+    $payload['holiday_end']    = $po_holiday_end;
+    $payload['deposit_usd']    = $po_deposit_usd;
+    $payload['deposit_rmb']    = $po_deposit_rmb;
+    $payload['deposit_fx_rate']   = (float) $po_deposit_fx_rate;
+    $payload['deposit_fx_locked'] = (bool) $po_deposit_fx_locked;
+    $payload['balance_fx_rate']   = (float) $po_balance_fx_rate;
+    $payload['balance_usd']       = (float) $po_balance_usd;
+    $payload['extras']            = $po_extras;
 
-    if ( $po_balance_fx_rate > 0 ) {
-        $header_notes_owner_data['balance_fx_rate'] = $po_balance_fx_rate;
-    }
-
-    if ( $po_balance_usd > 0 ) {
-        $header_notes_owner_data['balance_usd'] = $po_balance_usd;
-    }
-
-    if ( '' !== $po_holiday_start ) {
-        $header_notes_owner_data['po_holiday_start'] = $po_holiday_start;
-    }
-
-    if ( '' !== $po_holiday_end ) {
-        $header_notes_owner_data['po_holiday_end'] = $po_holiday_end;
-    }
+    $header_notes_owner = wp_json_encode( $payload );
 
     $update = array(
         'order_date_owner'          => ( '' !== $po_order_date ) ? $po_order_date : null,
@@ -322,11 +307,8 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
         'arrival_date_owner'        => ( '' !== $po_arrival_date ) ? $po_arrival_date : null,
         'deposit_fx_owner'          => $po_deposit_rmb,
         'balance_fx_owner'          => $po_deposit_usd,
+        'header_notes_owner'        => $header_notes_owner,
     );
-
-    if ( ! empty( $header_notes_owner_data ) ) {
-        $update['header_notes_owner'] = wp_json_encode( $header_notes_owner_data );
-    }
 
     $result = sop_update_preorder_sheet( $sheet_id, $update );
     if ( is_wp_error( $result ) ) {
