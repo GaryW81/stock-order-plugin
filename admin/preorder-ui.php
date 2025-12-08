@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.00 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.02 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
@@ -7,6 +7,8 @@
  * - PO details grid layout and explicit PO field wiring for saved sheets.
  * - PO details row: PO# then single-line dates.
  * - V12.00 - Round PO FX to 3dp, right-align FX inputs, balance row layout; USD display uses balance/supplier FX.
+ * - V12.01 - PO FX totals panel aligned right; balance mirrors deposit; balance FX stays empty until deposit locked.
+ * - V12.02 - PO FX rounding/behaviour tweaks, right-aligned inputs, balance panel mirrors deposit and hides until locked.
  * - V11.92 - PO modal: enable inputs for drafts, save button inside modal, JSON payload + debug line, load PO extras from header notes.
  * - V11.93 - Ensure PO extras load/persist reliably; debug shows extras count.
  * - V11.94 - Treat header_notes_owner as PO payload JSON (with legacy fallback).
@@ -1693,86 +1695,88 @@ function sop_preorder_render_admin_page() {
                         <?php endif; ?>
                     </div>
 
-                    <div class="sop-po-section sop-po-deposit">
-                        <div class="sop-po-field">
-                            <label><?php esc_html_e( 'Deposit (USD)', 'sop' ); ?></label>
-                            <input type="number"
-                                   step="0.01"
-                                   name="sop_po_deposit_usd"
-                                   value="<?php echo esc_attr( $po_deposit_usd ); ?>"<?php echo $po_disabled_attr; ?> />
-                        </div>
+                    <div class="sop-po-fx-panel">
+                        <div class="sop-po-section sop-po-deposit sop-po-fx-row">
+                            <div class="sop-po-field">
+                                <label><?php esc_html_e( 'Deposit (USD)', 'sop' ); ?></label>
+                                <input type="number"
+                                       step="0.01"
+                                       name="sop_po_deposit_usd"
+                                       value="<?php echo esc_attr( $po_deposit_usd ); ?>"<?php echo $po_disabled_attr; ?> />
+                            </div>
 
-                        <div class="sop-po-field">
-                            <label><?php esc_html_e( 'Deposit FX rate (RMB per USD)', 'sop' ); ?></label>
-                            <input type="number"
-                                   step="0.0001"
-                                   name="sop_po_deposit_fx_rate"
-                                   class="sop-po-fx-input"
-                                   id="sop-po-deposit-fx-rate"
-                                   value="<?php echo esc_attr( $po_deposit_fx_rate ); ?>"<?php echo $po_disabled_attr; ?> />
-                            <label class="sop-po-inline">
-                                <input type="checkbox"
-                                       name="sop_po_deposit_fx_locked"
-                                       value="1"
-                                       <?php checked( $po_deposit_fx_locked ); ?>
-                                       <?php echo $po_disabled_attr ? ' disabled="disabled"' : ''; ?>
-                                />
-                                <?php esc_html_e( 'Lock deposit FX rate (deposit paid)', 'sop' ); ?>
-                            </label>
-                            <div class="sop-po-fx-summary-row">
-                                <span id="sop-po-deposit-fx-summary" class="sop-po-fx-summary"></span>
+                            <div class="sop-po-field">
+                                <label><?php esc_html_e( 'Deposit FX rate (RMB per USD)', 'sop' ); ?></label>
+                                <input type="number"
+                                       step="0.0001"
+                                       name="sop_po_deposit_fx_rate"
+                                       class="sop-po-fx-input"
+                                       id="sop-po-deposit-fx-rate"
+                                       value="<?php echo esc_attr( $po_deposit_fx_rate ); ?>"<?php echo $po_disabled_attr; ?> />
+                                <label class="sop-po-inline">
+                                    <input type="checkbox"
+                                           name="sop_po_deposit_fx_locked"
+                                           value="1"
+                                           <?php checked( $po_deposit_fx_locked ); ?>
+                                           <?php echo $po_disabled_attr ? ' disabled="disabled"' : ''; ?>
+                                    />
+                                    <?php esc_html_e( 'Lock deposit FX rate (deposit paid)', 'sop' ); ?>
+                                </label>
+                                <div class="sop-po-fx-summary-row">
+                                    <span id="sop-po-deposit-fx-summary" class="sop-po-fx-summary"></span>
+                                </div>
+                            </div>
+
+                            <div class="sop-po-field">
+                                <label><?php esc_html_e( 'Deposit (RMB)', 'sop' ); ?></label>
+                                <input type="number"
+                                       step="0.01"
+                                       id="sop-po-deposit-rmb"
+                                       name="sop_po_deposit_rmb"
+                                       value="<?php echo esc_attr( $po_deposit_rmb ); ?>"<?php echo $po_disabled_attr; ?> />
                             </div>
                         </div>
 
-                        <div class="sop-po-field">
-                            <label><?php esc_html_e( 'Deposit (RMB)', 'sop' ); ?></label>
-                            <input type="number"
-                                   step="0.01"
-                                   id="sop-po-deposit-rmb"
-                                   name="sop_po_deposit_rmb"
-                                   value="<?php echo esc_attr( $po_deposit_rmb ); ?>"<?php echo $po_disabled_attr; ?> />
-                        </div>
-                    </div>
-
-                    <div class="sop-po-section sop-po-balance sop-po-deposit">
-                        <div class="sop-po-field">
-                            <label><?php esc_html_e( 'Balance (RMB)', 'sop' ); ?></label>
-                            <span id="sop-po-balance-rmb">
-                                <?php echo esc_html( number_format( $po_balance_rmb, 2 ) ); ?>
-                            </span>
-                        </div>
-
-                        <div class="sop-po-field">
-                            <label><?php esc_html_e( 'Balance FX rate (RMB per USD)', 'sop' ); ?></label>
-                            <input type="number"
-                                   step="0.0001"
-                                   name="sop_po_balance_fx_rate"
-                                   class="sop-po-fx-input"
-                                   id="sop-po-balance-fx-rate"
-                                   value="<?php echo esc_attr( $po_balance_fx_rate ); ?>"<?php echo $po_disabled_attr; ?> />
-                            <label class="sop-po-inline">
-                                <input type="checkbox"
-                                       name="sop_po_balance_fx_locked"
-                                       value="1"
-                                       <?php checked( ! empty( $po_balance_fx_locked ) ); ?>
-                                       <?php echo $po_disabled_attr ? ' disabled="disabled"' : ''; ?>
-                                />
-                                <?php esc_html_e( 'Lock balance FX rate', 'sop' ); ?>
-                            </label>
-                            <div class="sop-po-fx-summary-row">
-                                <span id="sop-po-balance-fx-summary" class="sop-po-fx-summary"></span>
+                        <div class="sop-po-section sop-po-deposit sop-po-fx-row">
+                            <div class="sop-po-field">
+                                <label><?php esc_html_e( 'Balance (USD)', 'sop' ); ?></label>
+                                <span id="sop-po-balance-usd">
+                                    <?php echo $po_balance_fx_locked && $po_balance_fx_rate > 0 ? esc_html( number_format( $po_balance_usd, 2 ) ) : ''; ?>
+                                </span>
+                                <input type="hidden"
+                                       name="sop_po_balance_usd"
+                                       id="sop-po-balance-usd-input"
+                                       value="<?php echo esc_attr( $po_balance_fx_locked && $po_balance_fx_rate > 0 ? $po_balance_usd : 0 ); ?>" />
                             </div>
-                        </div>
 
-                        <div class="sop-po-field">
-                            <label><?php esc_html_e( 'Balance (USD)', 'sop' ); ?></label>
-                            <span id="sop-po-balance-usd">
-                                <?php echo esc_html( number_format( $po_balance_usd, 2 ) ); ?>
-                            </span>
-                            <input type="hidden"
-                                   name="sop_po_balance_usd"
-                                   id="sop-po-balance-usd-input"
-                                   value="<?php echo esc_attr( $po_balance_usd ); ?>" />
+                            <div class="sop-po-field">
+                                <label><?php esc_html_e( 'Balance FX rate (RMB per USD)', 'sop' ); ?></label>
+                                <input type="number"
+                                       step="0.0001"
+                                       name="sop_po_balance_fx_rate"
+                                       class="sop-po-fx-input"
+                                       id="sop-po-balance-fx-rate"
+                                       value="<?php echo esc_attr( ( $po_deposit_fx_locked && $po_balance_fx_rate > 0 ) ? $po_balance_fx_rate : '' ); ?>"<?php echo $po_disabled_attr; ?> />
+                                <label class="sop-po-inline">
+                                    <input type="checkbox"
+                                           name="sop_po_balance_fx_locked"
+                                           value="1"
+                                           <?php checked( ! empty( $po_balance_fx_locked ) ); ?>
+                                           <?php echo $po_disabled_attr ? ' disabled="disabled"' : ''; ?>
+                                    />
+                                    <?php esc_html_e( 'Lock balance FX rate', 'sop' ); ?>
+                                </label>
+                                <div class="sop-po-fx-summary-row">
+                                    <span id="sop-po-balance-fx-summary" class="sop-po-fx-summary"></span>
+                                </div>
+                            </div>
+
+                            <div class="sop-po-field">
+                                <label><?php esc_html_e( 'Balance (RMB)', 'sop' ); ?></label>
+                                <span id="sop-po-balance-rmb">
+                                    <?php echo esc_html( number_format( $po_balance_rmb, 2 ) ); ?>
+                                </span>
+                            </div>
                         </div>
 
                         <input type="hidden" id="sop-po-rmb-per-usd" value="<?php echo esc_attr( $sop_supplier_effective_fx > 0 ? $sop_supplier_effective_fx : $po_rmb_per_usd ); ?>" />
@@ -2327,6 +2331,29 @@ function sop_preorder_render_admin_page() {
             gap: 12px;
             margin-top: 10px;
             margin-bottom: 10px;
+        }
+
+        .sop-po-fx-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+        }
+
+        .sop-po-fx-row {
+            display: flex;
+            justify-content: flex-end;
+            gap: 16px;
+            width: auto;
+            align-self: flex-end;
+        }
+
+        .sop-po-fx-row .sop-po-field {
+            min-width: 180px;
+        }
+
+        .sop-po-fx-input {
+            text-align: right;
         }
 
         .sop-po-fx-summary-row {
@@ -3595,6 +3622,8 @@ function sop_preorder_render_admin_page() {
                 var $depositRmbInput    = $( '#sop-po-deposit-rmb' );
                 var $depositFxRateInput = $( '#sop-po-deposit-fx-rate' );
                 var $balanceFxRateInput = $( '#sop-po-balance-fx-rate' );
+                var $depositFxLocked    = $( 'input[name=\"sop_po_deposit_fx_locked\"]' );
+                var $balanceFxLocked    = $( 'input[name=\"sop_po_balance_fx_locked\"]' );
                 var $extrasTable        = $( '.sop-po-items-table' );
                 var $extrasAmountInputs = $extrasTable.find( '.sop-po-extra-amount' );
                 var baseTotalRmb        = parseFloat( $poBaseLabel.data( 'base-total-rmb' ) ) || 0;
@@ -3654,16 +3683,18 @@ function sop_preorder_render_admin_page() {
                     $poTotalLabel.text( poTotal.toFixed( 2 ) );
                     $poBalanceLabel.text( balanceRmb.toFixed( 2 ) );
 
+                    var depositLocked = $depositFxLocked.is( ':checked' );
+
                     var balanceFxRate = sopPoRoundFx( $balanceFxRateInput.val() );
-                    if ( balanceFxRate > 0 ) {
+                    if ( ! depositLocked ) {
+                        balanceFxRate = 0;
+                        $balanceFxRateInput.val( '' );
+                    } else if ( balanceFxRate > 0 ) {
                         $balanceFxRateInput.val( balanceFxRate.toFixed( 3 ) );
                     }
-                    if ( balanceFxRate <= 0 ) {
-                        balanceFxRate = rmbPerUsd;
-                    }
-                    var balanceUsd = ( balanceRmb > 0 && balanceFxRate > 0 ) ? ( balanceRmb / balanceFxRate ) : 0;
-                    $balanceUsdLabel.text( balanceUsd.toFixed( 2 ) );
-                    $balanceUsdInput.val( balanceUsd.toFixed( 2 ) );
+                    var balanceUsd = ( depositLocked && balanceRmb > 0 && balanceFxRate > 0 ) ? ( balanceRmb / balanceFxRate ) : 0;
+                    $balanceUsdLabel.text( ( depositLocked && balanceFxRate > 0 ) ? balanceUsd.toFixed( 2 ) : '' );
+                    $balanceUsdInput.val( ( depositLocked && balanceFxRate > 0 ) ? balanceUsd.toFixed( 2 ) : '' );
 
                     // Update FX summaries for quick reference.
                     if ( $depositFxSummary.length ) {
@@ -3674,7 +3705,7 @@ function sop_preorder_render_admin_page() {
                         }
                     }
                     if ( $balanceFxSummary.length ) {
-                        if ( balanceFxRate > 0 ) {
+                        if ( depositLocked && balanceFxRate > 0 ) {
                             $balanceFxSummary.text( '1 USD = ' + balanceFxRate.toFixed( 3 ) + ' RMB' );
                         } else {
                             $balanceFxSummary.text( '' );
