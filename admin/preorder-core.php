@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.24
- * - Store full PO payload JSON in header_notes_owner; guarantee PO extras persist.
+ * File version: 11.25
+ * - Store full PO payload JSON in header_notes_owner; guarantee PO extras persist. (No functional change, version bump)
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
  * - 11.17 - Ensure Purchase Order modal fields are explicitly persisted on save (insert/update).
  * - 11.18 - Parse PO JSON payload (sop_po_payload) and log last POST for debugging.
