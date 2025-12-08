@@ -113,8 +113,15 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
         $po_balance_fx_rate = isset( $payload['balance_fx_rate'] ) ? (float) $payload['balance_fx_rate'] : 0.0;
         $po_balance_usd     = isset( $payload['balance_usd'] ) ? (float) $payload['balance_usd'] : 0.0;
 
-        if ( ! empty( $payload['extras'] ) && is_array( $payload['extras'] ) ) {
-            foreach ( $payload['extras'] as $extra_row ) {
+        $extras_source = array();
+        if ( isset( $payload['po_extras'] ) && is_array( $payload['po_extras'] ) ) {
+            $extras_source = $payload['po_extras'];
+        } elseif ( ! empty( $payload['extras'] ) && is_array( $payload['extras'] ) ) {
+            $extras_source = $payload['extras'];
+        }
+
+        if ( ! empty( $extras_source ) ) {
+            foreach ( $extras_source as $extra_row ) {
                 $label  = isset( $extra_row['label'] ) ? sanitize_text_field( $extra_row['label'] ) : '';
                 $amount = isset( $extra_row['amount_rmb'] ) ? (float) $extra_row['amount_rmb'] : 0.0;
                 if ( '' === $label && 0.0 === $amount ) {
@@ -261,7 +268,7 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
             'extras_count'         => isset( $po_extras ) && is_array( $po_extras ) ? count( $po_extras ) : 0,
         ),
     );
-    $extras_saved_count                   = ( isset( $payload['extras'] ) && is_array( $payload['extras'] ) ) ? count( $payload['extras'] ) : 0;
+    $extras_saved_count                   = ( isset( $payload['po_extras'] ) && is_array( $payload['po_extras'] ) ) ? count( $payload['po_extras'] ) : 0;
     $debug_data['po_extras_saved_count']  = $extras_saved_count;
 
     // Store this so the UI can show what the last save handler actually saw.
@@ -304,7 +311,7 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
     $payload['deposit_fx_locked'] = (bool) $po_deposit_fx_locked;
     $payload['balance_fx_rate']   = (float) $po_balance_fx_rate;
     $payload['balance_usd']       = (float) $po_balance_usd;
-    $payload['extras']            = is_array( $po_extras ) ? array_values( $po_extras ) : array();
+    $payload['po_extras']         = is_array( $po_extras ) ? array_values( $po_extras ) : array();
 
     $header_notes_owner = wp_json_encode( $payload );
 

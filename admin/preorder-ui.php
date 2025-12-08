@@ -644,8 +644,16 @@ function sop_preorder_render_admin_page() {
             $po_deposit_usd = (float) $po_payload['deposit_usd'];
         }
 
-        if ( isset( $po_payload['extras'] ) && is_array( $po_payload['extras'] ) ) {
-            foreach ( $po_payload['extras'] as $extra_row ) {
+        $extras_source = array();
+        if ( isset( $po_payload['po_extras'] ) && is_array( $po_payload['po_extras'] ) ) {
+            $extras_source = $po_payload['po_extras'];
+        } elseif ( isset( $po_payload['extras'] ) && is_array( $po_payload['extras'] ) ) {
+            // Backwards compatibility for older payload key.
+            $extras_source = $po_payload['extras'];
+        }
+
+        if ( ! empty( $extras_source ) ) {
+            foreach ( $extras_source as $extra_row ) {
                 if ( ! is_array( $extra_row ) ) {
                     continue;
                 }
@@ -701,7 +709,7 @@ function sop_preorder_render_admin_page() {
         }
     }
     $po_extras_loaded_count  = is_array( $po_extras ) ? count( $po_extras ) : 0;
-    $po_extras_header_count  = isset( $po_payload['extras'] ) && is_array( $po_payload['extras'] ) ? count( $po_payload['extras'] ) : 0;
+    $po_extras_header_count  = isset( $po_payload['po_extras'] ) && is_array( $po_payload['po_extras'] ) ? count( $po_payload['po_extras'] ) : 0;
     if ( empty( $po_extras ) ) {
         $po_extras = array(
             array(
@@ -3900,7 +3908,7 @@ function sop_preorder_render_admin_page() {
                         deposit_fx_locked: depositLocked,
                         balance_fx_rate: balanceFx,
                         balance_usd: balanceUsd,
-                        extras: extras
+                        po_extras: extras
                     };
 
                     $( '#sop-po-payload' ).val( JSON.stringify( payload ) );
