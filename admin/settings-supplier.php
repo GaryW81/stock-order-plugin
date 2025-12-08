@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.30
+ * File version: 1.5.31
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
  * - Adds supplier holiday/shipping settings (multiple periods + units) for PO date suggestions.
@@ -1698,6 +1698,15 @@ class sop_Admin_Settings {
 
         $shipping_value_raw = isset( $_POST['sop_supplier_shipping_value'] ) ? (int) $_POST['sop_supplier_shipping_value'] : 0;
         $shipping_unit_raw  = isset( $_POST['sop_supplier_shipping_unit'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_shipping_unit'] ) ) : 'days';
+        $fx_adjust_percent  = 0.0;
+        if ( isset( $_POST['sop_supplier_fx_adjust_percent'] ) ) {
+            $fx_adjust_percent = (float) wp_unslash( $_POST['sop_supplier_fx_adjust_percent'] );
+            if ( $fx_adjust_percent < -20 ) {
+                $fx_adjust_percent = -20;
+            } elseif ( $fx_adjust_percent > 20 ) {
+                $fx_adjust_percent = 20;
+            }
+        }
 
         if ( $shipping_value_raw < 0 ) {
             $shipping_value_raw = 0;
@@ -1714,6 +1723,9 @@ class sop_Admin_Settings {
         } else {
             unset( $settings_array['shipping_value'], $settings_array['shipping_unit'], $settings_array['shipping_days'] );
         }
+
+        // FX adjustment percent.
+        $settings_array['fx_adjust_percent'] = $fx_adjust_percent;
 
         $settings_json = ! empty( $settings_array ) ? wp_json_encode( $settings_array ) : null;
 
@@ -1976,6 +1988,7 @@ class sop_Admin_Settings {
             );
             $shipping_value_val = 0;
             $shipping_unit_val  = 'days';
+            $fx_adjust_percent_val = 0.0;
 
             if ( $editing ) {
                 $editing_id_val    = (int) $editing->id;
@@ -2071,6 +2084,9 @@ class sop_Admin_Settings {
                 if ( is_array( $settings_arr ) && isset( $settings_arr['shipping_unit'] ) && in_array( $settings_arr['shipping_unit'], array( 'days', 'weeks' ), true ) ) {
                     $shipping_unit_val = $settings_arr['shipping_unit'];
                 }
+                if ( is_array( $settings_arr ) && isset( $settings_arr['fx_adjust_percent'] ) ) {
+                    $fx_adjust_percent_val = (float) $settings_arr['fx_adjust_percent'];
+                }
             }
             ?>
 
@@ -2152,6 +2168,27 @@ class sop_Admin_Settings {
                                        class="small-text" />
                                 <p class="description">
                                     <?php esc_html_e( 'Approximate time from placing order to goods arriving, in weeks.', 'sop' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_fx_adjust_percent">
+                                    <?php esc_html_e( 'FX adjustment (%)', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="number"
+                                       id="sop_supplier_fx_adjust_percent"
+                                       name="sop_supplier_fx_adjust_percent"
+                                       class="small-text"
+                                       step="0.1"
+                                       min="-20"
+                                       max="20"
+                                       value="<?php echo esc_attr( $fx_adjust_percent_val ); ?>" />
+                                <p class="description">
+                                    <?php esc_html_e( 'Positive values reduce the base USD→RMB rate by this %, e.g. 0.5 → base 7.287 becomes ~7.25 to cover the supplier’s bank FX fees.', 'sop' ); ?>
                                 </p>
                             </td>
                         </tr>

@@ -84,6 +84,7 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
     $po_deposit_fx_locked = 0;
     $po_balance_fx_rate   = 0.0;
     $po_balance_usd       = 0.0;
+    $po_balance_fx_locked = 0;
     $po_extras            = array();
 
     // Prefer JSON payload if present.
@@ -110,8 +111,9 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
         $po_deposit_fx_rate   = isset( $payload['deposit_fx_rate'] ) ? (float) $payload['deposit_fx_rate'] : 0.0;
         $po_deposit_fx_locked = ! empty( $payload['deposit_fx_locked'] ) ? 1 : 0;
 
-        $po_balance_fx_rate = isset( $payload['balance_fx_rate'] ) ? (float) $payload['balance_fx_rate'] : 0.0;
-        $po_balance_usd     = isset( $payload['balance_usd'] ) ? (float) $payload['balance_usd'] : 0.0;
+        $po_balance_fx_rate   = isset( $payload['balance_fx_rate'] ) ? (float) $payload['balance_fx_rate'] : 0.0;
+        $po_balance_usd       = isset( $payload['balance_usd'] ) ? (float) $payload['balance_usd'] : 0.0;
+        $po_balance_fx_locked = ! empty( $payload['balance_fx_locked'] ) ? 1 : 0;
 
         $extras_source = array();
         if ( isset( $payload['po_extras'] ) && is_array( $payload['po_extras'] ) ) {
@@ -144,8 +146,9 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
         $po_deposit_rmb = isset( $_POST['sop_po_deposit_rmb'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_rmb'] ) : 0.0;
         $po_deposit_usd = isset( $_POST['sop_po_deposit_usd'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_usd'] ) : 0.0;
         $po_deposit_fx_rate = isset( $_POST['sop_po_deposit_fx_rate'] ) ? (float) wp_unslash( $_POST['sop_po_deposit_fx_rate'] ) : 0.0;
-        $po_balance_fx_rate = isset( $_POST['sop_po_balance_fx_rate'] ) ? (float) wp_unslash( $_POST['sop_po_balance_fx_rate'] ) : 0.0;
-        $po_balance_usd     = isset( $_POST['sop_po_balance_usd'] ) ? (float) wp_unslash( $_POST['sop_po_balance_usd'] ) : 0.0;
+        $po_balance_fx_rate   = isset( $_POST['sop_po_balance_fx_rate'] ) ? (float) wp_unslash( $_POST['sop_po_balance_fx_rate'] ) : 0.0;
+        $po_balance_usd       = isset( $_POST['sop_po_balance_usd'] ) ? (float) wp_unslash( $_POST['sop_po_balance_usd'] ) : 0.0;
+        $po_balance_fx_locked = ! empty( $_POST['sop_po_balance_fx_locked'] ) ? 1 : 0;
         $po_deposit_fx_locked = ! empty( $_POST['sop_po_deposit_fx_locked'] ) ? 1 : 0;
 
         $labels_raw  = isset( $_POST['sop_po_extra_label'] ) && is_array( $_POST['sop_po_extra_label'] ) ? array_map( 'wp_unslash', (array) $_POST['sop_po_extra_label'] ) : array();
@@ -299,6 +302,7 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
     $payload['deposit_fx_locked'] = (bool) $po_deposit_fx_locked;
     $payload['balance_fx_rate']   = (float) $po_balance_fx_rate;
     $payload['balance_usd']       = (float) $po_balance_usd;
+    $payload['balance_fx_locked'] = (bool) $po_balance_fx_locked;
     $payload['po_extras']         = is_array( $po_extras ) ? array_values( $po_extras ) : array();
 
     $header_notes_owner = wp_json_encode( $payload );

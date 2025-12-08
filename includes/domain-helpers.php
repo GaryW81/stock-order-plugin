@@ -672,6 +672,67 @@ if ( ! function_exists( 'sop_get_rmb_to_usd_rate_for_supplier' ) ) {
     }
 }
 
+if ( ! function_exists( 'sop_get_base_usd_to_rmb_rate' ) ) {
+    /**
+     * Compute base USD -> RMB rate from existing RMB->GBP and USD->GBP settings.
+     *
+     * @return float
+     */
+    function sop_get_base_usd_to_rmb_rate() {
+        $settings   = get_option( 'sop_settings', array() );
+        $rmb_to_gbp = isset( $settings['rmb_to_gbp_rate'] ) ? (float) $settings['rmb_to_gbp_rate'] : 0.0;
+        $usd_to_gbp = isset( $settings['usd_to_gbp_rate'] ) ? (float) $settings['usd_to_gbp_rate'] : 0.0;
+
+        if ( $rmb_to_gbp <= 0 || $usd_to_gbp <= 0 ) {
+            return 0.0;
+        }
+
+        $usd_to_rmb = $usd_to_gbp / $rmb_to_gbp;
+
+        return ( $usd_to_rmb > 0 ) ? (float) $usd_to_rmb : 0.0;
+    }
+}
+
+if ( ! function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
+    /**
+     * Get supplier-effective USD -> RMB rate using base rate and per-supplier adjustment %.
+     *
+     * @param int|array $supplier_or_id Supplier array or ID.
+     * @return float
+     */
+    function sop_get_supplier_effective_usd_to_rmb_rate( $supplier_or_id ) {
+        $supplier = $supplier_or_id;
+        if ( ! is_array( $supplier_or_id ) && (int) $supplier_or_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
+            $supplier = sop_supplier_get_by_id( (int) $supplier_or_id );
+        }
+
+        $settings_json = array();
+        if ( is_array( $supplier ) && isset( $supplier['settings_json'] ) && ! empty( $supplier['settings_json'] ) ) {
+            $decoded = json_decode( $supplier['settings_json'], true );
+            if ( is_array( $decoded ) ) {
+                $settings_json = $decoded;
+            }
+        }
+
+        $adjust_percent = 0.0;
+        if ( isset( $settings_json['fx_adjust_percent'] ) ) {
+            $adjust_percent = (float) $settings_json['fx_adjust_percent'];
+        }
+
+        $base_rate = sop_get_base_usd_to_rmb_rate();
+        if ( $base_rate <= 0 ) {
+            return 0.0;
+        }
+
+        $effective_rate = $base_rate * ( 1 - ( $adjust_percent / 100 ) );
+        if ( $effective_rate < 0 ) {
+            $effective_rate = 0.0;
+        }
+
+        return (float) $effective_rate;
+    }
+}
+
 if ( ! function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
     /**
      * Normalise a carton number string into a canonical, sortable form.

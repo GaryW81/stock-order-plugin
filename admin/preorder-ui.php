@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.96 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.98 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
@@ -10,6 +10,7 @@
  * - V11.93 - Ensure PO extras load/persist reliably; debug shows extras count.
  * - V11.94 - Treat header_notes_owner as PO payload JSON (with legacy fallback).
  * - V11.95 - Load PO payload extras directly; persist reliably.
+ * - V11.97 - Supplier FX defaults with balance lock and FX summaries for PO modal.
  * - V11.96 - Version bump to reflect latest persistence fixes.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
@@ -74,6 +75,10 @@ function sop_preorder_render_admin_page() {
         $rmb_to_usd_rate = sop_get_rmb_to_usd_rate_for_supplier( $selected_supplier_id );
     }
     $po_rmb_per_usd = ( $rmb_to_usd_rate > 0 ) ? $rmb_to_usd_rate : 1.0;
+    $sop_supplier_effective_fx = 0.0;
+    if ( function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
+        $sop_supplier_effective_fx = sop_get_supplier_effective_usd_to_rmb_rate( $supplier );
+    }
 
     // Company profile (buyer) details.
     $sop_company_profile   = function_exists( 'sop_get_company_profile' ) ? sop_get_company_profile() : array();
@@ -594,6 +599,7 @@ function sop_preorder_render_admin_page() {
     $po_deposit_fx_rate   = 0.0;
     $po_deposit_fx_locked = 0;
     $po_balance_fx_rate   = 0.0;
+    $po_balance_fx_locked = 0;
     $po_balance_usd       = 0.0;
     $po_payload       = array();
     $po_extras        = array();
@@ -634,6 +640,9 @@ function sop_preorder_render_admin_page() {
         }
         if ( isset( $po_payload['balance_fx_rate'] ) ) {
             $po_balance_fx_rate = (float) $po_payload['balance_fx_rate'];
+        }
+        if ( isset( $po_payload['balance_fx_locked'] ) ) {
+            $po_balance_fx_locked = ! empty( $po_payload['balance_fx_locked'] );
         }
         if ( isset( $po_payload['balance_usd'] ) ) {
             $po_balance_usd = (float) $po_payload['balance_usd'];
@@ -698,6 +707,9 @@ function sop_preorder_render_admin_page() {
             if ( isset( $decoded['balance_fx_rate'] ) ) {
                 $po_balance_fx_rate = (float) $decoded['balance_fx_rate'];
             }
+            if ( isset( $decoded['balance_fx_locked'] ) ) {
+                $po_balance_fx_locked = (bool) $decoded['balance_fx_locked'];
+            }
             if ( isset( $decoded['balance_usd'] ) ) {
                 $po_balance_usd = (float) $decoded['balance_usd'];
             }
@@ -739,8 +751,14 @@ function sop_preorder_render_admin_page() {
     if ( $po_deposit_fx_rate <= 0 && $po_deposit_usd > 0 && $po_deposit_rmb > 0 ) {
         $po_deposit_fx_rate = $po_deposit_rmb / $po_deposit_usd;
     }
+    if ( $po_deposit_fx_rate <= 0 && $sop_supplier_effective_fx > 0 && empty( $po_deposit_fx_locked ) && $po_deposit_usd <= 0 ) {
+        $po_deposit_fx_rate = $sop_supplier_effective_fx;
+    }
     if ( $po_deposit_fx_rate <= 0 ) {
         $po_deposit_fx_rate = $po_rmb_per_usd;
+    }
+    if ( $po_balance_fx_rate <= 0 && $sop_supplier_effective_fx > 0 && empty( $po_balance_fx_locked ) ) {
+        $po_balance_fx_rate = $sop_supplier_effective_fx;
     }
     if ( $po_balance_fx_rate <= 0 ) {
         $po_balance_fx_rate = $po_rmb_per_usd;
@@ -1689,6 +1707,9 @@ function sop_preorder_render_admin_page() {
                                 />
                                 <?php esc_html_e( 'Lock deposit FX rate (deposit paid)', 'sop' ); ?>
                             </label>
+                            <div class="sop-po-fx-summary-row">
+                                <span id="sop-po-deposit-fx-summary" class="sop-po-fx-summary"></span>
+                            </div>
                         </div>
 
                         <div class="sop-po-field">
@@ -1716,6 +1737,18 @@ function sop_preorder_render_admin_page() {
                                    name="sop_po_balance_fx_rate"
                                    id="sop-po-balance-fx-rate"
                                    value="<?php echo esc_attr( $po_balance_fx_rate ); ?>"<?php echo $po_disabled_attr; ?> />
+                            <label class="sop-po-inline">
+                                <input type="checkbox"
+                                       name="sop_po_balance_fx_locked"
+                                       value="1"
+                                       <?php checked( ! empty( $po_balance_fx_locked ) ); ?>
+                                       <?php echo $po_disabled_attr ? ' disabled="disabled"' : ''; ?>
+                                />
+                                <?php esc_html_e( 'Lock balance FX rate', 'sop' ); ?>
+                            </label>
+                            <div class="sop-po-fx-summary-row">
+                                <span id="sop-po-balance-fx-summary" class="sop-po-fx-summary"></span>
+                            </div>
                         </div>
 
                         <div class="sop-po-field">
@@ -1729,7 +1762,7 @@ function sop_preorder_render_admin_page() {
                                    value="<?php echo esc_attr( $po_balance_usd ); ?>" />
                         </div>
 
-                        <input type="hidden" id="sop-po-rmb-per-usd" value="<?php echo esc_attr( $po_rmb_per_usd ); ?>" />
+                        <input type="hidden" id="sop-po-rmb-per-usd" value="<?php echo esc_attr( $sop_supplier_effective_fx > 0 ? $sop_supplier_effective_fx : $po_rmb_per_usd ); ?>" />
                         <input type="hidden" id="sop-po-lead-weeks" value="<?php echo esc_attr( $supplier_lead_weeks ); ?>" />
                         <input type="hidden" id="sop-po-shipping-days" value="<?php echo esc_attr( $shipping_days ); ?>" />
                         <input type="hidden" id="sop-po-supplier-holiday-periods" value="<?php echo esc_attr( wp_json_encode( $holiday_periods_md ) ); ?>" />
@@ -2281,6 +2314,15 @@ function sop_preorder_render_admin_page() {
             gap: 12px;
             margin-top: 10px;
             margin-bottom: 10px;
+        }
+
+        .sop-po-fx-summary-row {
+            margin-top: 2px;
+        }
+
+        .sop-po-fx-summary {
+            font-size: 11px;
+            opacity: 0.85;
         }
 
         .sop-po-holiday-range {
@@ -3545,6 +3587,8 @@ function sop_preorder_render_admin_page() {
                 var baseTotalRmb        = parseFloat( $poBaseLabel.data( 'base-total-rmb' ) ) || 0;
                 var rmbPerUsd           = parseFloat( $( '#sop-po-rmb-per-usd' ).val() ) || 1;
                 var isLockedExtras      = $extrasTable.data( 'locked' ) === 1 || $extrasTable.data( 'locked' ) === '1';
+                var $depositFxSummary   = $( '#sop-po-deposit-fx-summary' );
+                var $balanceFxSummary   = $( '#sop-po-balance-fx-summary' );
 
                 function recalcPoTotals() {
                     var extrasTotalRmb = 0;
@@ -3592,6 +3636,22 @@ function sop_preorder_render_admin_page() {
                     var balanceUsd = ( balanceRmb > 0 && balanceFxRate > 0 ) ? ( balanceRmb / balanceFxRate ) : 0;
                     $balanceUsdLabel.text( balanceUsd.toFixed( 2 ) );
                     $balanceUsdInput.val( balanceUsd.toFixed( 2 ) );
+
+                    // Update FX summaries for quick reference.
+                    if ( $depositFxSummary.length ) {
+                        if ( depositFxRate > 0 ) {
+                            $depositFxSummary.text( '1 USD = ' + depositFxRate.toFixed( 3 ) + ' RMB' );
+                        } else {
+                            $depositFxSummary.text( '' );
+                        }
+                    }
+                    if ( $balanceFxSummary.length ) {
+                        if ( balanceFxRate > 0 ) {
+                            $balanceFxSummary.text( '1 USD = ' + balanceFxRate.toFixed( 3 ) + ' RMB' );
+                        } else {
+                            $balanceFxSummary.text( '' );
+                        }
+                    }
                 }
 
                 function bindExtras() {
@@ -3878,6 +3938,7 @@ function sop_preorder_render_admin_page() {
 
                     var balanceFx    = $( 'input[name=\"sop_po_balance_fx_rate\"]' ).val() || '';
                     var balanceUsd   = $( 'input[name=\"sop_po_balance_usd\"]' ).val() || '';
+                    var balanceLocked = $( 'input[name=\"sop_po_balance_fx_locked\"]' ).is( ':checked' ) ? 1 : 0;
 
                     var extras = [];
                     var $extraLabels  = $( 'input[name=\"sop_po_extra_label[]\"]' );
@@ -3908,6 +3969,7 @@ function sop_preorder_render_admin_page() {
                         deposit_fx_rate: depositFx,
                         deposit_fx_locked: depositLocked,
                         balance_fx_rate: balanceFx,
+                        balance_fx_locked: balanceLocked,
                         balance_usd: balanceUsd,
                         po_extras: extras
                     };
