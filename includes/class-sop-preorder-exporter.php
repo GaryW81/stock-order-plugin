@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.9
+ * File version: 1.1.10
+ * - Use Balance FX or supplier-effective FX for USD values in export.
  *
  * Excel-compatible HTML export (with embedded images) for saved Pre-Order sheets.
  */
@@ -24,6 +25,30 @@ class SOP_Preorder_Excel_Exporter {
         $image_padding_px    = 1;  // Padding inside the image cell.
         $row_height_px       = 80; // Row height to match image cell.
         $image_display_size_px = 60; // Actual image size inside the cell.
+
+        // Determine sheet-level FX for USD display: Balance FX (payload) > supplier effective FX.
+        $sheet_fx_for_usd = 0.0;
+        $po_payload       = array();
+
+        if ( ! empty( $header['header_notes_owner'] ) && is_string( $header['header_notes_owner'] ) ) {
+            $decoded = json_decode( $header['header_notes_owner'], true );
+            if ( is_array( $decoded ) ) {
+                $po_payload = $decoded;
+            }
+        }
+
+        $sheet_balance_fx_rate = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
+
+        $sheet_supplier_effective_fx = 0.0;
+        if ( isset( $header['supplier_id'] ) && function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
+            $sheet_supplier_effective_fx = (float) sop_get_supplier_effective_usd_to_rmb_rate( (int) $header['supplier_id'] );
+        }
+
+        if ( $sheet_balance_fx_rate > 0 ) {
+            $sheet_fx_for_usd = $sheet_balance_fx_rate;
+        } elseif ( $sheet_supplier_effective_fx > 0 ) {
+            $sheet_fx_for_usd = $sheet_supplier_effective_fx;
+        }
 
         $html  = '<html><head><meta charset="utf-8" /></head><body>';
         $html .= '<table border="1" cellspacing="0" cellpadding="3">';
@@ -67,7 +92,9 @@ class SOP_Preorder_Excel_Exporter {
             $qty         = isset( $line['qty'] ) ? (float) $line['qty'] : 0;
             $cost_rmb    = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : ( isset( $line['cost_per_unit'] ) ? (float) $line['cost_per_unit'] : 0 );
             $cost_usd    = '';
-            if ( $cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
+            if ( $cost_rmb > 0 && $sheet_fx_for_usd > 0 ) {
+                $cost_usd = number_format_i18n( $cost_rmb / $sheet_fx_for_usd, 2 );
+            } elseif ( $cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
                 $converted = sop_convert_rmb_unit_cost_to_usd( $cost_rmb );
                 if ( $converted > 0 ) {
                     $cost_usd = number_format_i18n( $converted, 2 );

@@ -1,11 +1,12 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.98 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.99 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
  * - Fix shipping time unit handling for PO date suggestions and adjust PO date calc so holidays only extend handling days.
  * - PO details grid layout and explicit PO field wiring for saved sheets.
  * - PO details row: PO# then single-line dates.
+ * - V11.99 - Pre-order USD display uses balance FX or supplier effective FX.
  * - V11.92 - PO modal: enable inputs for drafts, save button inside modal, JSON payload + debug line, load PO extras from header notes.
  * - V11.93 - Ensure PO extras load/persist reliably; debug shows extras count.
  * - V11.94 - Treat header_notes_owner as PO payload JSON (with legacy fallback).
@@ -766,6 +767,16 @@ function sop_preorder_render_admin_page() {
     if ( $po_balance_fx_rate > 0 ) {
         $po_balance_usd = $po_balance_rmb / $po_balance_fx_rate;
     }
+
+    // Sheet-level FX for USD display (Balance FX takes precedence).
+    $sheet_balance_fx_rate       = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
+    $sheet_supplier_effective_fx = $sop_supplier_effective_fx;
+    $sheet_fx_for_usd            = 0.0;
+    if ( $sheet_balance_fx_rate > 0 ) {
+        $sheet_fx_for_usd = $sheet_balance_fx_rate;
+    } elseif ( $sheet_supplier_effective_fx > 0 ) {
+        $sheet_fx_for_usd = $sheet_supplier_effective_fx;
+    }
     $sheet_order_number_label = $order_number_value ? $order_number_value : $current_sheet_id;
     ?>
     <div id="sop-preorder-wrapper"
@@ -1357,8 +1368,8 @@ function sop_preorder_render_admin_page() {
                                         $unit_cost_rmb  = $cost_supplier;
                                         $unit_cost_usd  = 0.0;
                                         if ( $unit_cost_rmb > 0 ) {
-                                            if ( $rmb_to_usd_rate > 0 ) {
-                                                $unit_cost_usd = $unit_cost_rmb * $rmb_to_usd_rate;
+                                            if ( $sheet_fx_for_usd > 0 ) {
+                                                $unit_cost_usd = $unit_cost_rmb / $sheet_fx_for_usd;
                                             } elseif ( function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
                                                 $unit_cost_usd = sop_convert_rmb_unit_cost_to_usd( $unit_cost_rmb );
                                             }
