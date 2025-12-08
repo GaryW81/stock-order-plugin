@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.03 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.04 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
@@ -1695,9 +1695,9 @@ function sop_preorder_render_admin_page() {
                         <?php endif; ?>
                     </div>
 
-                    <div class="sop-po-fx-panel">
-                        <div class="sop-po-section sop-po-deposit sop-po-fx-row">
-                            <div class="sop-po-field">
+                    <div class="sop-po-fx-panel sop-po-totals-panel">
+                        <div class="sop-po-section sop-po-deposit sop-po-fx-row sop-po-totals-row">
+                            <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Deposit (USD)', 'sop' ); ?></label>
                                 <input type="number"
                                        step="0.01"
@@ -1705,7 +1705,7 @@ function sop_preorder_render_admin_page() {
                                        value="<?php echo esc_attr( $po_deposit_usd ); ?>"<?php echo $po_disabled_attr; ?> />
                             </div>
 
-                            <div class="sop-po-field">
+                            <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Deposit FX rate (RMB per USD)', 'sop' ); ?></label>
                                 <input type="number"
                                        step="0.0001"
@@ -1720,14 +1720,14 @@ function sop_preorder_render_admin_page() {
                                            <?php checked( $po_deposit_fx_locked ); ?>
                                            <?php echo $po_disabled_attr ? ' disabled="disabled"' : ''; ?>
                                     />
-                                    <?php esc_html_e( 'Lock deposit FX rate (deposit paid)', 'sop' ); ?>
+                                    <?php esc_html_e( 'Lock deposit FX rate', 'sop' ); ?>
                                 </label>
                                 <div class="sop-po-fx-summary-row">
                                     <span id="sop-po-deposit-fx-summary" class="sop-po-fx-summary"></span>
                                 </div>
                             </div>
 
-                            <div class="sop-po-field">
+                            <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Deposit (RMB)', 'sop' ); ?></label>
                                 <input type="number"
                                        step="0.01"
@@ -1737,10 +1737,10 @@ function sop_preorder_render_admin_page() {
                             </div>
                         </div>
 
-                        <div class="sop-po-section sop-po-deposit sop-po-fx-row">
-                            <div class="sop-po-field">
+                        <div class="sop-po-section sop-po-deposit sop-po-fx-row sop-po-totals-row">
+                            <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Balance (USD)', 'sop' ); ?></label>
-                                <span id="sop-po-balance-usd">
+                                <span id="sop-po-balance-usd" class="sop-po-amount-readonly">
                                     <?php echo $po_balance_fx_locked && $po_balance_fx_rate > 0 ? esc_html( number_format( $po_balance_usd, 2 ) ) : ''; ?>
                                 </span>
                                 <input type="hidden"
@@ -1749,7 +1749,7 @@ function sop_preorder_render_admin_page() {
                                        value="<?php echo esc_attr( $po_balance_fx_locked && $po_balance_fx_rate > 0 ? $po_balance_usd : 0 ); ?>" />
                             </div>
 
-                            <div class="sop-po-field">
+                            <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Balance FX rate (RMB per USD)', 'sop' ); ?></label>
                                 <input type="number"
                                        step="0.0001"
@@ -1771,9 +1771,9 @@ function sop_preorder_render_admin_page() {
                                 </div>
                             </div>
 
-                            <div class="sop-po-field">
+                            <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Balance (RMB)', 'sop' ); ?></label>
-                                <span id="sop-po-balance-rmb">
+                                <span id="sop-po-balance-rmb" class="sop-po-amount-readonly">
                                     <?php echo esc_html( number_format( $po_balance_rmb, 2 ) ); ?>
                                 </span>
                             </div>
@@ -2325,31 +2325,23 @@ function sop_preorder_render_admin_page() {
             font-weight: 700;
         }
 
-        .sop-po-deposit {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 10px;
-            margin-bottom: 10px;
+        .sop-po-totals-panel {
+            max-width: 640px;
+            margin-left: auto;
         }
 
-        .sop-po-fx-panel {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 10px;
+        .sop-po-totals-row {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            column-gap: 16px;
+            align-items: flex-start;
+            margin-top: 12px;
         }
 
-        .sop-po-fx-row {
-            display: flex;
-            justify-content: flex-end;
-            gap: 16px;
-            width: auto;
-            align-self: flex-end;
-        }
-
-        .sop-po-fx-row .sop-po-field {
-            min-width: 180px;
+        .sop-po-totals-field input[type="number"],
+        .sop-po-totals-field input[type="text"],
+        .sop-po-amount-readonly {
+            text-align: right;
         }
 
         .sop-po-fx-input {
