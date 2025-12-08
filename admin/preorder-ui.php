@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.04 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.06 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
@@ -1678,7 +1678,7 @@ function sop_preorder_render_admin_page() {
                                 <tr class="sop-po-total-row">
                                     <th><?php esc_html_e( 'Total (RMB)', 'sop' ); ?></th>
                                     <th class="column-amount">
-                                        <span id="sop-po-total-rmb" class="sop-po-amount"><?php echo esc_html( number_format( $po_total_rmb, 2 ) ); ?></span>
+                        <span id="sop-po-total-rmb" class="sop-po-amount"><?php echo esc_html( number_format( $po_total_rmb, 2 ) ); ?></span>
                                     </th>
                                     <?php if ( ! $sop_sheet_is_locked ) : ?>
                                         <th></th>
@@ -2317,6 +2317,12 @@ function sop_preorder_render_admin_page() {
             width: var(--sop-po-amount-width, 160px);
         }
 
+        .sop-po-amount {
+            text-align: right;
+            width: 100%;
+            display: inline-block;
+        }
+
         .sop-po-items-table .column-actions {
             width: 40px;
             text-align: center;
@@ -2328,8 +2334,6 @@ function sop_preorder_render_admin_page() {
 
         .sop-po-values-grid {
             --sop-po-amount-width: 160px;
-            display: grid;
-            grid-template-columns: 1fr var(--sop-po-amount-width);
         }
 
         .sop-po-totals-panel {
@@ -3728,7 +3732,7 @@ function sop_preorder_render_admin_page() {
                         var removeCell = '<td class=\"column-actions\"><button type=\"button\" class=\"button-link sop-po-extra-remove\">&times;</button></td>';
                         var rowHtml = '<tr class=\"sop-po-extra-row\">' +
                             '<td><input type=\"text\" name=\"sop_po_extra_label[]\" value=\"\" /></td>' +
-                            '<td class=\"column-amount\"><input type=\"number\" step=\"0.01\" class=\"sop-po-extra-amount\" name=\"sop_po_extra_amount[]\" value=\"0\" /></td>' +
+                            '<td class=\"column-amount\"><input type=\"number\" step=\"0.01\" class=\"sop-po-extra-amount sop-po-amount\" name=\"sop_po_extra_amount[]\" value=\"0\" /></td>' +
                             removeCell +
                             '</tr>';
                         $( '#sop-po-items-body' ).append( rowHtml );
