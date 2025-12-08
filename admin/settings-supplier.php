@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.31
+ * File version: 1.5.32
+ * - Add direct USD→RMB base FX and swap FX/lead time rows.
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
  * - Adds supplier holiday/shipping settings (multiple periods + units) for PO date suggestions.
@@ -148,6 +149,14 @@ class sop_Admin_Settings {
             $output['usd_to_gbp_rate'] = $rate;
         }
 
+        if ( isset( $input['usd_to_rmb_rate'] ) ) {
+            $rate = (float) $input['usd_to_rmb_rate'];
+            if ( $rate < 0 ) {
+                $rate = 0.0;
+            }
+            $output['usd_to_rmb_rate'] = $rate;
+        }
+
         // Show suggested vs max order toggle.
         $output['show_suggested_vs_max'] = ! empty( $input['show_suggested_vs_max'] ) ? 1 : 0;
 
@@ -166,6 +175,7 @@ class sop_Admin_Settings {
             'rmb_to_gbp_rate'          => '',  // Optional, manual entry.
             'eur_to_gbp_rate'          => '',  // Optional, manual entry.
             'usd_to_gbp_rate'          => '',  // Optional, manual entry.
+            'usd_to_rmb_rate'          => '',  // Optional, manual entry.
             'show_suggested_vs_max'    => 1,   // Show comparison by default.
         );
     }
@@ -1487,6 +1497,26 @@ class sop_Admin_Settings {
 
                     <tr>
                         <th scope="row">
+                            <label for="sop_usd_to_rmb_rate">
+                                <?php esc_html_e( 'USD to RMB rate (optional)', 'sop' ); ?>
+                            </label>
+                        </th>
+                        <td>
+                            <input type="text"
+                                   id="sop_usd_to_rmb_rate"
+                                   name="<?php echo esc_attr( self::OPTION_KEY ); ?>[usd_to_rmb_rate]"
+                                   value="<?php echo esc_attr( isset( $settings['usd_to_rmb_rate'] ) ? $settings['usd_to_rmb_rate'] : '' ); ?>"
+                                   class="small-text"
+                                   size="20"
+                                   style="width: 8em;" />
+                            <p class="description">
+                                <?php esc_html_e( 'Base USD→RMB rate. If set, this is used as the primary FX for USD↔RMB; leave blank to derive it from RMB→GBP and USD→GBP.', 'sop' ); ?>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <th scope="row">
                             <?php esc_html_e( 'Show suggested vs max order comparison', 'sop' ); ?>
                         </th>
                         <td>
@@ -2155,25 +2185,6 @@ class sop_Admin_Settings {
 
                         <tr>
                             <th scope="row">
-                                <label for="sop_supplier_lead_time_weeks">
-                                    <?php esc_html_e( 'Lead time (weeks)', 'sop' ); ?>
-                                </label>
-                            </th>
-                            <td>
-                                <input type="number"
-                                       id="sop_supplier_lead_time_weeks"
-                                       name="sop_supplier_lead_time_weeks"
-                                       value="<?php echo esc_attr( $lead_time_val ); ?>"
-                                       min="0"
-                                       class="small-text" />
-                                <p class="description">
-                                    <?php esc_html_e( 'Approximate time from placing order to goods arriving, in weeks.', 'sop' ); ?>
-                                </p>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <th scope="row">
                                 <label for="sop_supplier_fx_adjust_percent">
                                     <?php esc_html_e( 'FX adjustment (%)', 'sop' ); ?>
                                 </label>
@@ -2189,6 +2200,25 @@ class sop_Admin_Settings {
                                        value="<?php echo esc_attr( $fx_adjust_percent_val ); ?>" />
                                 <p class="description">
                                     <?php esc_html_e( 'Positive values reduce the base USD→RMB rate by this %, e.g. 0.5 → base 7.287 becomes ~7.25 to cover the supplier’s bank FX fees.', 'sop' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_lead_time_weeks">
+                                    <?php esc_html_e( 'Lead time (weeks)', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <input type="number"
+                                       id="sop_supplier_lead_time_weeks"
+                                       name="sop_supplier_lead_time_weeks"
+                                       value="<?php echo esc_attr( $lead_time_val ); ?>"
+                                       min="0"
+                                       class="small-text" />
+                                <p class="description">
+                                    <?php esc_html_e( 'Approximate time from placing order to goods arriving, in weeks.', 'sop' ); ?>
                                 </p>
                             </td>
                         </tr>

@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.21
+ * File version: 1.0.22
+ * - Prefer direct USD→RMB base FX if provided in settings.
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -676,10 +677,16 @@ if ( ! function_exists( 'sop_get_base_usd_to_rmb_rate' ) ) {
     /**
      * Compute base USD -> RMB rate from existing RMB->GBP and USD->GBP settings.
      *
-     * @return float
-     */
+    * @return float
+    */
     function sop_get_base_usd_to_rmb_rate() {
         $settings   = get_option( 'sop_settings', array() );
+        $direct_usd_to_rmb = isset( $settings['usd_to_rmb_rate'] ) ? (float) $settings['usd_to_rmb_rate'] : 0.0;
+
+        if ( $direct_usd_to_rmb > 0 ) {
+            return (float) $direct_usd_to_rmb;
+        }
+
         $rmb_to_gbp = isset( $settings['rmb_to_gbp_rate'] ) ? (float) $settings['rmb_to_gbp_rate'] : 0.0;
         $usd_to_gbp = isset( $settings['usd_to_gbp_rate'] ) ? (float) $settings['usd_to_gbp_rate'] : 0.0;
 
