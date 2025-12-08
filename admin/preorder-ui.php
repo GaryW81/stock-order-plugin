@@ -1,12 +1,12 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V11.99 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.00 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
  * - Fix shipping time unit handling for PO date suggestions and adjust PO date calc so holidays only extend handling days.
  * - PO details grid layout and explicit PO field wiring for saved sheets.
  * - PO details row: PO# then single-line dates.
- * - V11.99 - Pre-order USD display uses balance FX or supplier effective FX.
+ * - V12.00 - Round PO FX to 3dp, right-align FX inputs, balance row layout; USD display uses balance/supplier FX.
  * - V11.92 - PO modal: enable inputs for drafts, save button inside modal, JSON payload + debug line, load PO extras from header notes.
  * - V11.93 - Ensure PO extras load/persist reliably; debug shows extras count.
  * - V11.94 - Treat header_notes_owner as PO payload JSON (with legacy fallback).
@@ -1707,6 +1707,7 @@ function sop_preorder_render_admin_page() {
                             <input type="number"
                                    step="0.0001"
                                    name="sop_po_deposit_fx_rate"
+                                   class="sop-po-fx-input"
                                    id="sop-po-deposit-fx-rate"
                                    value="<?php echo esc_attr( $po_deposit_fx_rate ); ?>"<?php echo $po_disabled_attr; ?> />
                             <label class="sop-po-inline">
@@ -1733,7 +1734,7 @@ function sop_preorder_render_admin_page() {
                         </div>
                     </div>
 
-                    <div class="sop-po-section sop-po-balance">
+                    <div class="sop-po-section sop-po-balance sop-po-deposit">
                         <div class="sop-po-field">
                             <label><?php esc_html_e( 'Balance (RMB)', 'sop' ); ?></label>
                             <span id="sop-po-balance-rmb">
@@ -1746,6 +1747,7 @@ function sop_preorder_render_admin_page() {
                             <input type="number"
                                    step="0.0001"
                                    name="sop_po_balance_fx_rate"
+                                   class="sop-po-fx-input"
                                    id="sop-po-balance-fx-rate"
                                    value="<?php echo esc_attr( $po_balance_fx_rate ); ?>"<?php echo $po_disabled_attr; ?> />
                             <label class="sop-po-inline">
@@ -3601,6 +3603,15 @@ function sop_preorder_render_admin_page() {
                 var $depositFxSummary   = $( '#sop-po-deposit-fx-summary' );
                 var $balanceFxSummary   = $( '#sop-po-balance-fx-summary' );
 
+                function sopPoRoundFx( value ) {
+                    var num = parseFloat( value );
+                    if ( isNaN( num ) || ! isFinite( num ) ) {
+                        return 0;
+                    }
+                    num = Math.round( num * 1000 ) / 1000;
+                    return num;
+                }
+
                 function recalcPoTotals() {
                     var extrasTotalRmb = 0;
                     $extrasAmountInputs.each( function() {
@@ -3620,8 +3631,11 @@ function sop_preorder_render_admin_page() {
                         depositUsd = 0;
                     }
 
-                    var depositFxRate = parseFloat( $depositFxRateInput.val() );
-                    if ( isNaN( depositFxRate ) || depositFxRate <= 0 ) {
+                    var depositFxRate = sopPoRoundFx( $depositFxRateInput.val() );
+                    if ( depositFxRate > 0 ) {
+                        $depositFxRateInput.val( depositFxRate.toFixed( 3 ) );
+                    }
+                    if ( depositFxRate <= 0 ) {
                         depositFxRate = rmbPerUsd;
                     }
 
@@ -3640,8 +3654,11 @@ function sop_preorder_render_admin_page() {
                     $poTotalLabel.text( poTotal.toFixed( 2 ) );
                     $poBalanceLabel.text( balanceRmb.toFixed( 2 ) );
 
-                    var balanceFxRate = parseFloat( $balanceFxRateInput.val() );
-                    if ( isNaN( balanceFxRate ) || balanceFxRate <= 0 ) {
+                    var balanceFxRate = sopPoRoundFx( $balanceFxRateInput.val() );
+                    if ( balanceFxRate > 0 ) {
+                        $balanceFxRateInput.val( balanceFxRate.toFixed( 3 ) );
+                    }
+                    if ( balanceFxRate <= 0 ) {
                         balanceFxRate = rmbPerUsd;
                     }
                     var balanceUsd = ( balanceRmb > 0 && balanceFxRate > 0 ) ? ( balanceRmb / balanceFxRate ) : 0;

@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.25
- * - Store full PO payload JSON in header_notes_owner; guarantee PO extras persist. (No functional change, version bump)
+ * File version: 11.26
+ * - Round PO FX to 3dp before storing/using and persist balance FX lock; store full payload.
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
  * - 11.17 - Ensure Purchase Order modal fields are explicitly persisted on save (insert/update).
  * - 11.18 - Parse PO JSON payload (sop_po_payload) and log last POST for debugging.
@@ -182,6 +182,8 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
     if ( $po_balance_fx_rate < 0 ) {
         $po_balance_fx_rate = 0.0;
     }
+    $po_deposit_fx_rate = round( (float) $po_deposit_fx_rate, 3 );
+    $po_balance_fx_rate = round( (float) $po_balance_fx_rate, 3 );
     if ( $po_balance_usd < 0 ) {
         $po_balance_usd = 0.0;
     }
