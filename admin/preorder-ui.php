@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.02 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.03 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
@@ -981,7 +981,7 @@ function sop_preorder_render_admin_page() {
                             <?php endif; ?>
 
                             <?php if ( ! $sop_sheet_is_locked ) : ?>
-                                <button type="button" class="button button-primary">
+                                <button type="button" class="button button-primary" id="sop-update-sheet-top">
                                     <?php
                                 echo ( $current_sheet_id > 0 )
                                     ? esc_html__( 'Update sheet', 'sop' )
@@ -4039,6 +4039,17 @@ function sop_preorder_render_admin_page() {
                 if ( $form.length ) {
                     $form.on( 'submit', function() {
                         sopPoBuildPayload();
+                    } );
+                }
+
+                var $topUpdate = $( '#sop-update-sheet-top' );
+                if ( $topUpdate.length && $form.length ) {
+                    $topUpdate.on( 'click', function( e ) {
+                        e.preventDefault();
+                        sopPoBuildPayload();
+                        if ( $form[0] && typeof $form[0].submit === 'function' ) {
+                            $form[0].submit();
+                        }
                     } );
                 }
             })();
