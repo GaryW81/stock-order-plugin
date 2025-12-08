@@ -230,7 +230,15 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
     if ( ! is_array( $payload ) ) {
         $payload = array();
     }
-    $payload['extras'] = is_array( $po_extras ) ? array_values( $po_extras ) : array();
+
+    // Ensure we always work with a simple, zero-indexed array of extras.
+    $po_extras = is_array( $po_extras ) ? array_values( $po_extras ) : array();
+
+    // Canonical key for extras in the payload.
+    $payload['po_extras'] = $po_extras;
+
+    // Back-compat alias for any legacy readers that still look at "extras".
+    $payload['extras'] = $po_extras;
 
     // Debug: record last PO POST state for inspection in UI.
     $debug_post_keys = array();
@@ -268,31 +276,11 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
             'extras_count'         => isset( $po_extras ) && is_array( $po_extras ) ? count( $po_extras ) : 0,
         ),
     );
-    $extras_saved_count                   = ( isset( $payload['po_extras'] ) && is_array( $payload['po_extras'] ) ) ? count( $payload['po_extras'] ) : 0;
-    $debug_data['po_extras_saved_count']  = $extras_saved_count;
+    $extras_saved_count                  = is_array( $po_extras ) ? count( $po_extras ) : 0;
+    $debug_data['po_extras_saved_count'] = $extras_saved_count;
 
     // Store this so the UI can show what the last save handler actually saw.
     update_option( 'sop_po_debug_last_post', $debug_data, false );
-
-    // Extras.
-    $labels_raw  = isset( $_POST['sop_po_extra_label'] ) && is_array( $_POST['sop_po_extra_label'] ) ? array_map( 'wp_unslash', (array) $_POST['sop_po_extra_label'] ) : array();
-    $amounts_raw = isset( $_POST['sop_po_extra_amount'] ) && is_array( $_POST['sop_po_extra_amount'] ) ? array_map( 'wp_unslash', (array) $_POST['sop_po_extra_amount'] ) : array();
-
-    $po_extras   = array();
-    $max_extras  = max( count( $labels_raw ), count( $amounts_raw ) );
-    for ( $i = 0; $i < $max_extras; $i++ ) {
-        $label  = isset( $labels_raw[ $i ] ) ? sanitize_text_field( $labels_raw[ $i ] ) : '';
-        $amount = isset( $amounts_raw[ $i ] ) ? (float) $amounts_raw[ $i ] : 0.0;
-
-        if ( '' === $label && 0.0 === $amount ) {
-            continue;
-        }
-
-        $po_extras[] = array(
-            'label'      => $label,
-            'amount_rmb' => $amount,
-        );
-    }
 
     // Normalise payload before storing as header_notes_owner.
     if ( ! is_array( $payload ) ) {
