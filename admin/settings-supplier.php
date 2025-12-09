@@ -2576,8 +2576,8 @@ class sop_Admin_Settings {
         display: inline-block;
         padding-left: 0;
     }
-    .sop-company-summary::marker,
-    .sop-company-summary::-webkit-details-marker {
+    details.sop-company-details > summary::marker,
+    details.sop-company-details > summary::-webkit-details-marker {
         content: none;
         display: none !important;
     }
