@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Stock Order Plugin (SOP)
  * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control.
- * Version: 0.1.1
+ * Version: 0.1.2
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '0.1.1' );
+    define( 'SOP_PLUGIN_VERSION', '0.1.2' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -109,11 +109,41 @@ add_action(
 );
 
 // Hide default WP admin footer text on Stock Order Plugin screens only.
+if ( ! function_exists( 'sop_should_hide_footer_for_screen' ) ) {
+    /**
+     * Determine if the current screen is a Stock Order Plugin screen.
+     *
+     * @param WP_Screen|null $screen Current screen.
+     * @return bool
+     */
+    function sop_should_hide_footer_for_screen( $screen ) {
+        if ( ! $screen || ! isset( $screen->id ) ) {
+            return false;
+        }
+
+        $screen_id = (string) $screen->id;
+        $matches   = array(
+            'sop_',
+            'sop-',
+            'stock_order',
+            'stock-order',
+        );
+
+        foreach ( $matches as $needle ) {
+            if ( false !== strpos( $screen_id, $needle ) ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
 add_filter(
     'admin_footer_text',
     function ( $text ) {
         $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-        if ( $screen && strpos( $screen->id, 'sop_' ) !== false ) {
+        if ( sop_should_hide_footer_for_screen( $screen ) ) {
             return '';
         }
         return $text;
@@ -125,7 +155,7 @@ add_filter(
     'update_footer',
     function ( $text ) {
         $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-        if ( $screen && strpos( $screen->id, 'sop_' ) !== false ) {
+        if ( sop_should_hide_footer_for_screen( $screen ) ) {
             return '';
         }
         return $text;
