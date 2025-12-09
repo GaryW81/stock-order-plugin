@@ -759,9 +759,9 @@ if ( ! function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
      *
      * @param int|array|object $supplier_or_id Supplier array/object with settings_json, or ID.
      * @return array {
-     *     @type string $container   Container slug (e.g. 20ft, 40ft, 40ft_hc).
-     *     @type bool   $pallet_150  Whether 150mm pallet layer is enabled.
-     *     @type float  $allowance   Container allowance percentage.
+     *     @type string|false $container_type Container slug (e.g. 20ft, 40ft, 40ft_hc) or false/empty for none.
+     *     @type bool         $pallet_layer   Whether 150mm pallet layer is enabled.
+     *     @type int          $allowance      Container allowance percentage (-50..50).
      * }
      */
     function sop_get_supplier_preorder_defaults( $supplier_or_id ) {
@@ -788,7 +788,7 @@ if ( ! function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
         }
 
         $defaults = array(
-            'container_type' => 'none',
+            'container_type' => '',
             'pallet_layer'   => false,
             'allowance'      => 0,
         );

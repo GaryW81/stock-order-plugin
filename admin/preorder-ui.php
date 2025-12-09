@@ -377,53 +377,53 @@ function sop_preorder_render_admin_page() {
 
     $is_new_sheet = ( $current_sheet_id <= 0 );
 
-    // Defaults (will be overridden for new sheets below).
+    // Defaults base.
     $container_selection = '';
     $pallet_layer        = 0;
-    $allowance           = 0.0;
+    $allowance           = 0;
 
-    if ( $is_new_sheet && $current_supplier_id > 0 && function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
-        $supplier_defaults = sop_get_supplier_preorder_defaults( $current_supplier_id );
+    if ( $is_new_sheet ) {
+        $defaults = function_exists( 'sop_get_supplier_preorder_defaults' ) ? sop_get_supplier_preorder_defaults( $current_supplier_id ) : array(
+            'container_type' => '',
+            'pallet_layer'   => false,
+            'allowance'      => 0,
+        );
 
-        $default_container = isset( $supplier_defaults['container_type'] ) ? (string) $supplier_defaults['container_type'] : 'none';
-        $default_pallet    = ! empty( $supplier_defaults['pallet_layer'] );
-        $default_allowance = isset( $supplier_defaults['allowance'] ) ? (int) $supplier_defaults['allowance'] : 0;
-
-        // Container: GET overrides if present and non-empty.
-        if ( isset( $_GET['sop_container'] ) && '' !== $_GET['sop_container'] ) {
+        // Container: GET overrides if present and non-empty, else supplier default (or none).
+        if ( isset( $_GET['sop_container'] ) && '' !== $_GET['sop_container'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $container_selection = sanitize_text_field( wp_unslash( $_GET['sop_container'] ) );
         } else {
-            $container_selection = $default_container;
+            $container_selection = isset( $defaults['container_type'] ) ? (string) $defaults['container_type'] : '';
         }
 
-        // Pallet: GET overrides if present.
-        if ( isset( $_GET['sop_pallet_layer'] ) && '' !== $_GET['sop_pallet_layer'] ) {
+        // Pallet layer: GET overrides, else supplier default (or false).
+        if ( isset( $_GET['sop_pallet_layer'] ) && '' !== $_GET['sop_pallet_layer'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $pallet_layer = ! empty( $_GET['sop_pallet_layer'] ) ? 1 : 0;
         } else {
-            $pallet_layer = $default_pallet ? 1 : 0;
+            $pallet_layer = ! empty( $defaults['pallet_layer'] ) ? 1 : 0;
         }
 
-        // Allowance: GET overrides if present.
-        if ( isset( $_GET['sop_allowance'] ) && '' !== $_GET['sop_allowance'] ) {
+        // Allowance: GET overrides, else supplier default (or 0).
+        if ( isset( $_GET['sop_allowance'] ) && '' !== $_GET['sop_allowance'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $allowance = (int) $_GET['sop_allowance'];
         } else {
-            $allowance = (int) $default_allowance;
+            $allowance = isset( $defaults['allowance'] ) ? (int) $defaults['allowance'] : 0;
         }
     } else {
-        // Existing sheets or fallback to previous logic.
-        if ( isset( $_GET['sop_container'] ) ) {
+        // Existing sheets: keep current behaviour (sheet/header or prior defaults/GET).
+        if ( isset( $_GET['sop_container'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $container_selection = sanitize_text_field( wp_unslash( $_GET['sop_container'] ) );
         } else {
             $container_selection = $sop_default_container_type;
         }
 
-        if ( isset( $_GET['sop_pallet_layer'] ) ) {
+        if ( isset( $_GET['sop_pallet_layer'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $pallet_layer = 1;
         } else {
             $pallet_layer = (int) $sop_default_pallet_layer;
         }
 
-        if ( isset( $_GET['sop_allowance'] ) ) {
+        if ( isset( $_GET['sop_allowance'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $allowance = (float) $_GET['sop_allowance'];
         } else {
             $allowance = (float) $sop_default_container_allowance;
