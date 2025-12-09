@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.20 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.21 *
+ * - V12.21 - Supplier change on new sheets submits filter instantly to reload products.
  * - V12.20 - Auto-refresh container when supplier changes on new sheets (no extra click needed).
  * - V12.19 - Auto-refresh container when supplier changes on new sheets.
  * - V12.18 - Make "sheet saved" notice one-shot (strip sop_saved after first load).
@@ -2751,16 +2752,29 @@ function sop_preorder_render_admin_page() {
             // Auto-trigger container update when supplier changes on new (unsaved) sheets.
             if ( sopIsNewSheet && $filterForm.length ) {
                 var $supplierSelect = $filterForm.find('select[name="sop_supplier_id"]');
-                var $updateContainerBtn = $filterForm.find('[name="sop_preorder_update_container"]');
 
-                if ( $supplierSelect.length && $updateContainerBtn.length && !$supplierSelect.prop('disabled') ) {
+                if ( $supplierSelect.length && !$supplierSelect.prop('disabled') ) {
                     $supplierSelect.on( 'change', function() {
                         if ( $supplierSelect.prop( 'disabled' ) ) {
                             return;
                         }
                         // Ensure confirm dialog for unsaved changes does not block supplier swap on new sheets.
                         hasUnsavedChanges = false;
-                        $updateContainerBtn.trigger( 'click' );
+
+                        // Mirror clicking "Update container": ensure flag exists then submit.
+                        var $updateFlag = $filterForm.find('input[name="sop_preorder_update_container"]');
+                        if ( ! $updateFlag.length ) {
+                            $updateFlag = $('<input>', {
+                                type: 'hidden',
+                                name: 'sop_preorder_update_container',
+                                value: '1'
+                            });
+                            $filterForm.append( $updateFlag );
+                        } else {
+                            $updateFlag.val( '1' );
+                        }
+
+                        $filterForm.trigger( 'submit' );
                     } );
                 }
             }
