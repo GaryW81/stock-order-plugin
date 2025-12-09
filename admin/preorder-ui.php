@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.21 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.22 *
+ * - V12.22 - Supplier change on new sheets triggers native filter submit to reload products immediately.
  * - V12.21 - Supplier change on new sheets submits filter instantly to reload products.
  * - V12.20 - Auto-refresh container when supplier changes on new sheets (no extra click needed).
  * - V12.19 - Auto-refresh container when supplier changes on new sheets.
@@ -2774,7 +2775,12 @@ function sop_preorder_render_admin_page() {
                             $updateFlag.val( '1' );
                         }
 
-                        $filterForm.trigger( 'submit' );
+                        // Use native submit to avoid jQuery handlers interfering.
+                        if ( $filterForm[0] && typeof $filterForm[0].submit === 'function' ) {
+                            $filterForm[0].submit();
+                        } else {
+                            $filterForm.trigger( 'submit' );
+                        }
                     } );
                 }
             }
