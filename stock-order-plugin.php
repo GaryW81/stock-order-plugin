@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Stock Order Plugin (SOP)
  * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control.
- * Version: 0.1
+ * Version: 0.1.1
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '0.1' );
+    define( 'SOP_PLUGIN_VERSION', '0.1.1' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -106,4 +106,29 @@ add_action(
             sop_ensure_daily_maintenance_cron();
         }
     }
+);
+
+// Hide default WP admin footer text on Stock Order Plugin screens only.
+add_filter(
+    'admin_footer_text',
+    function ( $text ) {
+        $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        if ( $screen && strpos( $screen->id, 'sop_' ) !== false ) {
+            return '';
+        }
+        return $text;
+    },
+    999
+);
+
+add_filter(
+    'update_footer',
+    function ( $text ) {
+        $screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+        if ( $screen && strpos( $screen->id, 'sop_' ) !== false ) {
+            return '';
+        }
+        return $text;
+    },
+    999
 );
