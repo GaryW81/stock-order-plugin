@@ -2565,12 +2565,18 @@ class sop_Admin_Settings {
     .sop-company-details summary {
         list-style: none;
         cursor: pointer;
+        padding-left: 0;
     }
     .sop-company-details summary::marker {
         display: none;
+        content: '';
     }
     .sop-company-details summary::-webkit-details-marker {
         display: none;
+    }
+    .sop-company-details summary::before {
+        content: '';
+        display: none !important;
     }
     .sop-company-summary .button {
         margin-top: 10px;
