@@ -709,7 +709,7 @@ if ( ! function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
      */
     function sop_get_supplier_effective_usd_to_rmb_rate( $supplier_or_id ) {
         $supplier = $supplier_or_id;
-        if ( ! is_array( $supplier_or_id ) && (int) $supplier_or_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
+        if ( ! is_array( $supplier_or_id ) && ! is_object( $supplier_or_id ) && (int) $supplier_or_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
             $supplier = sop_supplier_get_by_id( (int) $supplier_or_id );
         }
 
@@ -718,6 +718,19 @@ if ( ! function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
             $decoded = json_decode( $supplier['settings_json'], true );
             if ( is_array( $decoded ) ) {
                 $settings_json = $decoded;
+            }
+        } elseif ( is_object( $supplier ) && isset( $supplier->settings_json ) && ! empty( $supplier->settings_json ) ) {
+            $decoded = json_decode( $supplier->settings_json, true );
+            if ( is_array( $decoded ) ) {
+                $settings_json = $decoded;
+            }
+        } elseif ( is_array( $supplier ) && isset( $supplier['id'] ) && (int) $supplier['id'] > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
+            $supplier_obj = sop_supplier_get_by_id( (int) $supplier['id'] );
+            if ( $supplier_obj && isset( $supplier_obj->settings_json ) && ! empty( $supplier_obj->settings_json ) ) {
+                $decoded = json_decode( $supplier_obj->settings_json, true );
+                if ( is_array( $decoded ) ) {
+                    $settings_json = $decoded;
+                }
             }
         }
 

@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.15 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.16 *
+ * - V12.16 - Use supplier-effective FX (base + FX adjustment) for PO defaults.
  * - V12.15 - PO FX defaults now follow current settings until locked.
  * - V12.14 - PO auto-dates treat holidays as non-working handling days (shipping unchanged).
  * - Implement saved sheet locking (UI disable/hide when status is locked).
