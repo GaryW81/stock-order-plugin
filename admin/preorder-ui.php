@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.08 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.09 *
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
  * - Purchase Order modal refined (compact buyer/seller, PO items table, deposit/balance with FX and holiday-driven dates).
@@ -2376,6 +2376,12 @@ function sop_preorder_render_admin_page() {
         .sop-po-totals-field label {
             display: block;
             margin-bottom: 0;
+        }
+
+        #sop-po-deposit-rmb.sop-po-amount,
+        #sop-po-balance-rmb.sop-po-amount {
+            width: 179px;
+            max-width: 179px;
         }
 
         .sop-po-totals-row > .sop-po-totals-field {
