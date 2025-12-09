@@ -694,7 +694,6 @@ function sop_handle_save_preorder_sheet() {
             $redirect = add_query_arg(
                 array(
                     'page'        => 'sop-preorder-sheet',
-                    'supplier_id' => $supplier_id,
                     'sop_saved'   => '0',
                 ),
                 admin_url( 'admin.php' )
@@ -716,7 +715,6 @@ function sop_handle_save_preorder_sheet() {
         $redirect = add_query_arg(
             array(
                 'page'        => 'sop-preorder-sheet',
-                'supplier_id' => $supplier_id,
                 'sop_saved'   => '0',
                 'sop_sheet_id'=> (int) $sheet_id,
             ),
@@ -729,7 +727,6 @@ function sop_handle_save_preorder_sheet() {
     $redirect = add_query_arg(
         array(
             'page'        => 'sop-preorder-sheet',
-            'supplier_id' => $supplier_id,
             'sop_saved'   => '1',
             'sop_sheet_id'=> (int) $sheet_id,
         ),
@@ -1227,11 +1224,14 @@ function sop_preorder_get_suppliers() {
 }
 }
 
-function sop_preorder_resolve_supplier_params() {
+function sop_preorder_resolve_supplier_params( $preferred_supplier_id = 0 ) {
     $suppliers = sop_preorder_get_suppliers();
     $settings  = sop_preorder_get_settings();
 
-    $requested_supplier_id = isset( $_GET['sop_supplier_id'] ) ? (int) $_GET['sop_supplier_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $requested_supplier_id = (int) $preferred_supplier_id;
+    if ( $requested_supplier_id <= 0 ) {
+        $requested_supplier_id = isset( $_GET['sop_supplier_id'] ) ? (int) $_GET['sop_supplier_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    }
 
     $supplier = null;
     foreach ( $suppliers as $row ) {
@@ -1725,7 +1725,7 @@ function sop_preorder_handle_post() {
         update_post_meta( $product_id, '_sop_preorder_order_qty', $order_val );
         update_post_meta( $product_id, '_sop_preorder_removed', $removed_val );
 
-        $ctx      = sop_preorder_resolve_supplier_params();
+        $ctx      = sop_preorder_resolve_supplier_params( $supplier_id );
         $supplier = $ctx['supplier'];
         if ( $supplier ) {
             $currency = sop_preorder_normalise_currency( $supplier['currency_code'] );
