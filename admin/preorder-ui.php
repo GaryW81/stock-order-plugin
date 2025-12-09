@@ -2349,7 +2349,7 @@ function sop_preorder_render_admin_page() {
         .sop-po-totals-row {
             display: flex;
             justify-content: flex-end;
-            align-items: center;
+            align-items: flex-start;
             gap: 24px;
             margin-top: 12px;
             width: 100%;
@@ -2364,6 +2364,17 @@ function sop_preorder_render_admin_page() {
         .sop-po-amount {
             text-align: right;
             width: 100%;
+        }
+
+        .sop-po-totals-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .sop-po-totals-field label {
+            display: block;
+            margin-bottom: 0;
         }
 
         .sop-po-totals-row > .sop-po-totals-field {
