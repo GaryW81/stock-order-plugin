@@ -2342,7 +2342,7 @@ function sop_preorder_render_admin_page() {
             align-items: flex-end;
             max-width: 640px;
             margin-left: auto;
-            padding-right: 70px;
+            padding-right: 10px;
             --sop-po-amount-width: 160px;
         }
 
@@ -2356,6 +2356,7 @@ function sop_preorder_render_admin_page() {
         }
         .sop-po-totals-row .sop-po-totals-field:last-child {
             min-width: var(--sop-po-amount-width);
+            text-align: right;
         }
 
         .sop-po-totals-field input[type="number"],
