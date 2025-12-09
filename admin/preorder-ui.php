@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.24 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.25 *
+ * - V12.25 - Do not show leave-site warning when saving/updating the sheet.
  * - V12.24 - Suppress leave-site warning while saving/updating the sheet.
  * - V12.23 - New-sheet supplier change submits filter immediately to reload products.
  * - V12.22 - Supplier change on new sheets triggers native filter submit to reload products immediately.
@@ -2700,6 +2701,7 @@ function sop_preorder_render_admin_page() {
             var $columnsPanel        = $columnsWrapper.find('.sop-preorder-columns-popover');
             var $columnCheckboxes    = $columnsPanel.find('input[type="checkbox"]');
             var sopPreorderIsSubmittingSheet = false;
+            var $saveUpdateButtons   = $( '#sop-update-sheet-top, #sop-update-sheet-bottom, .sop-preorder-save-sheet, .sop-preorder-update-sheet' );
 
             function sopPreorderApplyColumnVisibility() {
                 $columnCheckboxes.each(function() {
@@ -2765,6 +2767,13 @@ function sop_preorder_render_admin_page() {
 
             if ( $sheetForm.length ) {
                 $sheetForm.on( 'submit', function() {
+                    sopPreorderIsSubmittingSheet = true;
+                    hasUnsavedChanges = false;
+                } );
+            }
+
+            if ( $saveUpdateButtons.length ) {
+                $saveUpdateButtons.on( 'click', function() {
                     sopPreorderIsSubmittingSheet = true;
                     hasUnsavedChanges = false;
                 } );
