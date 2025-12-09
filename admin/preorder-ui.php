@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.19 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.20 *
+ * - V12.20 - Auto-refresh container when supplier changes on new sheets (no extra click needed).
  * - V12.19 - Auto-refresh container when supplier changes on new sheets.
  * - V12.18 - Make "sheet saved" notice one-shot (strip sop_saved after first load).
  * - V12.16 - Use supplier-effective FX (base + FX adjustment) for PO defaults.
@@ -2757,6 +2758,8 @@ function sop_preorder_render_admin_page() {
                         if ( $supplierSelect.prop( 'disabled' ) ) {
                             return;
                         }
+                        // Ensure confirm dialog for unsaved changes does not block supplier swap on new sheets.
+                        hasUnsavedChanges = false;
                         $updateContainerBtn.trigger( 'click' );
                     } );
                 }
