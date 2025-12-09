@@ -2567,15 +2567,9 @@ class sop_Admin_Settings {
         cursor: pointer;
         padding-left: 0;
     }
-    .sop-company-details summary::marker {
-        display: none;
-        content: '';
-    }
+    .sop-company-details summary::marker,
     .sop-company-details summary::-webkit-details-marker {
-        display: none;
-    }
-    .sop-company-details summary::before {
-        content: '';
+        content: none;
         display: none !important;
     }
     .sop-company-summary .button {
