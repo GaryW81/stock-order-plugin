@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.16 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.18 *
+ * - V12.18 - Make "sheet saved" notice one-shot (strip sop_saved after first load).
  * - V12.16 - Use supplier-effective FX (base + FX adjustment) for PO defaults.
  * - V12.15 - PO FX defaults now follow current settings until locked.
  * - V12.14 - PO auto-dates treat holidays as non-working handling days (shipping unchanged).
@@ -2653,6 +2654,20 @@ function sop_preorder_render_admin_page() {
 
     <script>
         jQuery(function($) {
+            // One-shot "sheet saved" notice: remove sop_saved from URL after first load.
+            (function() {
+                if ( window.location.search.indexOf( 'sop_saved=' ) === -1 ) {
+                    return;
+                }
+                try {
+                    var url = new URL( window.location.href );
+                    url.searchParams.delete( 'sop_saved' );
+                    window.history.replaceState( {}, '', url.toString() );
+                } catch ( e ) {
+                    // Older browsers can safely ignore.
+                }
+            })();
+
             var $table = $('.sop-preorder-table');
             var containerCbm = <?php echo json_encode( $effective_cbm ); ?>;
             var $rowCheckboxes       = $table.find('.sop-preorder-select-row');
