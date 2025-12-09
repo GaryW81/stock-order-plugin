@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.14 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.15 *
+ * - V12.15 - PO FX defaults now follow current settings until locked.
  * - V12.14 - PO auto-dates treat holidays as non-working handling days (shipping unchanged).
  * - Implement saved sheet locking (UI disable/hide when status is locked).
  * - Uses supplier-level defaults for container type, pallet layer, and allowance when starting new sheets.
@@ -755,13 +756,13 @@ function sop_preorder_render_admin_page() {
     if ( $po_deposit_fx_rate <= 0 && $po_deposit_usd > 0 && $po_deposit_rmb > 0 ) {
         $po_deposit_fx_rate = $po_deposit_rmb / $po_deposit_usd;
     }
-    if ( $po_deposit_fx_rate <= 0 && $sop_supplier_effective_fx > 0 && empty( $po_deposit_fx_locked ) && $po_deposit_usd <= 0 ) {
+    if ( empty( $po_deposit_fx_locked ) && $sop_supplier_effective_fx > 0 ) {
         $po_deposit_fx_rate = $sop_supplier_effective_fx;
     }
     if ( $po_deposit_fx_rate <= 0 ) {
         $po_deposit_fx_rate = $po_rmb_per_usd;
     }
-    if ( $po_balance_fx_rate <= 0 && $sop_supplier_effective_fx > 0 && empty( $po_balance_fx_locked ) ) {
+    if ( empty( $po_balance_fx_locked ) && $sop_supplier_effective_fx > 0 ) {
         $po_balance_fx_rate = $sop_supplier_effective_fx;
     }
     if ( $po_balance_fx_rate <= 0 ) {
