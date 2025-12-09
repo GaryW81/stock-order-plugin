@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.14
+ * File version: 1.0.15
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
@@ -119,35 +119,36 @@ function sop_render_product_supplier_metabox( $post ) {
 
     <hr />
 
-    <p>
-        <strong><?php esc_html_e( 'Supplier costs (per unit)', 'sop' ); ?></strong><br />
-        <label for="sop_cost_rmb"><?php esc_html_e( 'RMB', 'sop' ); ?></label>
-        <input type="text"
-               name="sop_cost_rmb"
-               id="sop_cost_rmb"
-               value="<?php echo esc_attr( $cost_rmb ); ?>"
-               class="small-text"
-               size="20"
-               style="width: 8em;" />
-        &nbsp;
-        <label for="sop_cost_usd"><?php esc_html_e( 'USD', 'sop' ); ?></label>
-        <input type="text"
-               name="sop_cost_usd"
-               id="sop_cost_usd"
-               value="<?php echo esc_attr( $cost_usd ); ?>"
-               class="small-text"
-               size="20"
-               style="width: 8em;" />
-        &nbsp;
-        <label for="sop_cost_eur"><?php esc_html_e( 'EUR', 'sop' ); ?></label>
-        <input type="text"
-               name="sop_cost_eur"
-               id="sop_cost_eur"
-               value="<?php echo esc_attr( $cost_eur ); ?>"
-               class="small-text"
-               size="20"
-               style="width: 8em;" />
-    </p>
+    <div class="sop-supplier-costs">
+        <strong><?php esc_html_e( 'Supplier costs (per unit)', 'sop' ); ?></strong>
+        <div class="sop-supplier-cost-row">
+            <label for="sop_cost_rmb"><?php esc_html_e( 'RMB', 'sop' ); ?></label>
+            <input type="text"
+                   name="sop_cost_rmb"
+                   id="sop_cost_rmb"
+                   value="<?php echo esc_attr( $cost_rmb ); ?>"
+                   class="small-text"
+                   size="20" />
+        </div>
+        <div class="sop-supplier-cost-row">
+            <label for="sop_cost_usd"><?php esc_html_e( 'USD', 'sop' ); ?></label>
+            <input type="text"
+                   name="sop_cost_usd"
+                   id="sop_cost_usd"
+                   value="<?php echo esc_attr( $cost_usd ); ?>"
+                   class="small-text"
+                   size="20" />
+        </div>
+        <div class="sop-supplier-cost-row">
+            <label for="sop_cost_eur"><?php esc_html_e( 'EUR', 'sop' ); ?></label>
+            <input type="text"
+                   name="sop_cost_eur"
+                   id="sop_cost_eur"
+                   value="<?php echo esc_attr( $cost_eur ); ?>"
+                   class="small-text"
+                   size="20" />
+        </div>
+    </div>
 
     <p>
         <label for="sop_min_order_qty">
@@ -191,6 +192,42 @@ function sop_render_product_supplier_metabox( $post ) {
     <p style="font-size:11px;color:#666;">
         <?php esc_html_e( 'Only products with a supplier will be included in Stock Order forecasts and order sheets.', 'sop' ); ?>
     </p>
+    <style>
+        .sop-supplier-costs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+            align-items: center;
+            margin: 0 0 6px;
+        }
+        .sop-supplier-costs > strong {
+            flex-basis: 100%;
+        }
+        .sop-supplier-cost-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .sop-supplier-cost-row input[type="text"] {
+            width: 8em;
+        }
+
+        /* Sidebar (narrow) layout: stack currency fields vertically. */
+        #side-sortables #sop_product_supplier .sop-supplier-costs {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        #side-sortables #sop_product_supplier .sop-supplier-cost-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+            width: 100%;
+        }
+        #side-sortables #sop_product_supplier .sop-supplier-cost-row input[type="text"] {
+            width: 100%;
+            box-sizing: border-box;
+        }
+    </style>
     <?php
 }
 
