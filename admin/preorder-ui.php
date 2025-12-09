@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.18 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.19 *
+ * - V12.19 - Auto-refresh container when supplier changes on new sheets.
  * - V12.18 - Make "sheet saved" notice one-shot (strip sop_saved after first load).
  * - V12.16 - Use supplier-effective FX (base + FX adjustment) for PO defaults.
  * - V12.15 - PO FX defaults now follow current settings until locked.
@@ -2688,6 +2689,7 @@ function sop_preorder_render_admin_page() {
             var $columnsWrapper      = $('.sop-preorder-columns');
             var $columnsToggleButton = $columnsWrapper.find('.sop-preorder-columns-toggle');
             var $columnsPanel        = $columnsWrapper.find('.sop-preorder-columns-popover');
+            var sopIsNewSheet        = <?php echo ( $current_sheet_id > 0 ? 'false' : 'true' ); ?>;
             var $columnCheckboxes    = $columnsPanel.find('input[type="checkbox"]');
 
             function sopPreorderApplyColumnVisibility() {
@@ -2743,6 +2745,21 @@ function sop_preorder_render_admin_page() {
 
                     hasUnsavedChanges = false;
                 });
+            }
+
+            // Auto-trigger container update when supplier changes on new (unsaved) sheets.
+            if ( sopIsNewSheet && $filterForm.length ) {
+                var $supplierSelect = $filterForm.find('select[name="sop_supplier_id"]');
+                var $updateContainerBtn = $filterForm.find('[name="sop_preorder_update_container"]');
+
+                if ( $supplierSelect.length && $updateContainerBtn.length && !$supplierSelect.prop('disabled') ) {
+                    $supplierSelect.on( 'change', function() {
+                        if ( $supplierSelect.prop( 'disabled' ) ) {
+                            return;
+                        }
+                        $updateContainerBtn.trigger( 'click' );
+                    } );
+                }
             }
 
             if ( $sheetForm.length ) {
