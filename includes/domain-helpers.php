@@ -788,17 +788,17 @@ if ( ! function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
         }
 
         $defaults = array(
-            'container'  => '',
-            'pallet_150' => false,
-            'allowance'  => 0.0,
+            'container_type' => 'none',
+            'pallet_layer'   => false,
+            'allowance'      => 0,
         );
 
         if ( isset( $settings_json['preorder_default_container_type'] ) ) {
-            $defaults['container'] = (string) $settings_json['preorder_default_container_type'];
+            $defaults['container_type'] = (string) $settings_json['preorder_default_container_type'];
         }
 
         if ( ! empty( $settings_json['preorder_default_pallet_layer'] ) ) {
-            $defaults['pallet_150'] = true;
+            $defaults['pallet_layer'] = true;
         }
 
         if ( array_key_exists( 'preorder_default_container_allowance', $settings_json ) ) {

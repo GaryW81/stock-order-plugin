@@ -375,51 +375,58 @@ function sop_preorder_render_admin_page() {
         }
     }
 
-    // Container selection: GET overrides supplier defaults.
-    $has_container_param = false;
-    if ( isset( $_GET['sop_container'] ) ) {
-        $container_selection = sanitize_text_field( wp_unslash( $_GET['sop_container'] ) );
-        $has_container_param = true;
-    } else {
-        $container_selection = $sop_default_container_type;
-    }
+    $is_new_sheet = ( $current_sheet_id <= 0 );
 
-    // Additional container controls.
-    $has_pallet_param = false;
-    if ( isset( $_GET['sop_pallet_layer'] ) ) {
-        $pallet_layer     = 1;
-        $has_pallet_param = true;
-    } else {
-        $pallet_layer = (int) $sop_default_pallet_layer;
-    }
+    // Defaults (will be overridden for new sheets below).
+    $container_selection = '';
+    $pallet_layer        = 0;
+    $allowance           = 0.0;
 
-    $has_allowance_param = false;
-    if ( isset( $_GET['sop_allowance'] ) ) {
-        $allowance            = (float) $_GET['sop_allowance'];
-        $has_allowance_param  = true;
-    } else {
-        $allowance = (float) $sop_default_container_allowance;
-    }
-    if ( $allowance < -50 ) {
-        $allowance = -50;
-    } elseif ( $allowance > 50 ) {
-        $allowance = 50;
-    }
-
-    // Apply supplier defaults for new sheets only when no explicit overrides exist.
-    if ( $current_sheet_id <= 0 && $current_supplier_id > 0 && function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
+    if ( $is_new_sheet && $current_supplier_id > 0 && function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
         $supplier_defaults = sop_get_supplier_preorder_defaults( $current_supplier_id );
 
-        if ( ! $has_container_param ) {
-            $container_selection = (string) $supplier_defaults['container'];
+        $default_container = isset( $supplier_defaults['container_type'] ) ? (string) $supplier_defaults['container_type'] : 'none';
+        $default_pallet    = ! empty( $supplier_defaults['pallet_layer'] );
+        $default_allowance = isset( $supplier_defaults['allowance'] ) ? (int) $supplier_defaults['allowance'] : 0;
+
+        // Container: GET overrides if present and non-empty.
+        if ( isset( $_GET['sop_container'] ) && '' !== $_GET['sop_container'] ) {
+            $container_selection = sanitize_text_field( wp_unslash( $_GET['sop_container'] ) );
+        } else {
+            $container_selection = $default_container;
         }
 
-        if ( ! $has_pallet_param ) {
-            $pallet_layer = ! empty( $supplier_defaults['pallet_150'] ) ? 1 : 0;
+        // Pallet: GET overrides if present.
+        if ( isset( $_GET['sop_pallet_layer'] ) && '' !== $_GET['sop_pallet_layer'] ) {
+            $pallet_layer = ! empty( $_GET['sop_pallet_layer'] ) ? 1 : 0;
+        } else {
+            $pallet_layer = $default_pallet ? 1 : 0;
         }
 
-        if ( ! $has_allowance_param ) {
-            $allowance = (float) $supplier_defaults['allowance'];
+        // Allowance: GET overrides if present.
+        if ( isset( $_GET['sop_allowance'] ) && '' !== $_GET['sop_allowance'] ) {
+            $allowance = (int) $_GET['sop_allowance'];
+        } else {
+            $allowance = (int) $default_allowance;
+        }
+    } else {
+        // Existing sheets or fallback to previous logic.
+        if ( isset( $_GET['sop_container'] ) ) {
+            $container_selection = sanitize_text_field( wp_unslash( $_GET['sop_container'] ) );
+        } else {
+            $container_selection = $sop_default_container_type;
+        }
+
+        if ( isset( $_GET['sop_pallet_layer'] ) ) {
+            $pallet_layer = 1;
+        } else {
+            $pallet_layer = (int) $sop_default_pallet_layer;
+        }
+
+        if ( isset( $_GET['sop_allowance'] ) ) {
+            $allowance = (float) $_GET['sop_allowance'];
+        } else {
+            $allowance = (float) $sop_default_container_allowance;
         }
     }
 
@@ -2807,7 +2814,24 @@ function sop_preorder_render_admin_page() {
             <?php if ( empty( $current_sheet_id ) ) : ?>
             // On a brand-new sheet, changing the supplier submits the filter to reload products.
             $('#sop-preorder-supplier').on('change', function () {
-                $('#sop-preorder-filter-form').trigger('submit');
+                var $form = $('#sop-preorder-filter-form');
+                if ( $form.length ) {
+                    var $containerSelect = $form.find('select[name="sop_container"]');
+                    var $palletCheckbox  = $form.find('input[name="sop_pallet_layer"]');
+                    var $allowanceInput  = $form.find('input[name="sop_allowance"]');
+
+                    if ( $containerSelect.length ) {
+                        $containerSelect.val('');
+                    }
+                    if ( $palletCheckbox.length ) {
+                        $palletCheckbox.prop( 'checked', false );
+                    }
+                    if ( $allowanceInput.length ) {
+                        $allowanceInput.val('');
+                    }
+
+                    $form.trigger('submit');
+                }
             });
             <?php endif; ?>
 
