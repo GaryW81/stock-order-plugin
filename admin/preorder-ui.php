@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.28 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.29 *
+ * - V12.29 - New sheets pull supplier defaults for container/pallet/allowance; saved sheets unchanged.
  * - V12.28 - Restore Round Up/Down actions on selected rows using current round step.
  * - V12.27 - Saved sheets always use stored supplier; new sheets use selected supplier.
  * - V12.26 - Honor saved sheet supplier when reopening; new sheets use selected supplier.
@@ -375,21 +376,27 @@ function sop_preorder_render_admin_page() {
     }
 
     // Container selection: GET overrides supplier defaults.
+    $has_container_param = false;
     if ( isset( $_GET['sop_container'] ) ) {
         $container_selection = sanitize_text_field( wp_unslash( $_GET['sop_container'] ) );
+        $has_container_param = true;
     } else {
         $container_selection = $sop_default_container_type;
     }
 
     // Additional container controls.
+    $has_pallet_param = false;
     if ( isset( $_GET['sop_pallet_layer'] ) ) {
-        $pallet_layer = 1;
+        $pallet_layer     = 1;
+        $has_pallet_param = true;
     } else {
         $pallet_layer = (int) $sop_default_pallet_layer;
     }
 
+    $has_allowance_param = false;
     if ( isset( $_GET['sop_allowance'] ) ) {
-        $allowance = (float) $_GET['sop_allowance'];
+        $allowance            = (float) $_GET['sop_allowance'];
+        $has_allowance_param  = true;
     } else {
         $allowance = (float) $sop_default_container_allowance;
     }
@@ -397,6 +404,23 @@ function sop_preorder_render_admin_page() {
         $allowance = -50;
     } elseif ( $allowance > 50 ) {
         $allowance = 50;
+    }
+
+    // Apply supplier defaults for new sheets only when no explicit overrides exist.
+    if ( $current_sheet_id <= 0 && $current_supplier_id > 0 && function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
+        $supplier_defaults = sop_get_supplier_preorder_defaults( $current_supplier_id );
+
+        if ( ! $has_container_param && empty( $container_selection ) && ! empty( $supplier_defaults['container'] ) ) {
+            $container_selection = $supplier_defaults['container'];
+        }
+
+        if ( ! $has_pallet_param ) {
+            $pallet_layer = ! empty( $supplier_defaults['pallet_150'] ) ? 1 : 0;
+        }
+
+        if ( ! $has_allowance_param && isset( $supplier_defaults['allowance'] ) ) {
+            $allowance = (float) $supplier_defaults['allowance'];
+        }
     }
 
     // SKU filter (substring match, case-insensitive).

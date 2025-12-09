@@ -753,6 +753,73 @@ if ( ! function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
     }
 }
 
+if ( ! function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
+    /**
+     * Get supplier-level preorder defaults (container, pallet layer, allowance).
+     *
+     * @param int|array|object $supplier_or_id Supplier array/object with settings_json, or ID.
+     * @return array {
+     *     @type string $container   Container slug (e.g. 20ft, 40ft, 40ft_hc).
+     *     @type bool   $pallet_150  Whether 150mm pallet layer is enabled.
+     *     @type float  $allowance   Container allowance percentage.
+     * }
+     */
+    function sop_get_supplier_preorder_defaults( $supplier_or_id ) {
+        $settings_json = array();
+
+        if ( is_array( $supplier_or_id ) && isset( $supplier_or_id['settings_json'] ) ) {
+            $decoded = json_decode( $supplier_or_id['settings_json'], true );
+            if ( is_array( $decoded ) ) {
+                $settings_json = $decoded;
+            }
+        } elseif ( is_object( $supplier_or_id ) && isset( $supplier_or_id->settings_json ) ) {
+            $decoded = json_decode( $supplier_or_id->settings_json, true );
+            if ( is_array( $decoded ) ) {
+                $settings_json = $decoded;
+            }
+        } elseif ( ! is_array( $supplier_or_id ) && (int) $supplier_or_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
+            $supplier_obj = sop_supplier_get_by_id( (int) $supplier_or_id );
+            if ( $supplier_obj && isset( $supplier_obj->settings_json ) ) {
+                $decoded = json_decode( $supplier_obj->settings_json, true );
+                if ( is_array( $decoded ) ) {
+                    $settings_json = $decoded;
+                }
+            }
+        }
+
+        $defaults = array(
+            'container'  => '',
+            'pallet_150' => false,
+            'allowance'  => null,
+        );
+
+        if ( isset( $settings_json['preorder_default_container_type'] ) ) {
+            $defaults['container'] = (string) $settings_json['preorder_default_container_type'];
+        }
+
+        if ( ! empty( $settings_json['preorder_default_pallet_layer'] ) ) {
+            $defaults['pallet_150'] = true;
+        }
+
+        if ( array_key_exists( 'preorder_default_container_allowance', $settings_json ) ) {
+            $defaults['allowance'] = (float) $settings_json['preorder_default_container_allowance'];
+        }
+
+        // Clamp allowance to sensible bounds.
+        if ( null !== $defaults['allowance'] ) {
+            if ( $defaults['allowance'] < -50 ) {
+                $defaults['allowance'] = -50;
+            } elseif ( $defaults['allowance'] > 50 ) {
+                $defaults['allowance'] = 50;
+            }
+        } else {
+            $defaults['allowance'] = 5.0;
+        }
+
+        return $defaults;
+    }
+}
+
 if ( ! function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
     /**
      * Normalise a carton number string into a canonical, sortable form.
