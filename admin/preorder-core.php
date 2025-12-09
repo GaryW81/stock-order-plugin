@@ -254,48 +254,6 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
     // Back-compat alias for any legacy readers that still look at "extras".
     $payload['extras'] = $po_extras;
 
-    // Debug: record last PO POST state for inspection in UI.
-    $debug_post_keys = array();
-    foreach ( array_keys( $_POST ) as $post_key ) {
-        if ( 0 === strpos( $post_key, 'sop_po_' ) ) {
-            $debug_post_keys[] = $post_key;
-        }
-    }
-
-    $debug_data = array(
-        'sheet_id'      => (int) $sheet_id,
-        'post_keys'     => $debug_post_keys,
-        'post_order'    => isset( $_POST['sop_po_order_date'] ) ? (string) wp_unslash( $_POST['sop_po_order_date'] ) : '',
-        'post_load'     => isset( $_POST['sop_po_load_date'] ) ? (string) wp_unslash( $_POST['sop_po_load_date'] ) : '',
-        'post_arrival'  => isset( $_POST['sop_po_arrival_date'] ) ? (string) wp_unslash( $_POST['sop_po_arrival_date'] ) : '',
-        'post_deposit_rmb' => isset( $_POST['sop_po_deposit_rmb'] ) ? (string) wp_unslash( $_POST['sop_po_deposit_rmb'] ) : '',
-        'post_deposit_usd' => isset( $_POST['sop_po_deposit_usd'] ) ? (string) wp_unslash( $_POST['sop_po_deposit_usd'] ) : '',
-        'post_deposit_fx_rate' => isset( $_POST['sop_po_deposit_fx_rate'] ) ? (string) wp_unslash( $_POST['sop_po_deposit_fx_rate'] ) : '',
-        'post_balance_fx_rate' => isset( $_POST['sop_po_balance_fx_rate'] ) ? (string) wp_unslash( $_POST['sop_po_balance_fx_rate'] ) : '',
-        'post_balance_usd'     => isset( $_POST['sop_po_balance_usd'] ) ? (string) wp_unslash( $_POST['sop_po_balance_usd'] ) : '',
-        'post_holiday_start'   => isset( $_POST['sop_po_holiday_start'] ) ? (string) wp_unslash( $_POST['sop_po_holiday_start'] ) : '',
-        'post_holiday_end'     => isset( $_POST['sop_po_holiday_end'] ) ? (string) wp_unslash( $_POST['sop_po_holiday_end'] ) : '',
-        'payload_raw'          => $payload_raw,
-        'parsed' => array(
-            'po_order_date'   => isset( $po_order_date ) ? $po_order_date : '',
-            'po_load_date'    => isset( $po_load_date ) ? $po_load_date : '',
-            'po_arrival_date' => isset( $po_arrival_date ) ? $po_arrival_date : '',
-            'po_deposit_rmb'  => isset( $po_deposit_rmb ) ? $po_deposit_rmb : 0.0,
-            'po_deposit_usd'  => isset( $po_deposit_usd ) ? $po_deposit_usd : 0.0,
-            'po_deposit_fx_rate'   => isset( $po_deposit_fx_rate ) ? $po_deposit_fx_rate : 0.0,
-            'po_balance_fx_rate'   => isset( $po_balance_fx_rate ) ? $po_balance_fx_rate : 0.0,
-            'po_balance_usd'       => isset( $po_balance_usd ) ? $po_balance_usd : 0.0,
-            'po_holiday_start'     => isset( $po_holiday_start ) ? $po_holiday_start : '',
-            'po_holiday_end'       => isset( $po_holiday_end ) ? $po_holiday_end : '',
-            'extras_count'         => isset( $po_extras ) && is_array( $po_extras ) ? count( $po_extras ) : 0,
-        ),
-    );
-    $extras_saved_count                  = is_array( $po_extras ) ? count( $po_extras ) : 0;
-    $debug_data['po_extras_saved_count'] = $extras_saved_count;
-
-    // Store this so the UI can show what the last save handler actually saw.
-    update_option( 'sop_po_debug_last_post', $debug_data, false );
-
     // Normalise payload before storing as header_notes_owner.
     if ( ! is_array( $payload ) ) {
         $payload = array();

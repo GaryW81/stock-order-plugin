@@ -840,71 +840,6 @@ function sop_preorder_render_admin_page() {
                     </p>
                 </div>
             <?php endif; ?>
-            <?php
-            // PO debug: show raw saved header values for this sheet.
-            $dbg_order_date   = isset( $current_sheet['order_date_owner'] ) ? $current_sheet['order_date_owner'] : '';
-            $dbg_load_date    = isset( $current_sheet['container_load_date_owner'] ) ? $current_sheet['container_load_date_owner'] : '';
-            $dbg_arrival_date = isset( $current_sheet['arrival_date_owner'] ) ? $current_sheet['arrival_date_owner'] : '';
-            $dbg_deposit_rmb  = isset( $current_sheet['deposit_fx_owner'] ) ? $current_sheet['deposit_fx_owner'] : '';
-            $dbg_balance_usd  = isset( $current_sheet['balance_fx_owner'] ) ? $current_sheet['balance_fx_owner'] : '';
-            $dbg_notes_raw    = isset( $current_sheet['header_notes_owner'] ) ? $current_sheet['header_notes_owner'] : '';
-
-            $dbg_notes = $dbg_notes_raw;
-            if ( is_string( $dbg_notes ) && strlen( $dbg_notes ) > 140 ) {
-                $dbg_notes = substr( $dbg_notes, 0, 140 ) . '…';
-            }
-            ?>
-            <div class="notice notice-info inline sop-po-debug-line">
-                <p>
-                    <strong><?php esc_html_e( 'PO debug:', 'sop' ); ?></strong>
-                    <?php
-                    printf(
-                        /* translators: 1: order date, 2: container load date, 3: arrival date, 4: deposit RMB, 5: balance USD, 6: header notes, 7: extras loaded */
-                        esc_html__( 'order=%1$s | load=%2$s | arrival=%3$s | deposit_rmb=%4$s | balance_usd=%5$s | notes=%6$s | extras_header=%7$d', 'sop' ),
-                        esc_html( (string) $dbg_order_date ),
-                        esc_html( (string) $dbg_load_date ),
-                        esc_html( (string) $dbg_arrival_date ),
-                        esc_html( (string) $dbg_deposit_rmb ),
-                        esc_html( (string) $dbg_balance_usd ),
-                        esc_html( (string) $dbg_notes ),
-                        (int) $po_extras_header_count
-                    );
-                    ?>
-                </p>
-                <?php
-                $po_debug_last_post = get_option( 'sop_po_debug_last_post' );
-                if ( is_array( $po_debug_last_post ) ) {
-                    $post_keys = isset( $po_debug_last_post['post_keys'] ) && is_array( $po_debug_last_post['post_keys'] )
-                        ? implode( ',', $po_debug_last_post['post_keys'] )
-                        : '';
-
-                    $parsed = isset( $po_debug_last_post['parsed'] ) && is_array( $po_debug_last_post['parsed'] )
-                        ? $po_debug_last_post['parsed']
-                        : array();
-
-                    $parsed_order        = isset( $parsed['po_order_date'] ) ? $parsed['po_order_date'] : '';
-                    $parsed_deposit      = isset( $parsed['po_deposit_rmb'] ) ? $parsed['po_deposit_rmb'] : 0;
-                    $parsed_extras       = isset( $parsed['extras_count'] ) ? (int) $parsed['extras_count'] : 0;
-                    $parsed_extras_saved = isset( $po_debug_last_post['po_extras_saved_count'] ) ? (int) $po_debug_last_post['po_extras_saved_count'] : 0;
-                    ?>
-                    <p>
-                        <strong><?php esc_html_e( 'PO POST debug:', 'sop' ); ?></strong>
-                        <?php
-                        printf(
-                            /* translators: 1: post keys, 2: parsed order date, 3: parsed deposit RMB, 4: extras count, 5: extras saved count */
-                            esc_html__( 'keys=[%1$s] | parsed_order=%2$s | parsed_deposit_rmb=%3$s | extras=%4$d | extras_saved=%5$d', 'sop' ),
-                            esc_html( $post_keys ),
-                            esc_html( (string) $parsed_order ),
-                            esc_html( (string) $parsed_deposit ),
-                            $parsed_extras,
-                            $parsed_extras_saved
-                        );
-                        ?>
-                    </p>
-                    <?php
-                }
-                ?>
-            </div>
         <?php endif; ?>
 
         <div class="sop-preorder-header">
@@ -2308,11 +2243,6 @@ function sop_preorder_render_admin_page() {
 
         .sop-po-holiday-separator {
             padding: 0 2px;
-        }
-
-        .sop-po-debug-line {
-            margin-top: 8px;
-            margin-bottom: 12px;
         }
 
         .sop-po-items-table .column-amount {
