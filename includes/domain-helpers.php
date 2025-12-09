@@ -790,7 +790,7 @@ if ( ! function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
         $defaults = array(
             'container'  => '',
             'pallet_150' => false,
-            'allowance'  => null,
+            'allowance'  => 0.0,
         );
 
         if ( isset( $settings_json['preorder_default_container_type'] ) ) {
@@ -806,14 +806,10 @@ if ( ! function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
         }
 
         // Clamp allowance to sensible bounds.
-        if ( null !== $defaults['allowance'] ) {
-            if ( $defaults['allowance'] < -50 ) {
-                $defaults['allowance'] = -50;
-            } elseif ( $defaults['allowance'] > 50 ) {
-                $defaults['allowance'] = 50;
-            }
-        } else {
-            $defaults['allowance'] = 5.0;
+        if ( $defaults['allowance'] < -50 ) {
+            $defaults['allowance'] = -50;
+        } elseif ( $defaults['allowance'] > 50 ) {
+            $defaults['allowance'] = 50;
         }
 
         return $defaults;

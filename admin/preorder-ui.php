@@ -1,6 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.29 *
- * - V12.29 - New sheets pull supplier defaults for container/pallet/allowance; saved sheets unchanged.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.30 *
+ * - V12.30 - New sheets use supplier defaults for container/pallet/allowance; saved sheets stay as saved.
  * - V12.28 - Restore Round Up/Down actions on selected rows using current round step.
  * - V12.27 - Saved sheets always use stored supplier; new sheets use selected supplier.
  * - V12.26 - Honor saved sheet supplier when reopening; new sheets use selected supplier.
@@ -410,17 +410,23 @@ function sop_preorder_render_admin_page() {
     if ( $current_sheet_id <= 0 && $current_supplier_id > 0 && function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
         $supplier_defaults = sop_get_supplier_preorder_defaults( $current_supplier_id );
 
-        if ( ! $has_container_param && empty( $container_selection ) && ! empty( $supplier_defaults['container'] ) ) {
-            $container_selection = $supplier_defaults['container'];
+        if ( ! $has_container_param ) {
+            $container_selection = (string) $supplier_defaults['container'];
         }
 
         if ( ! $has_pallet_param ) {
             $pallet_layer = ! empty( $supplier_defaults['pallet_150'] ) ? 1 : 0;
         }
 
-        if ( ! $has_allowance_param && isset( $supplier_defaults['allowance'] ) ) {
+        if ( ! $has_allowance_param ) {
             $allowance = (float) $supplier_defaults['allowance'];
         }
+    }
+
+    if ( $allowance < -50 ) {
+        $allowance = -50;
+    } elseif ( $allowance > 50 ) {
+        $allowance = 50;
     }
 
     // SKU filter (substring match, case-insensitive).
