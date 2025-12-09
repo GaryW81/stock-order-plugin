@@ -2563,23 +2563,8 @@ class sop_Admin_Settings {
         margin-top: 20px;
     }
     .sop-company-details summary {
-        list-style: none;
         cursor: pointer;
         padding-left: 0;
-    }
-    .sop-company-details summary::marker,
-    .sop-company-details summary::-webkit-details-marker {
-        content: none;
-        display: none !important;
-    }
-    .sop-company-summary {
-        display: inline-block;
-        padding-left: 0;
-    }
-    details.sop-company-details > summary::marker,
-    details.sop-company-details > summary::-webkit-details-marker {
-        content: none;
-        display: none !important;
     }
     .sop-company-summary .button {
         margin-top: 10px;
