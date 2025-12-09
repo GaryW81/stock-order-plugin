@@ -2657,6 +2657,7 @@ function sop_preorder_render_admin_page() {
     </style>
 
     <script>
+        window.sopIsNewPreorderSheet = <?php echo ( $current_sheet_id > 0 ? 'false' : 'true' ); ?>;
         jQuery(function($) {
             // One-shot "sheet saved" notice: remove sop_saved from URL after first load.
             (function() {
@@ -2692,7 +2693,7 @@ function sop_preorder_render_admin_page() {
             var $columnsWrapper      = $('.sop-preorder-columns');
             var $columnsToggleButton = $columnsWrapper.find('.sop-preorder-columns-toggle');
             var $columnsPanel        = $columnsWrapper.find('.sop-preorder-columns-popover');
-            var sopIsNewSheet        = <?php echo ( $current_sheet_id > 0 ? 'false' : 'true' ); ?>;
+            var sopIsNewSheet        = !!window.sopIsNewPreorderSheet;
             var $columnCheckboxes    = $columnsPanel.find('input[type="checkbox"]');
 
             function sopPreorderApplyColumnVisibility() {
@@ -2753,34 +2754,16 @@ function sop_preorder_render_admin_page() {
             // Auto-trigger container update when supplier changes on new (unsaved) sheets.
             if ( sopIsNewSheet && $filterForm.length ) {
                 var $supplierSelect = $filterForm.find('select[name="sop_supplier_id"]');
+                var $updateContainerBtn = $filterForm.find('[name="sop_preorder_update_container"]');
 
-                if ( $supplierSelect.length && !$supplierSelect.prop('disabled') ) {
-                    $supplierSelect.on( 'change', function() {
+                if ( $supplierSelect.length && $updateContainerBtn.length && !$supplierSelect.prop('disabled') ) {
+                    $supplierSelect.off('change.sopSupplierAutoUpdate').on( 'change.sopSupplierAutoUpdate', function() {
                         if ( $supplierSelect.prop( 'disabled' ) ) {
                             return;
                         }
                         // Ensure confirm dialog for unsaved changes does not block supplier swap on new sheets.
                         hasUnsavedChanges = false;
-
-                        // Mirror clicking "Update container": ensure flag exists then submit.
-                        var $updateFlag = $filterForm.find('input[name="sop_preorder_update_container"]');
-                        if ( ! $updateFlag.length ) {
-                            $updateFlag = $('<input>', {
-                                type: 'hidden',
-                                name: 'sop_preorder_update_container',
-                                value: '1'
-                            });
-                            $filterForm.append( $updateFlag );
-                        } else {
-                            $updateFlag.val( '1' );
-                        }
-
-                        // Use native submit to avoid jQuery handlers interfering.
-                        if ( $filterForm[0] && typeof $filterForm[0].submit === 'function' ) {
-                            $filterForm[0].submit();
-                        } else {
-                            $filterForm.trigger( 'submit' );
-                        }
+                        $updateContainerBtn.trigger( 'click' );
                     } );
                 }
             }
