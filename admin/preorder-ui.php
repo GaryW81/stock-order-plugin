@@ -1,6 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.31 *
- * - V12.31 - New sheets pull supplier defaults for container/pallet/allowance with sane fallbacks.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.32 *
+ * - V12.32 - New sheets always start from supplier defaults for container/pallet/allowance.
  * - V12.28 - Restore Round Up/Down actions on selected rows using current round step.
  * - V12.27 - Saved sheets always use stored supplier; new sheets use selected supplier.
  * - V12.26 - Honor saved sheet supplier when reopening; new sheets use selected supplier.
@@ -416,26 +416,23 @@ function sop_preorder_render_admin_page() {
     }
 
     if ( $is_new_sheet ) {
-        // Container: GET overrides if present and non-empty, else supplier default (or none).
-        if ( isset( $_GET['sop_container'] ) && '' !== $_GET['sop_container'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $container_selection = sanitize_text_field( wp_unslash( $_GET['sop_container'] ) );
-        } else {
-            $container_selection = $default_container_type;
+        // Always start from supplier defaults on a brand new sheet (no GET overrides).
+        $defaults = array(
+            'container_type' => '',
+            'pallet_layer'   => false,
+            'allowance'      => 0,
+        );
+
+        if ( $current_supplier_id > 0 && function_exists( 'sop_get_supplier_preorder_defaults' ) ) {
+            $supplier_defaults = sop_get_supplier_preorder_defaults( $current_supplier_id );
+            if ( is_array( $supplier_defaults ) ) {
+                $defaults = array_merge( $defaults, $supplier_defaults );
+            }
         }
 
-        // Pallet layer: GET overrides, else supplier default (or false).
-        if ( isset( $_GET['sop_pallet_layer'] ) && '' !== $_GET['sop_pallet_layer'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $pallet_layer = ! empty( $_GET['sop_pallet_layer'] ) ? 1 : 0;
-        } else {
-            $pallet_layer = $default_pallet_layer ? 1 : 0;
-        }
-
-        // Allowance: GET overrides, else supplier default (or 0).
-        if ( isset( $_GET['sop_allowance'] ) && '' !== $_GET['sop_allowance'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            $allowance = (int) $_GET['sop_allowance'];
-        } else {
-            $allowance = $default_allowance;
-        }
+        $container_selection = isset( $defaults['container_type'] ) ? (string) $defaults['container_type'] : '';
+        $pallet_layer        = ! empty( $defaults['pallet_layer'] ) ? 1 : 0;
+        $allowance           = isset( $defaults['allowance'] ) ? (int) $defaults['allowance'] : 0;
     } else {
         // Existing sheets: keep current behaviour (sheet/header or prior defaults/GET).
         if ( isset( $_GET['sop_container'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
