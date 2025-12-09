@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.22 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.23 *
+ * - V12.23 - New-sheet supplier change submits filter immediately to reload products.
  * - V12.22 - Supplier change on new sheets triggers native filter submit to reload products immediately.
  * - V12.21 - Supplier change on new sheets submits filter instantly to reload products.
  * - V12.20 - Auto-refresh container when supplier changes on new sheets (no extra click needed).
@@ -876,7 +877,11 @@ function sop_preorder_render_admin_page() {
                         <div class="sop-preorder-top-left">
                             <label>
                                 <?php esc_html_e( 'Supplier:', 'sop' ); ?>
-                                <select name="sop_supplier_id" form="sop-preorder-filter-form">
+                                <select
+                                    id="sop-preorder-supplier"
+                                    name="sop_supplier_id"
+                                    form="sop-preorder-filter-form"
+                                >
                                     <?php foreach ( $suppliers as $row ) : ?>
                                         <option value="<?php echo esc_attr( $row['id'] ); ?>" <?php selected( (int) $row['id'], $selected_supplier_id ); ?>>
                                             <?php echo esc_html( $row['name'] ); ?> (<?php echo esc_html( $row['currency_code'] ); ?>)
@@ -2657,7 +2662,6 @@ function sop_preorder_render_admin_page() {
     </style>
 
     <script>
-        window.sopIsNewPreorderSheet = <?php echo ( $current_sheet_id > 0 ? 'false' : 'true' ); ?>;
         jQuery(function($) {
             // One-shot "sheet saved" notice: remove sop_saved from URL after first load.
             (function() {
@@ -2693,7 +2697,6 @@ function sop_preorder_render_admin_page() {
             var $columnsWrapper      = $('.sop-preorder-columns');
             var $columnsToggleButton = $columnsWrapper.find('.sop-preorder-columns-toggle');
             var $columnsPanel        = $columnsWrapper.find('.sop-preorder-columns-popover');
-            var sopIsNewSheet        = !!window.sopIsNewPreorderSheet;
             var $columnCheckboxes    = $columnsPanel.find('input[type="checkbox"]');
 
             function sopPreorderApplyColumnVisibility() {
@@ -2751,22 +2754,12 @@ function sop_preorder_render_admin_page() {
                 });
             }
 
-            // Auto-trigger container update when supplier changes on new (unsaved) sheets.
-            if ( sopIsNewSheet && $filterForm.length ) {
-                var $supplierSelect = $filterForm.find('select[name="sop_supplier_id"]');
-                var $updateContainerBtn = $filterForm.find('[name="sop_preorder_update_container"]');
-
-                if ( $supplierSelect.length && $updateContainerBtn.length && !$supplierSelect.prop('disabled') ) {
-                    $supplierSelect.off('change.sopSupplierAutoUpdate').on( 'change.sopSupplierAutoUpdate', function() {
-                        if ( $supplierSelect.prop( 'disabled' ) ) {
-                            return;
-                        }
-                        // Ensure confirm dialog for unsaved changes does not block supplier swap on new sheets.
-                        hasUnsavedChanges = false;
-                        $updateContainerBtn.trigger( 'click' );
-                    } );
-                }
-            }
+            <?php if ( empty( $current_sheet_id ) ) : ?>
+            // On a brand-new sheet, changing the supplier submits the filter to reload products.
+            $('#sop-preorder-supplier').on('change', function () {
+                $('#sop-preorder-filter-form').trigger('submit');
+            });
+            <?php endif; ?>
 
             if ( $sheetForm.length ) {
                 $sheetForm.on( 'submit', function() {
