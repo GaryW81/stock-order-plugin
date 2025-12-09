@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.27 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.28 *
+ * - V12.28 - Restore Round Up/Down actions on selected rows using current round step.
  * - V12.27 - Saved sheets always use stored supplier; new sheets use selected supplier.
  * - V12.26 - Honor saved sheet supplier when reopening; new sheets use selected supplier.
  * - V12.25 - Do not show leave-site warning when saving/updating the sheet.
@@ -1036,8 +1037,8 @@ function sop_preorder_render_admin_page() {
                                         <option value="10">10</option>
                                     </select>
                                 </label>
-                                <button type="button" class="button" data-round-mode="up" <?php echo $sop_disabled_attr; ?>><?php esc_html_e( 'Round Up', 'sop' ); ?></button>
-                                <button type="button" class="button" data-round-mode="down" <?php echo $sop_disabled_attr; ?>><?php esc_html_e( 'Round Down', 'sop' ); ?></button>
+                                <button type="button" class="button" id="sop-round-up" data-round-mode="up" <?php echo $sop_disabled_attr; ?>><?php esc_html_e( 'Round Up', 'sop' ); ?></button>
+                                <button type="button" class="button" id="sop-round-down" data-round-mode="down" <?php echo $sop_disabled_attr; ?>><?php esc_html_e( 'Round Down', 'sop' ); ?></button>
                             </div>
 
                             <div class="sop-preorder-bottom-middle">
@@ -3390,11 +3391,12 @@ function sop_preorder_render_admin_page() {
                 recalcTotals();
             });
 
-            $('.sop-rounding-controls button[data-round-mode]').on('click', function(e) {
-                e.preventDefault();
+            function sopPreorderApplyRounding( direction ) {
+                var step = parseInt( $('.sop-round-step').val(), 10 ) || 0;
+                if ( step <= 0 ) {
+                    return;
+                }
 
-                var mode = $(this).data('round-mode'); // 'up' or 'down'
-                var step = parseInt($('.sop-round-step').val(), 10) || 1;
                 var selectedRows = sopPreorderGetSelectedRows();
                 var $qtyInputs;
 
@@ -3408,12 +3410,16 @@ function sop_preorder_render_admin_page() {
                 }
 
                 $qtyInputs.each(function() {
-                    var val = parseFloat($(this).val()) || 0;
+                    var val = parseFloat($(this).val());
+                    if ( isNaN( val ) || val <= 0 ) {
+                        return;
+                    }
+
                     var rounded = val;
 
-                    if (mode === 'up') {
+                    if ( 'up' === direction ) {
                         rounded = Math.ceil(val / step) * step;
-                    } else if (mode === 'down') {
+                    } else if ( 'down' === direction ) {
                         rounded = Math.floor(val / step) * step;
                     }
 
@@ -3427,6 +3433,16 @@ function sop_preorder_render_admin_page() {
                 });
 
                 recalcTotals();
+            }
+
+            $('#sop-round-up').on('click', function(e) {
+                e.preventDefault();
+                sopPreorderApplyRounding('up');
+            });
+
+            $('#sop-round-down').on('click', function(e) {
+                e.preventDefault();
+                sopPreorderApplyRounding('down');
             });
 
             $('#sop-apply-soq-to-qty').on('click', function(e) {
