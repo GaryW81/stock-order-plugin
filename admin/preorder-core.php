@@ -556,6 +556,11 @@ function sop_handle_save_preorder_sheet() {
         if ( is_array( $existing_sheet ) && ! empty( $existing_sheet['status'] ) && 'draft' !== $existing_sheet['status'] ) {
             wp_die( esc_html__( 'This saved pre-order sheet is locked and cannot be edited. Please unlock it first.', 'sop' ) );
         }
+
+        // For existing sheets, always trust the stored supplier.
+        if ( $existing_sheet && isset( $existing_sheet['supplier_id'] ) ) {
+            $supplier_id = (int) $existing_sheet['supplier_id'];
+        }
     }
 
     if ( $supplier_id < 1 ) {

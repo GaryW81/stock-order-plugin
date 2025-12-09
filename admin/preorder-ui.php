@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.25 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.26 *
+ * - V12.26 - Honor saved sheet supplier when reopening; new sheets use selected supplier.
  * - V12.25 - Do not show leave-site warning when saving/updating the sheet.
  * - V12.24 - Suppress leave-site warning while saving/updating the sheet.
  * - V12.23 - New-sheet supplier change submits filter immediately to reload products.
@@ -51,15 +52,28 @@ function sop_preorder_render_admin_page() {
     $suppliers = sop_preorder_get_suppliers();
     $settings  = sop_preorder_get_settings();
 
-    $selected_supplier_id = isset( $_GET['sop_supplier_id'] )
-        ? (int) $_GET['sop_supplier_id']
-        : 0;
     $current_sheet_id     = isset( $_GET['sop_sheet_id'] ) ? (int) $_GET['sop_sheet_id'] : 0;
     if ( 0 === $current_sheet_id && isset( $_GET['sop_preorder_sheet_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $current_sheet_id = (int) $_GET['sop_preorder_sheet_id']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
     }
     $current_sheet        = null;
     $current_lines        = array();
+
+    if ( $current_sheet_id > 0 && function_exists( 'sop_get_preorder_sheet' ) ) {
+        $current_sheet = sop_get_preorder_sheet( $current_sheet_id );
+        if ( ! $current_sheet || ! is_array( $current_sheet ) ) {
+            $current_sheet_id = 0;
+            $current_sheet    = null;
+        }
+    }
+
+    if ( $current_sheet && isset( $current_sheet['supplier_id'] ) ) {
+        $selected_supplier_id = (int) $current_sheet['supplier_id'];
+    } else {
+        $selected_supplier_id = isset( $_GET['sop_supplier_id'] )
+            ? (int) $_GET['sop_supplier_id']
+            : 0;
+    }
 
     $supplier = null;
     foreach ( $suppliers as $row ) {
