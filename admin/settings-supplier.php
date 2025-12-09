@@ -1543,7 +1543,11 @@ class sop_Admin_Settings {
             </table>
 
             <details class="sop-company-details" <?php echo $has_company_details ? '' : 'open'; ?>>
-                <summary><?php esc_html_e( 'Company details (used on POs)', 'sop' ); ?></summary>
+                <summary class="sop-company-summary">
+                    <span class="button button-secondary">
+                        <?php esc_html_e( 'Company details (used on POs)', 'sop' ); ?>
+                    </span>
+                </summary>
                 <?php wp_nonce_field( 'sop_company_profile_save', 'sop_company_profile_nonce' ); ?>
                 <input type="hidden" name="sop_company_profile_action" value="save" />
                 <table class="form-table" role="presentation">
@@ -2544,69 +2548,6 @@ class sop_Admin_Settings {
         ?>
     </form>
 
-    <?php
-    $has_company_details = ! empty( trim( (string) $company_name_val ) );
-    ?>
-    <details class="sop-company-details" <?php echo $has_company_details ? '' : 'open'; ?>>
-        <summary><?php esc_html_e( 'Company details (used on POs)', 'sop' ); ?></summary>
-        <form method="post" action="<?php echo esc_url( add_query_arg( array( 'page' => 'sop_stock_order', 'tab' => 'suppliers' ), admin_url( 'admin.php' ) ) ); ?>">
-            <?php wp_nonce_field( 'sop_company_profile_save', 'sop_company_profile_nonce' ); ?>
-            <input type="hidden" name="sop_company_profile_action" value="save" />
-            <table class="form-table" role="presentation">
-                <tbody>
-                    <tr>
-                        <th scope="row"><label for="sop_company_name"><?php esc_html_e( 'Company name', 'sop' ); ?></label></th>
-                        <td>
-                            <input type="text" id="sop_company_name" name="sop_company_name" class="regular-text" value="<?php echo esc_attr( $company_name_val ); ?>" />
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="sop_company_billing_address"><?php esc_html_e( 'Billing address', 'sop' ); ?></label></th>
-                        <td>
-                            <textarea id="sop_company_billing_address" name="sop_company_billing_address" rows="3" class="large-text"><?php echo esc_textarea( $company_billing_val ); ?></textarea>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="sop_company_shipping_address"><?php esc_html_e( 'Shipping address', 'sop' ); ?></label></th>
-                        <td>
-                            <textarea id="sop_company_shipping_address" name="sop_company_shipping_address" rows="3" class="large-text"><?php echo esc_textarea( $company_shipping_val ); ?></textarea>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="sop_company_email"><?php esc_html_e( 'Email', 'sop' ); ?></label></th>
-                        <td>
-                            <input type="email" id="sop_company_email" name="sop_company_email" class="regular-text" value="<?php echo esc_attr( $company_email_val ); ?>" />
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="sop_company_phone_landline"><?php esc_html_e( 'Phone (landline)', 'sop' ); ?></label></th>
-                        <td>
-                            <input type="text" id="sop_company_phone_landline" name="sop_company_phone_landline" class="regular-text" value="<?php echo esc_attr( $company_phone_landline_val ); ?>" />
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="sop_company_phone_mobile"><?php esc_html_e( 'Phone (mobile)', 'sop' ); ?></label></th>
-                        <td>
-                            <input type="text" id="sop_company_phone_mobile" name="sop_company_phone_mobile" class="regular-text" value="<?php echo esc_attr( $company_phone_mobile_val ); ?>" />
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="sop_company_crn"><?php esc_html_e( 'Company registration number (CRN)', 'sop' ); ?></label></th>
-                        <td>
-                            <input type="text" id="sop_company_crn" name="sop_company_crn" class="regular-text" value="<?php echo esc_attr( $company_crn_val ); ?>" />
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="sop_company_vat"><?php esc_html_e( 'VAT number', 'sop' ); ?></label></th>
-                        <td>
-                            <input type="text" id="sop_company_vat" name="sop_company_vat" class="regular-text" value="<?php echo esc_attr( $company_vat_val ); ?>" />
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-            <?php submit_button( __( 'Save company details', 'sop' ) ); ?>
-        </form>
-    </details>
 </div>
 
 <style type="text/css">
@@ -2619,12 +2560,17 @@ class sop_Admin_Settings {
         text-align: center;
     }
     .sop-company-details {
-        margin-top: 30px;
+        margin-top: 20px;
     }
-    .sop-company-details > summary {
-        font-weight: 600;
+    .sop-company-details summary {
+        list-style: none;
         cursor: pointer;
-        margin-bottom: 10px;
+    }
+    .sop-company-details summary::-webkit-details-marker {
+        display: none;
+    }
+    .sop-company-summary .button {
+        margin-top: 10px;
     }
 </style>
 
