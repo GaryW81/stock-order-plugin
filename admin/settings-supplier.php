@@ -2566,6 +2566,9 @@ class sop_Admin_Settings {
         list-style: none;
         cursor: pointer;
     }
+    .sop-company-details summary::marker {
+        display: none;
+    }
     .sop-company-details summary::-webkit-details-marker {
         display: none;
     }
