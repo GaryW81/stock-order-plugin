@@ -1387,6 +1387,17 @@ class sop_Admin_Settings {
     }
     protected function render_general_tab() {
         $settings = self::get_settings();
+        $company_profile = function_exists( 'sop_get_company_profile' ) ? sop_get_company_profile() : array();
+        $company_name_val = isset( $company_profile['company_name'] ) ? $company_profile['company_name'] : '';
+        $company_billing_val = isset( $company_profile['billing_address'] ) ? $company_profile['billing_address'] : '';
+        $company_shipping_val = isset( $company_profile['shipping_address'] ) ? $company_profile['shipping_address'] : '';
+        $company_email_val = isset( $company_profile['email'] ) ? $company_profile['email'] : '';
+        $company_phone_landline_val = isset( $company_profile['phone_landline'] ) ? $company_profile['phone_landline'] : '';
+        $company_phone_mobile_val = isset( $company_profile['phone_mobile'] ) ? $company_profile['phone_mobile'] : '';
+        $company_crn_val = isset( $company_profile['company_reg_number'] ) ? $company_profile['company_reg_number'] : '';
+        $company_vat_val = isset( $company_profile['vat_number'] ) ? $company_profile['vat_number'] : '';
+        $has_company_details = ! empty( trim( (string) $company_name_val ) );
+        settings_errors( 'sop_company_profile' );
         ?>
         <form method="post" action="options.php">
             <?php settings_fields( 'sop_settings_group' ); ?>
@@ -1530,6 +1541,64 @@ class sop_Admin_Settings {
                     </tr>
                 </tbody>
             </table>
+
+            <details class="sop-company-details" <?php echo $has_company_details ? '' : 'open'; ?>>
+                <summary><?php esc_html_e( 'Company details (used on POs)', 'sop' ); ?></summary>
+                <?php wp_nonce_field( 'sop_company_profile_save', 'sop_company_profile_nonce' ); ?>
+                <input type="hidden" name="sop_company_profile_action" value="save" />
+                <table class="form-table" role="presentation">
+                    <tbody>
+                        <tr>
+                            <th scope="row"><label for="sop_company_name"><?php esc_html_e( 'Company name', 'sop' ); ?></label></th>
+                            <td>
+                                <input type="text" id="sop_company_name" name="sop_company_name" class="regular-text" value="<?php echo esc_attr( $company_name_val ); ?>" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="sop_company_billing_address"><?php esc_html_e( 'Billing address', 'sop' ); ?></label></th>
+                            <td>
+                                <textarea id="sop_company_billing_address" name="sop_company_billing_address" rows="3" class="large-text"><?php echo esc_textarea( $company_billing_val ); ?></textarea>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="sop_company_shipping_address"><?php esc_html_e( 'Shipping address', 'sop' ); ?></label></th>
+                            <td>
+                                <textarea id="sop_company_shipping_address" name="sop_company_shipping_address" rows="3" class="large-text"><?php echo esc_textarea( $company_shipping_val ); ?></textarea>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="sop_company_email"><?php esc_html_e( 'Email', 'sop' ); ?></label></th>
+                            <td>
+                                <input type="email" id="sop_company_email" name="sop_company_email" class="regular-text" value="<?php echo esc_attr( $company_email_val ); ?>" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="sop_company_phone_landline"><?php esc_html_e( 'Phone (landline)', 'sop' ); ?></label></th>
+                            <td>
+                                <input type="text" id="sop_company_phone_landline" name="sop_company_phone_landline" class="regular-text" value="<?php echo esc_attr( $company_phone_landline_val ); ?>" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="sop_company_phone_mobile"><?php esc_html_e( 'Phone (mobile)', 'sop' ); ?></label></th>
+                            <td>
+                                <input type="text" id="sop_company_phone_mobile" name="sop_company_phone_mobile" class="regular-text" value="<?php echo esc_attr( $company_phone_mobile_val ); ?>" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="sop_company_crn"><?php esc_html_e( 'Company registration number (CRN)', 'sop' ); ?></label></th>
+                            <td>
+                                <input type="text" id="sop_company_crn" name="sop_company_crn" class="regular-text" value="<?php echo esc_attr( $company_crn_val ); ?>" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="sop_company_vat"><?php esc_html_e( 'VAT number', 'sop' ); ?></label></th>
+                            <td>
+                                <input type="text" id="sop_company_vat" name="sop_company_vat" class="regular-text" value="<?php echo esc_attr( $company_vat_val ); ?>" />
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </details>
 
             <?php submit_button(); ?>
         </form>
@@ -2608,6 +2677,38 @@ endif; // class_exists
 if ( is_admin() ) {
     new sop_Admin_Settings();
 }
+
+/**
+ * Handle company profile save from General Settings form.
+ */
+function sop_handle_company_profile_save_request() {
+    if ( ! isset( $_POST['sop_company_profile_action'] ) || 'save' !== $_POST['sop_company_profile_action'] ) {
+        return;
+    }
+
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        return;
+    }
+
+    check_admin_referer( 'sop_company_profile_save', 'sop_company_profile_nonce' );
+
+    $profile_data = array(
+        'company_name'       => isset( $_POST['sop_company_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_company_name'] ) ) : '',
+        'billing_address'    => isset( $_POST['sop_company_billing_address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['sop_company_billing_address'] ) ) : '',
+        'shipping_address'   => isset( $_POST['sop_company_shipping_address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['sop_company_shipping_address'] ) ) : '',
+        'email'              => isset( $_POST['sop_company_email'] ) ? sanitize_email( wp_unslash( $_POST['sop_company_email'] ) ) : '',
+        'phone_landline'     => isset( $_POST['sop_company_phone_landline'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_company_phone_landline'] ) ) : '',
+        'phone_mobile'       => isset( $_POST['sop_company_phone_mobile'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_company_phone_mobile'] ) ) : '',
+        'company_reg_number' => isset( $_POST['sop_company_crn'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_company_crn'] ) ) : '',
+        'vat_number'         => isset( $_POST['sop_company_vat'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_company_vat'] ) ) : '',
+    );
+
+    if ( function_exists( 'sop_update_company_profile' ) ) {
+        sop_update_company_profile( $profile_data );
+        add_settings_error( 'sop_company_profile', 'sop_company_profile_saved', __( 'Company details saved.', 'sop' ), 'updated' );
+    }
+}
+add_action( 'admin_init', 'sop_handle_company_profile_save_request' );
 
 /**
  * Global helper to get Stock Order Plugin settings (with defaults).
