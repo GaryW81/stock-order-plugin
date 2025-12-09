@@ -1,6 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.30 *
- * - V12.30 - New sheets use supplier defaults for container/pallet/allowance; saved sheets stay as saved.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.31 *
+ * - V12.31 - New sheets pull supplier defaults for container/pallet/allowance with sane fallbacks.
  * - V12.28 - Restore Round Up/Down actions on selected rows using current round step.
  * - V12.27 - Saved sheets always use stored supplier; new sheets use selected supplier.
  * - V12.26 - Honor saved sheet supplier when reopening; new sheets use selected supplier.
@@ -139,6 +139,9 @@ function sop_preorder_render_admin_page() {
     $holiday_periods                  = array();
     $shipping_days                    = 0;
     $supplier_lead_weeks              = 0;
+    $supplier_defaults_container      = '';
+    $supplier_defaults_pallet         = false;
+    $supplier_defaults_allowance      = 0;
 
     // Supplier PI / Rates & Dates values.
     $pi_company_name    = '';
@@ -256,6 +259,16 @@ function sop_preorder_render_admin_page() {
                 if ( $shipping_days < 0 ) {
                     $shipping_days = 0;
                 }
+
+                if ( isset( $supplier_settings['preorder_default_container_type'] ) ) {
+                    $supplier_defaults_container = (string) $supplier_settings['preorder_default_container_type'];
+                }
+                if ( ! empty( $supplier_settings['preorder_default_pallet_layer'] ) ) {
+                    $supplier_defaults_pallet = true;
+                }
+                if ( array_key_exists( 'preorder_default_container_allowance', $supplier_settings ) ) {
+                    $supplier_defaults_allowance = (int) $supplier_settings['preorder_default_container_allowance'];
+                }
             }
         }
         if ( $supplier_obj && isset( $supplier_obj->lead_time_weeks ) ) {
@@ -347,6 +360,16 @@ function sop_preorder_render_admin_page() {
                 if ( $shipping_days < 0 ) {
                     $shipping_days = 0;
                 }
+
+                if ( isset( $supplier_settings['preorder_default_container_type'] ) ) {
+                    $supplier_defaults_container = (string) $supplier_settings['preorder_default_container_type'];
+                }
+                if ( ! empty( $supplier_settings['preorder_default_pallet_layer'] ) ) {
+                    $supplier_defaults_pallet = true;
+                }
+                if ( array_key_exists( 'preorder_default_container_allowance', $supplier_settings ) ) {
+                    $supplier_defaults_allowance = (int) $supplier_settings['preorder_default_container_allowance'];
+                }
             }
         }
         if ( $supplier_obj && isset( $supplier_obj->lead_time_weeks ) ) {
@@ -382,32 +405,36 @@ function sop_preorder_render_admin_page() {
     $pallet_layer        = 0;
     $allowance           = 0;
 
-    if ( $is_new_sheet ) {
-        $defaults = function_exists( 'sop_get_supplier_preorder_defaults' ) ? sop_get_supplier_preorder_defaults( $current_supplier_id ) : array(
-            'container_type' => '',
-            'pallet_layer'   => false,
-            'allowance'      => 0,
-        );
+    // Supplier defaults (none/false/0 if not set).
+    $default_container_type = (string) $supplier_defaults_container;
+    $default_pallet_layer   = ! empty( $supplier_defaults_pallet );
+    $default_allowance      = (int) $supplier_defaults_allowance;
+    if ( $default_allowance > 50 ) {
+        $default_allowance = 50;
+    } elseif ( $default_allowance < -50 ) {
+        $default_allowance = -50;
+    }
 
+    if ( $is_new_sheet ) {
         // Container: GET overrides if present and non-empty, else supplier default (or none).
         if ( isset( $_GET['sop_container'] ) && '' !== $_GET['sop_container'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $container_selection = sanitize_text_field( wp_unslash( $_GET['sop_container'] ) );
         } else {
-            $container_selection = isset( $defaults['container_type'] ) ? (string) $defaults['container_type'] : '';
+            $container_selection = $default_container_type;
         }
 
         // Pallet layer: GET overrides, else supplier default (or false).
         if ( isset( $_GET['sop_pallet_layer'] ) && '' !== $_GET['sop_pallet_layer'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $pallet_layer = ! empty( $_GET['sop_pallet_layer'] ) ? 1 : 0;
         } else {
-            $pallet_layer = ! empty( $defaults['pallet_layer'] ) ? 1 : 0;
+            $pallet_layer = $default_pallet_layer ? 1 : 0;
         }
 
         // Allowance: GET overrides, else supplier default (or 0).
         if ( isset( $_GET['sop_allowance'] ) && '' !== $_GET['sop_allowance'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $allowance = (int) $_GET['sop_allowance'];
         } else {
-            $allowance = isset( $defaults['allowance'] ) ? (int) $defaults['allowance'] : 0;
+            $allowance = $default_allowance;
         }
     } else {
         // Existing sheets: keep current behaviour (sheet/header or prior defaults/GET).
