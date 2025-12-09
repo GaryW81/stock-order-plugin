@@ -2572,6 +2572,15 @@ class sop_Admin_Settings {
         content: none;
         display: none !important;
     }
+    .sop-company-summary {
+        display: inline-block;
+        padding-left: 0;
+    }
+    .sop-company-summary::marker,
+    .sop-company-summary::-webkit-details-marker {
+        content: none;
+        display: none !important;
+    }
     .sop-company-summary .button {
         margin-top: 10px;
     }
