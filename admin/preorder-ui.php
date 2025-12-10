@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.32 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.33 *
+ * - V12.33 - Remove View saved sheets button from header.
  * - V12.32 - New sheets always start from supplier defaults for container/pallet/allowance.
  * - V12.28 - Restore Round Up/Down actions on selected rows using current round step.
  * - V12.27 - Saved sheets always use stored supplier; new sheets use selected supplier.
@@ -998,21 +999,6 @@ function sop_preorder_render_admin_page() {
                                 <button type="button" class="button sop-rates-dates-toggle">
                                     <?php esc_html_e( 'Purchase Order', 'sop' ); ?>
                                 </button>
-                            <?php endif; ?>
-
-                            <?php if ( $current_supplier_id > 0 ) : ?>
-                                <?php
-                                $saved_sheets_url = add_query_arg(
-                                    array(
-                                        'page'        => 'sop-preorder-sheets',
-                                        'supplier_id' => (int) $current_supplier_id,
-                                    ),
-                                    admin_url( 'admin.php' )
-                                );
-                                ?>
-                                <a class="button button-secondary" href="<?php echo esc_url( $saved_sheets_url ); ?>">
-                                    <?php esc_html_e( 'View saved sheets', 'sop' ); ?>
-                                </a>
                             <?php endif; ?>
 
                             <?php if ( ! $sop_sheet_is_locked ) : ?>
