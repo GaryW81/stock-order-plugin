@@ -9,7 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.17
+ * File version: 1.0.18
+ * - Expose base/holiday/total lead horizons in Forecast (Debug).
  * - Make forecast handling days holiday-aware and include shipping horizon.
  * - Add MOQ-based fallback SOQ when stock and suggested are zero.
  */
@@ -493,6 +494,9 @@ class Stock_Order_Plugin_Core_Engine {
 
         $buffer_days = max( 0.0, $buffer_months * 30.4375 );
 
+        $debug_base_lead_days     = max( 0.0, (float) $base_handling_days + (float) $shipping_days );
+        $debug_holiday_delay_days = max( 0.0, (float) $handling_days - (float) $base_handling_days );
+
         $lead_days     = max( 0.0, (float) $handling_days + (float) $shipping_days );
         $lead_demand   = $demand_per_day * $lead_days;
         $buffer_demand = $demand_per_day * $buffer_days;
@@ -511,6 +515,7 @@ class Stock_Order_Plugin_Core_Engine {
 
         // Informational forecast metrics.
         $forecast_days   = max( 0.0, (float) $lead_days + $buffer_days );
+        $debug_forecast_horizon_days = $forecast_days;
         $forecast_demand = $demand_per_day * $forecast_days;
 
         // Suggested order is what we need to reach the buffer target at arrival.
@@ -613,6 +618,9 @@ class Stock_Order_Plugin_Core_Engine {
             'stockout_days_live'  => (float) $stockout_days_live,
             'stockout_days_legacy'=> (float) $stockout_days_legacy,
             'lead_days'         => (float) $lead_days,
+            'lead_days_base'    => (float) $debug_base_lead_days,
+            'lead_days_holidays'=> (float) $debug_holiday_delay_days,
+            'forecast_days_total'=> (float) $debug_forecast_horizon_days,
             'buffer_days'       => (float) $buffer_days,
             'demand_during_lead'=> (float) $lead_demand,
             'buffer_target_units'=> (float) $buffer_target_units,
@@ -827,6 +835,9 @@ function sop_render_forecast_debug_page() {
                         <th title="<?php echo esc_attr__( 'Days the product was in stock during the lookback window after removing stockout days. Used to calculate demand per day.', 'sop' ); ?>"><?php esc_html_e( 'Days on sale (adj.)', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Total days in the lookback window where stock level was zero for this product.', 'sop' ); ?>"><?php esc_html_e( 'Stockout days', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Average units sold per adjusted day on sale. Quantity sold divided by Days on sale.', 'sop' ); ?>"><?php esc_html_e( 'Demand / Day', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Lead and handling days without holiday adjustments, plus shipping.', 'sop' ); ?>"><?php esc_html_e( 'Lead days (base)', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Extra calendar days added due to supplier holidays within the handling window.', 'sop' ); ?>"><?php esc_html_e( 'Holiday days', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Total forecast horizon days used for SOQ (lead/handling + shipping + buffer).', 'sop' ); ?>"><?php esc_html_e( 'Forecast days total', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Total days covered by the forecast. Supplier lead time in days plus buffer period in days.', 'sop' ); ?>"><?php esc_html_e( 'Forecast Days', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Expected units sold over the forecast window based on Demand per Day multiplied by Forecast Days.', 'sop' ); ?>"><?php esc_html_e( 'Forecast Demand', 'sop' ); ?></th>
                         <th title="<?php echo esc_attr__( 'Estimated units left when the shipment arrives with no new order placed. Current stock minus demand during lead time, never less than zero.', 'sop' ); ?>"><?php esc_html_e( 'Stock at arrival', 'sop' ); ?></th>
@@ -846,6 +857,9 @@ function sop_render_forecast_debug_page() {
                             <td><?php echo esc_html( $row['qty_sold'] ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( isset( $row['days_on_sale'] ) ? $row['days_on_sale'] : 0, 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( isset( $row['stockout_days'] ) ? $row['stockout_days'] : 0, 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( isset( $row['lead_days_base'] ) ? $row['lead_days_base'] : 0, 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( isset( $row['lead_days_holidays'] ) ? $row['lead_days_holidays'] : 0, 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( isset( $row['forecast_days_total'] ) ? $row['forecast_days_total'] : 0, 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['demand_per_day'], 3 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['forecast_days'], 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['forecast_demand'], 1 ) ); ?></td>
