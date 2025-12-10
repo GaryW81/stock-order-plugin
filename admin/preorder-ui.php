@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.33 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.34 *
+ * - V12.34 - Fix SKU search scroll offset so first match sits below sticky header.
  * - V12.33 - Remove View saved sheets button from header.
  * - V12.32 - New sheets always start from supplier defaults for container/pallet/allowance.
  * - V12.28 - Restore Round Up/Down actions on selected rows using current round step.
@@ -3648,33 +3649,20 @@ function sop_preorder_render_admin_page() {
                         return;
                     }
 
-                    var rowEl = $row[0];
+                    var headerOffset = 110; // accounts for sticky header height + padding.
+                    var $wrapper = $('.sop-preorder-table-wrapper');
 
-                    // Find the scrollable wrapper for the pre-order table.
-                    var wrapper = document.querySelector( '.sop-preorder-table-wrapper' );
-                    if ( ! wrapper ) {
-                        if ( rowEl && rowEl.scrollIntoView ) {
-                            rowEl.scrollIntoView( { behavior: 'auto', block: 'start', inline: 'nearest' } );
-                        }
+                    if ( $wrapper.length ) {
+                        var rowTop = $row.position().top + $wrapper.scrollTop();
+                        var target = Math.max( rowTop - headerOffset, 0 );
+                        $wrapper.stop( true ).animate( { scrollTop: target }, 200 );
                         return;
                     }
 
-                    // Get bounding rects for wrapper and row.
-                    var wrapperRect = wrapper.getBoundingClientRect();
-                    var rowRect     = rowEl.getBoundingClientRect();
-
-                    // Row's current position inside the wrapper viewport (can be negative if above).
-                    var rowTopInsideWrapper = rowRect.top - wrapperRect.top;
-
-                    // Convert that to a content-space coordinate by adding the current scrollTop.
-                    // This gives us a stable "row top within the scrollable content".
-                    var rowTopInContent = wrapper.scrollTop + rowTopInsideWrapper;
-
-                    // We want the row to sit right at (or just below) the top of the wrapper.
-                    // Use a small padding so it's fully visible and not touching the border.
-                    var targetScrollTop = Math.max( rowTopInContent - 4, 0 );
-
-                    wrapper.scrollTop = targetScrollTop;
+                    // Fallback to window scroll if wrapper not found.
+                    var rowOffset = $row.offset().top;
+                    var targetWindow = Math.max( rowOffset - headerOffset, 0 );
+                    $('html, body').stop( true ).animate( { scrollTop: targetWindow }, 200 );
                 }
 
                 function scrollToSku( rawSku ) {
