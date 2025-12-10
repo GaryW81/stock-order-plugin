@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.35 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.36 *
+ * - V12.36 - Product title links to product edit screen.
  * - V12.35 - Fix SKU search scroll so matched row sits below sticky table header.
  * - V12.34 - Fix SKU search scroll offset so first match sits below sticky header.
  * - V12.33 - Remove View saved sheets button from header.
@@ -1379,7 +1380,20 @@ function sop_preorder_render_admin_page() {
                                         <?php echo esc_html( $categories ); ?>
                                     </td>
                                     <td class="column-name" data-column="product">
-                                        <?php echo esc_html( $name ); ?>
+                                        <?php
+                                        $product_id    = isset( $row['product_id'] ) ? (int) $row['product_id'] : 0;
+                                        $product_title = isset( $row['product_name'] ) ? $row['product_name'] : $name;
+
+                                        $edit_link = $product_id ? get_edit_post_link( $product_id, '' ) : '';
+
+                                        if ( $edit_link ) {
+                                            echo '<a href="' . esc_url( $edit_link ) . '" target="_blank" rel="noopener noreferrer">';
+                                            echo esc_html( $product_title );
+                                            echo '</a>';
+                                        } else {
+                                            echo esc_html( $product_title );
+                                        }
+                                        ?>
                                     </td>
                                     <td class="column-cost-supplier" data-column="cost_supplier">
                                         <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb" <?php echo $sop_disabled_attr; ?> />
