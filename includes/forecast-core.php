@@ -9,7 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.16
+ * File version: 1.0.17
+ * - Make forecast handling days holiday-aware and include shipping horizon.
  * - Add MOQ-based fallback SOQ when stock and suggested are zero.
  */
 
@@ -137,6 +138,20 @@ class Stock_Order_Plugin_Core_Engine {
             $settings = array();
         }
 
+        $supplier_settings_raw = array();
+
+        if ( is_object( $supplier ) && isset( $supplier->settings_json ) && is_string( $supplier->settings_json ) ) {
+            $decoded = json_decode( $supplier->settings_json, true );
+            if ( is_array( $decoded ) ) {
+                $supplier_settings_raw = $decoded;
+            }
+        } elseif ( is_array( $supplier ) && isset( $supplier['settings_json'] ) && is_string( $supplier['settings_json'] ) ) {
+            $decoded = json_decode( $supplier['settings_json'], true );
+            if ( is_array( $decoded ) ) {
+                $supplier_settings_raw = $decoded;
+            }
+        }
+
         $lead_time_weeks = 0;
         $currency        = 'GBP';
         $holiday_weeks   = 0;
@@ -165,12 +180,27 @@ class Stock_Order_Plugin_Core_Engine {
             $buffer_months = (float) sop_get_supplier_effective_buffer_months( $supplier_id );
         }
 
+        $shipping_days = 0;
+        if ( function_exists( 'sop_get_supplier_shipping_days' ) ) {
+            $shipping_days = (int) sop_get_supplier_shipping_days( $supplier_settings_raw );
+            if ( $shipping_days < 0 ) {
+                $shipping_days = 0;
+            }
+        }
+
+        $holiday_ranges = array();
+        if ( function_exists( 'sop_get_supplier_holiday_ranges' ) ) {
+            $holiday_ranges = sop_get_supplier_holiday_ranges( $supplier_settings_raw );
+        }
+
         return array(
             'lead_time_weeks'    => $lead_time_weeks,
             'buffer_months'      => $buffer_months,
             'holiday_extra_days' => $holiday_weeks * 7,
             'lookback_days'      => $lookback_days,
             'currency'           => $currency,
+            'shipping_days'      => $shipping_days,
+            'holiday_ranges'     => $holiday_ranges,
         );
     }
 
@@ -426,8 +456,35 @@ class Stock_Order_Plugin_Core_Engine {
         $stockout_days_live   = isset( $sales['stockout_days_live'] ) ? (float) $sales['stockout_days_live'] : 0.0;
         $stockout_days_legacy = isset( $sales['stockout_days_legacy'] ) ? (float) $sales['stockout_days_legacy'] : 0.0;
 
-        $lead_days = $this->get_supplier_lead_days( $supplier_settings );
-        $lead_days = max( 0.0, (float) $lead_days );
+        $lead_weeks = isset( $supplier_settings['lead_time_weeks'] ) ? (float) $supplier_settings['lead_time_weeks'] : 0.0;
+        if ( $lead_weeks < 0 ) {
+            $lead_weeks = 0.0;
+        }
+
+        $base_handling_days = max( 0, (int) round( $lead_weeks * 7 ) );
+
+        $holiday_ranges = array();
+        if ( isset( $supplier_settings['holiday_ranges'] ) && is_array( $supplier_settings['holiday_ranges'] ) ) {
+            $holiday_ranges = $supplier_settings['holiday_ranges'];
+        } elseif ( function_exists( 'sop_get_supplier_holiday_ranges' ) ) {
+            $holiday_ranges = sop_get_supplier_holiday_ranges( $supplier_settings );
+        }
+
+        $handling_days = (float) $base_handling_days;
+        if ( function_exists( 'sop_get_handling_days_with_holidays' ) ) {
+            try {
+                $tz    = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+                $today = new \DateTime( 'today', $tz );
+                $handling_days = (float) sop_get_handling_days_with_holidays( $today, $base_handling_days, $holiday_ranges );
+            } catch ( \Exception $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+                // Fallback to base handling days if anything goes wrong.
+            }
+        }
+
+        $shipping_days = isset( $supplier_settings['shipping_days'] ) ? (int) $supplier_settings['shipping_days'] : 0;
+        if ( $shipping_days < 0 ) {
+            $shipping_days = 0;
+        }
 
         $buffer_months = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
         if ( $buffer_months < 0 ) {
@@ -436,6 +493,7 @@ class Stock_Order_Plugin_Core_Engine {
 
         $buffer_days = max( 0.0, $buffer_months * 30.4375 );
 
+        $lead_days     = max( 0.0, (float) $handling_days + (float) $shipping_days );
         $lead_demand   = $demand_per_day * $lead_days;
         $buffer_demand = $demand_per_day * $buffer_days;
 

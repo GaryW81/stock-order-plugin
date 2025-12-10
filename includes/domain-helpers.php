@@ -2,8 +2,9 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.22
- * - Prefer direct USD→RMB base FX if provided in settings.
+ * File version: 1.0.23
+ * - Add holiday-aware handling days helper for forecast/PO parity.
+ * - Prefer direct USDη'RMB base FX if provided in settings.
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -21,6 +22,224 @@ if ( ! class_exists( 'sop_DB' ) ) {
 /* -------------------------------------------------------------------------
  * Supplier helpers
  * ---------------------------------------------------------------------- */
+
+/**
+ * Normalize supplier holiday ranges (month/day) from settings.
+ *
+ * @param mixed $supplier_settings Supplier settings array/object or raw settings_json array.
+ * @return array[]
+ */
+if ( ! function_exists( 'sop_get_supplier_holiday_ranges' ) ) {
+    function sop_get_supplier_holiday_ranges( $supplier_settings ) {
+        $settings = array();
+
+        if ( is_array( $supplier_settings ) ) {
+            if ( isset( $supplier_settings['settings_json'] ) && is_string( $supplier_settings['settings_json'] ) ) {
+                $decoded = json_decode( $supplier_settings['settings_json'], true );
+                if ( is_array( $decoded ) ) {
+                    $settings = $decoded;
+                }
+            } else {
+                $settings = $supplier_settings;
+            }
+        } elseif ( is_object( $supplier_settings ) ) {
+            if ( isset( $supplier_settings->settings_json ) && is_string( $supplier_settings->settings_json ) ) {
+                $decoded = json_decode( $supplier_settings->settings_json, true );
+                if ( is_array( $decoded ) ) {
+                    $settings = $decoded;
+                }
+            } else {
+                $settings = (array) $supplier_settings;
+            }
+        }
+
+        $ranges = array();
+
+        if ( isset( $settings['holiday_periods'] ) && is_array( $settings['holiday_periods'] ) ) {
+            foreach ( $settings['holiday_periods'] as $period ) {
+                $sd = isset( $period['start_day'] ) ? (int) $period['start_day'] : 0;
+                $sm = isset( $period['start_month'] ) ? (int) $period['start_month'] : 0;
+                $ed = isset( $period['end_day'] ) ? (int) $period['end_day'] : 0;
+                $em = isset( $period['end_month'] ) ? (int) $period['end_month'] : 0;
+
+                if ( $sd >= 1 && $sd <= 31 && $sm >= 1 && $sm <= 12 && $ed >= 1 && $ed <= 31 && $em >= 1 && $em <= 12 ) {
+                    $ranges[] = array(
+                        'start_day'   => $sd,
+                        'start_month' => $sm,
+                        'end_day'     => $ed,
+                        'end_month'   => $em,
+                    );
+                }
+            }
+        } else {
+            $legacy_sd = isset( $settings['holiday_start_day'] ) ? (int) $settings['holiday_start_day'] : 0;
+            $legacy_sm = isset( $settings['holiday_start_month'] ) ? (int) $settings['holiday_start_month'] : 0;
+            $legacy_ed = isset( $settings['holiday_end_day'] ) ? (int) $settings['holiday_end_day'] : 0;
+            $legacy_em = isset( $settings['holiday_end_month'] ) ? (int) $settings['holiday_end_month'] : 0;
+
+            if ( $legacy_sd && $legacy_sm && $legacy_ed && $legacy_em ) {
+                $ranges[] = array(
+                    'start_day'   => $legacy_sd,
+                    'start_month' => $legacy_sm,
+                    'end_day'     => $legacy_ed,
+                    'end_month'   => $legacy_em,
+                );
+            }
+        }
+
+        return $ranges;
+    }
+}
+
+/**
+ * Derive supplier shipping days from settings (calendar days).
+ *
+ * @param mixed $supplier_settings Supplier settings array/object or raw settings_json array.
+ * @return int
+ */
+if ( ! function_exists( 'sop_get_supplier_shipping_days' ) ) {
+    function sop_get_supplier_shipping_days( $supplier_settings ) {
+        $settings = array();
+
+        if ( is_array( $supplier_settings ) ) {
+            if ( isset( $supplier_settings['settings_json'] ) && is_string( $supplier_settings['settings_json'] ) ) {
+                $decoded = json_decode( $supplier_settings['settings_json'], true );
+                if ( is_array( $decoded ) ) {
+                    $settings = $decoded;
+                }
+            } else {
+                $settings = $supplier_settings;
+            }
+        } elseif ( is_object( $supplier_settings ) ) {
+            if ( isset( $supplier_settings->settings_json ) && is_string( $supplier_settings->settings_json ) ) {
+                $decoded = json_decode( $supplier_settings->settings_json, true );
+                if ( is_array( $decoded ) ) {
+                    $settings = $decoded;
+                }
+            } else {
+                $settings = (array) $supplier_settings;
+            }
+        }
+
+        $shipping_days = 0;
+
+        if ( isset( $settings['shipping_days'] ) ) {
+            $shipping_days = (int) $settings['shipping_days'];
+        }
+
+        if ( $shipping_days <= 0 ) {
+            $shipping_value = isset( $settings['shipping_value'] ) ? (int) $settings['shipping_value'] : 0;
+            $shipping_unit  = isset( $settings['shipping_unit'] ) ? (string) $settings['shipping_unit'] : 'days';
+
+            if ( $shipping_value < 0 ) {
+                $shipping_value = 0;
+            }
+            if ( ! in_array( $shipping_unit, array( 'days', 'weeks' ), true ) ) {
+                $shipping_unit = 'days';
+            }
+
+            if ( $shipping_value > 0 ) {
+                $shipping_days = ( 'weeks' === $shipping_unit ) ? ( $shipping_value * 7 ) : $shipping_value;
+            }
+        }
+
+        if ( $shipping_days < 0 ) {
+            $shipping_days = 0;
+        }
+
+        return (int) $shipping_days;
+    }
+}
+
+/**
+ * Check if a given date falls inside any configured holiday range (month/day, wrapping allowed).
+ *
+ * @param DateTime $date           Date to evaluate (timezone aware).
+ * @param array    $holiday_ranges Array of ranges with start_day, start_month, end_day, end_month.
+ * @return bool
+ */
+if ( ! function_exists( 'sop_is_holiday_day' ) ) {
+    function sop_is_holiday_day( DateTime $date, array $holiday_ranges ) {
+        if ( empty( $holiday_ranges ) ) {
+            return false;
+        }
+
+        $month = (int) $date->format( 'n' );
+        $day   = (int) $date->format( 'j' );
+        $md    = ( $month * 100 ) + $day;
+
+        foreach ( $holiday_ranges as $range ) {
+            $sm = isset( $range['start_month'] ) ? (int) $range['start_month'] : 0;
+            $sd = isset( $range['start_day'] ) ? (int) $range['start_day'] : 0;
+            $em = isset( $range['end_month'] ) ? (int) $range['end_month'] : 0;
+            $ed = isset( $range['end_day'] ) ? (int) $range['end_day'] : 0;
+
+            if ( $sm <= 0 || $sd <= 0 || $em <= 0 || $ed <= 0 ) {
+                continue;
+            }
+
+            $start_md = ( $sm * 100 ) + $sd;
+            $end_md   = ( $em * 100 ) + $ed;
+
+            if ( $start_md <= $end_md ) {
+                if ( $md >= $start_md && $md <= $end_md ) {
+                    return true;
+                }
+            } else {
+                if ( $md >= $start_md || $md <= $end_md ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+}
+
+/**
+ * Calculate calendar days needed to achieve a number of working (non-holiday) days from a start date.
+ *
+ * Mirrors PO JS behaviour: start date counts as the first candidate day, holidays are skipped,
+ * and we walk forward until base handling days of working time are accumulated.
+ *
+ * @param DateTime $start_date         Start date (timezone aware).
+ * @param int      $base_handling_days Number of working days required.
+ * @param array    $holiday_ranges     Array of holiday ranges (sop_get_supplier_holiday_ranges()).
+ * @return int Calendar days consumed from start_date to reach the working-day count.
+ */
+if ( ! function_exists( 'sop_get_handling_days_with_holidays' ) ) {
+    function sop_get_handling_days_with_holidays( DateTime $start_date, $base_handling_days, array $holiday_ranges ) {
+        $handling_days = max( 0, (int) $base_handling_days );
+
+        if ( $handling_days <= 0 ) {
+            return 0;
+        }
+
+        $current = clone $start_date;
+        $current->setTime( 0, 0, 0 );
+
+        $worked   = 0;
+        $guard    = 0;
+        $max_days = max( $handling_days + 1095, 1095 ); // Safety: up to ~3 years.
+
+        while ( $worked < $handling_days && $guard < $max_days ) {
+            if ( ! sop_is_holiday_day( $current, $holiday_ranges ) ) {
+                $worked++;
+            }
+
+            if ( $worked >= $handling_days ) {
+                break;
+            }
+
+            $current->modify( '+1 day' );
+            $guard++;
+        }
+
+        $interval = $start_date->diff( $current );
+
+        return (int) $interval->days;
+    }
+}
 
 /**
  * Get the stored company profile (buyer) details with defaults.
@@ -485,9 +704,9 @@ function sop_delete_preorder_sheet( $sheet_id ) {
  * Create or update a supplier.
  *
  * Priority:
- * - If 'id' is provided and matches an existing row → update that row.
- * - Else if 'slug' is provided and exists → update that row.
- * - Else → insert new row.
+ * - If 'id' is provided and matches an existing row Ã¢â€ â€™ update that row.
+ * - Else if 'slug' is provided and exists Ã¢â€ â€™ update that row.
+ * - Else Ã¢â€ â€™ insert new row.
  *
  * @param array $args
  * @return int|false Supplier ID on success, false on failure.
@@ -601,7 +820,7 @@ function sop_supplier_get_by_slug( $slug ) {
  * Get all suppliers, with optional filters.
  *
  * Supported $args:
- * - is_active (int|null)   → filter by active flag.
+ * - is_active (int|null)   Ã¢â€ â€™ filter by active flag.
  *
  * @param array $args
  * @return array
