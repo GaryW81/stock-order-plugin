@@ -9,7 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.15
+ * File version: 1.0.16
+ * - Add MOQ-based fallback SOQ when stock and suggested are zero.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -510,6 +511,32 @@ class Stock_Order_Plugin_Core_Engine {
 
         // Max / Cycle is informational in Forecast (Debug); Pre-Order uses Suggested (Raw) directly.
 
+        // Final suggested quantity used by the Pre-Order Sheet; clamp non-negative.
+        $suggested_qty_final = (float) $suggested_raw;
+        if ( $suggested_qty_final < 0 ) {
+            $suggested_qty_final = 0.0;
+        }
+
+        // MOQ-based fallback when stock is zero and SOQ is zero or negative.
+        $moq_per_month = get_post_meta( $product_id, '_sop_min_order_qty', true );
+        $moq_per_month = '' !== $moq_per_month ? (float) $moq_per_month : 0.0;
+        $buffer_months = max( 0.0, (float) $buffer_months );
+
+        if ( $current_stock <= 0 && $suggested_qty_final <= 0 ) {
+            if ( $moq_per_month > 0 && $buffer_months > 0 ) {
+                $fallback_soq = (int) ceil( $moq_per_month * $buffer_months );
+            } else {
+                // Default to at least one unit so valid SKUs without MOQ still get suggested.
+                $fallback_soq = 1;
+            }
+
+            if ( $fallback_soq < 1 ) {
+                $fallback_soq = 1;
+            }
+
+            $suggested_qty_final = (float) $fallback_soq;
+        }
+
         return array(
             'product_id'        => $product_id,
             'sku'               => $product->get_sku(),
@@ -521,7 +548,7 @@ class Stock_Order_Plugin_Core_Engine {
             'forecast_demand'   => (float) $forecast_demand,
             'max_order_per_month' => (float) $max_per_month,
             'max_for_cycle'     => (float) $max_for_cycle,
-            'suggested_raw'     => (float) $suggested_raw,
+            'suggested_raw'     => (float) $suggested_qty_final,
             'days_on_sale'      => (float) $days_on_sale,
             'total_days'        => (float) $total_days,
             'stockout_days'     => (float) $stockout_days_total,
