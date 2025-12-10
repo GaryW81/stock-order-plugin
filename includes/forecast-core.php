@@ -9,7 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.18
+ * File version: 1.0.19
+ * - Align forecast lead/horizon with holiday-aware handling helper and expose holiday days.
  * - Expose base/holiday/total lead horizons in Forecast (Debug).
  * - Make forecast handling days holiday-aware and include shipping horizon.
  * - Add MOQ-based fallback SOQ when stock and suggested are zero.
@@ -462,7 +463,7 @@ class Stock_Order_Plugin_Core_Engine {
             $lead_weeks = 0.0;
         }
 
-        $base_handling_days = max( 0, (int) round( $lead_weeks * 7 ) );
+        $handling_days_base = max( 0, (int) round( $lead_weeks * 7 ) );
 
         $holiday_ranges = array();
         if ( isset( $supplier_settings['holiday_ranges'] ) && is_array( $supplier_settings['holiday_ranges'] ) ) {
@@ -471,12 +472,12 @@ class Stock_Order_Plugin_Core_Engine {
             $holiday_ranges = sop_get_supplier_holiday_ranges( $supplier_settings );
         }
 
-        $handling_days = (float) $base_handling_days;
+        $handling_days_with_holidays = (float) $handling_days_base;
         if ( function_exists( 'sop_get_handling_days_with_holidays' ) ) {
             try {
                 $tz    = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
                 $today = new \DateTime( 'today', $tz );
-                $handling_days = (float) sop_get_handling_days_with_holidays( $today, $base_handling_days, $holiday_ranges );
+                $handling_days_with_holidays = (float) sop_get_handling_days_with_holidays( $today, $handling_days_base, $holiday_ranges );
             } catch ( \Exception $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
                 // Fallback to base handling days if anything goes wrong.
             }
@@ -494,11 +495,13 @@ class Stock_Order_Plugin_Core_Engine {
 
         $buffer_days = max( 0.0, $buffer_months * 30.4375 );
 
-        $debug_base_lead_days     = max( 0.0, (float) $base_handling_days + (float) $shipping_days );
-        $debug_holiday_delay_days = max( 0.0, (float) $handling_days - (float) $base_handling_days );
+        $holiday_days   = max( 0.0, (float) $handling_days_with_holidays - (float) $handling_days_base );
+        $lead_days_base = max( 0.0, (float) $handling_days_base + (float) $shipping_days );
 
-        $lead_days     = max( 0.0, (float) $handling_days + (float) $shipping_days );
-        $lead_demand   = $demand_per_day * $lead_days;
+        $lead_days_with_holidays = max( 0.0, (float) $handling_days_with_holidays + (float) $shipping_days );
+        $forecast_days_total     = max( 0.0, (float) $lead_days_with_holidays + $buffer_days );
+
+        $lead_demand   = $demand_per_day * $lead_days_with_holidays;
         $buffer_demand = $demand_per_day * $buffer_days;
 
         $current_stock = (int) $product->get_stock_quantity();
@@ -514,9 +517,8 @@ class Stock_Order_Plugin_Core_Engine {
         $buffer_target_units = $target_at_arrival;
 
         // Informational forecast metrics.
-        $forecast_days   = max( 0.0, (float) $lead_days + $buffer_days );
-        $debug_forecast_horizon_days = $forecast_days;
-        $forecast_demand = $demand_per_day * $forecast_days;
+        $forecast_days   = $forecast_days_total;
+        $forecast_demand = $demand_per_day * $forecast_days_total;
 
         // Suggested order is what we need to reach the buffer target at arrival.
         $suggested_raw = max( 0.0, $target_at_arrival - $stock_at_arrival );
@@ -617,10 +619,10 @@ class Stock_Order_Plugin_Core_Engine {
             'stockout_days'     => (float) $stockout_days_total,
             'stockout_days_live'  => (float) $stockout_days_live,
             'stockout_days_legacy'=> (float) $stockout_days_legacy,
-            'lead_days'         => (float) $lead_days,
-            'lead_days_base'    => (float) $debug_base_lead_days,
-            'lead_days_holidays'=> (float) $debug_holiday_delay_days,
-            'forecast_days_total'=> (float) $debug_forecast_horizon_days,
+            'lead_days'         => (float) $lead_days_with_holidays,
+            'lead_days_base'    => (float) $lead_days_base,
+            'holiday_days'      => (float) $holiday_days,
+            'forecast_days_total'=> (float) $forecast_days_total,
             'buffer_days'       => (float) $buffer_days,
             'demand_during_lead'=> (float) $lead_demand,
             'buffer_target_units'=> (float) $buffer_target_units,
@@ -858,7 +860,7 @@ function sop_render_forecast_debug_page() {
                             <td><?php echo esc_html( number_format_i18n( isset( $row['days_on_sale'] ) ? $row['days_on_sale'] : 0, 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( isset( $row['stockout_days'] ) ? $row['stockout_days'] : 0, 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( isset( $row['lead_days_base'] ) ? $row['lead_days_base'] : 0, 1 ) ); ?></td>
-                            <td><?php echo esc_html( number_format_i18n( isset( $row['lead_days_holidays'] ) ? $row['lead_days_holidays'] : 0, 1 ) ); ?></td>
+                            <td><?php echo esc_html( number_format_i18n( isset( $row['holiday_days'] ) ? $row['holiday_days'] : 0, 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( isset( $row['forecast_days_total'] ) ? $row['forecast_days_total'] : 0, 1 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['demand_per_day'], 3 ) ); ?></td>
                             <td><?php echo esc_html( number_format_i18n( $row['forecast_days'], 1 ) ); ?></td>
