@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.24
+ * File version: 1.0.25
  * - Add supplier holiday helper + handling delay calculator for forecast/PO parity.
  * - Prefer direct USDη'RMB base FX if provided in settings.
  *
@@ -200,39 +200,39 @@ if ( ! function_exists( 'sop_is_holiday_day' ) ) {
  * Check if a date falls on a configured supplier holiday (month/day ranges).
  *
  * @param array             $supplier_settings Supplier settings array/object.
- * @param DateTimeInterface $date              Date to evaluate.
+ * @param DateTimeInterface|int $date          Date/time to evaluate (DateTime or Unix timestamp).
  * @return bool
  */
 if ( ! function_exists( 'sop_is_supplier_holiday_day' ) ) {
-    function sop_is_supplier_holiday_day( array $supplier_settings, DateTimeInterface $date ) {
-        if ( ! function_exists( 'sop_is_holiday_day' ) ) {
-            return false;
-        }
+	/**
+	 * Check if a given date is inside any of the supplier's recurring holiday periods.
+	 *
+	 * @param array                   $supplier_settings Supplier settings array.
+	 * @param DateTimeInterface|int   $date              Date/time to evaluate (DateTime or Unix timestamp).
+	 * @return bool
+	 */
+	function sop_is_supplier_holiday_day( array $supplier_settings, $date ) {
+		if ( ! function_exists( 'sop_is_holiday_day' ) ) {
+			return false;
+		}
 
-        $holiday_ranges = array();
+		try {
+			$tz = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
 
-        if ( isset( $supplier_settings['holiday_ranges'] ) && is_array( $supplier_settings['holiday_ranges'] ) ) {
-            $holiday_ranges = $supplier_settings['holiday_ranges'];
-        } elseif ( function_exists( 'sop_get_supplier_holiday_ranges' ) ) {
-            $holiday_ranges = sop_get_supplier_holiday_ranges( $supplier_settings );
-        }
+			if ( $date instanceof \DateTimeInterface ) {
+				$date_obj = new \DateTimeImmutable( $date->format( 'Y-m-d' ), $tz );
+			} elseif ( is_numeric( $date ) ) {
+				$date_obj = ( new \DateTimeImmutable( '@' . (int) $date ) )->setTimezone( $tz );
+			} else {
+				return false;
+			}
+		} catch ( \Throwable $t ) {
+			return false;
+		}
 
-        if ( empty( $holiday_ranges ) ) {
-            return false;
-        }
-
-        try {
-            $date_obj = ( $date instanceof DateTime ) ? $date : DateTime::createFromInterface( $date );
-        } catch ( \Throwable $t ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
-            $date_obj = null;
-        }
-
-        if ( ! $date_obj instanceof DateTime ) {
-            return false;
-        }
-
-        return sop_is_holiday_day( $date_obj, $holiday_ranges );
-    }
+		// Delegate to the existing holiday helper used by the PO date logic.
+		return (bool) sop_is_holiday_day( $supplier_settings, $date_obj );
+	}
 }
 
 /**
@@ -244,49 +244,70 @@ if ( ! function_exists( 'sop_is_supplier_holiday_day' ) ) {
  * - Orders placed during a holiday start handling after the holiday.
  *
  * @param array             $supplier_settings Supplier settings array.
- * @param DateTimeInterface $order_date        Baseline order date (e.g. "today").
+ * @param DateTimeInterface|int $order_date    Baseline order date (e.g. "today" or timestamp).
  * @param int               $handling_days     Base handling days (working, no holidays).
  *
  * @return int Extra calendar days added by holidays.
  */
 if ( ! function_exists( 'sop_get_handling_holiday_delay_days' ) ) {
-    function sop_get_handling_holiday_delay_days( array $supplier_settings, DateTimeInterface $order_date, int $handling_days ) {
-        $handling_days = max( 0, (int) $handling_days );
+	/**
+	 * Calculate how many extra calendar days are added to the handling window
+	 * because of supplier holidays, starting from a given order date.
+	 *
+	 * This must behave the same way as the PO handling‑holiday logic:
+	 * - Handling is paused completely for every day inside any holiday period.
+	 * - If the order date falls inside a holiday, handling starts the day after the holiday ends.
+	 *
+	 * @param array                 $supplier_settings Supplier settings array.
+	 * @param DateTimeInterface|int $order_date        Baseline order date (DateTime or timestamp).
+	 * @param int                   $handling_days     Base handling days (working days, no holidays).
+	 * @return int                  Extra calendar days added on top of handling_days.
+	 */
+	function sop_get_handling_holiday_delay_days( array $supplier_settings, $order_date, int $handling_days ) {
+		$handling_days = max( 0, (int) $handling_days );
+		if ( $handling_days <= 0 ) {
+			return 0;
+		}
 
-        if ( $handling_days === 0 ) {
-            return 0;
-        }
+		try {
+			$tz = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
 
-        $tz = wp_timezone();
+			if ( $order_date instanceof \DateTimeInterface ) {
+				$current = new \DateTimeImmutable( $order_date->format( 'Y-m-d' ), $tz );
+			} elseif ( is_numeric( $order_date ) ) {
+				$current = ( new \DateTimeImmutable( '@' . (int) $order_date ) )->setTimezone( $tz );
+				$current = $current->setTime( 0, 0, 0 );
+			} else {
+				return 0;
+			}
+		} catch ( \Throwable $t ) {
+			return 0;
+		}
 
-        try {
-            $current = new DateTimeImmutable( $order_date->format( 'Y-m-d' ), $tz );
-        } catch ( \Exception $e ) {
-            return 0;
-        }
+		$worked_days = 0;
+		$extra_days  = 0;
 
-        $worked     = 0;
-        $total_days = 0;
+		// Walk forward in calendar days until we've accumulated the required
+		// number of working (non‑holiday) handling days.
+		while ( $worked_days < $handling_days && $extra_days < 3650 ) { // hard cap safety.
+			// If this calendar day is a holiday, we don't count it as a working day,
+			// but it DOES extend the calendar window.
+			if ( sop_is_supplier_holiday_day( $supplier_settings, $current ) ) {
+				$extra_days++;
+			} else {
+				$worked_days++;
+			}
 
-        while ( $worked < $handling_days && $total_days < 365 ) {
-            $is_holiday = sop_is_supplier_holiday_day( $supplier_settings, $current );
+			if ( $worked_days >= $handling_days ) {
+				break;
+			}
 
-            if ( ! $is_holiday ) {
-                $worked++;
-            }
+			$current    = $current->modify( '+1 day' );
+			$extra_days++;
+		}
 
-            if ( $worked >= $handling_days ) {
-                break;
-            }
-
-            $current    = $current->modify( '+1 day' );
-            $total_days++;
-        }
-
-        $delay = max( 0, $total_days - ( $handling_days - 1 ) );
-
-        return (int) $delay;
-    }
+		return max( 0, (int) $extra_days );
+	}
 }
 
 /**
