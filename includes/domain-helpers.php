@@ -2,8 +2,8 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.23
- * - Add holiday-aware handling days helper for forecast/PO parity.
+ * File version: 1.0.24
+ * - Add supplier holiday helper + handling delay calculator for forecast/PO parity.
  * - Prefer direct USDη'RMB base FX if provided in settings.
  *
  * Requires:
@@ -193,6 +193,99 @@ if ( ! function_exists( 'sop_is_holiday_day' ) ) {
         }
 
         return false;
+    }
+}
+
+/**
+ * Check if a date falls on a configured supplier holiday (month/day ranges).
+ *
+ * @param array             $supplier_settings Supplier settings array/object.
+ * @param DateTimeInterface $date              Date to evaluate.
+ * @return bool
+ */
+if ( ! function_exists( 'sop_is_supplier_holiday_day' ) ) {
+    function sop_is_supplier_holiday_day( array $supplier_settings, DateTimeInterface $date ) {
+        if ( ! function_exists( 'sop_is_holiday_day' ) ) {
+            return false;
+        }
+
+        $holiday_ranges = array();
+
+        if ( isset( $supplier_settings['holiday_ranges'] ) && is_array( $supplier_settings['holiday_ranges'] ) ) {
+            $holiday_ranges = $supplier_settings['holiday_ranges'];
+        } elseif ( function_exists( 'sop_get_supplier_holiday_ranges' ) ) {
+            $holiday_ranges = sop_get_supplier_holiday_ranges( $supplier_settings );
+        }
+
+        if ( empty( $holiday_ranges ) ) {
+            return false;
+        }
+
+        try {
+            $date_obj = ( $date instanceof DateTime ) ? $date : DateTime::createFromInterface( $date );
+        } catch ( \Throwable $t ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+            $date_obj = null;
+        }
+
+        if ( ! $date_obj instanceof DateTime ) {
+            return false;
+        }
+
+        return sop_is_holiday_day( $date_obj, $holiday_ranges );
+    }
+}
+
+/**
+ * Calculate how many extra calendar days the handling window is delayed by supplier holidays.
+ *
+ * Behaviour mirrors the PO date logic:
+ * - Handling counted in working days; holidays pause handling completely.
+ * - Holiday overlap at the end of the window adds the full holiday length.
+ * - Orders placed during a holiday start handling after the holiday.
+ *
+ * @param array             $supplier_settings Supplier settings array.
+ * @param DateTimeInterface $order_date        Baseline order date (e.g. "today").
+ * @param int               $handling_days     Base handling days (working, no holidays).
+ *
+ * @return int Extra calendar days added by holidays.
+ */
+if ( ! function_exists( 'sop_get_handling_holiday_delay_days' ) ) {
+    function sop_get_handling_holiday_delay_days( array $supplier_settings, DateTimeInterface $order_date, int $handling_days ) {
+        $handling_days = max( 0, (int) $handling_days );
+
+        if ( $handling_days === 0 ) {
+            return 0;
+        }
+
+        $tz = wp_timezone();
+
+        try {
+            $current = new DateTimeImmutable( $order_date->format( 'Y-m-d' ), $tz );
+        } catch ( \Exception $e ) {
+            return 0;
+        }
+
+        $worked     = 0;
+        $total_days = 0;
+
+        while ( $worked < $handling_days && $total_days < 365 ) {
+            $is_holiday = sop_is_supplier_holiday_day( $supplier_settings, $current );
+
+            if ( ! $is_holiday ) {
+                $worked++;
+            }
+
+            if ( $worked >= $handling_days ) {
+                break;
+            }
+
+            $current    = $current->modify( '+1 day' );
+            $total_days++;
+        }
+
+        $delay = max( 0, $total_days - ( $handling_days - 1 ) );
+
+        return (int) $delay;
     }
 }
 

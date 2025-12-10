@@ -9,11 +9,10 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.19
- * - Align forecast lead/horizon with holiday-aware handling helper and expose holiday days.
- * - Expose base/holiday/total lead horizons in Forecast (Debug).
- * - Make forecast handling days holiday-aware and include shipping horizon.
- * - Add MOQ-based fallback SOQ when stock and suggested are zero.
+ * File version: 1.0.20
+ * - Account for handling holiday delays when projecting stock at arrival.
+ * - Expose handling holiday delay days in forecast debug output.
+ * - Keep buffer horizon stable while handling delays reduce stock on arrival.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -463,30 +462,24 @@ class Stock_Order_Plugin_Core_Engine {
             $lead_weeks = 0.0;
         }
 
-        $handling_days_base = max( 0, (int) round( $lead_weeks * 7 ) );
-
-        $holiday_ranges = array();
-        if ( isset( $supplier_settings['holiday_ranges'] ) && is_array( $supplier_settings['holiday_ranges'] ) ) {
-            $holiday_ranges = $supplier_settings['holiday_ranges'];
-        } elseif ( function_exists( 'sop_get_supplier_holiday_ranges' ) ) {
-            $holiday_ranges = sop_get_supplier_holiday_ranges( $supplier_settings );
-        }
-
-        $handling_days_with_holidays = (float) $handling_days_base;
-        if ( function_exists( 'sop_get_handling_days_with_holidays' ) ) {
-            try {
-                $tz    = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
-                $today = new \DateTime( 'today', $tz );
-                $handling_days_with_holidays = (float) sop_get_handling_days_with_holidays( $today, $handling_days_base, $holiday_ranges );
-            } catch ( \Exception $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
-                // Fallback to base handling days if anything goes wrong.
-            }
+        $shipping_weeks = isset( $supplier_settings['shipping_time_weeks'] ) ? (float) $supplier_settings['shipping_time_weeks'] : 0.0;
+        if ( $shipping_weeks < 0 ) {
+            $shipping_weeks = 0.0;
         }
 
         $shipping_days = isset( $supplier_settings['shipping_days'] ) ? (int) $supplier_settings['shipping_days'] : 0;
         if ( $shipping_days < 0 ) {
             $shipping_days = 0;
         }
+
+        if ( $shipping_weeks > 0 && $shipping_days <= 0 ) {
+            $shipping_days = (int) round( $shipping_weeks * 7 );
+        } elseif ( $shipping_weeks <= 0 && $shipping_days > 0 ) {
+            $shipping_weeks = $shipping_days / 7.0;
+        }
+
+        $handling_weeks     = max( 0.0, $lead_weeks - $shipping_weeks );
+        $handling_days_base = (int) round( $handling_weeks * 7 );
 
         $buffer_months = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
         if ( $buffer_months < 0 ) {
@@ -495,14 +488,26 @@ class Stock_Order_Plugin_Core_Engine {
 
         $buffer_days = max( 0.0, $buffer_months * 30.4375 );
 
-        $holiday_days   = max( 0.0, (float) $handling_days_with_holidays - (float) $handling_days_base );
+        $handling_holiday_delay_days = 0;
+        if ( function_exists( 'sop_get_handling_holiday_delay_days' ) ) {
+            try {
+                $tz    = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+                $today = new \DateTimeImmutable( 'today', $tz );
+                $handling_holiday_delay_days = (int) sop_get_handling_holiday_delay_days( $supplier_settings, $today, $handling_days_base );
+            } catch ( \Throwable $t ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+                $handling_holiday_delay_days = 0;
+            }
+        }
+
+        $holiday_days   = (float) $handling_holiday_delay_days;
         $lead_days_base = max( 0.0, (float) $handling_days_base + (float) $shipping_days );
 
-        $lead_days_with_holidays = max( 0.0, (float) $handling_days_with_holidays + (float) $shipping_days );
+        $lead_days_with_holidays = max( 0.0, (float) $lead_days_base + (float) $handling_holiday_delay_days );
         $forecast_days_total     = max( 0.0, (float) $lead_days_with_holidays + $buffer_days );
 
-        $lead_demand   = $demand_per_day * $lead_days_with_holidays;
-        $buffer_demand = $demand_per_day * $buffer_days;
+        $lead_demand_base = $demand_per_day * $lead_days_base;
+        $lead_demand      = $demand_per_day * $lead_days_with_holidays;
+        $buffer_demand    = $demand_per_day * $buffer_days;
 
         $current_stock = (int) $product->get_stock_quantity();
         if ( $current_stock < 0 ) {
@@ -510,7 +515,20 @@ class Stock_Order_Plugin_Core_Engine {
         }
 
         // Stock remaining when the shipment lands (before new order), clamped at zero.
-        $stock_at_arrival = max( 0.0, (float) $current_stock - $lead_demand );
+        $stock_at_arrival = (float) $current_stock - $lead_demand_base;
+
+        if ( $stock_at_arrival > 0 && $handling_holiday_delay_days > 0 && $demand_per_day > 0 ) {
+            $extra_demand_during_delay = $demand_per_day * $handling_holiday_delay_days;
+            $stock_at_arrival         -= $extra_demand_during_delay;
+
+            if ( $stock_at_arrival < 0 ) {
+                $stock_at_arrival = 0.0;
+            }
+        }
+
+        if ( $stock_at_arrival < 0 ) {
+            $stock_at_arrival = 0.0;
+        }
 
         // Target stock on arrival is based solely on buffer coverage.
         $target_at_arrival   = $buffer_demand;
