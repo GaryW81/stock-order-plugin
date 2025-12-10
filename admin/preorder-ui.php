@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.34 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.35 *
+ * - V12.35 - Fix SKU search scroll so matched row sits below sticky table header.
  * - V12.34 - Fix SKU search scroll offset so first match sits below sticky header.
  * - V12.33 - Remove View saved sheets button from header.
  * - V12.32 - New sheets always start from supplier defaults for container/pallet/allowance.
@@ -3649,20 +3650,46 @@ function sop_preorder_render_admin_page() {
                         return;
                     }
 
-                    var headerOffset = 110; // accounts for sticky header height + padding.
-                    var $wrapper = $('.sop-preorder-table-wrapper');
+                    var rowEl   = $row[0];
+                    var wrapper = document.querySelector('.sop-preorder-table-wrapper');
 
-                    if ( $wrapper.length ) {
-                        var rowTop = $row.position().top + $wrapper.scrollTop();
-                        var target = Math.max( rowTop - headerOffset, 0 );
-                        $wrapper.stop( true ).animate( { scrollTop: target }, 200 );
+                    // Work out the sticky header height (table thead) + a little padding.
+                    var headerHeight = 0;
+                    var $thead = $('.sop-preorder-table thead:visible').first();
+                    if ( $thead.length ) {
+                        headerHeight = $thead.outerHeight() || 0;
+                    }
+                    var padding = 4;
+
+                    if ( wrapper ) {
+                        // Use bounding rects to find the row's position inside the scrollable wrapper.
+                        var wrapperRect = wrapper.getBoundingClientRect();
+                        var rowRect     = rowEl.getBoundingClientRect();
+
+                        // Row position within the wrapper viewport (can be negative if above).
+                        var rowTopInsideWrapper = rowRect.top - wrapperRect.top;
+
+                        // Convert to content space by adding current scrollTop.
+                        var rowTopInContent = wrapper.scrollTop + rowTopInsideWrapper;
+
+                        // Target so the row sits just below the sticky header.
+                        var targetScrollTop = Math.max(
+                            rowTopInContent - headerHeight - padding,
+                            0
+                        );
+
+                        wrapper.scrollTop = targetScrollTop;
                         return;
                     }
 
-                    // Fallback to window scroll if wrapper not found.
-                    var rowOffset = $row.offset().top;
-                    var targetWindow = Math.max( rowOffset - headerOffset, 0 );
-                    $('html, body').stop( true ).animate( { scrollTop: targetWindow }, 200 );
+                    // Fallback: if wrapper not found, scroll the window instead.
+                    var rowOffset    = $row.offset().top;
+                    var targetWindow = Math.max(
+                        rowOffset - headerHeight - padding,
+                        0
+                    );
+
+                    $('html, body').stop(true).animate({ scrollTop: targetWindow }, 200);
                 }
 
                 function scrollToSku( rawSku ) {
