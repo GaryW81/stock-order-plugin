@@ -9,8 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.18
- * - Adjust lead/handling/shipping split so holidays only affect handling portion.
+ * File version: 1.0.19
+ * - Add lead breakdown helper and expose detailed lead summary in Forecast (Debug) header.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -204,16 +204,115 @@ class Stock_Order_Plugin_Core_Engine {
     }
 
     /**
-     * Convert supplier lead time settings to days.
+     * Get detailed lead breakdown for a supplier (handling, holidays, shipping).
      *
-     * @param array $supplier_settings Supplier settings.
+     * @param int $supplier_id Supplier ID.
+     * @return array {
+     *     @type int $lead_days_base              Lead days from lead weeks (pre-shipping/holidays).
+     *     @type int $shipping_days               Shipping days (clamped to lead base).
+     *     @type int $base_handling_days          Handling days before holidays.
+     *     @type int $handling_days_with_holidays Handling days including holiday skips.
+     *     @type int $holiday_delay_days          Additional days added by holidays.
+     *     @type int $lead_days_effective         Total lead (handling with holidays + shipping).
+     * }
+     */
+    public function get_supplier_lead_breakdown( $supplier_id ) {
+        $supplier_id = (int) $supplier_id;
+
+        if ( $supplier_id <= 0 ) {
+            return array(
+                'lead_days_base'              => 0,
+                'shipping_days'               => 0,
+                'base_handling_days'          => 0,
+                'handling_days_with_holidays' => 0,
+                'holiday_delay_days'          => 0,
+                'lead_days_effective'         => 0,
+            );
+        }
+
+        $settings = $this->get_supplier_settings( $supplier_id );
+
+        $lead_weeks     = isset( $settings['lead_time_weeks'] ) ? (float) $settings['lead_time_weeks'] : 0.0;
+        $lead_days_base = max( 0, (int) round( $lead_weeks * 7 ) );
+
+        // Derive shipping days from supplier settings, normalising weeks to days.
+        $shipping_value = 0;
+        if ( isset( $settings['shipping_time_value'] ) ) {
+            $shipping_value = (int) $settings['shipping_time_value'];
+        } elseif ( isset( $settings['shipping_value'] ) ) {
+            $shipping_value = (int) $settings['shipping_value'];
+        } elseif ( isset( $settings['shipping_days'] ) ) {
+            $shipping_value = (int) $settings['shipping_days'];
+        }
+
+        if ( $shipping_value < 0 ) {
+            $shipping_value = 0;
+        }
+
+        $shipping_unit = 'days';
+        if ( isset( $settings['shipping_time_unit'] ) ) {
+            $shipping_unit = (string) $settings['shipping_time_unit'];
+        } elseif ( isset( $settings['shipping_unit'] ) ) {
+            $shipping_unit = (string) $settings['shipping_unit'];
+        }
+
+        $shipping_unit = strtolower( $shipping_unit );
+        if ( ! in_array( $shipping_unit, array( 'days', 'weeks' ), true ) ) {
+            $shipping_unit = 'days';
+        }
+
+        $shipping_days = ( 'weeks' === $shipping_unit ) ? ( $shipping_value * 7 ) : $shipping_value;
+        $shipping_days = max( 0, (int) $shipping_days );
+        $shipping_days = min( $shipping_days, $lead_days_base );
+
+        $base_handling_days = max( 0, $lead_days_base - $shipping_days );
+
+        $holiday_ranges = array();
+        if ( function_exists( 'sop_get_supplier_holiday_ranges' ) ) {
+            $holiday_ranges = sop_get_supplier_holiday_ranges( $supplier_id );
+            if ( empty( $holiday_ranges ) ) {
+                $holiday_ranges = sop_get_supplier_holiday_ranges( $settings );
+            }
+        }
+
+        $handling_days_with_holidays = (int) $base_handling_days;
+        if ( function_exists( 'sop_get_handling_days_with_holidays' ) ) {
+            try {
+                $tz    = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+                $today = new \DateTime( 'today', $tz );
+                $handling_days_with_holidays = (int) sop_get_handling_days_with_holidays( $today, $base_handling_days, $holiday_ranges );
+            } catch ( \Exception $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+                // Fallback to base handling days if anything goes wrong.
+            }
+        }
+
+        if ( $handling_days_with_holidays < 0 ) {
+            $handling_days_with_holidays = 0;
+        }
+
+        $holiday_delay_days  = max( 0, $handling_days_with_holidays - $base_handling_days );
+        $lead_days_effective = $handling_days_with_holidays + $shipping_days;
+
+        return array(
+            'lead_days_base'              => $lead_days_base,
+            'shipping_days'               => $shipping_days,
+            'base_handling_days'          => $base_handling_days,
+            'handling_days_with_holidays' => $handling_days_with_holidays,
+            'holiday_delay_days'          => $holiday_delay_days,
+            'lead_days_effective'         => $lead_days_effective,
+        );
+    }
+
+    /**
+     * Get supplier lead days including holiday-aware handling and shipping.
+     *
+     * @param int $supplier_id Supplier ID.
      * @return int
      */
-    public function get_supplier_lead_days( array $supplier_settings ) {
-        $weeks   = isset( $supplier_settings['lead_time_weeks'] ) ? (int) $supplier_settings['lead_time_weeks'] : 0;
-        $holiday = isset( $supplier_settings['holiday_extra_days'] ) ? (int) $supplier_settings['holiday_extra_days'] : 0;
+    public function get_supplier_lead_days( $supplier_id ) {
+        $breakdown = $this->get_supplier_lead_breakdown( $supplier_id );
 
-        return max( 0, ( $weeks * 7 ) + $holiday );
+        return isset( $breakdown['lead_days_effective'] ) ? (int) $breakdown['lead_days_effective'] : 0;
     }
 
     /**
@@ -799,7 +898,18 @@ function sop_render_forecast_debug_page() {
 
         $supplier_settings = $engine->get_supplier_settings( $selected_supplier_id );
         $lookback_days     = max( 1, (int) ( function_exists( 'sop_get_analysis_lookback_days' ) ? sop_get_analysis_lookback_days() : 365 ) );
-        $lead_days         = $engine->get_supplier_lead_days( $supplier_settings );
+        $lead_breakdown    = $engine->get_supplier_lead_breakdown( $selected_supplier_id );
+        $lead_days         = isset( $lead_breakdown['lead_days_effective'] ) ? (int) $lead_breakdown['lead_days_effective'] : 0;
+        $lead_days_base    = isset( $lead_breakdown['lead_days_base'] ) ? (int) $lead_breakdown['lead_days_base'] : 0;
+        $holiday_delay_days = isset( $lead_breakdown['holiday_delay_days'] ) ? (int) $lead_breakdown['holiday_delay_days'] : 0;
+        $shipping_days     = isset( $lead_breakdown['shipping_days'] ) ? (int) $lead_breakdown['shipping_days'] : 0;
+        $lead_summary      = sprintf(
+            '%d days (base %d + %d holiday delay; shipping %d days)',
+            $lead_days,
+            $lead_days_base,
+            $holiday_delay_days,
+            $shipping_days
+        );
         $buffer_months     = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
         ?>
         <p>
@@ -814,11 +924,11 @@ function sop_render_forecast_debug_page() {
             <br />
             <?php
             printf(
-                /* translators: 1: days, 2: months, 3: days */
-                esc_html__( 'Lookback: %1$d days. Buffer: %2$s months. Lead time: %3$d days.', 'sop' ),
+                /* translators: 1: days, 2: months, 3: lead summary */
+                esc_html__( 'Lookback: %1$d days. Buffer: %2$s months. Lead time: %3$s.', 'sop' ),
                 $lookback_days,
                 number_format_i18n( $buffer_months, 1 ),
-                $lead_days
+                $lead_summary
             );
             ?>
         </p>
