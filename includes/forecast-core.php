@@ -9,8 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.21
- * - Refine Forecast (Debug) header wording and add Forecast Days explanation note.
+ * File version: 1.0.22
+ * - Correct fallback SOQ to prefer monthly cap × buffer and treat MOQ as one-off pack size.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -701,27 +701,30 @@ class Stock_Order_Plugin_Core_Engine {
         }
 
         // Fallback when stock is zero and SOQ is zero or negative.
-        // Prefer the per-product monthly cap (max_order_qty_per_month) where available,
-        // otherwise fall back to the per-product MOQ, and finally at least 1 unit.
-        $moq_per_month = get_post_meta( $product_id, '_sop_min_order_qty', true );
-        $moq_per_month = '' !== $moq_per_month ? (float) $moq_per_month : 0.0;
+        // Behaviour:
+        // - If we have a per-product monthly figure (max_order_qty_per_month / max_qty_per_month / legacy spaced key),
+        //   use that as a monthly rate and order monthly * buffer_months.
+        // - If we do NOT have a monthly figure but we DO have an MOQ, order exactly one MOQ (no buffer multiplier).
+        // - If neither is available, default to 1 unit.
+        $min_order_qty = get_post_meta( $product_id, '_sop_min_order_qty', true );
+        $min_order_qty = '' !== $min_order_qty ? (float) $min_order_qty : 0.0;
         $buffer_months = max( 0.0, (float) $buffer_months );
 
-        // Choose a monthly reference for the fallback:
-        // - Use the max-per-month cap if set.
-        // - Otherwise, fall back to MOQ.
+        // Monthly reference for fallback comes only from the max-per-month style fields.
         $fallback_monthly = 0.0;
         if ( $max_per_month > 0 ) {
             $fallback_monthly = (float) $max_per_month;
-        } elseif ( $moq_per_month > 0 ) {
-            $fallback_monthly = (float) $moq_per_month;
         }
 
         if ( $current_stock <= 0 && $suggested_qty_final <= 0 ) {
             if ( $fallback_monthly > 0 && $buffer_months > 0 ) {
+                // We have a genuine monthly reference: order one full buffer window.
                 $fallback_soq = (int) ceil( $fallback_monthly * $buffer_months );
+            } elseif ( $min_order_qty > 0 ) {
+                // No monthly figure, but we do know the minimum we can order once.
+                $fallback_soq = (int) ceil( $min_order_qty );
             } else {
-                // Default to at least one unit so valid SKUs without caps or MOQ still get suggested.
+                // Default to at least one unit so valid SKUs without any config still get suggested.
                 $fallback_soq = 1;
             }
 
