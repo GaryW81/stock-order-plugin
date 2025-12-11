@@ -700,16 +700,28 @@ class Stock_Order_Plugin_Core_Engine {
             $suggested_qty_final = 0.0;
         }
 
-        // MOQ-based fallback when stock is zero and SOQ is zero or negative.
+        // Fallback when stock is zero and SOQ is zero or negative.
+        // Prefer the per-product monthly cap (max_order_qty_per_month) where available,
+        // otherwise fall back to the per-product MOQ, and finally at least 1 unit.
         $moq_per_month = get_post_meta( $product_id, '_sop_min_order_qty', true );
         $moq_per_month = '' !== $moq_per_month ? (float) $moq_per_month : 0.0;
         $buffer_months = max( 0.0, (float) $buffer_months );
 
+        // Choose a monthly reference for the fallback:
+        // - Use the max-per-month cap if set.
+        // - Otherwise, fall back to MOQ.
+        $fallback_monthly = 0.0;
+        if ( $max_per_month > 0 ) {
+            $fallback_monthly = (float) $max_per_month;
+        } elseif ( $moq_per_month > 0 ) {
+            $fallback_monthly = (float) $moq_per_month;
+        }
+
         if ( $current_stock <= 0 && $suggested_qty_final <= 0 ) {
-            if ( $moq_per_month > 0 && $buffer_months > 0 ) {
-                $fallback_soq = (int) ceil( $moq_per_month * $buffer_months );
+            if ( $fallback_monthly > 0 && $buffer_months > 0 ) {
+                $fallback_soq = (int) ceil( $fallback_monthly * $buffer_months );
             } else {
-                // Default to at least one unit so valid SKUs without MOQ still get suggested.
+                // Default to at least one unit so valid SKUs without caps or MOQ still get suggested.
                 $fallback_soq = 1;
             }
 
