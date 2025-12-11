@@ -1852,7 +1852,9 @@ function sop_preorder_render_admin_page() {
                                        class="sop-po-deposit-input"
                                        value="<?php echo esc_attr( $po_deposit_usd ); ?>"<?php echo $po_disabled_attr; ?> />
                             </div>
+                        </div>
 
+                        <div class="sop-po-section sop-po-simple-row sop-po-totals-row">
                             <div class="sop-po-field sop-po-totals-field">
                                 <?php
                                 printf(
