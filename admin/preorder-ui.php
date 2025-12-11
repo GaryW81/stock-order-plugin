@@ -1,5 +1,6 @@
 <?php
 /*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.38 *
+ * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
  * - V12.36 - Product title links to product edit screen.
  * - V12.35 - Fix SKU search scroll so matched row sits below sticky table header.
@@ -1827,6 +1828,53 @@ function sop_preorder_render_admin_page() {
                             </div>
                         </div>
 
+                    </div>
+                    <?php else : ?>
+                    <div class="sop-po-simple-panel sop-po-totals-panel">
+                        <div class="sop-po-section sop-po-simple-row sop-po-totals-row">
+                            <div class="sop-po-field sop-po-totals-field">
+                                <?php
+                                printf(
+                                    /* translators: %s: supplier currency code. */
+                                    '<label>%s</label>',
+                                    esc_html(
+                                        sprintf(
+                                            /* translators: %s: supplier currency code. */
+                                            __( 'Deposit (%s)', 'sop' ),
+                                            $supplier_currency
+                                        )
+                                    )
+                                );
+                                ?>
+                                <input type="number"
+                                       step="0.01"
+                                       name="sop_po_deposit_usd"
+                                       class="sop-po-deposit-input"
+                                       value="<?php echo esc_attr( $po_deposit_usd ); ?>"<?php echo $po_disabled_attr; ?> />
+                            </div>
+
+                            <div class="sop-po-field sop-po-totals-field">
+                                <?php
+                                printf(
+                                    /* translators: %s: supplier currency code. */
+                                    '<label>%s</label>',
+                                    esc_html(
+                                        sprintf(
+                                            __( 'Balance (%s)', 'sop' ),
+                                            $supplier_currency
+                                        )
+                                    )
+                                );
+                                ?>
+                                <span id="sop-po-balance-usd" class="sop-po-amount sop-po-amount-readonly">
+                                    <?php echo esc_html( number_format( $po_balance_usd, 2 ) ); ?>
+                                </span>
+                                <input type="hidden"
+                                       name="sop_po_balance_usd"
+                                       id="sop-po-balance-usd-input"
+                                       value="<?php echo esc_attr( $po_balance_usd ); ?>" />
+                            </div>
+                        </div>
                     </div>
                     <?php endif; ?>
 
@@ -3793,6 +3841,7 @@ function sop_preorder_render_admin_page() {
                 var isLockedExtras      = $extrasTable.data( 'locked' ) === 1 || $extrasTable.data( 'locked' ) === '1';
                 var $depositFxSummary   = $( '#sop-po-deposit-fx-summary' );
                 var $balanceFxSummary   = $( '#sop-po-balance-fx-summary' );
+                var isRmbSupplier       = $depositRmbInput.length > 0 && $depositFxRateInput.length > 0;
 
                 function sopPoRoundFx( value ) {
                     var num = parseFloat( value );
@@ -3815,6 +3864,31 @@ function sop_preorder_render_admin_page() {
                     var poTotal = baseTotalRmb + extrasTotalRmb;
                     if ( poTotal < 0 ) {
                         poTotal = 0;
+                    }
+
+                    // Non-RMB suppliers: simple deposit/balance in supplier currency.
+                    if ( ! isRmbSupplier ) {
+                        var depositSimple = parseFloat( $depositUsdInput.val() );
+                        if ( isNaN( depositSimple ) ) {
+                            depositSimple = 0;
+                        }
+
+                        var balanceSimple = poTotal - depositSimple;
+                        if ( balanceSimple < 0 ) {
+                            balanceSimple = 0;
+                        }
+
+                        $poTotalLabel.text( poTotal.toFixed( 2 ) );
+
+                        if ( $balanceUsdLabel.length ) {
+                            $balanceUsdLabel.text( balanceSimple.toFixed( 2 ) );
+                        }
+                        if ( $balanceUsdInput.length ) {
+                            $balanceUsdInput.val( balanceSimple.toFixed( 2 ) );
+                        }
+
+                        // No FX logic for non-RMB suppliers.
+                        return;
                     }
 
                     var depositUsd = parseFloat( $depositUsdInput.val() );
