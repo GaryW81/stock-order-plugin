@@ -9,8 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.19
- * - Add lead breakdown helper and expose detailed lead summary in Forecast (Debug) header.
+ * File version: 1.0.20
+ * - Drive Forecast (Debug) header lead summary from effective row lead (forecast days - buffer).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -898,19 +898,44 @@ function sop_render_forecast_debug_page() {
 
         $supplier_settings = $engine->get_supplier_settings( $selected_supplier_id );
         $lookback_days     = max( 1, (int) ( function_exists( 'sop_get_analysis_lookback_days' ) ? sop_get_analysis_lookback_days() : 365 ) );
-        $lead_breakdown    = $engine->get_supplier_lead_breakdown( $selected_supplier_id );
-        $lead_days         = isset( $lead_breakdown['lead_days_effective'] ) ? (int) $lead_breakdown['lead_days_effective'] : 0;
-        $lead_days_base    = isset( $lead_breakdown['lead_days_base'] ) ? (int) $lead_breakdown['lead_days_base'] : 0;
-        $holiday_delay_days = isset( $lead_breakdown['holiday_delay_days'] ) ? (int) $lead_breakdown['holiday_delay_days'] : 0;
-        $shipping_days     = isset( $lead_breakdown['shipping_days'] ) ? (int) $lead_breakdown['shipping_days'] : 0;
-        $lead_summary      = sprintf(
+        $buffer_months     = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
+        if ( $buffer_months < 0 ) {
+            $buffer_months = 0.0;
+        }
+
+        $first_row = reset( $rows );
+        if ( ! is_array( $first_row ) ) {
+            $first_row = array();
+        }
+
+        $forecast_days_from_row = isset( $first_row['forecast_days'] ) ? (float) $first_row['forecast_days'] : 0.0;
+        $buffer_days            = max( 0.0, $buffer_months * 30.4375 );
+        $lead_days_effective    = 0;
+
+        if ( $forecast_days_from_row > 0 ) {
+            $lead_days_effective = (int) round( max( 0.0, $forecast_days_from_row - $buffer_days ) );
+        }
+
+        $lead_weeks_base = isset( $supplier_settings['lead_time_weeks'] ) ? (float) $supplier_settings['lead_time_weeks'] : 0.0;
+        $lead_days_base  = max( 0, (int) round( $lead_weeks_base * 7 ) );
+
+        $shipping_days = isset( $supplier_settings['shipping_days'] ) ? (int) $supplier_settings['shipping_days'] : 0;
+        if ( $shipping_days < 0 ) {
+            $shipping_days = 0;
+        }
+
+        $holiday_delay_days = 0;
+        if ( $lead_days_effective > $lead_days_base ) {
+            $holiday_delay_days = $lead_days_effective - $lead_days_base;
+        }
+
+        $lead_summary = sprintf(
             '%d days (base %d + %d holiday delay; shipping %d days)',
-            $lead_days,
+            $lead_days_effective,
             $lead_days_base,
             $holiday_delay_days,
             $shipping_days
         );
-        $buffer_months     = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
         ?>
         <p>
             <?php
