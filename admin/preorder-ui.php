@@ -1832,14 +1832,19 @@ function sop_preorder_render_admin_page() {
                         <input type="hidden" id="sop-po-shipping-days" value="<?php echo esc_attr( $shipping_days ); ?>" />
                         <input type="hidden" id="sop-po-supplier-holiday-periods" value="<?php echo esc_attr( wp_json_encode( $holiday_periods_md ) ); ?>" />
                     </div>
+                    <?php endif; ?>
+
+                    <input type="hidden" id="sop-po-rmb-per-usd" value="<?php echo esc_attr( $sop_supplier_effective_fx > 0 ? $sop_supplier_effective_fx : $po_rmb_per_usd ); ?>" />
+                    <input type="hidden" id="sop-po-lead-weeks" value="<?php echo esc_attr( $supplier_lead_weeks ); ?>" />
+                    <input type="hidden" id="sop-po-shipping-days" value="<?php echo esc_attr( $shipping_days ); ?>" />
+                    <input type="hidden" id="sop-po-supplier-holiday-periods" value="<?php echo esc_attr( wp_json_encode( $holiday_periods_md ) ); ?>" />
 
                     <div class="sop-rates-dates-terms">
                         <h3><?php esc_html_e( 'Payment terms', 'sop' ); ?></h3>
                         <p><?php echo nl2br( esc_html( $pi_payment_terms ) ); ?></p>
-                            </div>
+                    </div>
                         </div>
                     </div>
-                    <?php endif; ?>
         </div>
         </form>
     </div>
