@@ -968,7 +968,7 @@ function sop_render_forecast_debug_page() {
             esc_html(
                 sprintf(
                     /* translators: 1: lead time in days, 2: buffer period in months */
-                    __( 'Forecast Days = lead time (%1$d days) + buffer window (%2$.1f months).', 'sop' ),
+                    __( 'Forecast Days = lead time (including holiday pause, %1$d days) + buffer window (%2$.1f months).', 'sop' ),
                     (int) $lead_days_effective,
                     (float) $buffer_months
                 )
