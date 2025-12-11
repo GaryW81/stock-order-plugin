@@ -9,9 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.17
- * - Make forecast handling days holiday-aware and include shipping horizon.
- * - Add MOQ-based fallback SOQ when stock and suggested are zero.
+ * File version: 1.0.18
+ * - Adjust lead/handling/shipping split so holidays only affect handling portion.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -461,7 +460,39 @@ class Stock_Order_Plugin_Core_Engine {
             $lead_weeks = 0.0;
         }
 
-        $base_handling_days = max( 0, (int) round( $lead_weeks * 7 ) );
+        $lead_days_total = max( 0, (int) round( $lead_weeks * 7 ) );
+
+        // Derive shipping days from supplier settings, normalising weeks to days.
+        $shipping_value = 0;
+        if ( isset( $supplier_settings['shipping_time_value'] ) ) {
+            $shipping_value = (int) $supplier_settings['shipping_time_value'];
+        } elseif ( isset( $supplier_settings['shipping_value'] ) ) {
+            $shipping_value = (int) $supplier_settings['shipping_value'];
+        } elseif ( isset( $supplier_settings['shipping_days'] ) ) {
+            $shipping_value = (int) $supplier_settings['shipping_days'];
+        }
+
+        if ( $shipping_value < 0 ) {
+            $shipping_value = 0;
+        }
+
+        $shipping_unit = 'days';
+        if ( isset( $supplier_settings['shipping_time_unit'] ) ) {
+            $shipping_unit = (string) $supplier_settings['shipping_time_unit'];
+        } elseif ( isset( $supplier_settings['shipping_unit'] ) ) {
+            $shipping_unit = (string) $supplier_settings['shipping_unit'];
+        }
+
+        $shipping_unit = strtolower( $shipping_unit );
+        if ( ! in_array( $shipping_unit, array( 'days', 'weeks' ), true ) ) {
+            $shipping_unit = 'days';
+        }
+
+        $shipping_days = ( 'weeks' === $shipping_unit ) ? ( $shipping_value * 7 ) : $shipping_value;
+        $shipping_days = max( 0, (int) $shipping_days );
+        $shipping_days = min( $shipping_days, $lead_days_total );
+
+        $base_handling_days = max( 0, $lead_days_total - $shipping_days );
 
         $holiday_ranges = array();
         if ( isset( $supplier_settings['holiday_ranges'] ) && is_array( $supplier_settings['holiday_ranges'] ) ) {
@@ -479,11 +510,6 @@ class Stock_Order_Plugin_Core_Engine {
             } catch ( \Exception $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
                 // Fallback to base handling days if anything goes wrong.
             }
-        }
-
-        $shipping_days = isset( $supplier_settings['shipping_days'] ) ? (int) $supplier_settings['shipping_days'] : 0;
-        if ( $shipping_days < 0 ) {
-            $shipping_days = 0;
         }
 
         $buffer_months = isset( $supplier_settings['buffer_months'] ) ? (float) $supplier_settings['buffer_months'] : 0.0;
