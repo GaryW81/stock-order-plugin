@@ -1,5 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.37 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.38 *
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
  * - V12.36 - Product title links to product edit screen.
  * - V12.35 - Fix SKU search scroll so matched row sits below sticky table header.
@@ -1827,10 +1827,6 @@ function sop_preorder_render_admin_page() {
                             </div>
                         </div>
 
-                        <input type="hidden" id="sop-po-rmb-per-usd" value="<?php echo esc_attr( $sop_supplier_effective_fx > 0 ? $sop_supplier_effective_fx : $po_rmb_per_usd ); ?>" />
-                        <input type="hidden" id="sop-po-lead-weeks" value="<?php echo esc_attr( $supplier_lead_weeks ); ?>" />
-                        <input type="hidden" id="sop-po-shipping-days" value="<?php echo esc_attr( $shipping_days ); ?>" />
-                        <input type="hidden" id="sop-po-supplier-holiday-periods" value="<?php echo esc_attr( wp_json_encode( $holiday_periods_md ) ); ?>" />
                     </div>
                     <?php endif; ?>
 
