@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.36 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.37 *
+ * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
  * - V12.36 - Product title links to product edit screen.
  * - V12.35 - Fix SKU search scroll so matched row sits below sticky table header.
  * - V12.34 - Fix SKU search scroll offset so first match sits below sticky header.
@@ -3982,6 +3983,24 @@ function sop_preorder_render_admin_page() {
                     return year + '-' + m + '-' + dd;
                 }
 
+                function sopBuildHolidayMdFromYmd( ymd ) {
+                    if ( ! ymd ) {
+                        return '';
+                    }
+                    var parts = ymd.split( '-' );
+                    if ( parts.length !== 3 ) {
+                        return '';
+                    }
+                    var month = parseInt( parts[1], 10 );
+                    var day   = parseInt( parts[2], 10 );
+                    if ( ! month || ! day ) {
+                        return '';
+                    }
+                    var mm = ( month < 10 ? '0' + month : '' + month );
+                    var dd = ( day < 10 ? '0' + day : '' + day );
+                    return mm + '-' + dd;
+                }
+
                 function sopIsDayInHolidayPeriod( month, day, period ) {
                     if ( ! period || ( ! period.start && ! period.start_md ) || ( ! period.end && ! period.end_md ) ) {
                         return false;
@@ -4129,6 +4148,28 @@ function sop_preorder_render_admin_page() {
                         }
                     }
 
+                    // If a holiday period is set on this PO, build an override period in month/day format.
+                    var overridePeriod = null;
+                    if ( holidayStartYmd && holidayEndYmd ) {
+                        var startMdOverride = sopBuildHolidayMdFromYmd( holidayStartYmd );
+                        var endMdOverride   = sopBuildHolidayMdFromYmd( holidayEndYmd );
+                        if ( startMdOverride && endMdOverride ) {
+                            overridePeriod = {
+                                start_md: startMdOverride,
+                                end_md:   endMdOverride
+                            };
+                        }
+                    }
+
+                    // Apply the override to the working holiday periods for this calculation.
+                    if ( overridePeriod ) {
+                        if ( holidayPeriodsMd.length ) {
+                            holidayPeriodsMd[0] = overridePeriod;
+                        } else {
+                            holidayPeriodsMd = [ overridePeriod ];
+                        }
+                    }
+
                     // Container load date: add handling working days (holidays extend handling).
                     var loadDate = sopAddHandlingWorkingDays( orderDate, handlingDays, holidayPeriodsMd );
                     var loadYmd = sopDateToYmd( loadDate );
@@ -4151,6 +4192,12 @@ function sop_preorder_render_admin_page() {
                     if ( $orderDate.val() ) {
                         sopRecalcPoDatesFromOrder();
                     }
+                }
+                if ( $holidayStart.length ) {
+                    $holidayStart.on( 'change', sopRecalcPoDatesFromOrder );
+                }
+                if ( $holidayEnd.length ) {
+                    $holidayEnd.on( 'change', sopRecalcPoDatesFromOrder );
                 }
             })();
 
