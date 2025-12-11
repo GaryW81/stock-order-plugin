@@ -9,8 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.20
- * - Drive Forecast (Debug) header lead summary from effective row lead (forecast days - buffer).
+ * File version: 1.0.21
+ * - Refine Forecast (Debug) header wording and add Forecast Days explanation note.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -924,15 +924,20 @@ function sop_render_forecast_debug_page() {
             $shipping_days = 0;
         }
 
+        $handling_days_base = 0;
+        if ( $lead_days_base > $shipping_days ) {
+            $handling_days_base = $lead_days_base - $shipping_days;
+        }
+
         $holiday_delay_days = 0;
         if ( $lead_days_effective > $lead_days_base ) {
             $holiday_delay_days = $lead_days_effective - $lead_days_base;
         }
 
         $lead_summary = sprintf(
-            '%d days (base %d + %d holiday delay; shipping %d days)',
+            '%d days total (handling %d + %d holiday pause + shipping %d days)',
             $lead_days_effective,
-            $lead_days_base,
+            $handling_days_base,
             $holiday_delay_days,
             $shipping_days
         );
@@ -957,6 +962,19 @@ function sop_render_forecast_debug_page() {
             );
             ?>
         </p>
+        <?php
+        printf(
+            '<p class="description">%s</p>',
+            esc_html(
+                sprintf(
+                    /* translators: 1: lead time in days, 2: buffer period in months */
+                    __( 'Forecast Days = lead time (%1$d days) + buffer window (%2$.1f months).', 'sop' ),
+                    (int) $lead_days_effective,
+                    (float) $buffer_months
+                )
+            )
+        );
+        ?>
 
         <style>
             .sop-forecast-table-wrapper {
