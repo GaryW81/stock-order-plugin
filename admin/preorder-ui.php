@@ -1646,7 +1646,15 @@ function sop_preorder_render_admin_page() {
                             <thead>
                                 <tr>
                                     <th><?php esc_html_e( 'Description', 'sop' ); ?></th>
-                                    <th class="column-amount"><?php esc_html_e( 'Amount (RMB)', 'sop' ); ?></th>
+                                    <th class="column-amount">
+                                        <?php
+                                        printf(
+                                            /* translators: %s: supplier currency code. */
+                                            esc_html__( 'Amount (%s)', 'sop' ),
+                                            esc_html( $supplier_currency )
+                                        );
+                                        ?>
+                                    </th>
                                     <?php if ( ! $sop_sheet_is_locked ) : ?>
                                         <th class="column-actions"></th>
                                     <?php endif; ?>
@@ -1706,7 +1714,15 @@ function sop_preorder_render_admin_page() {
                             </tbody>
                             <tfoot>
                                 <tr class="sop-po-total-row">
-                                    <th><?php esc_html_e( 'Total (RMB)', 'sop' ); ?></th>
+                                    <th>
+                                        <?php
+                                        printf(
+                                            /* translators: %s: supplier currency code. */
+                                            esc_html__( 'Total (%s)', 'sop' ),
+                                            esc_html( $supplier_currency )
+                                        );
+                                        ?>
+                                    </th>
                                     <th class="column-amount">
                         <span id="sop-po-total-rmb" class="sop-po-amount"><?php echo esc_html( number_format( $po_total_rmb, 2 ) ); ?></span>
                                     </th>
@@ -1725,6 +1741,7 @@ function sop_preorder_render_admin_page() {
                         <?php endif; ?>
                     </div>
 
+                    <?php if ( 'RMB' === $supplier_currency ) : ?>
                     <div class="sop-po-fx-panel sop-po-totals-panel">
                         <div class="sop-po-section sop-po-deposit sop-po-fx-row sop-po-totals-row">
                             <div class="sop-po-field sop-po-totals-field">
@@ -1819,9 +1836,10 @@ function sop_preorder_render_admin_page() {
                     <div class="sop-rates-dates-terms">
                         <h3><?php esc_html_e( 'Payment terms', 'sop' ); ?></h3>
                         <p><?php echo nl2br( esc_html( $pi_payment_terms ) ); ?></p>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
+                    <?php endif; ?>
         </div>
         </form>
     </div>
