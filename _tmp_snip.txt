@@ -1,1 +1,37 @@
+Stock Order Plugin context snapshot (2024-05 refresh)
+- Bootstrap: stock-order-plugin.php loads SOP constants, includes core helpers (db-helpers.php, domain-helpers.php, stockout-tracking.php, helper-buffer.php, forecast-core.php, class-sop-legacy-history.php, supplier-meta-box.php, class-sop-preorder-exporter.php) and admin modules (settings-supplier.php, product-mapping.php, preorder-core.php, preorder-ui.php). Registers activation/deactivation hooks and hides WP admin footer on SOP screens.
+- Includes:
+  - class-sop-loader.php: stub bootstrapper with methods to load core/admin and placeholders for suppliers, forecasting, preorder, goods-in wiring.
+  - db-helpers.php: database helpers / install routines (inspect for table definitions if needed).
+  - domain-helpers.php: shared constants, validation, and product utility functions.
+  - helper-buffer.php: buffer/coverage calculation helpers.
+  - forecast-core.php: forecasting scaffolding and demand calculations.
+  - stockout-tracking.php: stockout detection/logging utilities and cron scheduling.
+  - supplier-meta-box.php: per-product meta box for supplier and SOP fields.
+  - class-sop-preorder-exporter.php: export logic for preorder sheets (CSV/XLSX stubs).
+  - class-sop-legacy-history.php: legacy history logging/install.
+- Admin:
+  - preorder-core.php: main Pre-Order Sheet logic, menu registration, purchase order header handling, persistence of preorder meta.
+  - preorder-ui.php: renders Pre-Order Sheet interface and AJAX handlers.
+  - settings-supplier.php: supplier settings page and option storage.
+  - product-mapping.php: supplier/product mapping utilities and tables.
+- Docs: docs/requirements-stock-order-plugin.md summarises Blueprint requirements.
+- Supporting files: lint-php.bat for Windows linting; tmp_header.txt and Stock Order Plugin – Blueprint V1-1.docx reference materials.
 
+Ideas and next-step solutions (Phase-aligned)
+- Forecasting hardening (Phase 1):
+  - Build daily sales snapshot/stockout cache table via sop_DB and cron (respecting existing stockout-tracking hooks) to support days-on-sale calculations without heavy queries.
+  - Extend forecast-core.php to expose a read-only `sop_calculate_suggested_order()` that returns per-SKU projections for a supplier based on lead time + buffer and guards with `max_order_qty_per_month` without overwriting it.
+  - Add an admin toggle to rebuild forecast cache per supplier and show timestamps on Pre-Order Sheet load.
+- Supplier configuration polish (Phase 2):
+  - In settings-supplier.php, store currency, lead time (weeks), holiday delay, default lookback/buffer, and container presets (type + capacity) per supplier; surface these defaults to preorder-core.php.
+  - Wire product-mapping.php to validate that only products with a supplier are selectable, automatically excluding discontinued (no supplier) items.
+- Pre-Order Sheet refinements (Phase 2/3/4.1):
+  - Use forecasted suggested qty from the engine as a read-only column; keep manual order qty editable and track rounding flags in preorder-core.php meta fields.
+  - Ensure per-unit CBM and line CBM recalc on AJAX quantity changes; update container fill bar thresholds (<80 under, 80–100 ideal, >100 over) in preorder-ui.php.
+  - Add filters for “suggested qty > 0” and “unrounded only” to reduce noise when ordering.
+- Export path (Phase 2):
+  - Finalise class-sop-preorder-exporter.php to honour per-supplier column layouts (toggle + ordering) and include brand/category and image URLs for CSV; keep XLSX stub ready for PhpSpreadsheet if allowed.
+- Hygiene and safety:
+  - Keep all identifiers prefixed `sop_`, increment PHP file headers when editing, and never overwrite business-critical WooCommerce/meta data (SKU, stock, dimensions, weight, costs, supplier links, max_order_qty_per_month).
+  - Run `php -l` on edited files and ensure activation hooks remain idempotent when adding new tables/options.

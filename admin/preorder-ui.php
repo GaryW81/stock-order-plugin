@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.38 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.39 *
+ * - V12.39 - PO modal edits now mark sheet as having unsaved changes for navigation warning.
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
  * - V12.36 - Product title links to product edit screen.
@@ -2839,6 +2840,7 @@ function sop_preorder_render_admin_page() {
             var $notesOverlayTitle   = $notesOverlay.find('.sop-preorder-notes-overlay-title');
             var $notesOverlayProduct = $notesOverlay.find('.sop-preorder-notes-overlay-product');
             var $notesOverlayTextarea = $notesOverlay.find('.sop-preorder-notes-overlay-textarea');
+            var $poOverlay           = $('#sop-rates-dates-overlay');
             var currentNotesTextarea = null;
             var currentNotesType     = 'product';
             var currentNotesRowIndex = null;
@@ -2871,6 +2873,21 @@ function sop_preorder_render_admin_page() {
             $(document).on('change input', '.sop-preorder-notes-overlay textarea', function() {
                 hasUnsavedChanges = true;
             });
+
+            if ( $poOverlay.length ) {
+                $poOverlay.on( 'change input', 'input, select, textarea', function() {
+                    var $el = $( this );
+                    if ( $el.is( ':disabled' ) || $el.prop( 'readonly' ) ) {
+                        return;
+                    }
+
+                    hasUnsavedChanges = true;
+                } );
+
+                $poOverlay.on( 'click', '.sop-po-add-extra, .sop-po-extra-remove', function() {
+                    hasUnsavedChanges = true;
+                } );
+            }
 
             // Removing or restoring rows also creates unsaved changes.
             $( document ).on( 'click', '#sop-preorder-remove-selected', function() {
