@@ -1,5 +1,11 @@
 <?php
+<<<<<<< ours
 /*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.39 *
+=======
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.41 *
+ * - V12.41 - Improve PO modal FX rate inputs: text mode, blur-only normalisation, tolerant recalc.
+ * - V12.40 - Reaffirm PO modal unsaved-change tracking so edits inside modal trigger navigation warning.
+>>>>>>> theirs
  * - V12.39 - PO modal edits now mark sheet as having unsaved changes for navigation warning.
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
@@ -1756,7 +1762,12 @@ function sop_preorder_render_admin_page() {
 
                             <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Deposit FX rate (RMB per USD)', 'sop' ); ?></label>
-                                <input type="number"
+                                <input type="text"
+                                       inputmode="decimal"
+                                       autocomplete="off"
+                                <input type="text"
+                                       inputmode="decimal"
+                                       autocomplete="off"
                                        step="0.0001"
                                        name="sop_po_deposit_fx_rate"
                                        class="sop-po-fx-input"
@@ -1801,7 +1812,12 @@ function sop_preorder_render_admin_page() {
 
                             <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Balance FX rate (RMB per USD)', 'sop' ); ?></label>
-                                <input type="number"
+                                <input type="text"
+                                       inputmode="decimal"
+                                       autocomplete="off"
+                                <input type="text"
+                                       inputmode="decimal"
+                                       autocomplete="off"
                                        step="0.0001"
                                        name="sop_po_balance_fx_rate"
                                        class="sop-po-fx-input"
@@ -2841,6 +2857,7 @@ function sop_preorder_render_admin_page() {
             var $notesOverlayProduct = $notesOverlay.find('.sop-preorder-notes-overlay-product');
             var $notesOverlayTextarea = $notesOverlay.find('.sop-preorder-notes-overlay-textarea');
             var $poOverlay           = $('#sop-rates-dates-overlay');
+            var $poOverlay           = $('#sop-rates-dates-overlay');
             var currentNotesTextarea = null;
             var currentNotesType     = 'product';
             var currentNotesRowIndex = null;
@@ -2873,6 +2890,21 @@ function sop_preorder_render_admin_page() {
             $(document).on('change input', '.sop-preorder-notes-overlay textarea', function() {
                 hasUnsavedChanges = true;
             });
+
+            if ( $poOverlay.length ) {
+                $poOverlay.on( 'change input', 'input, select, textarea', function() {
+                    var $el = $( this );
+                    if ( $el.is( ':disabled' ) || $el.prop( 'readonly' ) ) {
+                        return;
+                    }
+
+                    hasUnsavedChanges = true;
+                } );
+
+                $poOverlay.on( 'click', '.sop-po-add-extra, .sop-po-extra-remove', function() {
+                    hasUnsavedChanges = true;
+                } );
+            }
 
             if ( $poOverlay.length ) {
                 $poOverlay.on( 'change input', 'input, select, textarea', function() {
@@ -3871,6 +3903,46 @@ function sop_preorder_render_admin_page() {
                     return num;
                 }
 
+                function sopNormaliseFxRateOnBlur( $input ) {
+                    if ( ! $input || ! $input.length ) {
+                        return;
+                    }
+                    var raw = $input.val();
+                    if ( raw === '' || raw === null || typeof raw === 'undefined' ) {
+                        return;
+                    }
+                    raw = String( raw ).trim().replace( ',', '.' );
+                    if ( raw === '.' || raw === '-' ) {
+                        return;
+                    }
+                    var n = parseFloat( raw );
+                    if ( isNaN( n ) ) {
+                        $input.val( '' );
+                        return;
+                    }
+                    $input.val( n.toFixed( 3 ) );
+                }
+
+                function sopNormaliseFxRateOnBlur( $input ) {
+                    if ( ! $input || ! $input.length ) {
+                        return;
+                    }
+                    var raw = $input.val();
+                    if ( raw === '' || raw === null || typeof raw === 'undefined' ) {
+                        return;
+                    }
+                    raw = String( raw ).trim().replace( ',', '.' );
+                    if ( raw === '.' || raw === '-' ) {
+                        return;
+                    }
+                    var n = parseFloat( raw );
+                    if ( isNaN( n ) ) {
+                        $input.val( '' );
+                        return;
+                    }
+                    $input.val( n.toFixed( 3 ) );
+                }
+
                 function recalcPoTotals() {
                     var extrasTotalRmb = 0;
                     $extrasAmountInputs.each( function() {
@@ -3916,9 +3988,6 @@ function sop_preorder_render_admin_page() {
                     }
 
                     var depositFxRate = sopPoRoundFx( $depositFxRateInput.val() );
-                    if ( depositFxRate > 0 ) {
-                        $depositFxRateInput.val( depositFxRate.toFixed( 3 ) );
-                    }
                     if ( depositFxRate <= 0 ) {
                         depositFxRate = rmbPerUsd;
                     }
@@ -3944,8 +4013,6 @@ function sop_preorder_render_admin_page() {
                     if ( ! depositLocked ) {
                         balanceFxRate = 0;
                         $balanceFxRateInput.val( '' );
-                    } else if ( balanceFxRate > 0 ) {
-                        $balanceFxRateInput.val( balanceFxRate.toFixed( 3 ) );
                     }
                     var balanceUsd = ( depositLocked && balanceRmb > 0 && balanceFxRate > 0 ) ? ( balanceRmb / balanceFxRate ) : 0;
                     $balanceUsdLabel.text( ( depositLocked && balanceFxRate > 0 ) ? balanceUsd.toFixed( 2 ) : '' );
@@ -3995,6 +4062,34 @@ function sop_preorder_render_admin_page() {
                 }
 
                 bindExtras();
+
+                if ( $depositFxRateInput.length ) {
+                    $depositFxRateInput.on( 'blur', function() {
+                        sopNormaliseFxRateOnBlur( $depositFxRateInput );
+                        recalcPoTotals();
+                    } );
+                }
+                if ( $balanceFxRateInput.length ) {
+                    $balanceFxRateInput.on( 'blur', function() {
+                        sopNormaliseFxRateOnBlur( $balanceFxRateInput );
+                        recalcPoTotals();
+                    } );
+                }
+
+
+                if ( $depositFxRateInput.length ) {
+                    $depositFxRateInput.on( 'blur', function() {
+                        sopNormaliseFxRateOnBlur( $depositFxRateInput );
+                        recalcPoTotals();
+                    } );
+                }
+                if ( $balanceFxRateInput.length ) {
+                    $balanceFxRateInput.on( 'blur', function() {
+                        sopNormaliseFxRateOnBlur( $balanceFxRateInput );
+                        recalcPoTotals();
+                    } );
+                }
+
                 $( 'input[name=\"sop_po_deposit_usd\"], #sop-po-deposit-fx-rate, #sop-po-balance-fx-rate' ).on( 'input change', recalcPoTotals );
                 recalcPoTotals();
 
@@ -4395,5 +4490,3 @@ function sop_preorder_render_admin_page() {
     </script>
     <?php
 }
-
-
