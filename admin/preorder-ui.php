@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.38 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.39 *
+ * - V12.39 - Fix JS error preventing PO modal open (restore toggleBalanceFxAvailability).
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
  * - V12.36 - Product title links to product edit screen.
@@ -3952,6 +3953,34 @@ function sop_preorder_render_admin_page() {
                     }
                 }
 
+                function toggleBalanceFxAvailability() {
+                    if ( ! isRmbSupplier || ! $balanceFxRateInput.length || ! $depositFxLocked.length ) {
+                        return;
+                    }
+
+                    var depositLocked = $depositFxLocked.is( ':checked' );
+
+                    if ( ! depositLocked ) {
+                        $balanceFxRateInput.prop( 'disabled', true );
+                        if ( $balanceFxLocked.length ) {
+                            $balanceFxLocked.prop( 'disabled', true );
+                        }
+                        if ( $balanceFxHelp.length ) {
+                            $balanceFxHelp.show();
+                        }
+                    } else {
+                        if ( $balanceFxRateInput.length ) {
+                            $balanceFxRateInput.prop( 'disabled', balanceFxRateInitiallyDisabled ? true : false );
+                        }
+                        if ( $balanceFxLocked.length ) {
+                            $balanceFxLocked.prop( 'disabled', balanceFxLockInitiallyDisabled ? true : false );
+                        }
+                        if ( $balanceFxHelp.length ) {
+                            $balanceFxHelp.hide();
+                        }
+                    }
+                }
+
                 function bindExtras() {
                     $extrasAmountInputs = $extrasTable.find( '.sop-po-extra-amount' );
                     $extrasAmountInputs.off( 'input change' ).on( 'input change', recalcPoTotals );
@@ -3980,6 +4009,10 @@ function sop_preorder_render_admin_page() {
 
                 bindExtras();
                 $( 'input[name=\"sop_po_deposit_usd\"], #sop-po-deposit-fx-rate, #sop-po-balance-fx-rate' ).on( 'input change', recalcPoTotals );
+                $depositFxLocked.on( 'change', function() {
+                    toggleBalanceFxAvailability();
+                    recalcPoTotals();
+                } );
                 toggleBalanceFxAvailability();
                 recalcPoTotals();
 
