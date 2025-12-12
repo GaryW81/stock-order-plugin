@@ -1,11 +1,8 @@
 <?php
-<<<<<<< ours
 /*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.39 *
-=======
 /*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.41 *
  * - V12.41 - Improve PO modal FX rate inputs: text mode, blur-only normalisation, tolerant recalc.
  * - V12.40 - Reaffirm PO modal unsaved-change tracking so edits inside modal trigger navigation warning.
->>>>>>> theirs
  * - V12.39 - PO modal edits now mark sheet as having unsaved changes for navigation warning.
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
