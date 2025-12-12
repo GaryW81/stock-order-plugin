@@ -1,9 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.39 *
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.41 *
- * - V12.41 - Improve PO modal FX rate inputs: text mode, blur-only normalisation, tolerant recalc.
- * - V12.40 - Reaffirm PO modal unsaved-change tracking so edits inside modal trigger navigation warning.
- * - V12.39 - PO modal edits now mark sheet as having unsaved changes for navigation warning.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.38 *
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
  * - V12.36 - Product title links to product edit screen.
@@ -1759,12 +1755,7 @@ function sop_preorder_render_admin_page() {
 
                             <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Deposit FX rate (RMB per USD)', 'sop' ); ?></label>
-                                <input type="text"
-                                       inputmode="decimal"
-                                       autocomplete="off"
-                                <input type="text"
-                                       inputmode="decimal"
-                                       autocomplete="off"
+                                <input type="number"
                                        step="0.0001"
                                        name="sop_po_deposit_fx_rate"
                                        class="sop-po-fx-input"
@@ -1809,17 +1800,15 @@ function sop_preorder_render_admin_page() {
 
                             <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Balance FX rate (RMB per USD)', 'sop' ); ?></label>
-                                <input type="text"
-                                       inputmode="decimal"
-                                       autocomplete="off"
-                                <input type="text"
-                                       inputmode="decimal"
-                                       autocomplete="off"
+                                <input type="number"
                                        step="0.0001"
                                        name="sop_po_balance_fx_rate"
                                        class="sop-po-fx-input"
                                        id="sop-po-balance-fx-rate"
                                        value="<?php echo esc_attr( ( $po_deposit_fx_locked && $po_balance_fx_rate > 0 ) ? $po_balance_fx_rate : '' ); ?>"<?php echo $po_disabled_attr; ?> />
+                                <div id="sop-po-balance-fx-help" class="description" style="display:none; margin-top:6px;">
+                                    <?php esc_html_e( 'Lock deposit FX rate to enable balance FX.', 'sop' ); ?>
+                                </div>
                                 <label class="sop-po-inline">
                                     <input type="checkbox"
                                            name="sop_po_balance_fx_locked"
@@ -2853,8 +2842,6 @@ function sop_preorder_render_admin_page() {
             var $notesOverlayTitle   = $notesOverlay.find('.sop-preorder-notes-overlay-title');
             var $notesOverlayProduct = $notesOverlay.find('.sop-preorder-notes-overlay-product');
             var $notesOverlayTextarea = $notesOverlay.find('.sop-preorder-notes-overlay-textarea');
-            var $poOverlay           = $('#sop-rates-dates-overlay');
-            var $poOverlay           = $('#sop-rates-dates-overlay');
             var currentNotesTextarea = null;
             var currentNotesType     = 'product';
             var currentNotesRowIndex = null;
@@ -2887,36 +2874,6 @@ function sop_preorder_render_admin_page() {
             $(document).on('change input', '.sop-preorder-notes-overlay textarea', function() {
                 hasUnsavedChanges = true;
             });
-
-            if ( $poOverlay.length ) {
-                $poOverlay.on( 'change input', 'input, select, textarea', function() {
-                    var $el = $( this );
-                    if ( $el.is( ':disabled' ) || $el.prop( 'readonly' ) ) {
-                        return;
-                    }
-
-                    hasUnsavedChanges = true;
-                } );
-
-                $poOverlay.on( 'click', '.sop-po-add-extra, .sop-po-extra-remove', function() {
-                    hasUnsavedChanges = true;
-                } );
-            }
-
-            if ( $poOverlay.length ) {
-                $poOverlay.on( 'change input', 'input, select, textarea', function() {
-                    var $el = $( this );
-                    if ( $el.is( ':disabled' ) || $el.prop( 'readonly' ) ) {
-                        return;
-                    }
-
-                    hasUnsavedChanges = true;
-                } );
-
-                $poOverlay.on( 'click', '.sop-po-add-extra, .sop-po-extra-remove', function() {
-                    hasUnsavedChanges = true;
-                } );
-            }
 
             // Removing or restoring rows also creates unsaved changes.
             $( document ).on( 'click', '#sop-preorder-remove-selected', function() {
@@ -3882,6 +3839,7 @@ function sop_preorder_render_admin_page() {
                 var $balanceFxRateInput = $( '#sop-po-balance-fx-rate' );
                 var $depositFxLocked    = $( 'input[name=\"sop_po_deposit_fx_locked\"]' );
                 var $balanceFxLocked    = $( 'input[name=\"sop_po_balance_fx_locked\"]' );
+                var $balanceFxHelp      = $( '#sop-po-balance-fx-help' );
                 var $extrasTable        = $( '.sop-po-items-table' );
                 var $extrasAmountInputs = $extrasTable.find( '.sop-po-extra-amount' );
                 var baseTotalRmb        = parseFloat( $poBaseLabel.data( 'base-total-rmb' ) ) || 0;
@@ -3890,6 +3848,8 @@ function sop_preorder_render_admin_page() {
                 var $depositFxSummary   = $( '#sop-po-deposit-fx-summary' );
                 var $balanceFxSummary   = $( '#sop-po-balance-fx-summary' );
                 var isRmbSupplier       = $depositRmbInput.length > 0 && $depositFxRateInput.length > 0;
+                var balanceFxRateInitiallyDisabled = $balanceFxRateInput.length ? $balanceFxRateInput.is( ':disabled' ) : false;
+                var balanceFxLockInitiallyDisabled = $balanceFxLocked.length ? $balanceFxLocked.is( ':disabled' ) : false;
 
                 function sopPoRoundFx( value ) {
                     var num = parseFloat( value );
@@ -3898,46 +3858,6 @@ function sop_preorder_render_admin_page() {
                     }
                     num = Math.round( num * 1000 ) / 1000;
                     return num;
-                }
-
-                function sopNormaliseFxRateOnBlur( $input ) {
-                    if ( ! $input || ! $input.length ) {
-                        return;
-                    }
-                    var raw = $input.val();
-                    if ( raw === '' || raw === null || typeof raw === 'undefined' ) {
-                        return;
-                    }
-                    raw = String( raw ).trim().replace( ',', '.' );
-                    if ( raw === '.' || raw === '-' ) {
-                        return;
-                    }
-                    var n = parseFloat( raw );
-                    if ( isNaN( n ) ) {
-                        $input.val( '' );
-                        return;
-                    }
-                    $input.val( n.toFixed( 3 ) );
-                }
-
-                function sopNormaliseFxRateOnBlur( $input ) {
-                    if ( ! $input || ! $input.length ) {
-                        return;
-                    }
-                    var raw = $input.val();
-                    if ( raw === '' || raw === null || typeof raw === 'undefined' ) {
-                        return;
-                    }
-                    raw = String( raw ).trim().replace( ',', '.' );
-                    if ( raw === '.' || raw === '-' ) {
-                        return;
-                    }
-                    var n = parseFloat( raw );
-                    if ( isNaN( n ) ) {
-                        $input.val( '' );
-                        return;
-                    }
-                    $input.val( n.toFixed( 3 ) );
                 }
 
                 function recalcPoTotals() {
@@ -4059,35 +3979,8 @@ function sop_preorder_render_admin_page() {
                 }
 
                 bindExtras();
-
-                if ( $depositFxRateInput.length ) {
-                    $depositFxRateInput.on( 'blur', function() {
-                        sopNormaliseFxRateOnBlur( $depositFxRateInput );
-                        recalcPoTotals();
-                    } );
-                }
-                if ( $balanceFxRateInput.length ) {
-                    $balanceFxRateInput.on( 'blur', function() {
-                        sopNormaliseFxRateOnBlur( $balanceFxRateInput );
-                        recalcPoTotals();
-                    } );
-                }
-
-
-                if ( $depositFxRateInput.length ) {
-                    $depositFxRateInput.on( 'blur', function() {
-                        sopNormaliseFxRateOnBlur( $depositFxRateInput );
-                        recalcPoTotals();
-                    } );
-                }
-                if ( $balanceFxRateInput.length ) {
-                    $balanceFxRateInput.on( 'blur', function() {
-                        sopNormaliseFxRateOnBlur( $balanceFxRateInput );
-                        recalcPoTotals();
-                    } );
-                }
-
                 $( 'input[name=\"sop_po_deposit_usd\"], #sop-po-deposit-fx-rate, #sop-po-balance-fx-rate' ).on( 'input change', recalcPoTotals );
+                toggleBalanceFxAvailability();
                 recalcPoTotals();
 
                 function closeModal() {
