@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.11
+ * File version: 1.1.12
+ * - PO-only export uses full-width 5-column layout (order sheet export unchanged).
  * - Add PO-only HTML export (order sheet export unchanged).
  * - Use Balance FX or supplier-effective FX for USD values in export.
  *
@@ -313,52 +314,82 @@ class SOP_Preorder_Excel_Exporter {
         }
 
         $html  = '<html><head><meta charset="utf-8" /></head><body>';
-        $html .= '<h2 style="margin:0 0 10px 0;">' . esc_html__( 'Purchase Order', 'sop' ) . '</h2>';
-
-        $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border:1px solid #ccc; margin-bottom:12px;"><tr>';
-        $html .= '<td style="width:50%; vertical-align:top;">';
-        $html .= '<strong>' . esc_html__( 'Buyer', 'sop' ) . '</strong><br />';
-        $html .= esc_html( isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '' ) . '<br />';
-        $html .= nl2br( esc_html( isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '' ) ) . '<br />';
-        $html .= esc_html( isset( $buyer_profile['email'] ) ? $buyer_profile['email'] : '' ) . '<br />';
-        $html .= esc_html( isset( $buyer_profile['phone_landline'] ) ? $buyer_profile['phone_landline'] : '' );
-        $html .= '</td>';
-
-        $html .= '<td style="width:50%; vertical-align:top;">';
-        $html .= '<strong>' . esc_html__( 'Seller', 'sop' ) . '</strong><br />';
-        $html .= esc_html( $supplier_pi['company_name'] ) . '<br />';
-        if ( $supplier_pi['company_address'] ) {
-            $html .= nl2br( esc_html( $supplier_pi['company_address'] ) ) . '<br />';
-        }
-        if ( $supplier_pi['company_email'] ) {
-            $html .= esc_html( $supplier_pi['company_email'] ) . '<br />';
-        }
-        if ( $supplier_pi['company_phone'] ) {
-            $html .= esc_html( $supplier_pi['company_phone'] ) . '<br />';
-        }
-        if ( $supplier_pi['contact_name'] ) {
-            $html .= esc_html__( 'Contact: ', 'sop' ) . esc_html( $supplier_pi['contact_name'] ) . '<br />';
-        }
-        if ( $supplier_pi['bank_details'] ) {
-            $html .= '<br /><strong>' . esc_html__( 'Bank', 'sop' ) . '</strong><br />';
-            $html .= nl2br( esc_html( $supplier_pi['bank_details'] ) );
-        }
-        $html .= '</td>';
-        $html .= '</tr></table>';
-
-        $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border:1px solid #ccc; margin-bottom:12px;">';
-        $html .= '<tr><td style="width:25%;"><strong>' . esc_html__( 'PO #', 'sop' ) . '</strong></td><td>' . esc_html( isset( $sheet_header['id'] ) ? $sheet_header['id'] : '' ) . '</td></tr>';
-        $html .= '<tr><td><strong>' . esc_html__( 'Order date', 'sop' ) . '</strong></td><td>' . esc_html( $order_date ) . '</td></tr>';
-        $html .= '<tr><td><strong>' . esc_html__( 'Holiday start', 'sop' ) . '</strong></td><td>' . esc_html( $holiday_start ) . '</td></tr>';
-        $html .= '<tr><td><strong>' . esc_html__( 'Holiday end', 'sop' ) . '</strong></td><td>' . esc_html( $holiday_end ) . '</td></tr>';
-        $html .= '<tr><td><strong>' . esc_html__( 'Load date', 'sop' ) . '</strong></td><td>' . esc_html( $load_date ) . '</td></tr>';
-        $html .= '<tr><td><strong>' . esc_html__( 'ETA / Delivery', 'sop' ) . '</strong></td><td>' . esc_html( $arrival_date ) . '</td></tr>';
-        if ( $payment_terms ) {
-            $html .= '<tr><td><strong>' . esc_html__( 'Payment terms', 'sop' ) . '</strong></td><td>' . nl2br( esc_html( $payment_terms ) ) . '</td></tr>';
-        }
-        $html .= '</table>';
-
         $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; border:1px solid #ccc; margin-bottom:12px;">';
+        $html .= '<colgroup>';
+        $html .= '<col style="width:140px;" />';
+        $html .= '<col style="width:360px;" />';
+        $html .= '<col style="width:70px;" />';
+        $html .= '<col style="width:130px;" />';
+        $html .= '<col style="width:130px;" />';
+        $html .= '</colgroup>';
+
+        $html .= '<tr><td colspan="5" style="font-size:18px;font-weight:bold;border:1px solid #ccc;">' . esc_html__( 'Purchase Order', 'sop' ) . '</td></tr>';
+
+        // Buyer / Seller headers.
+        $html .= '<tr style="background:#f5f5f5;">';
+        $html .= '<td colspan="2" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Buyer', 'sop' ) . '</strong></td>';
+        $html .= '<td style="border:1px solid #ccc;">&nbsp;</td>';
+        $html .= '<td colspan="2" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Seller', 'sop' ) . '</strong></td>';
+        $html .= '</tr>';
+
+        $buyer_lines  = array(
+            isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '',
+            isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '',
+            isset( $buyer_profile['email'] ) ? $buyer_profile['email'] : '',
+            isset( $buyer_profile['phone_landline'] ) ? $buyer_profile['phone_landline'] : '',
+        );
+        $seller_lines = array(
+            $supplier_pi['company_name'],
+            $supplier_pi['company_address'],
+            $supplier_pi['company_email'],
+            $supplier_pi['company_phone'],
+            $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : '',
+            $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : '',
+        );
+
+        $max_lines = max( count( $buyer_lines ), count( $seller_lines ) );
+        for ( $i = 0; $i < $max_lines; $i++ ) {
+            $buyer_line  = isset( $buyer_lines[ $i ] ) && '' !== $buyer_lines[ $i ] ? $buyer_lines[ $i ] : '&nbsp;';
+            $seller_line = isset( $seller_lines[ $i ] ) && '' !== $seller_lines[ $i ] ? $seller_lines[ $i ] : '&nbsp;';
+            $html       .= '<tr>';
+            $html       .= '<td colspan="2" style="border:1px solid #ccc; vertical-align:top;">' . nl2br( esc_html( $buyer_line ) ) . '</td>';
+            $html       .= '<td style="border:1px solid #ccc;">&nbsp;</td>';
+            $html       .= '<td colspan="2" style="border:1px solid #ccc; vertical-align:top;">' . nl2br( esc_html( $seller_line ) ) . '</td>';
+            $html       .= '</tr>';
+        }
+
+        // PO details.
+        $po_number     = isset( $sheet_header['id'] ) ? $sheet_header['id'] : '';
+        $safe_order    = $order_date ? $order_date : '&nbsp;';
+        $safe_hol_from = $holiday_start ? $holiday_start : '&nbsp;';
+        $safe_hol_to   = $holiday_end ? $holiday_end : '&nbsp;';
+        $safe_load     = $load_date ? $load_date : '&nbsp;';
+        $safe_eta      = $arrival_date ? $arrival_date : '&nbsp;';
+
+        $html .= '<tr style="background:#f5f5f5;"><td colspan="5" style="border:1px solid #ccc;"><strong>' . esc_html__( 'PO Details', 'sop' ) . '</strong></td></tr>';
+        $html .= '<tr>';
+        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'PO #', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $po_number ) . '</td>';
+        $html .= '<td style="border:1px solid #ccc;">&nbsp;</td>';
+        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Order date', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_order ) . '</td>';
+        $html .= '</tr>';
+        $html .= '<tr>';
+        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Holiday start', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_hol_from ) . '</td>';
+        $html .= '<td style="border:1px solid #ccc;">&nbsp;</td>';
+        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Holiday end', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_hol_to ) . '</td>';
+        $html .= '</tr>';
+        $html .= '<tr>';
+        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Load date', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_load ) . '</td>';
+        $html .= '<td style="border:1px solid #ccc;">&nbsp;</td>';
+        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'ETA / Delivery', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_eta ) . '</td>';
+        $html .= '</tr>';
+        if ( $payment_terms ) {
+            $html .= '<tr>';
+            $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Payment terms', 'sop' ) . '</strong></td>';
+            $html .= '<td colspan="4" style="border:1px solid #ccc;">' . nl2br( esc_html( $payment_terms ) ) . '</td>';
+            $html .= '</tr>';
+        }
+
+        // Line items.
         $html .= '<tr style="background:#f0f0f0;">';
         $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'SKU', 'sop' ) . '</th>';
         $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Product', 'sop' ) . '</th>';
@@ -383,22 +414,34 @@ class SOP_Preorder_Excel_Exporter {
             $html .= '</tr>';
         }
 
-        $html .= '</table>';
-
-        $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border:1px solid #ccc; margin-bottom:12px;">';
-        $html .= '<tr><td style="width:50%;"><strong>' . esc_html__( 'Base total', 'sop' ) . '</strong></td><td style="text-align:right;">' . esc_html( number_format( $base_total, 2 ) ) . ' ' . esc_html( $currency_label ) . '</td></tr>';
+        // Totals and extras aligned to column E.
+        $html .= '<tr>';
+        $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;"><strong>' . esc_html__( 'Base total', 'sop' ) . '</strong></td>';
+        $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $base_total, 2 ) ) . ' ' . esc_html( $currency_label ) . '</td>';
+        $html .= '</tr>';
         if ( ! empty( $extras_rows ) ) {
             foreach ( $extras_rows as $extra_row ) {
-                $html .= '<tr><td>' . esc_html( $extra_row['label'] ) . '</td><td style="text-align:right;">' . esc_html( number_format( $extra_row['amount'], 2 ) ) . ' ' . esc_html( $currency_label ) . '</td></tr>';
+                $html .= '<tr>';
+                $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;">' . esc_html( $extra_row['label'] ) . '</td>';
+                $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $extra_row['amount'], 2 ) ) . ' ' . esc_html( $currency_label ) . '</td>';
+                $html .= '</tr>';
             }
         }
-        $html .= '<tr><td><strong>' . esc_html__( 'Total', 'sop' ) . '</strong></td><td style="text-align:right;"><strong>' . esc_html( number_format( $total_with_extras, 2 ) ) . ' ' . esc_html( $currency_label ) . '</strong></td></tr>';
-        $html .= '</table>';
+        $html .= '<tr>';
+        $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;"><strong>' . esc_html__( 'Total', 'sop' ) . '</strong></td>';
+        $html .= '<td style="border:1px solid #ccc; text-align:right;"><strong>' . esc_html( number_format( $total_with_extras, 2 ) ) . ' ' . esc_html( $currency_label ) . '</strong></td>';
+        $html .= '</tr>';
 
-        $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border:1px solid #ccc;">';
-        $html .= '<tr><td style="width:50%;">' . esc_html( $deposit_display ) . '</td><td>' . esc_html( $balance_display ) . '</td></tr>';
-        $html .= '</table>';
+        $html .= '<tr>';
+        $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Deposit', 'sop' ) . '</td>';
+        $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( $deposit_display ) . '</td>';
+        $html .= '</tr>';
+        $html .= '<tr>';
+        $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Balance', 'sop' ) . '</td>';
+        $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( $balance_display ) . '</td>';
+        $html .= '</tr>';
 
+        $html .= '</table>';
         $html .= '</body></html>';
 
         return $html;

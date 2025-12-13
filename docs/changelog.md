@@ -2,6 +2,9 @@
 
 Versioning: VMAJOR.MINOR.PATCH (e.g. V5.7.9). Patch runs 0–9; after .9 the next release bumps the minor (e.g. 5.8.0), not 5.7.10.
 
+## V5.8.7 - 2025-12-12 (Europe/London)
+- PO XLS export now uses a full-width 5-column invoice layout; existing order-sheet XLS export (with images) remains unchanged.
+
 ## V5.8.6 - 2025-12-12 (Europe/London)
 - Add separate Purchase Order (XLS) download button; Order Sheet export remains unchanged (images intact).
 

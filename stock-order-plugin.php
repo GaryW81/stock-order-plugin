@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.8.6 - Add PO XLS download button (order sheet export unchanged).
- * Version: 5.8.6
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.8.7 - Improve PO XLS layout to full-width invoice style (order sheet export unchanged).
+ * Version: 5.8.7
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.8.6' );
+    define( 'SOP_PLUGIN_VERSION', '5.8.7' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
