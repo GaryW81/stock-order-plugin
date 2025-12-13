@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.33
+ * File version: 1.5.34
  * - Add direct USD→RMB base FX and swap FX/lead time rows.
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
@@ -1631,8 +1631,21 @@ class sop_Admin_Settings {
         $id              = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
         $name            = isset( $_POST['sop_supplier_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_name'] ) ) : '';
         $slug            = isset( $_POST['sop_supplier_slug'] ) ? sanitize_title( wp_unslash( $_POST['sop_supplier_slug'] ) ) : '';
-        $currency        = isset( $_POST['sop_supplier_currency'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_currency'] ) ) : 'GBP';
-        $lead_time_weeks = isset( $_POST['sop_supplier_lead_time_weeks'] ) ? (int) $_POST['sop_supplier_lead_time_weeks'] : 0;
+        $currency = isset( $_POST['sop_supplier_currency'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_currency'] ) ) : 'GBP';
+        $lead_time_value = isset( $_POST['sop_supplier_lead_time_value'] ) ? (int) $_POST['sop_supplier_lead_time_value'] : 0;
+        $lead_time_unit  = isset( $_POST['sop_supplier_lead_time_unit'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_lead_time_unit'] ) ) : 'weeks';
+        if ( ! in_array( $lead_time_unit, array( 'days', 'weeks' ), true ) ) {
+            $lead_time_unit = 'weeks';
+        }
+        if ( $lead_time_value < 0 ) {
+            $lead_time_value = 0;
+        }
+        $lead_time_weeks = 0;
+        if ( 'weeks' === $lead_time_unit ) {
+            $lead_time_weeks = $lead_time_value;
+        } elseif ( 'days' === $lead_time_unit ) {
+            $lead_time_weeks = ( $lead_time_value > 0 ) ? (int) ceil( $lead_time_value / 7 ) : 0;
+        }
         $is_active       = ! empty( $_POST['sop_supplier_is_active'] ) ? 1 : 0;
 
         // Per-supplier buffer override (months).
@@ -1663,6 +1676,14 @@ class sop_Admin_Settings {
             unset( $settings_array['buffer_months_override'] );
         } else {
             $settings_array['buffer_months_override'] = (float) $buffer_override;
+        }
+
+        // Lead time value/unit for supplier (stored in settings_json; lead_time_weeks saved separately).
+        if ( $lead_time_value > 0 ) {
+            $settings_array['lead_time_value'] = $lead_time_value;
+            $settings_array['lead_time_unit']  = $lead_time_unit;
+        } else {
+            unset( $settings_array['lead_time_value'], $settings_array['lead_time_unit'] );
         }
 
         // Pre-Order container defaults.
@@ -1928,7 +1949,7 @@ class sop_Admin_Settings {
                         <th><?php esc_html_e( 'Name', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Slug', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Currency', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Lead time (weeks)', 'sop' ); ?></th>
+                                <th><?php esc_html_e( 'Lead time', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Buffer override (months)', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Active', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Actions', 'sop' ); ?></th>
@@ -1949,7 +1970,27 @@ class sop_Admin_Settings {
                                 <td><?php echo esc_html( $supplier->name ); ?></td>
                                 <td><?php echo esc_html( $supplier->slug ); ?></td>
                                 <td><?php echo esc_html( $supplier->currency ); ?></td>
-                                <td><?php echo esc_html( (int) $supplier->lead_time_weeks ); ?></td>
+                                <td>
+                                    <?php
+                                    $lead_time_display = '';
+                                    $lead_time_unit_display = 'weeks';
+                                    if ( $settings_json ) {
+                                        $settings_arr    = $settings_json ? json_decode( $settings_json, true ) : array();
+                                        if ( is_array( $settings_arr ) && isset( $settings_arr['lead_time_value'] ) && isset( $settings_arr['lead_time_unit'] ) && in_array( $settings_arr['lead_time_unit'], array( 'days', 'weeks' ), true ) ) {
+                                            $lt_val = (float) $settings_arr['lead_time_value'];
+                                            $lt_unit = $settings_arr['lead_time_unit'];
+                                            if ( $lt_val > 0 ) {
+                                                $lead_time_unit_display = ( 'days' === $lt_unit ) ? 'days' : 'weeks';
+                                                $lead_time_display      = $lt_val . ' ' . $lead_time_unit_display;
+                                            }
+                                        }
+                                    }
+                                    if ( '' === $lead_time_display ) {
+                                        $lead_time_display = ( isset( $supplier->lead_time_weeks ) ? (float) $supplier->lead_time_weeks : 0 ) . ' ' . __( 'weeks', 'sop' );
+                                    }
+                                    echo esc_html( $lead_time_display );
+                                    ?>
+                                </td>
                                 <td>
                                     <?php
                                     if ( '' === $buffer_override ) {
@@ -2003,7 +2044,8 @@ class sop_Admin_Settings {
             $name_val            = '';
             $slug_val            = '';
             $currency_val        = 'GBP';
-            $lead_time_val       = 0;
+            $lead_time_value_val = 0;
+            $lead_time_unit_val  = 'weeks';
             $active_val          = 1;
             $buffer_override_val = '';
             $preorder_container_type_val      = '';
@@ -2033,11 +2075,18 @@ class sop_Admin_Settings {
                 $name_val          = $editing->name;
                 $slug_val          = $editing->slug;
                 $currency_val      = $editing->currency;
-                $lead_time_val     = (int) $editing->lead_time_weeks;
-                $active_val        = (int) $editing->is_active;
+                $lead_time_value_val = isset( $editing->lead_time_weeks ) ? (float) $editing->lead_time_weeks : 0;
+                $lead_time_unit_val  = 'weeks';
+                $active_val          = (int) $editing->is_active;
                 $settings_arr = $editing->settings_json ? json_decode( $editing->settings_json, true ) : array();
                 if ( is_array( $settings_arr ) && isset( $settings_arr['buffer_months_override'] ) ) {
                     $buffer_override_val = (float) $settings_arr['buffer_months_override'];
+                }
+                if ( is_array( $settings_arr ) && array_key_exists( 'lead_time_value', $settings_arr ) ) {
+                    $lead_time_value_val = (float) $settings_arr['lead_time_value'];
+                }
+                if ( is_array( $settings_arr ) && isset( $settings_arr['lead_time_unit'] ) && in_array( $settings_arr['lead_time_unit'], array( 'days', 'weeks' ), true ) ) {
+                    $lead_time_unit_val = $settings_arr['lead_time_unit'];
                 }
                 if ( is_array( $settings_arr ) && ! empty( $settings_arr['preorder_default_container_type'] ) ) {
                     $preorder_container_type_val = (string) $settings_arr['preorder_default_container_type'];
@@ -2214,19 +2263,23 @@ class sop_Admin_Settings {
 
                         <tr>
                             <th scope="row">
-                                <label for="sop_supplier_lead_time_weeks">
-                                    <?php esc_html_e( 'Lead time (weeks)', 'sop' ); ?>
+                                <label for="sop_supplier_lead_time_value">
+                                    <?php esc_html_e( 'Lead time', 'sop' ); ?>
                                 </label>
                             </th>
                             <td>
                                 <input type="number"
-                                       id="sop_supplier_lead_time_weeks"
-                                       name="sop_supplier_lead_time_weeks"
-                                       value="<?php echo esc_attr( $lead_time_val ); ?>"
+                                       id="sop_supplier_lead_time_value"
+                                       name="sop_supplier_lead_time_value"
+                                       value="<?php echo esc_attr( $lead_time_value_val ); ?>"
                                        min="0"
                                        class="small-text" />
+                                <select id="sop_supplier_lead_time_unit" name="sop_supplier_lead_time_unit">
+                                    <option value="days" <?php selected( $lead_time_unit_val, 'days' ); ?>><?php esc_html_e( 'Days', 'sop' ); ?></option>
+                                    <option value="weeks" <?php selected( $lead_time_unit_val, 'weeks' ); ?>><?php esc_html_e( 'Weeks', 'sop' ); ?></option>
+                                </select>
                                 <p class="description">
-                                    <?php esc_html_e( 'Approximate time from placing order to goods arriving, in weeks.', 'sop' ); ?>
+                                    <?php esc_html_e( 'Approximate time from placing order to goods arriving.', 'sop' ); ?>
                                 </p>
                             </td>
                         </tr>

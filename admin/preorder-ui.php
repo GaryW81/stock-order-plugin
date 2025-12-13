@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.41 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.42 *
+ * - V12.42 - Lead time supports days/weeks; PO dates use supplier lead weeks.
  * - V12.41 - Fix: PO modal dates recalc for non-RMB suppliers.
  * - V12.40 - PO modal edits mark unsaved changes via delegated handlers.
  * - V12.39 - Fix JS error preventing PO modal open (restore toggleBalanceFxAvailability).
@@ -147,10 +148,12 @@ function sop_preorder_render_admin_page() {
     $supplier_settings                = array();
     $holiday_periods                  = array();
     $shipping_days                    = 0;
-    $supplier_lead_weeks              = 0;
+    $supplier_lead_weeks              = 0.0;
     $supplier_defaults_container      = '';
     $supplier_defaults_pallet         = false;
     $supplier_defaults_allowance      = 0;
+    $lead_time_value_setting          = 0.0;
+    $lead_time_unit_setting           = 'weeks';
 
     // Supplier PI / Rates & Dates values.
     $pi_company_name    = '';
@@ -242,6 +245,8 @@ function sop_preorder_render_admin_page() {
 
                 // Effective shipping days, preferring stored shipping_days.
                 $shipping_days = 0;
+                $lead_time_value_setting = 0.0;
+                $lead_time_unit_setting  = 'weeks';
 
                 // First use explicit shipping_days if present.
                 if ( isset( $supplier_settings['shipping_days'] ) ) {
@@ -278,10 +283,19 @@ function sop_preorder_render_admin_page() {
                 if ( array_key_exists( 'preorder_default_container_allowance', $supplier_settings ) ) {
                     $supplier_defaults_allowance = (int) $supplier_settings['preorder_default_container_allowance'];
                 }
+
+                if ( array_key_exists( 'lead_time_value', $supplier_settings ) ) {
+                    $lead_time_value_setting = (float) $supplier_settings['lead_time_value'];
+                }
+                if ( array_key_exists( 'lead_time_unit', $supplier_settings ) && in_array( $supplier_settings['lead_time_unit'], array( 'days', 'weeks' ), true ) ) {
+                    $lead_time_unit_setting = $supplier_settings['lead_time_unit'];
+                }
             }
         }
-        if ( $supplier_obj && isset( $supplier_obj->lead_time_weeks ) ) {
-            $supplier_lead_weeks = (int) $supplier_obj->lead_time_weeks;
+        if ( $lead_time_value_setting > 0 ) {
+            $supplier_lead_weeks = ( 'days' === $lead_time_unit_setting ) ? ( $lead_time_value_setting / 7 ) : $lead_time_value_setting;
+        } elseif ( $supplier_obj && isset( $supplier_obj->lead_time_weeks ) ) {
+            $supplier_lead_weeks = (float) $supplier_obj->lead_time_weeks;
         }
     } elseif ( $current_supplier_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
         $supplier_obj = sop_supplier_get_by_id( (int) $current_supplier_id );
@@ -379,10 +393,22 @@ function sop_preorder_render_admin_page() {
                 if ( array_key_exists( 'preorder_default_container_allowance', $supplier_settings ) ) {
                     $supplier_defaults_allowance = (int) $supplier_settings['preorder_default_container_allowance'];
                 }
+
+                $lead_time_value_setting = 0.0;
+                $lead_time_unit_setting  = 'weeks';
+                if ( array_key_exists( 'lead_time_value', $supplier_settings ) ) {
+                    $lead_time_value_setting = (float) $supplier_settings['lead_time_value'];
+                }
+                if ( array_key_exists( 'lead_time_unit', $supplier_settings ) && in_array( $supplier_settings['lead_time_unit'], array( 'days', 'weeks' ), true ) ) {
+                    $lead_time_unit_setting = $supplier_settings['lead_time_unit'];
+                }
+                if ( $lead_time_value_setting > 0 ) {
+                    $supplier_lead_weeks = ( 'days' === $lead_time_unit_setting ) ? ( $lead_time_value_setting / 7 ) : $lead_time_value_setting;
+                }
             }
         }
-        if ( $supplier_obj && isset( $supplier_obj->lead_time_weeks ) ) {
-            $supplier_lead_weeks = (int) $supplier_obj->lead_time_weeks;
+        if ( $supplier_lead_weeks <= 0 && $supplier_obj && isset( $supplier_obj->lead_time_weeks ) ) {
+            $supplier_lead_weeks = (float) $supplier_obj->lead_time_weeks;
         }
     }
 
@@ -4065,7 +4091,10 @@ function sop_preorder_render_admin_page() {
             // PO dates auto-suggest (load/arrival based on order date + holidays + shipping)
             // ------------------------------------------------------------------
             (function() {
-                var leadWeeks = parseInt( $( '#sop-po-lead-weeks' ).val(), 10 ) || 0;
+                var leadWeeks = parseFloat( $( '#sop-po-lead-weeks' ).val() );
+                if ( isNaN( leadWeeks ) ) {
+                    leadWeeks = 0;
+                }
                 var supplierShippingDays = parseInt( $( '#sop-po-shipping-days' ).val(), 10 );
                 if ( isNaN( supplierShippingDays ) || supplierShippingDays < 0 ) {
                     supplierShippingDays = 30;
@@ -4258,7 +4287,7 @@ function sop_preorder_render_admin_page() {
                         return;
                     }
 
-                    var leadDays = leadWeeks * 7;
+                    var leadDays = Math.round( leadWeeks * 7 );
                     if ( ! leadDays ) {
                         return;
                     }

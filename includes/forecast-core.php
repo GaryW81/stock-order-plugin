@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.22
+ * File version: 1.0.23
  * - Correct fallback SOQ to prefer monthly cap × buffer and treat MOQ as one-off pack size.
  */
 
@@ -151,12 +151,12 @@ class Stock_Order_Plugin_Core_Engine {
             }
         }
 
-        $lead_time_weeks = 0;
+        $lead_time_weeks = 0.0;
         $currency        = 'GBP';
         $holiday_weeks   = 0;
 
         if ( is_object( $supplier ) ) {
-            $lead_time_weeks = isset( $supplier->lead_time_weeks ) ? (int) $supplier->lead_time_weeks : 0;
+            $lead_time_weeks = isset( $supplier->lead_time_weeks ) ? (float) $supplier->lead_time_weeks : 0.0;
             $currency        = ! empty( $supplier->currency ) ? (string) $supplier->currency : 'GBP';
             $holiday_weeks   = isset( $supplier->holiday_weeks ) ? (int) $supplier->holiday_weeks : 0;
             if ( isset( $supplier->holiday_extra_days ) && $supplier->holiday_extra_days ) {
@@ -164,11 +164,19 @@ class Stock_Order_Plugin_Core_Engine {
                 $holiday_weeks = (int) ceil( (int) $supplier->holiday_extra_days / 7 );
             }
         } elseif ( is_array( $supplier ) ) {
-            $lead_time_weeks = isset( $supplier['lead_time_weeks'] ) ? (int) $supplier['lead_time_weeks'] : 0;
+            $lead_time_weeks = isset( $supplier['lead_time_weeks'] ) ? (float) $supplier['lead_time_weeks'] : 0.0;
             $currency        = ! empty( $supplier['currency'] ) ? (string) $supplier['currency'] : 'GBP';
             $holiday_weeks   = isset( $supplier['holiday_weeks'] ) ? (int) $supplier['holiday_weeks'] : 0;
             if ( isset( $supplier['holiday_extra_days'] ) && $supplier['holiday_extra_days'] ) {
                 $holiday_weeks = (int) ceil( (int) $supplier['holiday_extra_days'] / 7 );
+            }
+        }
+
+        if ( ! empty( $supplier_settings_raw['lead_time_unit'] ) && in_array( $supplier_settings_raw['lead_time_unit'], array( 'days', 'weeks' ), true ) && isset( $supplier_settings_raw['lead_time_value'] ) ) {
+            $lt_val  = (float) $supplier_settings_raw['lead_time_value'];
+            $lt_unit = $supplier_settings_raw['lead_time_unit'];
+            if ( $lt_val > 0 ) {
+                $lead_time_weeks = ( 'days' === $lt_unit ) ? ( $lt_val / 7 ) : $lt_val;
             }
         }
 
