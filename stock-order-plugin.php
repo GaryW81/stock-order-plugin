@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.8.1 - Supplier holidays default blank days (avoid validation error).
- * Version: 5.8.1
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.8.2 - PO modal dates auto-update for non-RMB suppliers.
+ * Version: 5.8.2
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.8.1' );
+    define( 'SOP_PLUGIN_VERSION', '5.8.2' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {

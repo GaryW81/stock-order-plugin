@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.40 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.41 *
+ * - V12.41 - Fix: PO modal dates recalc for non-RMB suppliers.
  * - V12.40 - PO modal edits mark unsaved changes via delegated handlers.
  * - V12.39 - Fix JS error preventing PO modal open (restore toggleBalanceFxAvailability).
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
@@ -4064,12 +4065,6 @@ function sop_preorder_render_admin_page() {
             // PO dates auto-suggest (load/arrival based on order date + holidays + shipping)
             // ------------------------------------------------------------------
             (function() {
-                var $orderDate    = $( 'input[name=\"sop_po_order_date\"]' );
-                var $loadDate     = $( 'input[name=\"sop_po_load_date\"]' );
-                var $arrivalDate  = $( 'input[name=\"sop_po_arrival_date\"]' );
-                var $holidayStart = $( 'input[name=\"sop_po_holiday_start\"]' );
-                var $holidayEnd   = $( 'input[name=\"sop_po_holiday_end\"]' );
-
                 var leadWeeks = parseInt( $( '#sop-po-lead-weeks' ).val(), 10 ) || 0;
                 var supplierShippingDays = parseInt( $( '#sop-po-shipping-days' ).val(), 10 );
                 if ( isNaN( supplierShippingDays ) || supplierShippingDays < 0 ) {
@@ -4243,6 +4238,12 @@ function sop_preorder_render_admin_page() {
                 }
 
                 function sopRecalcPoDatesFromOrder() {
+                    var $orderDate    = $( 'input[name=\"sop_po_order_date\"]' );
+                    var $loadDate     = $( 'input[name=\"sop_po_load_date\"]' );
+                    var $arrivalDate  = $( 'input[name=\"sop_po_arrival_date\"]' );
+                    var $holidayStart = $( 'input[name=\"sop_po_holiday_start\"]' );
+                    var $holidayEnd   = $( 'input[name=\"sop_po_holiday_end\"]' );
+
                     if ( ! $orderDate.length || ! $loadDate.length || ! $arrivalDate.length ) {
                         return;
                     }
@@ -4269,8 +4270,8 @@ function sop_preorder_render_admin_page() {
                     }
 
                     // Holiday overrides for this PO.
-                    var holidayStartYmd = $holidayStart.val();
-                    var holidayEndYmd   = $holidayEnd.val();
+                    var holidayStartYmd = $holidayStart.length ? $holidayStart.val() : '';
+                    var holidayEndYmd   = $holidayEnd.length ? $holidayEnd.val() : '';
 
                     // Prefill PO holiday fields from supplier periods if blank.
                     if ( ! holidayStartYmd && holidayPeriodsMd.length ) {
@@ -4278,7 +4279,7 @@ function sop_preorder_render_admin_page() {
                         if ( first && ( first.start || first.start_md ) ) {
                             var firstStart = first.start || first.start_md;
                             holidayStartYmd = sopBuildHolidayYmdFromMd( orderYmd, firstStart );
-                            if ( holidayStartYmd ) {
+                            if ( holidayStartYmd && $holidayStart.length ) {
                                 $holidayStart.val( holidayStartYmd );
                             }
                         }
@@ -4297,7 +4298,9 @@ function sop_preorder_render_admin_page() {
                                 }
                             }
                             holidayEndYmd = tmpEnd;
-                            $holidayEnd.val( holidayEndYmd );
+                            if ( $holidayEnd.length ) {
+                                $holidayEnd.val( holidayEndYmd );
+                            }
                         }
                     }
 
@@ -4326,7 +4329,7 @@ function sop_preorder_render_admin_page() {
                     // Container load date: add handling working days (holidays extend handling).
                     var loadDate = sopAddHandlingWorkingDays( orderDate, handlingDays, holidayPeriodsMd );
                     var loadYmd = sopDateToYmd( loadDate );
-                    if ( loadYmd ) {
+                    if ( loadYmd && $loadDate.length ) {
                         $loadDate.val( loadYmd );
                     }
 
@@ -4334,23 +4337,18 @@ function sop_preorder_render_admin_page() {
                     var etaDate = new Date( loadDate.getTime() );
                     etaDate.setDate( etaDate.getDate() + supplierShippingDays );
                     var etaYmd = sopDateToYmd( etaDate );
-                    if ( etaYmd ) {
+                    if ( etaYmd && $arrivalDate.length ) {
                         $arrivalDate.val( etaYmd );
                     }
                 }
 
-                if ( $orderDate.length ) {
-                    $orderDate.on( 'change', sopRecalcPoDatesFromOrder );
-                    // Recalculate on load if an order date already exists.
-                    if ( $orderDate.val() ) {
-                        sopRecalcPoDatesFromOrder();
-                    }
-                }
-                if ( $holidayStart.length ) {
-                    $holidayStart.on( 'change', sopRecalcPoDatesFromOrder );
-                }
-                if ( $holidayEnd.length ) {
-                    $holidayEnd.on( 'change', sopRecalcPoDatesFromOrder );
+                $( document ).on( 'change', 'input[name=\"sop_po_order_date\"]', sopRecalcPoDatesFromOrder );
+                $( document ).on( 'change', 'input[name=\"sop_po_holiday_start\"]', sopRecalcPoDatesFromOrder );
+                $( document ).on( 'change', 'input[name=\"sop_po_holiday_end\"]', sopRecalcPoDatesFromOrder );
+
+                // Recalculate on load if an order date already exists.
+                if ( $( 'input[name=\"sop_po_order_date\"]' ).length && $( 'input[name=\"sop_po_order_date\"]' ).val() ) {
+                    sopRecalcPoDatesFromOrder();
                 }
             })();
 
