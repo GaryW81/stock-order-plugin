@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.23
+ * File version: 1.0.24
+ * - Align handling-day helper with PO modal: order date is day 0, handling starts next day.
  * - Add holiday-aware handling days helper for forecast/PO parity.
  * - Prefer direct USDη'RMB base FX if provided in settings.
  *
@@ -199,8 +200,8 @@ if ( ! function_exists( 'sop_is_holiday_day' ) ) {
 /**
  * Calculate calendar days needed to achieve a number of working (non-holiday) days from a start date.
  *
- * Mirrors PO JS behaviour: start date counts as the first candidate day, holidays are skipped,
- * and we walk forward until base handling days of working time are accumulated.
+ * Mirrors PO JS behaviour: start date is day 0 (order date), handling starts the next calendar day.
+ * Holidays are skipped and we walk forward until base handling days of working time are accumulated.
  *
  * @param DateTime $start_date         Start date (timezone aware).
  * @param int      $base_handling_days Number of working days required.
@@ -215,27 +216,24 @@ if ( ! function_exists( 'sop_get_handling_days_with_holidays' ) ) {
             return 0;
         }
 
-        $current = clone $start_date;
-        $current->setTime( 0, 0, 0 );
+        $start = clone $start_date;
+        $start->setTime( 0, 0, 0 );
+
+        $current = clone $start;
 
         $worked   = 0;
         $guard    = 0;
         $max_days = max( $handling_days + 1095, 1095 ); // Safety: up to ~3 years.
 
         while ( $worked < $handling_days && $guard < $max_days ) {
+            $current->modify( '+1 day' );
             if ( ! sop_is_holiday_day( $current, $holiday_ranges ) ) {
                 $worked++;
             }
-
-            if ( $worked >= $handling_days ) {
-                break;
-            }
-
-            $current->modify( '+1 day' );
             $guard++;
         }
 
-        $interval = $start_date->diff( $current );
+        $interval = $start->diff( $current );
 
         return (int) $interval->days;
     }
