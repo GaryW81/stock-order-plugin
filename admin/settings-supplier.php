@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.32
+ * File version: 1.5.33
  * - Add direct USD→RMB base FX and swap FX/lead time rows.
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
@@ -2018,9 +2018,9 @@ class sop_Admin_Settings {
             $pi_payment_terms_val             = '';
             $holiday_periods_val              = array(
                 array(
-                    'start_day'   => 0,
+                    'start_day'   => '',
                     'start_month' => 0,
-                    'end_day'     => 0,
+                    'end_day'     => '',
                     'end_month'   => 0,
                 ),
             );
@@ -2105,9 +2105,9 @@ class sop_Admin_Settings {
                 if ( empty( $holiday_periods_val ) ) {
                     $holiday_periods_val = array(
                         array(
-                            'start_day'   => 0,
+                            'start_day'   => '',
                             'start_month' => 0,
-                            'end_day'     => 0,
+                            'end_day'     => '',
                             'end_month'   => 0,
                         ),
                     );
@@ -2248,6 +2248,10 @@ class sop_Admin_Settings {
                                         </thead>
                                         <tbody>
                                             <?php foreach ( $holiday_periods_val as $period ) : ?>
+                                                <?php
+                                                $start_day_display = ( isset( $period['start_day'] ) && (int) $period['start_day'] >= 1 ) ? (int) $period['start_day'] : '';
+                                                $end_day_display   = ( isset( $period['end_day'] ) && (int) $period['end_day'] >= 1 ) ? (int) $period['end_day'] : '';
+                                                ?>
                                                 <tr class="sop-supplier-holiday-row">
                                                     <td>
                                                         <input type="number"
@@ -2255,7 +2259,7 @@ class sop_Admin_Settings {
                                                                class="small-text"
                                                                min="1"
                                                                max="31"
-                                                               value="<?php echo esc_attr( $period['start_day'] ); ?>" />
+                                                               value="<?php echo esc_attr( $start_day_display ); ?>" />
                                                         <select name="sop_supplier_holiday_start_month[]">
                                                             <option value="0"><?php esc_html_e( 'Month', 'sop' ); ?></option>
                                                             <?php
@@ -2276,7 +2280,7 @@ class sop_Admin_Settings {
                                                                class="small-text"
                                                                min="1"
                                                                max="31"
-                                                               value="<?php echo esc_attr( $period['end_day'] ); ?>" />
+                                                               value="<?php echo esc_attr( $end_day_display ); ?>" />
                                                         <select name="sop_supplier_holiday_end_month[]">
                                                             <option value="0"><?php esc_html_e( 'Month', 'sop' ); ?></option>
                                                             <?php

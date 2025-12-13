@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.8.0 - PO modal edits trigger unsaved changes warning.
- * Version: 5.8.0
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.8.1 - Supplier holidays default blank days (avoid validation error).
+ * Version: 5.8.1
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.8.0' );
+    define( 'SOP_PLUGIN_VERSION', '5.8.1' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {

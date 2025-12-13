@@ -2,6 +2,9 @@
 
 Versioning: VMAJOR.MINOR.PATCH (e.g. V5.7.9). Patch runs 0–9; after .9 the next release bumps the minor (e.g. 5.8.0), not 5.7.10.
 
+## V5.8.1 - 2025-12-12 (Europe/London)
+- Fix: Supplier holiday day fields default blank (no “0”), so Update supplier works with no holidays set.
+
 ## V5.8.0 - 2025-12-12 (Europe/London)
 - Fix: PO modal edits now reliably trigger the unsaved changes warning (refresh/back).
 
