@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.10
+ * File version: 1.1.11
+ * - Add PO-only HTML export (order sheet export unchanged).
  * - Use Balance FX or supplier-effective FX for USD values in export.
  *
  * Excel-compatible HTML export (with embedded images) for saved Pre-Order sheets.
@@ -158,6 +159,247 @@ class SOP_Preorder_Excel_Exporter {
         }
 
         $html .= '</table></body></html>';
+
+        return $html;
+    }
+
+    /**
+     * Build a Purchase Order-only HTML export (Excel-compatible).
+     *
+     * @param array $sheet_header Sheet header data.
+     * @param array $line_rows    Line rows.
+     * @return string|WP_Error
+     */
+    public static function build_purchase_order_html( array $sheet_header, array $line_rows ) {
+        $po_payload = array();
+        if ( ! empty( $sheet_header['header_notes_owner'] ) && is_string( $sheet_header['header_notes_owner'] ) ) {
+            $decoded = json_decode( $sheet_header['header_notes_owner'], true );
+            if ( is_array( $decoded ) ) {
+                $po_payload = $decoded;
+            }
+        }
+
+        $supplier_id   = isset( $sheet_header['supplier_id'] ) ? (int) $sheet_header['supplier_id'] : 0;
+        $supplier_name = isset( $sheet_header['supplier_name'] ) ? $sheet_header['supplier_name'] : '';
+
+        $supplier_params = function_exists( 'sop_preorder_resolve_supplier_params' )
+            ? sop_preorder_resolve_supplier_params( $supplier_id )
+            : array();
+
+        $supplier_currency = ! empty( $supplier_params['currency_code'] ) ? $supplier_params['currency_code'] : 'GBP';
+        $currency_label    = $supplier_currency;
+
+        $supplier_pi = array(
+            'company_name'    => $supplier_name,
+            'company_address' => '',
+            'company_phone'   => '',
+            'company_email'   => '',
+            'contact_name'    => '',
+            'bank_details'    => '',
+            'payment_terms'   => '',
+        );
+
+        if ( $supplier_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
+            $supplier_obj = sop_supplier_get_by_id( $supplier_id );
+            if ( $supplier_obj && ! empty( $supplier_obj->settings_json ) ) {
+                $settings_arr = json_decode( $supplier_obj->settings_json, true );
+                if ( is_array( $settings_arr ) ) {
+                    if ( ! empty( $settings_arr['pi_company_name'] ) ) {
+                        $supplier_pi['company_name'] = (string) $settings_arr['pi_company_name'];
+                    }
+                    if ( ! empty( $settings_arr['pi_company_address'] ) ) {
+                        $supplier_pi['company_address'] = (string) $settings_arr['pi_company_address'];
+                    }
+                    if ( ! empty( $settings_arr['pi_company_phone'] ) ) {
+                        $supplier_pi['company_phone'] = (string) $settings_arr['pi_company_phone'];
+                    }
+                    if ( ! empty( $settings_arr['pi_company_email'] ) ) {
+                        $supplier_pi['company_email'] = (string) $settings_arr['pi_company_email'];
+                    }
+                    if ( ! empty( $settings_arr['pi_contact_name'] ) ) {
+                        $supplier_pi['contact_name'] = (string) $settings_arr['pi_contact_name'];
+                    }
+                    if ( ! empty( $settings_arr['pi_bank_details'] ) ) {
+                        $supplier_pi['bank_details'] = (string) $settings_arr['pi_bank_details'];
+                    }
+                    if ( ! empty( $settings_arr['pi_payment_terms'] ) ) {
+                        $supplier_pi['payment_terms'] = (string) $settings_arr['pi_payment_terms'];
+                    }
+                }
+            }
+        }
+
+        $buyer_profile = function_exists( 'sop_get_company_profile' ) ? sop_get_company_profile() : array();
+
+        $order_date    = isset( $po_payload['order_date'] ) ? $po_payload['order_date'] : '';
+        $load_date     = isset( $po_payload['load_date'] ) ? $po_payload['load_date'] : '';
+        $arrival_date  = isset( $po_payload['arrival_date'] ) ? $po_payload['arrival_date'] : '';
+        $holiday_start = isset( $po_payload['holiday_start'] ) ? $po_payload['holiday_start'] : '';
+        $holiday_end   = isset( $po_payload['holiday_end'] ) ? $po_payload['holiday_end'] : '';
+
+        $payment_terms = '';
+        if ( ! empty( $sheet_header['header_payment_terms_owner'] ) ) {
+            $payment_terms = (string) $sheet_header['header_payment_terms_owner'];
+        } elseif ( ! empty( $supplier_pi['payment_terms'] ) ) {
+            $payment_terms = (string) $supplier_pi['payment_terms'];
+        }
+
+        $base_total = 0.0;
+        foreach ( $line_rows as $line ) {
+            $qty        = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : ( isset( $line['qty'] ) ? (float) $line['qty'] : 0 );
+            $cost_rmb   = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : ( isset( $line['cost'] ) ? (float) $line['cost'] : 0.0 );
+            $line_total = isset( $line['line_total_rmb'] ) ? (float) $line['line_total_rmb'] : ( isset( $line['line_total'] ) ? (float) $line['line_total'] : ( $qty * $cost_rmb ) );
+            $base_total += $line_total;
+        }
+
+        $extras_total = 0.0;
+        $extras_rows  = array();
+        if ( isset( $po_payload['po_extras'] ) && is_array( $po_payload['po_extras'] ) ) {
+            foreach ( $po_payload['po_extras'] as $extra ) {
+                $label  = isset( $extra['label'] ) ? $extra['label'] : '';
+                $amount = isset( $extra['amount_rmb'] ) ? (float) $extra['amount_rmb'] : 0.0;
+                if ( '' !== $label || 0.0 !== $amount ) {
+                    $extras_rows[] = array(
+                        'label'  => $label,
+                        'amount' => $amount,
+                    );
+                    $extras_total += $amount;
+                }
+            }
+        }
+
+        $total_with_extras = $base_total + $extras_total;
+
+        $deposit_display = '';
+        $balance_display = '';
+        if ( 'RMB' === $supplier_currency ) {
+            $deposit_usd   = isset( $po_payload['deposit_usd'] ) ? (float) $po_payload['deposit_usd'] : 0.0;
+            $deposit_fx    = isset( $po_payload['deposit_fx_rate'] ) ? (float) $po_payload['deposit_fx_rate'] : 0.0;
+            $deposit_rmb   = isset( $po_payload['deposit_rmb'] ) ? (float) $po_payload['deposit_rmb'] : 0.0;
+            if ( $deposit_rmb <= 0 && $deposit_usd > 0 && $deposit_fx > 0 ) {
+                $deposit_rmb = $deposit_usd * $deposit_fx;
+            }
+            $balance_rmb = isset( $po_payload['balance_rmb'] ) ? (float) $po_payload['balance_rmb'] : ( $total_with_extras - $deposit_rmb );
+            if ( $balance_rmb < 0 ) {
+                $balance_rmb = 0.0;
+            }
+            $deposit_display = sprintf(
+                /* translators: 1: deposit USD, 2: FX rate RMB per USD, 3: deposit RMB */
+                __( 'Deposit: %1$.2f USD @ %2$.3f = %3$.2f RMB', 'sop' ),
+                $deposit_usd,
+                $deposit_fx,
+                $deposit_rmb
+            );
+            $balance_display = sprintf(
+                __( 'Balance: %1$.2f RMB', 'sop' ),
+                $balance_rmb
+            );
+        } else {
+            $deposit_simple = isset( $po_payload['deposit_usd'] ) ? (float) $po_payload['deposit_usd'] : 0.0;
+            $balance_simple = $total_with_extras - $deposit_simple;
+            if ( $balance_simple < 0 ) {
+                $balance_simple = 0.0;
+            }
+            $deposit_display = sprintf(
+                __( 'Deposit: %1$.2f %2$s', 'sop' ),
+                $deposit_simple,
+                $currency_label
+            );
+            $balance_display = sprintf(
+                __( 'Balance: %1$.2f %2$s', 'sop' ),
+                $balance_simple,
+                $currency_label
+            );
+        }
+
+        $html  = '<html><head><meta charset="utf-8" /></head><body>';
+        $html .= '<h2 style="margin:0 0 10px 0;">' . esc_html__( 'Purchase Order', 'sop' ) . '</h2>';
+
+        $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border:1px solid #ccc; margin-bottom:12px;"><tr>';
+        $html .= '<td style="width:50%; vertical-align:top;">';
+        $html .= '<strong>' . esc_html__( 'Buyer', 'sop' ) . '</strong><br />';
+        $html .= esc_html( isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '' ) . '<br />';
+        $html .= nl2br( esc_html( isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '' ) ) . '<br />';
+        $html .= esc_html( isset( $buyer_profile['email'] ) ? $buyer_profile['email'] : '' ) . '<br />';
+        $html .= esc_html( isset( $buyer_profile['phone_landline'] ) ? $buyer_profile['phone_landline'] : '' );
+        $html .= '</td>';
+
+        $html .= '<td style="width:50%; vertical-align:top;">';
+        $html .= '<strong>' . esc_html__( 'Seller', 'sop' ) . '</strong><br />';
+        $html .= esc_html( $supplier_pi['company_name'] ) . '<br />';
+        if ( $supplier_pi['company_address'] ) {
+            $html .= nl2br( esc_html( $supplier_pi['company_address'] ) ) . '<br />';
+        }
+        if ( $supplier_pi['company_email'] ) {
+            $html .= esc_html( $supplier_pi['company_email'] ) . '<br />';
+        }
+        if ( $supplier_pi['company_phone'] ) {
+            $html .= esc_html( $supplier_pi['company_phone'] ) . '<br />';
+        }
+        if ( $supplier_pi['contact_name'] ) {
+            $html .= esc_html__( 'Contact: ', 'sop' ) . esc_html( $supplier_pi['contact_name'] ) . '<br />';
+        }
+        if ( $supplier_pi['bank_details'] ) {
+            $html .= '<br /><strong>' . esc_html__( 'Bank', 'sop' ) . '</strong><br />';
+            $html .= nl2br( esc_html( $supplier_pi['bank_details'] ) );
+        }
+        $html .= '</td>';
+        $html .= '</tr></table>';
+
+        $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border:1px solid #ccc; margin-bottom:12px;">';
+        $html .= '<tr><td style="width:25%;"><strong>' . esc_html__( 'PO #', 'sop' ) . '</strong></td><td>' . esc_html( isset( $sheet_header['id'] ) ? $sheet_header['id'] : '' ) . '</td></tr>';
+        $html .= '<tr><td><strong>' . esc_html__( 'Order date', 'sop' ) . '</strong></td><td>' . esc_html( $order_date ) . '</td></tr>';
+        $html .= '<tr><td><strong>' . esc_html__( 'Holiday start', 'sop' ) . '</strong></td><td>' . esc_html( $holiday_start ) . '</td></tr>';
+        $html .= '<tr><td><strong>' . esc_html__( 'Holiday end', 'sop' ) . '</strong></td><td>' . esc_html( $holiday_end ) . '</td></tr>';
+        $html .= '<tr><td><strong>' . esc_html__( 'Load date', 'sop' ) . '</strong></td><td>' . esc_html( $load_date ) . '</td></tr>';
+        $html .= '<tr><td><strong>' . esc_html__( 'ETA / Delivery', 'sop' ) . '</strong></td><td>' . esc_html( $arrival_date ) . '</td></tr>';
+        if ( $payment_terms ) {
+            $html .= '<tr><td><strong>' . esc_html__( 'Payment terms', 'sop' ) . '</strong></td><td>' . nl2br( esc_html( $payment_terms ) ) . '</td></tr>';
+        }
+        $html .= '</table>';
+
+        $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; border:1px solid #ccc; margin-bottom:12px;">';
+        $html .= '<tr style="background:#f0f0f0;">';
+        $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'SKU', 'sop' ) . '</th>';
+        $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Product', 'sop' ) . '</th>';
+        $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Qty', 'sop' ) . '</th>';
+        $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Unit cost', 'sop' ) . ' (' . esc_html( $currency_label ) . ')</th>';
+        $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Line total', 'sop' ) . ' (' . esc_html( $currency_label ) . ')</th>';
+        $html .= '</tr>';
+
+        foreach ( $line_rows as $line ) {
+            $sku        = isset( $line['sku'] ) ? $line['sku'] : '';
+            $name       = isset( $line['product_name'] ) ? $line['product_name'] : '';
+            $qty        = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : ( isset( $line['qty'] ) ? (float) $line['qty'] : 0 );
+            $cost_rmb   = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : ( isset( $line['cost'] ) ? (float) $line['cost'] : 0.0 );
+            $line_total = isset( $line['line_total_rmb'] ) ? (float) $line['line_total_rmb'] : ( isset( $line['line_total'] ) ? (float) $line['line_total'] : ( $qty * $cost_rmb ) );
+
+            $html .= '<tr>';
+            $html .= '<td style="border:1px solid #ccc;">' . esc_html( $sku ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc;">' . esc_html( $name ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $qty, 2 ) ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $cost_rmb, 2 ) ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $line_total, 2 ) ) . '</td>';
+            $html .= '</tr>';
+        }
+
+        $html .= '</table>';
+
+        $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border:1px solid #ccc; margin-bottom:12px;">';
+        $html .= '<tr><td style="width:50%;"><strong>' . esc_html__( 'Base total', 'sop' ) . '</strong></td><td style="text-align:right;">' . esc_html( number_format( $base_total, 2 ) ) . ' ' . esc_html( $currency_label ) . '</td></tr>';
+        if ( ! empty( $extras_rows ) ) {
+            foreach ( $extras_rows as $extra_row ) {
+                $html .= '<tr><td>' . esc_html( $extra_row['label'] ) . '</td><td style="text-align:right;">' . esc_html( number_format( $extra_row['amount'], 2 ) ) . ' ' . esc_html( $currency_label ) . '</td></tr>';
+            }
+        }
+        $html .= '<tr><td><strong>' . esc_html__( 'Total', 'sop' ) . '</strong></td><td style="text-align:right;"><strong>' . esc_html( number_format( $total_with_extras, 2 ) ) . ' ' . esc_html( $currency_label ) . '</strong></td></tr>';
+        $html .= '</table>';
+
+        $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border:1px solid #ccc;">';
+        $html .= '<tr><td style="width:50%;">' . esc_html( $deposit_display ) . '</td><td>' . esc_html( $balance_display ) . '</td></tr>';
+        $html .= '</table>';
+
+        $html .= '</body></html>';
 
         return $html;
     }

@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.27
- * - Round PO FX to 3dp before storing/using and persist balance FX lock; store full payload.
+ * File version: 11.28
+ * - Add PO XLS export handler (order sheet export unchanged).
  * - Clear balance FX/ USD when deposit FX is not locked.
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
  * - 11.17 - Ensure Purchase Order modal fields are explicitly persisted on save (insert/update).
@@ -811,6 +811,61 @@ function sop_handle_export_preorder_sheet_csv() {
     exit;
 }
 
+add_action( 'admin_post_sop_export_purchase_order_xls', 'sop_handle_export_purchase_order_xls' );
+function sop_handle_export_purchase_order_xls() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You are not allowed to export purchase orders.', 'sop' ) );
+    }
+
+    $nonce = isset( $_REQUEST['_wpnonce'] ) ? wp_unslash( $_REQUEST['_wpnonce'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    if ( ! wp_verify_nonce( $nonce, 'sop_export_purchase_order_xls' ) ) {
+        wp_die( esc_html__( 'Invalid PO export request.', 'sop' ) );
+    }
+
+    $sheet_id = isset( $_REQUEST['sop_sheet_id'] ) ? (int) $_REQUEST['sop_sheet_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    if ( $sheet_id <= 0 ) {
+        wp_die( esc_html__( 'Purchase Order not found for export.', 'sop' ) );
+    }
+
+    $dataset = sop_preorder_build_export_dataset( $sheet_id );
+    if ( is_wp_error( $dataset ) ) {
+        wp_die( esc_html( $dataset->get_error_message() ) );
+    }
+
+    list( $sheet_header, $line_rows ) = $dataset;
+
+    $supplier_slug = '';
+    if ( function_exists( 'sop_get_supplier_label' ) && ! empty( $sheet_header['supplier_id'] ) ) {
+        $supplier_label = sop_get_supplier_label( (int) $sheet_header['supplier_id'] );
+        $supplier_slug  = sanitize_title( $supplier_label );
+    } elseif ( ! empty( $sheet_header['supplier_name'] ) ) {
+        $supplier_slug = sanitize_title( $sheet_header['supplier_name'] );
+    } elseif ( ! empty( $sheet_header['supplier_id'] ) ) {
+        $supplier_slug = 'supplier-' . (int) $sheet_header['supplier_id'];
+    } else {
+        $supplier_slug = 'supplier';
+    }
+
+    $filename = sanitize_file_name( sprintf( 'purchase-order-%s-%d.xls', $supplier_slug, (int) $sheet_id ) );
+
+    $html = class_exists( 'SOP_Preorder_Excel_Exporter' )
+        ? SOP_Preorder_Excel_Exporter::build_purchase_order_html( $sheet_header, $line_rows )
+        : new WP_Error( 'sop_export_no_exporter', __( 'PO Excel exporter is not available.', 'sop' ) );
+
+    if ( is_wp_error( $html ) ) {
+        wp_die( esc_html( $html->get_error_message() ) );
+    }
+
+    nocache_headers();
+    header( 'Content-Type: application/vnd.ms-excel; charset=utf-8' );
+    header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+    header( 'Pragma: no-cache' );
+    header( 'Expires: 0' );
+
+    echo $html;
+    exit;
+}
+
 /**
  * Build export dataset (header + lines).
  *
@@ -859,6 +914,8 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
         'order_number_label'=> isset( $sheet['order_number_label'] ) ? $sheet['order_number_label'] : '',
         'edit_version'      => isset( $sheet['edit_version'] ) ? (int) $sheet['edit_version'] : 1,
         'order_date_owner'  => isset( $sheet['order_date_owner'] ) ? $sheet['order_date_owner'] : '',
+        'header_notes_owner'=> isset( $sheet['header_notes_owner'] ) ? $sheet['header_notes_owner'] : '',
+        'header_payment_terms_owner' => isset( $sheet['header_payment_terms_owner'] ) ? $sheet['header_payment_terms_owner'] : '',
     );
 
     $line_rows = array();

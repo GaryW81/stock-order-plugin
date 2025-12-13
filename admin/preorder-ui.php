@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.43 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.44 *
+ * - V12.44 - Add PO XLS download button (order sheet export unchanged).
  * - V12.43 - Fix PO modal handling-day counting (order date is day 0; handling starts next day).
  * - V12.42 - Lead time supports days/weeks; PO dates use supplier lead weeks.
  * - V12.41 - Fix: PO modal dates recalc for non-RMB suppliers.
@@ -989,6 +990,11 @@ function sop_preorder_render_admin_page() {
                                         <input type="hidden" name="supplier_id" value="<?php echo esc_attr( $current_supplier_id ); ?>" />
                     <?php wp_nonce_field( 'sop_export_preorder_sheet_csv' ); ?>
                 </form>
+                <form id="sop-preorder-export-po-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:none;">
+                    <input type="hidden" name="action" value="sop_export_purchase_order_xls" />
+                    <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+                    <?php wp_nonce_field( 'sop_export_purchase_order_xls' ); ?>
+                </form>
             <?php endif; ?>
 
             <div class="sop-preorder-card sop-preorder-card--top">
@@ -1030,6 +1036,11 @@ function sop_preorder_render_admin_page() {
                                         class="button"
                                         form="sop-preorder-export-form">
                                     <?php esc_html_e( 'Export Excel (.xls)', 'sop' ); ?>
+                                </button>
+                                <button type="submit"
+                                        class="button"
+                                        form="sop-preorder-export-po-form">
+                                    <?php esc_html_e( 'Download PO (XLS)', 'sop' ); ?>
                                 </button>
                                 <button type="button" class="button sop-rates-dates-toggle">
                                     <?php esc_html_e( 'Purchase Order', 'sop' ); ?>
