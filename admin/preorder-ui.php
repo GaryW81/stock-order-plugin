@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.39 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.40 *
+ * - V12.40 - PO modal edits mark unsaved changes via delegated handlers.
  * - V12.39 - Fix JS error preventing PO modal open (restore toggleBalanceFxAvailability).
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
@@ -2856,6 +2857,10 @@ function sop_preorder_render_admin_page() {
             var sopPreorderIsSubmittingSheet = false;
             var $saveUpdateButtons   = $( '#sop-update-sheet-top, #sop-update-sheet-bottom, .sop-preorder-save-sheet, .sop-preorder-update-sheet' );
 
+            function sopMarkUnsavedChanges() {
+                hasUnsavedChanges = true;
+            }
+
             function sopPreorderApplyColumnVisibility() {
                 $columnCheckboxes.each(function() {
                     var columnKey = $(this).data('column');
@@ -2869,12 +2874,30 @@ function sop_preorder_render_admin_page() {
 
             // Any text/number input or textarea inside the table is considered an edit.
             $table.on('change input', 'input[type="text"], input[type="number"], textarea', function() {
-                hasUnsavedChanges = true;
+                sopMarkUnsavedChanges();
             });
 
             $(document).on('change input', '.sop-preorder-notes-overlay textarea', function() {
-                hasUnsavedChanges = true;
+                sopMarkUnsavedChanges();
             });
+
+            // PO modal: mark unsaved on user edits inside overlay via delegated listeners.
+            $( document ).on( 'input change', '#sop-rates-dates-overlay input, #sop-rates-dates-overlay select, #sop-rates-dates-overlay textarea', function( e ) {
+                if ( ! e || ! e.originalEvent ) {
+                    return;
+                }
+
+                var $el = $( this );
+                if ( $el.is( ':disabled' ) || $el.prop( 'readonly' ) ) {
+                    return;
+                }
+
+                sopMarkUnsavedChanges();
+            } );
+
+            $( document ).on( 'click', '#sop-rates-dates-overlay .sop-po-add-extra, #sop-rates-dates-overlay .sop-po-extra-remove', function() {
+                sopMarkUnsavedChanges();
+            } );
 
             // Removing or restoring rows also creates unsaved changes.
             $( document ).on( 'click', '#sop-preorder-remove-selected', function() {
