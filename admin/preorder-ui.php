@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.42 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.43 *
+ * - V12.43 - Fix PO modal handling-day counting (order date is day 0; handling starts next day).
  * - V12.42 - Lead time supports days/weeks; PO dates use supplier lead weeks.
  * - V12.41 - Fix: PO modal dates recalc for non-RMB suppliers.
  * - V12.40 - PO modal edits mark unsaved changes via delegated handlers.
@@ -4242,13 +4243,11 @@ function sop_preorder_render_admin_page() {
                     }
 
                     while ( worked < handlingDays && guard < maxDays ) {
+                        current.setDate( current.getDate() + 1 );
                         if ( ! sopIsHolidayDay( current, holidayPeriodsMd ) ) {
                             worked++;
                         }
-                        if ( worked < handlingDays ) {
-                            current.setDate( current.getDate() + 1 );
-                            guard++;
-                        }
+                        guard++;
                     }
 
                     return current;
