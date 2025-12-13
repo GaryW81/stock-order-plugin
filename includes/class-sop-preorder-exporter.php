@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.12
+ * File version: 1.1.13
+ * - PO XLS matches modal summary (no SKU table, full-width 5-column layout).
  * - PO-only export uses full-width 5-column layout (order sheet export unchanged).
  * - Add PO-only HTML export (order sheet export unchanged).
  * - Use Balance FX or supplier-effective FX for USD values in export.
@@ -271,46 +272,46 @@ class SOP_Preorder_Excel_Exporter {
 
         $total_with_extras = $base_total + $extras_total;
 
-        $deposit_display = '';
-        $balance_display = '';
-        if ( 'RMB' === $supplier_currency ) {
-            $deposit_usd   = isset( $po_payload['deposit_usd'] ) ? (float) $po_payload['deposit_usd'] : 0.0;
-            $deposit_fx    = isset( $po_payload['deposit_fx_rate'] ) ? (float) $po_payload['deposit_fx_rate'] : 0.0;
-            $deposit_rmb   = isset( $po_payload['deposit_rmb'] ) ? (float) $po_payload['deposit_rmb'] : 0.0;
-            if ( $deposit_rmb <= 0 && $deposit_usd > 0 && $deposit_fx > 0 ) {
-                $deposit_rmb = $deposit_usd * $deposit_fx;
+        // Summary counts for PO values block.
+        $sku_keys  = array();
+        $pcs_total = 0.0;
+        foreach ( $line_rows as $line ) {
+            $qty = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : ( isset( $line['qty'] ) ? (float) $line['qty'] : 0 );
+            if ( $qty <= 0 ) {
+                continue;
             }
-            $balance_rmb = isset( $po_payload['balance_rmb'] ) ? (float) $po_payload['balance_rmb'] : ( $total_with_extras - $deposit_rmb );
+            $key = '';
+            if ( isset( $line['product_id'] ) && $line['product_id'] ) {
+                $key = 'p-' . (int) $line['product_id'];
+            } elseif ( isset( $line['sku'] ) ) {
+                $key = 's-' . $line['sku'];
+            }
+            if ( $key ) {
+                $sku_keys[ $key ] = true;
+            }
+            $pcs_total += $qty;
+        }
+        $sku_count = count( $sku_keys );
+
+        // Deposit/Balance figures.
+        $deposit_usd    = isset( $po_payload['deposit_usd'] ) ? (float) $po_payload['deposit_usd'] : 0.0;
+        $deposit_fx     = isset( $po_payload['deposit_fx_rate'] ) ? (float) $po_payload['deposit_fx_rate'] : 0.0;
+        $deposit_rmb    = isset( $po_payload['deposit_rmb'] ) ? (float) $po_payload['deposit_rmb'] : 0.0;
+        $balance_usd    = isset( $po_payload['balance_usd'] ) ? (float) $po_payload['balance_usd'] : 0.0;
+        $balance_fx     = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
+        $balance_rmb    = isset( $po_payload['balance_rmb'] ) ? (float) $po_payload['balance_rmb'] : 0.0;
+
+        if ( $deposit_rmb <= 0 && $deposit_usd > 0 && $deposit_fx > 0 ) {
+            $deposit_rmb = $deposit_usd * $deposit_fx;
+        }
+        if ( $balance_rmb <= 0 ) {
+            $balance_rmb = $total_with_extras - $deposit_rmb;
             if ( $balance_rmb < 0 ) {
                 $balance_rmb = 0.0;
             }
-            $deposit_display = sprintf(
-                /* translators: 1: deposit USD, 2: FX rate RMB per USD, 3: deposit RMB */
-                __( 'Deposit: %1$.2f USD @ %2$.3f = %3$.2f RMB', 'sop' ),
-                $deposit_usd,
-                $deposit_fx,
-                $deposit_rmb
-            );
-            $balance_display = sprintf(
-                __( 'Balance: %1$.2f RMB', 'sop' ),
-                $balance_rmb
-            );
-        } else {
-            $deposit_simple = isset( $po_payload['deposit_usd'] ) ? (float) $po_payload['deposit_usd'] : 0.0;
-            $balance_simple = $total_with_extras - $deposit_simple;
-            if ( $balance_simple < 0 ) {
-                $balance_simple = 0.0;
-            }
-            $deposit_display = sprintf(
-                __( 'Deposit: %1$.2f %2$s', 'sop' ),
-                $deposit_simple,
-                $currency_label
-            );
-            $balance_display = sprintf(
-                __( 'Balance: %1$.2f %2$s', 'sop' ),
-                $balance_simple,
-                $currency_label
-            );
+        }
+        if ( $balance_usd <= 0 && $balance_rmb > 0 && $balance_fx > 0 ) {
+            $balance_usd = $balance_rmb / $balance_fx;
         }
 
         $html  = '<html><head><meta charset="utf-8" /></head><body>';
@@ -389,57 +390,81 @@ class SOP_Preorder_Excel_Exporter {
             $html .= '</tr>';
         }
 
-        // Line items.
+        // Purchase order values summary (modal-style).
+        $summary_label = sprintf(
+            /* translators: 1: PO number, 2: SKU count, 3: total pieces */
+            __( 'Purchase order #%1$s – %2$d SKUs / %3$.0f pcs', 'sop' ),
+            $po_number,
+            (int) $sku_count,
+            $pcs_total
+        );
+
+        $html .= '<tr style="background:#f5f5f5;"><td colspan="5" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Purchase order values', 'sop' ) . '</strong></td></tr>';
         $html .= '<tr style="background:#f0f0f0;">';
-        $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'SKU', 'sop' ) . '</th>';
-        $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Product', 'sop' ) . '</th>';
-        $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Qty', 'sop' ) . '</th>';
-        $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Unit cost', 'sop' ) . ' (' . esc_html( $currency_label ) . ')</th>';
-        $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Line total', 'sop' ) . ' (' . esc_html( $currency_label ) . ')</th>';
+        $html .= '<th colspan="4" style="border:1px solid #ccc; text-align:left;">' . esc_html__( 'Description', 'sop' ) . '</th>';
+        $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Amount', 'sop' ) . ' (' . esc_html( $currency_label ) . ')</th>';
         $html .= '</tr>';
 
-        foreach ( $line_rows as $line ) {
-            $sku        = isset( $line['sku'] ) ? $line['sku'] : '';
-            $name       = isset( $line['product_name'] ) ? $line['product_name'] : '';
-            $qty        = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : ( isset( $line['qty'] ) ? (float) $line['qty'] : 0 );
-            $cost_rmb   = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : ( isset( $line['cost'] ) ? (float) $line['cost'] : 0.0 );
-            $line_total = isset( $line['line_total_rmb'] ) ? (float) $line['line_total_rmb'] : ( isset( $line['line_total'] ) ? (float) $line['line_total'] : ( $qty * $cost_rmb ) );
-
-            $html .= '<tr>';
-            $html .= '<td style="border:1px solid #ccc;">' . esc_html( $sku ) . '</td>';
-            $html .= '<td style="border:1px solid #ccc;">' . esc_html( $name ) . '</td>';
-            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $qty, 2 ) ) . '</td>';
-            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $cost_rmb, 2 ) ) . '</td>';
-            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $line_total, 2 ) ) . '</td>';
-            $html .= '</tr>';
-        }
-
-        // Totals and extras aligned to column E.
         $html .= '<tr>';
-        $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;"><strong>' . esc_html__( 'Base total', 'sop' ) . '</strong></td>';
-        $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $base_total, 2 ) ) . ' ' . esc_html( $currency_label ) . '</td>';
+        $html .= '<td colspan="4" style="border:1px solid #ccc;">' . esc_html( $summary_label ) . '</td>';
+        $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $base_total, 2 ) ) . '</td>';
         $html .= '</tr>';
+
         if ( ! empty( $extras_rows ) ) {
             foreach ( $extras_rows as $extra_row ) {
                 $html .= '<tr>';
-                $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;">' . esc_html( $extra_row['label'] ) . '</td>';
-                $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $extra_row['amount'], 2 ) ) . ' ' . esc_html( $currency_label ) . '</td>';
+                $html .= '<td colspan="4" style="border:1px solid #ccc;">' . esc_html( $extra_row['label'] ) . '</td>';
+                $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $extra_row['amount'], 2 ) ) . '</td>';
                 $html .= '</tr>';
             }
         }
-        $html .= '<tr>';
-        $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;"><strong>' . esc_html__( 'Total', 'sop' ) . '</strong></td>';
-        $html .= '<td style="border:1px solid #ccc; text-align:right;"><strong>' . esc_html( number_format( $total_with_extras, 2 ) ) . ' ' . esc_html( $currency_label ) . '</strong></td>';
-        $html .= '</tr>';
 
         $html .= '<tr>';
-        $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Deposit', 'sop' ) . '</td>';
-        $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( $deposit_display ) . '</td>';
+        $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;"><strong>' . esc_html__( 'Total', 'sop' ) . ' (' . esc_html( $currency_label ) . ')</strong></td>';
+        $html .= '<td style="border:1px solid #ccc; text-align:right;"><strong>' . esc_html( number_format( $total_with_extras, 2 ) ) . '</strong></td>';
         $html .= '</tr>';
-        $html .= '<tr>';
-        $html .= '<td colspan="4" style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Balance', 'sop' ) . '</td>';
-        $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( $balance_display ) . '</td>';
-        $html .= '</tr>';
+
+        // Deposit / Balance block.
+        if ( 'RMB' === $supplier_currency ) {
+            $html .= '<tr style="background:#f5f5f5;"><td colspan="5" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Deposit / Balance', 'sop' ) . '</strong></td></tr>';
+            $html .= '<tr style="background:#f0f0f0;">';
+            $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Deposit (USD)', 'sop' ) . '</th>';
+            $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Deposit FX (RMB/USD)', 'sop' ) . '</th>';
+            $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Deposit (RMB)', 'sop' ) . '</th>';
+            $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Balance FX (RMB/USD)', 'sop' ) . '</th>';
+            $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Balance (RMB)', 'sop' ) . '</th>';
+            $html .= '</tr>';
+            $html .= '<tr>';
+            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $deposit_usd, 2 ) ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( $deposit_fx > 0 ? number_format( $deposit_fx, 3 ) : '' ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $deposit_rmb, 2 ) ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( $balance_fx > 0 ? number_format( $balance_fx, 3 ) : '' ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $balance_rmb, 2 ) ) . '</td>';
+            $html .= '</tr>';
+            $html .= '<tr>';
+            $html .= '<td colspan="5" style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Balance (USD)', 'sop' ) . ': ' . esc_html( $balance_usd > 0 ? number_format( $balance_usd, 2 ) : '' ) . '</td>';
+            $html .= '</tr>';
+        } else {
+            $deposit_simple = $deposit_usd;
+            $balance_simple = $total_with_extras - $deposit_simple;
+            if ( $balance_simple < 0 ) {
+                $balance_simple = 0.0;
+            }
+
+            $html .= '<tr style="background:#f5f5f5;"><td colspan="5" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Deposit / Balance', 'sop' ) . '</strong></td></tr>';
+            $html .= '<tr style="background:#f0f0f0;">';
+            $html .= '<th colspan="4" style="border:1px solid #ccc; text-align:left;">' . esc_html__( 'Deposit', 'sop' ) . ' (' . esc_html( $currency_label ) . ')</th>';
+            $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Amount', 'sop' ) . '</th>';
+            $html .= '</tr>';
+            $html .= '<tr>';
+            $html .= '<td colspan="4" style="border:1px solid #ccc;">' . esc_html__( 'Deposit', 'sop' ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $deposit_simple, 2 ) ) . '</td>';
+            $html .= '</tr>';
+            $html .= '<tr>';
+            $html .= '<td colspan="4" style="border:1px solid #ccc;">' . esc_html__( 'Balance', 'sop' ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $balance_simple, 2 ) ) . '</td>';
+            $html .= '</tr>';
+        }
 
         $html .= '</table>';
         $html .= '</body></html>';
