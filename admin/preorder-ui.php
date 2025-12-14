@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.44 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.45 *
+ * - V12.45 - UI: Download dropdown (Order Sheet / Order Summary); rename Purchase Order button to Order Summary; Update Sheet label casing.
  * - V12.44 - Add PO XLS download button (order sheet export unchanged).
  * - V12.43 - Fix PO modal handling-day counting (order date is day 0; handling starts next day).
  * - V12.42 - Lead time supports days/weeks; PO dates use supplier lead weeks.
@@ -724,7 +725,7 @@ function sop_preorder_render_admin_page() {
     $sop_disabled_attr   = $sop_sheet_is_locked ? ' disabled="disabled"' : '';
     $po_disabled_attr    = $sop_sheet_is_locked ? ' disabled="disabled"' : '';
     $is_existing_sheet   = ( $current_sheet_id > 0 );
-    $save_button_label   = $is_existing_sheet ? esc_html__( 'Update sheet', 'sop' ) : esc_html__( 'Save sheet', 'sop' );
+    $save_button_label   = $is_existing_sheet ? esc_html__( 'Update Sheet', 'sop' ) : esc_html__( 'Save sheet', 'sop' );
 
     // Purchase Order (Saved Sheet) values.
     $po_order_date   = '';
@@ -1032,18 +1033,19 @@ function sop_preorder_render_admin_page() {
                         </div>
                         <div class="sop-preorder-top-right">
                             <?php if ( $current_sheet_id > 0 ) : ?>
-                                <button type="submit"
-                                        class="button"
-                                        form="sop-preorder-export-form">
-                                    <?php esc_html_e( 'Export Excel (.xls)', 'sop' ); ?>
-                                </button>
-                                <button type="submit"
-                                        class="button"
-                                        form="sop-preorder-export-po-form">
-                                    <?php esc_html_e( 'Download PO (XLS)', 'sop' ); ?>
-                                </button>
+                                <details class="sop-download-dropdown">
+                                    <summary class="button"><?php echo esc_html__( 'Download', 'sop' ) . ' &#9662;'; ?></summary>
+                                    <div class="sop-download-menu">
+                                        <button type="submit" form="sop-preorder-export-form">
+                                            <?php esc_html_e( 'Order Sheet', 'sop' ); ?>
+                                        </button>
+                                        <button type="submit" form="sop-preorder-export-po-form">
+                                            <?php esc_html_e( 'Order Summary', 'sop' ); ?>
+                                        </button>
+                                    </div>
+                                </details>
                                 <button type="button" class="button sop-rates-dates-toggle">
-                                    <?php esc_html_e( 'Purchase Order', 'sop' ); ?>
+                                    <?php esc_html_e( 'Order Summary', 'sop' ); ?>
                                 </button>
                             <?php endif; ?>
 
@@ -2016,6 +2018,43 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-top-right {
             margin-left: auto;
             gap: 12px;
+        }
+
+        .sop-download-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .sop-download-dropdown summary {
+            list-style: none;
+            cursor: pointer;
+        }
+        .sop-download-dropdown summary::-webkit-details-marker {
+            display: none;
+        }
+        .sop-download-dropdown summary:focus {
+            outline: none;
+        }
+        .sop-download-dropdown .sop-download-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: #fff;
+            border: 1px solid #c3c4c7;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            min-width: 220px;
+            padding: 6px 0;
+            z-index: 50;
+        }
+        .sop-download-dropdown .sop-download-menu button {
+            width: 100%;
+            text-align: left;
+            padding: 6px 12px;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        .sop-download-dropdown .sop-download-menu button:hover {
+            background: #f0f0f1;
         }
 
         .sop-preorder-middle-top,

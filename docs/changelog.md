@@ -2,6 +2,9 @@
 
 Versioning: VMAJOR.MINOR.PATCH (e.g. V5.7.9). Patch runs 0–9; after .9 the next release bumps the minor (e.g. 5.8.0), not 5.7.10.
 
+## V5.8.9 - 2025-12-12 (Europe/London)
+- Pre-order sheet toolbar now uses a Download dropdown (Order Sheet / Order Summary); Order Summary button label and Update Sheet casing aligned.
+
 ## V5.8.8 - 2025-12-12 (Europe/London)
 - PO XLS export now mirrors the PO modal summary (purchase order values + extras + deposit/balance, no SKU line table); order-sheet XLS export with images remains unchanged.
 
