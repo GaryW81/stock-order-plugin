@@ -14,6 +14,9 @@ Versioning: VMAJOR.MINOR.PATCH (e.g. V5.7.9). Patch runs 0–9; after .9 the nex
 ## V5.9.6 - 2025-12-12 (Europe/London)
 - Order Summary (XLS): non-RMB deposit/balance labels simplified and currency-labelled; A/B widths retained.
 
+## V5.9.7 - 2025-12-12 (Europe/London)
+- Order Summary (XLS): non-RMB Deposit/Balance header now merged, grey, and bold (no amount on header row).
+
 ## V5.9.1 - 2025-12-12 (Europe/London)
 - Download dropdown items are stacked and sized to content; Order Summary (XLS) deposits/balances now use separate rows like the modal.
 

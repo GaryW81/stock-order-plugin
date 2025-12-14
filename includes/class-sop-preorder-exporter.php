@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.20
- * - Order Summary XLS: tidy non-RMB deposit/balance labels and keep A/B at 180px.
+ * File version: 1.1.21
+ * - Order Summary XLS: non-RMB deposit/balance header merged/grey/bold; A/B remain 180px.
  * - Layout polish: set Order Summary XLS column A/B to 180px.
  * - Layout polish: adjust C/D widths; rename Payment terms → Terms.
  * - PO XLS layout polish: updated column widths/alignment and deposit header height to match modal.
@@ -461,9 +461,8 @@ class SOP_Preorder_Excel_Exporter {
                 $balance_simple = 0.0;
             }
 
-            $html .= '<tr>';
-            $html .= '<td colspan="4" style="border:1px solid #ccc;">' . esc_html__( 'Deposit / Balance', 'sop' ) . '</td>';
-            $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $deposit_simple, 2 ) ) . '</td>';
+            $html .= '<tr style="background:#f5f5f5;">';
+            $html .= '<td colspan="5" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Deposit / Balance', 'sop' ) . '</strong></td>';
             $html .= '</tr>';
             $html .= '<tr>';
             $html .= '<td colspan="4" style="border:1px solid #ccc;">' . esc_html__( 'Deposit', 'sop' ) . ' (' . esc_html( $currency_label ) . ')</td>';
