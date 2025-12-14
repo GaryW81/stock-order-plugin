@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.2 - Order Summary XLS deposit/balance table layout; dropdown labels unchanged.
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.2 - Order Summary XLS column widths; deposit/balance table layout.
  * Version: 5.9.2
  * Author: Wilson Organisation Ltd
  */

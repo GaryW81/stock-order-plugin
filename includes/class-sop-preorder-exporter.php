@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.15
+ * File version: 1.1.16
+ * - PO XLS: adjust column widths for summary export (B≈241px, C≈148px); deposit/balance table matches modal.
  * - PO XLS deposit/balance table matches modal (compact 2-row layout).
  * - PO XLS layout tweaks: shipping address, merged columns, payment terms moved to bottom.
  * - PO XLS matches modal summary (no SKU table, full-width 5-column layout).
@@ -320,8 +321,8 @@ class SOP_Preorder_Excel_Exporter {
         $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; border:1px solid #ccc; margin-bottom:12px;">';
         $html .= '<colgroup>';
         $html .= '<col style="width:140px;" />';
-        $html .= '<col style="width:360px;" />';
-        $html .= '<col style="width:70px;" />';
+        $html .= '<col style="width:241px;" />';
+        $html .= '<col style="width:148px;" />';
         $html .= '<col style="width:130px;" />';
         $html .= '<col style="width:130px;" />';
         $html .= '</colgroup>';
