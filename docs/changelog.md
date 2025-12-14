@@ -8,6 +8,9 @@ Versioning: VMAJOR.MINOR.PATCH (e.g. V5.7.9). Patch runs 0–9; after .9 the nex
 ## V5.9.4 - 2025-12-12 (Europe/London)
 - Order Summary (XLS): refined column C/D widths and renamed Payment terms to Terms.
 
+## V5.9.5 - 2025-12-12 (Europe/London)
+- Order Summary (XLS): set columns A/B to 180px.
+
 ## V5.9.1 - 2025-12-12 (Europe/London)
 - Download dropdown items are stacked and sized to content; Order Summary (XLS) deposits/balances now use separate rows like the modal.
 

@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.18
+ * File version: 1.1.19
+ * - Layout polish: set Order Summary XLS column A/B to 180px.
  * - Layout polish: adjust C/D widths; rename Payment terms → Terms.
  * - PO XLS layout polish: updated column widths/alignment and deposit header height to match modal.
  * - PO XLS: adjust column widths for summary export (B≈241px, C≈148px); deposit/balance table matches modal.
@@ -321,8 +322,8 @@ class SOP_Preorder_Excel_Exporter {
         $html  = '<html><head><meta charset="utf-8" /></head><body>';
         $html .= '<table cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; border:1px solid #ccc; margin-bottom:12px;">';
         $html .= '<colgroup>';
-        $html .= '<col style="width:140px;" />';
-        $html .= '<col style="width:241px;" />';
+        $html .= '<col style="width:180px;" />';
+        $html .= '<col style="width:180px;" />';
         $html .= '<col style="width:168px;" />';
         $html .= '<col style="width:130px;" />';
         $html .= '<col style="width:130px;" />';
