@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.5 - Order Summary XLS column A/B width adjustment.
- * Version: 5.9.5
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.6 - Order Summary XLS non-RMB deposit/balance labels and A/B widths.
+ * Version: 5.9.6
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.5' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.6' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
