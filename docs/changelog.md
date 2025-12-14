@@ -2,8 +2,8 @@
 
 Versioning: VMAJOR.MINOR.PATCH (e.g. V5.7.9). Patch runs 0–9; after .9 the next release bumps the minor (e.g. 5.8.0), not 5.7.10.
 
-## V5.9.2 - 2025-12-12 (Europe/London)
-- Order Summary (XLS) column widths adjusted (B≈26, C≈15.67) and deposit/balance section matches modal-style compact table layout.
+## V5.9.3 - 2025-12-12 (Europe/London)
+- Order Summary (XLS): adjusted C/D widths, left-align date values, centered FX cells, and set deposit/balance header row height.
 
 ## V5.9.1 - 2025-12-12 (Europe/London)
 - Download dropdown items are stacked and sized to content; Order Summary (XLS) deposits/balances now use separate rows like the modal.
