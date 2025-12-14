@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.45 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.46 *
+ * - V12.46 - UI polish: Download dropdown labels/width; Order Summary label; Update Sheet casing.
  * - V12.45 - UI: Download dropdown (Order Sheet / Order Summary); rename Purchase Order button to Order Summary; Update Sheet label casing.
  * - V12.44 - Add PO XLS download button (order sheet export unchanged).
  * - V12.43 - Fix PO modal handling-day counting (order date is day 0; handling starts next day).
@@ -1037,10 +1038,10 @@ function sop_preorder_render_admin_page() {
                                     <summary class="button"><?php echo esc_html__( 'Download', 'sop' ) . ' &#9662;'; ?></summary>
                                     <div class="sop-download-menu">
                                         <button type="submit" form="sop-preorder-export-form">
-                                            <?php esc_html_e( 'Order Sheet', 'sop' ); ?>
+                                            <?php esc_html_e( 'Order Sheet (XLS)', 'sop' ); ?>
                                         </button>
                                         <button type="submit" form="sop-preorder-export-po-form">
-                                            <?php esc_html_e( 'Order Summary', 'sop' ); ?>
+                                            <?php esc_html_e( 'Order Summary (XLS)', 'sop' ); ?>
                                         </button>
                                     </div>
                                 </details>
@@ -2041,12 +2042,14 @@ function sop_preorder_render_admin_page() {
             background: #fff;
             border: 1px solid #c3c4c7;
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            min-width: 220px;
+            min-width: 0;
+            width: auto;
             padding: 6px 0;
             z-index: 50;
+            white-space: nowrap;
         }
         .sop-download-dropdown .sop-download-menu button {
-            width: 100%;
+            width: auto;
             text-align: left;
             padding: 6px 12px;
             border: 0;

@@ -2,6 +2,9 @@
 
 Versioning: VMAJOR.MINOR.PATCH (e.g. V5.7.9). Patch runs 0–9; after .9 the next release bumps the minor (e.g. 5.8.0), not 5.7.10.
 
+## V5.9.0 - 2025-12-12 (Europe/London)
+- Download dropdown labels now include “(XLS)” with tighter sizing; Order Summary XLS adds buyer shipping address, merges spacing, left-aligns PO detail values, and moves payment terms to the bottom (order-sheet XLS export unchanged).
+
 ## V5.8.9 - 2025-12-12 (Europe/London)
 - Pre-order sheet toolbar now uses a Download dropdown (Order Sheet / Order Summary); Order Summary button label and Update Sheet casing aligned.
 

@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.13
+ * File version: 1.1.14
+ * - PO XLS layout tweaks: shipping address, merged columns, payment terms moved to bottom.
  * - PO XLS matches modal summary (no SKU table, full-width 5-column layout).
  * - PO-only export uses full-width 5-column layout (order sheet export unchanged).
  * - Add PO-only HTML export (order sheet export unchanged).
@@ -329,8 +330,7 @@ class SOP_Preorder_Excel_Exporter {
         // Buyer / Seller headers.
         $html .= '<tr style="background:#f5f5f5;">';
         $html .= '<td colspan="2" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Buyer', 'sop' ) . '</strong></td>';
-        $html .= '<td style="border:1px solid #ccc;">&nbsp;</td>';
-        $html .= '<td colspan="2" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Seller', 'sop' ) . '</strong></td>';
+        $html .= '<td colspan="3" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Seller', 'sop' ) . '</strong></td>';
         $html .= '</tr>';
 
         $buyer_lines  = array(
@@ -348,14 +348,24 @@ class SOP_Preorder_Excel_Exporter {
             $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : '',
         );
 
-        $max_lines = max( count( $buyer_lines ), count( $seller_lines ) );
+        $shipping_lines = array();
+        if ( isset( $buyer_profile['shipping_address'] ) && $buyer_profile['shipping_address'] ) {
+            $shipping_lines[] = __( 'Shipping address:', 'sop' );
+            $shipping_lines[] = $buyer_profile['shipping_address'];
+        } elseif ( isset( $buyer_profile['billing_address'] ) && $buyer_profile['billing_address'] ) {
+            $shipping_lines[] = __( 'Shipping address:', 'sop' );
+            $shipping_lines[] = $buyer_profile['billing_address'];
+        }
+
+        $buyer_full_lines = array_merge( $buyer_lines, $shipping_lines );
+
+        $max_lines = max( count( $buyer_full_lines ), count( $seller_lines ) );
         for ( $i = 0; $i < $max_lines; $i++ ) {
-            $buyer_line  = isset( $buyer_lines[ $i ] ) && '' !== $buyer_lines[ $i ] ? $buyer_lines[ $i ] : '&nbsp;';
+            $buyer_line  = isset( $buyer_full_lines[ $i ] ) && '' !== $buyer_full_lines[ $i ] ? $buyer_full_lines[ $i ] : '&nbsp;';
             $seller_line = isset( $seller_lines[ $i ] ) && '' !== $seller_lines[ $i ] ? $seller_lines[ $i ] : '&nbsp;';
             $html       .= '<tr>';
             $html       .= '<td colspan="2" style="border:1px solid #ccc; vertical-align:top;">' . nl2br( esc_html( $buyer_line ) ) . '</td>';
-            $html       .= '<td style="border:1px solid #ccc;">&nbsp;</td>';
-            $html       .= '<td colspan="2" style="border:1px solid #ccc; vertical-align:top;">' . nl2br( esc_html( $seller_line ) ) . '</td>';
+            $html       .= '<td colspan="3" style="border:1px solid #ccc; vertical-align:top;">' . nl2br( esc_html( $seller_line ) ) . '</td>';
             $html       .= '</tr>';
         }
 
@@ -369,26 +379,17 @@ class SOP_Preorder_Excel_Exporter {
 
         $html .= '<tr style="background:#f5f5f5;"><td colspan="5" style="border:1px solid #ccc;"><strong>' . esc_html__( 'PO Details', 'sop' ) . '</strong></td></tr>';
         $html .= '<tr>';
-        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'PO #', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $po_number ) . '</td>';
-        $html .= '<td style="border:1px solid #ccc;">&nbsp;</td>';
-        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Order date', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_order ) . '</td>';
+        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'PO #', 'sop' ) . '</strong></td><td style="border:1px solid #ccc; text-align:left;">' . esc_html( $po_number ) . '</td>';
+        $html .= '<td colspan="2" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Order date', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_order ) . '</td>';
         $html .= '</tr>';
         $html .= '<tr>';
-        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Holiday start', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_hol_from ) . '</td>';
-        $html .= '<td style="border:1px solid #ccc;">&nbsp;</td>';
-        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Holiday end', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_hol_to ) . '</td>';
+        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Holiday start', 'sop' ) . '</strong></td><td style="border:1px solid #ccc; text-align:left;">' . esc_html( $safe_hol_from ) . '</td>';
+        $html .= '<td colspan="2" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Holiday end', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_hol_to ) . '</td>';
         $html .= '</tr>';
         $html .= '<tr>';
-        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Load date', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_load ) . '</td>';
-        $html .= '<td style="border:1px solid #ccc;">&nbsp;</td>';
-        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'ETA / Delivery', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_eta ) . '</td>';
+        $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Load date', 'sop' ) . '</strong></td><td style="border:1px solid #ccc; text-align:left;">' . esc_html( $safe_load ) . '</td>';
+        $html .= '<td colspan="2" style="border:1px solid #ccc;"><strong>' . esc_html__( 'ETA / Delivery', 'sop' ) . '</strong></td><td style="border:1px solid #ccc;">' . esc_html( $safe_eta ) . '</td>';
         $html .= '</tr>';
-        if ( $payment_terms ) {
-            $html .= '<tr>';
-            $html .= '<td style="border:1px solid #ccc;"><strong>' . esc_html__( 'Payment terms', 'sop' ) . '</strong></td>';
-            $html .= '<td colspan="4" style="border:1px solid #ccc;">' . nl2br( esc_html( $payment_terms ) ) . '</td>';
-            $html .= '</tr>';
-        }
 
         // Purchase order values summary (modal-style).
         $summary_label = sprintf(
@@ -464,6 +465,11 @@ class SOP_Preorder_Excel_Exporter {
             $html .= '<td colspan="4" style="border:1px solid #ccc;">' . esc_html__( 'Balance', 'sop' ) . '</td>';
             $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $balance_simple, 2 ) ) . '</td>';
             $html .= '</tr>';
+        }
+
+        if ( $payment_terms ) {
+            $html .= '<tr style="background:#f5f5f5;"><td colspan="5" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Payment terms', 'sop' ) . '</strong></td></tr>';
+            $html .= '<tr><td colspan="5" style="border:1px solid #ccc;">' . nl2br( esc_html( $payment_terms ) ) . '</td></tr>';
         }
 
         $html .= '</table>';
