@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.14
+ * File version: 1.1.15
+ * - PO XLS deposit/balance table matches modal (compact 2-row layout).
  * - PO XLS layout tweaks: shipping address, merged columns, payment terms moved to bottom.
  * - PO XLS matches modal summary (no SKU table, full-width 5-column layout).
  * - PO-only export uses full-width 5-column layout (order sheet export unchanged).
@@ -429,23 +430,23 @@ class SOP_Preorder_Excel_Exporter {
         if ( 'RMB' === $supplier_currency ) {
             $html .= '<tr style="background:#f5f5f5;"><td colspan="5" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Deposit / Balance', 'sop' ) . '</strong></td></tr>';
             $html .= '<tr style="background:#f0f0f0;">';
-            $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Deposit (USD)', 'sop' ) . '</th>';
-            $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Value', 'sop' ) . '</th>';
+            $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Payment', 'sop' ) . '</th>';
+            $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Value', 'sop' ) . '</th>';
             $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Deposit FX (RMB/USD)', 'sop' ) . '</th>';
-            $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Value', 'sop' ) . '</th>';
-            $html .= '<th style="border:1px solid #ccc;">' . esc_html__( 'Deposit (RMB)', 'sop' ) . '</th>';
+            $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Value', 'sop' ) . '</th>';
+            $html .= '<th style="border:1px solid #ccc; text-align:right;">' . esc_html__( 'Deposit (RMB)', 'sop' ) . '</th>';
             $html .= '</tr>';
             $html .= '<tr>';
             $html .= '<td style="border:1px solid #ccc;">' . esc_html__( 'Deposit (USD)', 'sop' ) . '</td>';
             $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $deposit_usd, 2 ) ) . '</td>';
-            $html .= '<td style="border:1px solid #ccc;">' . esc_html__( 'Deposit FX (RMB/USD)', 'sop' ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:left;">' . esc_html( $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), number_format( $deposit_fx, 3 ) ) : '' ) . '</td>';
             $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( $deposit_fx > 0 ? number_format( $deposit_fx, 3 ) : '' ) . '</td>';
             $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $deposit_rmb, 2 ) ) . '</td>';
             $html .= '</tr>';
             $html .= '<tr>';
             $html .= '<td style="border:1px solid #ccc;">' . esc_html__( 'Balance (USD)', 'sop' ) . '</td>';
             $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( $balance_usd > 0 ? number_format( $balance_usd, 2 ) : '' ) . '</td>';
-            $html .= '<td style="border:1px solid #ccc;">' . esc_html__( 'Balance FX (RMB/USD)', 'sop' ) . '</td>';
+            $html .= '<td style="border:1px solid #ccc; text-align:left;">' . esc_html( $balance_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), number_format( $balance_fx, 3 ) ) : '' ) . '</td>';
             $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( $balance_fx > 0 ? number_format( $balance_fx, 3 ) : '' ) . '</td>';
             $html .= '<td style="border:1px solid #ccc; text-align:right;">' . esc_html( number_format( $balance_rmb, 2 ) ) . '</td>';
             $html .= '</tr>';
