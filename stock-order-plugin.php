@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.0 - Download labels tightened; Order Summary XLS layout improved.
- * Version: 5.9.0
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.1 - Download dropdown layout + Order Summary XLS deposit/balance rows.
+ * Version: 5.9.1
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.0' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.1' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {

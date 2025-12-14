@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.46 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.47 *
+ * - V12.47 - Download dropdown stacked/narrow labels; Order Summary naming/casing polish.
  * - V12.46 - UI polish: Download dropdown labels/width; Order Summary label; Update Sheet casing.
  * - V12.45 - UI: Download dropdown (Order Sheet / Order Summary); rename Purchase Order button to Order Summary; Update Sheet label casing.
  * - V12.44 - Add PO XLS download button (order sheet export unchanged).
@@ -2044,11 +2045,13 @@ function sop_preorder_render_admin_page() {
             box-shadow: 0 4px 12px rgba(0,0,0,0.08);
             min-width: 0;
             width: auto;
+            display: inline-block;
             padding: 6px 0;
             z-index: 50;
             white-space: nowrap;
         }
         .sop-download-dropdown .sop-download-menu button {
+            display: block;
             width: auto;
             text-align: left;
             padding: 6px 12px;
