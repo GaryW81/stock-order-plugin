@@ -5,6 +5,9 @@ Versioning: VMAJOR.MINOR.PATCH (e.g. V5.7.9). Patch runs 0–9; after .9 the nex
 ## V5.9.3 - 2025-12-12 (Europe/London)
 - Order Summary (XLS): adjusted C/D widths, left-align date values, centered FX cells, and set deposit/balance header row height.
 
+## V5.9.4 - 2025-12-12 (Europe/London)
+- Order Summary (XLS): refined column C/D widths and renamed Payment terms to Terms.
+
 ## V5.9.1 - 2025-12-12 (Europe/London)
 - Download dropdown items are stacked and sized to content; Order Summary (XLS) deposits/balances now use separate rows like the modal.
 

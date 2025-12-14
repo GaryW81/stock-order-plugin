@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.17
+ * File version: 1.1.18
+ * - Layout polish: adjust C/D widths; rename Payment terms → Terms.
  * - PO XLS layout polish: updated column widths/alignment and deposit header height to match modal.
  * - PO XLS: adjust column widths for summary export (B≈241px, C≈148px); deposit/balance table matches modal.
  * - PO XLS layout tweaks: shipping address, merged columns, payment terms moved to bottom.
@@ -322,8 +323,8 @@ class SOP_Preorder_Excel_Exporter {
         $html .= '<colgroup>';
         $html .= '<col style="width:140px;" />';
         $html .= '<col style="width:241px;" />';
-        $html .= '<col style="width:96px;" />';
-        $html .= '<col style="width:180px;" />';
+        $html .= '<col style="width:168px;" />';
+        $html .= '<col style="width:130px;" />';
         $html .= '<col style="width:130px;" />';
         $html .= '</colgroup>';
 
@@ -474,7 +475,7 @@ class SOP_Preorder_Excel_Exporter {
         }
 
         if ( $payment_terms ) {
-            $html .= '<tr style="background:#f5f5f5;"><td colspan="5" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Payment terms', 'sop' ) . '</strong></td></tr>';
+            $html .= '<tr style="background:#f5f5f5;"><td colspan="5" style="border:1px solid #ccc;"><strong>' . esc_html__( 'Terms', 'sop' ) . '</strong></td></tr>';
             $html .= '<tr><td colspan="5" style="border:1px solid #ccc;">' . nl2br( esc_html( $payment_terms ) ) . '</td></tr>';
         }
 

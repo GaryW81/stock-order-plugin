@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.3 - Order Summary XLS layout polish (widths/alignment/header height).
- * Version: 5.9.3
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.4 - Order Summary XLS column width tweak + Terms header rename.
+ * Version: 5.9.4
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.3' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.4' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
