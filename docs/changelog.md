@@ -20,6 +20,9 @@ Versioning: VMAJOR.MINOR.PATCH (e.g. V5.7.9). Patch runs 0–9; after .9 the nex
 ## V5.9.8 - 2025-12-12 (Europe/London)
 - Order Summary (XLS): currency amounts now always output with 2 decimal places.
 
+## V5.9.9 - 2025-12-12 (Europe/London)
+- Pre-Order sheet save uses JSON lines payload to avoid max_input_vars truncation; Order Summary (XLS) amounts forced to 2dp.
+
 ## V5.9.1 - 2025-12-12 (Europe/London)
 - Download dropdown items are stacked and sized to content; Order Summary (XLS) deposits/balances now use separate rows like the modal.
 

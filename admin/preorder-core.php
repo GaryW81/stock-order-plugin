@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.28
+ * File version: 11.29
+ * - Accept sop_lines_json payload to avoid max_input_vars truncation on large sheets.
  * - Add PO XLS export handler (order sheet export unchanged).
  * - Clear balance FX/ USD when deposit FX is not locked.
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
@@ -596,60 +597,118 @@ function sop_handle_save_preorder_sheet() {
         $header_data['title'] = sanitize_text_field( wp_unslash( $_POST['sop_supplier_name'] ) );
     }
 
-    // Collect line arrays.
-    $product_ids   = isset( $_POST['sop_line_product_id'] ) ? (array) $_POST['sop_line_product_id'] : array();
-    $skus          = isset( $_POST['sop_line_sku'] ) ? (array) $_POST['sop_line_sku'] : array();
-    $qtys          = isset( $_POST['sop_line_qty'] ) ? (array) $_POST['sop_line_qty'] : array();
-    $moqs          = isset( $_POST['sop_line_moq'] ) ? (array) $_POST['sop_line_moq'] : array();
-    $costs_rmb     = isset( $_POST['sop_line_cost_rmb'] ) ? (array) $_POST['sop_line_cost_rmb'] : array();
-    $product_notes = isset( $_POST['sop_line_product_notes'] ) ? (array) $_POST['sop_line_product_notes'] : array();
-    $order_notes   = isset( $_POST['sop_line_order_notes'] ) ? (array) wp_unslash( $_POST['sop_line_order_notes'] ) : array();
-    $carton_nos    = isset( $_POST['sop_line_carton_no'] ) ? (array) wp_unslash( $_POST['sop_line_carton_no'] ) : array();
-    $image_ids     = isset( $_POST['sop_line_image_id'] ) ? (array) $_POST['sop_line_image_id'] : array();
-    $locations     = isset( $_POST['sop_line_location'] ) ? (array) $_POST['sop_line_location'] : array();
-    $cbm_units     = isset( $_POST['sop_line_cbm_per_unit'] ) ? (array) $_POST['sop_line_cbm_per_unit'] : array();
-    $cbm_totals    = isset( $_POST['sop_line_cbm_total'] ) ? (array) $_POST['sop_line_cbm_total'] : array();
-
     $lines      = array();
     $sort_index = 0;
 
-    foreach ( $product_ids as $key => $product_id_raw ) {
-        $product_id = (int) $product_id_raw;
-        if ( $product_id <= 0 ) {
-            continue;
+    $lines_json_raw = isset( $_POST['sop_lines_json'] ) ? wp_unslash( $_POST['sop_lines_json'] ) : '';
+    $has_lines_json = is_string( $lines_json_raw ) && '' !== trim( $lines_json_raw );
+
+    if ( $has_lines_json ) {
+        $decoded = json_decode( $lines_json_raw, true );
+        if ( ! is_array( $decoded ) || ! isset( $decoded['lines'] ) || ! is_array( $decoded['lines'] ) || empty( $decoded['lines'] ) ) {
+            $redirect = add_query_arg(
+                array(
+                    'page'        => 'sop-preorder-sheet',
+                    'sop_saved'   => '0',
+                    'sop_sheet_id'=> (int) $sheet_id,
+                ),
+                admin_url( 'admin.php' )
+            );
+            wp_safe_redirect( $redirect );
+            exit;
         }
 
-        $sku       = isset( $skus[ $key ] ) ? sanitize_text_field( wp_unslash( $skus[ $key ] ) ) : '';
-        $qty       = isset( $qtys[ $key ] ) ? floatval( wp_unslash( $qtys[ $key ] ) ) : 0;
-        $moq       = isset( $moqs[ $key ] ) ? floatval( wp_unslash( $moqs[ $key ] ) ) : 0;
-        $cost_rmb  = isset( $costs_rmb[ $key ] ) ? floatval( wp_unslash( $costs_rmb[ $key ] ) ) : 0;
-        $p_notes   = isset( $product_notes[ $key ] ) ? wp_kses_post( wp_unslash( $product_notes[ $key ] ) ) : '';
-        $o_notes   = isset( $order_notes[ $key ] ) ? sanitize_textarea_field( $order_notes[ $key ] ) : '';
-        $carton_no = isset( $carton_nos[ $key ] ) ? sanitize_text_field( $carton_nos[ $key ] ) : '';
-        if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
-            $carton_norm = sop_normalize_carton_numbers_for_display( $carton_no );
-            $carton_no   = isset( $carton_norm['value'] ) ? $carton_norm['value'] : $carton_no;
-        }
-        $image_id  = isset( $image_ids[ $key ] ) ? (int) $image_ids[ $key ] : 0;
-        $location  = isset( $locations[ $key ] ) ? sanitize_text_field( wp_unslash( $locations[ $key ] ) ) : '';
-        $cbm_unit  = isset( $cbm_units[ $key ] ) ? floatval( wp_unslash( $cbm_units[ $key ] ) ) : 0;
-        $cbm_total = isset( $cbm_totals[ $key ] ) ? floatval( wp_unslash( $cbm_totals[ $key ] ) ) : 0;
+        foreach ( $decoded['lines'] as $line ) {
+            $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+            if ( $product_id <= 0 ) {
+                continue;
+            }
 
-        $lines[] = array(
-            'product_id'          => $product_id,
-            'sku_owner'           => $sku,
-            'qty_owner'           => $qty,
-            'cost_rmb_owner'      => $cost_rmb,
-            'moq_owner'           => $moq,
-            'product_notes_owner' => $p_notes,
-            'order_notes_owner'   => $o_notes,
-            'carton_no'           => $carton_no,
-            'image_id'            => $image_id,
-            'location'            => $location,
-            'cbm_per_unit'        => $cbm_unit,
-            'cbm_total_owner'     => $cbm_total,
-            'sort_index'          => $sort_index++,
-        );
+            $sku       = isset( $line['sku'] ) ? sanitize_text_field( $line['sku'] ) : '';
+            $qty       = isset( $line['qty'] ) ? floatval( $line['qty'] ) : 0;
+            $moq       = isset( $line['moq'] ) ? floatval( $line['moq'] ) : 0;
+            $cost_rmb  = isset( $line['cost_rmb'] ) ? floatval( $line['cost_rmb'] ) : 0;
+            $p_notes   = isset( $line['product_notes'] ) ? wp_kses_post( $line['product_notes'] ) : '';
+            $o_notes   = isset( $line['order_notes'] ) ? sanitize_textarea_field( $line['order_notes'] ) : '';
+            $carton_no = isset( $line['carton_no'] ) ? sanitize_text_field( $line['carton_no'] ) : '';
+            if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
+                $carton_norm = sop_normalize_carton_numbers_for_display( $carton_no );
+                $carton_no   = isset( $carton_norm['value'] ) ? $carton_norm['value'] : $carton_no;
+            }
+            $image_id  = isset( $line['image_id'] ) ? (int) $line['image_id'] : 0;
+            $location  = isset( $line['location'] ) ? sanitize_text_field( $line['location'] ) : '';
+            $cbm_unit  = isset( $line['cbm_per_unit'] ) ? floatval( $line['cbm_per_unit'] ) : 0;
+            $cbm_total = isset( $line['cbm_total'] ) ? floatval( $line['cbm_total'] ) : 0;
+
+            $lines[] = array(
+                'product_id'          => $product_id,
+                'sku_owner'           => $sku,
+                'qty_owner'           => $qty,
+                'cost_rmb_owner'      => $cost_rmb,
+                'moq_owner'           => $moq,
+                'product_notes_owner' => $p_notes,
+                'order_notes_owner'   => $o_notes,
+                'carton_no'           => $carton_no,
+                'image_id'            => $image_id,
+                'location'            => $location,
+                'cbm_per_unit'        => $cbm_unit,
+                'cbm_total_owner'     => $cbm_total,
+                'sort_index'          => $sort_index++,
+            );
+        }
+    } else {
+        // Collect line arrays (legacy fallback).
+        $product_ids   = isset( $_POST['sop_line_product_id'] ) ? (array) $_POST['sop_line_product_id'] : array();
+        $skus          = isset( $_POST['sop_line_sku'] ) ? (array) $_POST['sop_line_sku'] : array();
+        $qtys          = isset( $_POST['sop_line_qty'] ) ? (array) $_POST['sop_line_qty'] : array();
+        $moqs          = isset( $_POST['sop_line_moq'] ) ? (array) $_POST['sop_line_moq'] : array();
+        $costs_rmb     = isset( $_POST['sop_line_cost_rmb'] ) ? (array) $_POST['sop_line_cost_rmb'] : array();
+        $product_notes = isset( $_POST['sop_line_product_notes'] ) ? (array) $_POST['sop_line_product_notes'] : array();
+        $order_notes   = isset( $_POST['sop_line_order_notes'] ) ? (array) wp_unslash( $_POST['sop_line_order_notes'] ) : array();
+        $carton_nos    = isset( $_POST['sop_line_carton_no'] ) ? (array) wp_unslash( $_POST['sop_line_carton_no'] ) : array();
+        $image_ids     = isset( $_POST['sop_line_image_id'] ) ? (array) $_POST['sop_line_image_id'] : array();
+        $locations     = isset( $_POST['sop_line_location'] ) ? (array) $_POST['sop_line_location'] : array();
+        $cbm_units     = isset( $_POST['sop_line_cbm_per_unit'] ) ? (array) $_POST['sop_line_cbm_per_unit'] : array();
+        $cbm_totals    = isset( $_POST['sop_line_cbm_total'] ) ? (array) $_POST['sop_line_cbm_total'] : array();
+
+        foreach ( $product_ids as $key => $product_id_raw ) {
+            $product_id = (int) $product_id_raw;
+            if ( $product_id <= 0 ) {
+                continue;
+            }
+
+            $sku       = isset( $skus[ $key ] ) ? sanitize_text_field( wp_unslash( $skus[ $key ] ) ) : '';
+            $qty       = isset( $qtys[ $key ] ) ? floatval( wp_unslash( $qtys[ $key ] ) ) : 0;
+            $moq       = isset( $moqs[ $key ] ) ? floatval( wp_unslash( $moqs[ $key ] ) ) : 0;
+            $cost_rmb  = isset( $costs_rmb[ $key ] ) ? floatval( wp_unslash( $costs_rmb[ $key ] ) ) : 0;
+            $p_notes   = isset( $product_notes[ $key ] ) ? wp_kses_post( wp_unslash( $product_notes[ $key ] ) ) : '';
+            $o_notes   = isset( $order_notes[ $key ] ) ? sanitize_textarea_field( $order_notes[ $key ] ) : '';
+            $carton_no = isset( $carton_nos[ $key ] ) ? sanitize_text_field( $carton_nos[ $key ] ) : '';
+            if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
+                $carton_norm = sop_normalize_carton_numbers_for_display( $carton_no );
+                $carton_no   = isset( $carton_norm['value'] ) ? $carton_norm['value'] : $carton_no;
+            }
+            $image_id  = isset( $image_ids[ $key ] ) ? (int) $image_ids[ $key ] : 0;
+            $location  = isset( $locations[ $key ] ) ? sanitize_text_field( wp_unslash( $locations[ $key ] ) ) : '';
+            $cbm_unit  = isset( $cbm_units[ $key ] ) ? floatval( wp_unslash( $cbm_units[ $key ] ) ) : 0;
+            $cbm_total = isset( $cbm_totals[ $key ] ) ? floatval( wp_unslash( $cbm_totals[ $key ] ) ) : 0;
+
+            $lines[] = array(
+                'product_id'          => $product_id,
+                'sku_owner'           => $sku,
+                'qty_owner'           => $qty,
+                'cost_rmb_owner'      => $cost_rmb,
+                'moq_owner'           => $moq,
+                'product_notes_owner' => $p_notes,
+                'order_notes_owner'   => $o_notes,
+                'carton_no'           => $carton_no,
+                'image_id'            => $image_id,
+                'location'            => $location,
+                'cbm_per_unit'        => $cbm_unit,
+                'cbm_total_owner'     => $cbm_total,
+                'sort_index'          => $sort_index++,
+            );
+        }
     }
 
     $is_update = false;

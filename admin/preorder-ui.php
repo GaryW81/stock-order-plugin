@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.47 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.48 *
+ * - V12.48 - Save sheets via JSON lines payload to avoid max_input_vars truncation on large sheets.
  * - V12.47 - Download dropdown stacked/narrow labels; Order Summary naming/casing polish.
  * - V12.46 - UI polish: Download dropdown labels/width; Order Summary label; Update Sheet casing.
  * - V12.45 - UI: Download dropdown (Order Sheet / Order Summary); rename Purchase Order button to Order Summary; Update Sheet label casing.
@@ -1236,6 +1237,7 @@ function sop_preorder_render_admin_page() {
                 <input type="hidden" name="sop_container_type" value="<?php echo esc_attr( $container_selection ); ?>" />
                 <input type="hidden" name="sop_allowance_percent" value="<?php echo esc_attr( $allowance ); ?>" />
                 <input type="hidden" name="sop_po_payload" id="sop-po-payload" value="" />
+                <input type="hidden" name="sop_lines_json" id="sop-lines-json" value="" />
 
                 <div class="sop-preorder-table-wrapper">
                 <table class="wp-list-table widefat fixed striped sop-preorder-table">
@@ -4497,9 +4499,83 @@ function sop_preorder_render_admin_page() {
                     $( '#sop-po-payload' ).val( JSON.stringify( payload ) );
                 }
 
+                function sopPreorderBuildLinesPayload() {
+                    var $linesField = $( '#sop-lines-json' );
+                    if ( ! $linesField.length ) {
+                        return true;
+                    }
+                    try {
+                        var lines = [];
+                        $table.find( 'tbody tr.sop-preorder-row' ).each( function() {
+                            var $row = $( this );
+                            var productId = parseInt( $row.find( 'input[name^="sop_line_product_id"]' ).val(), 10 );
+                            if ( isNaN( productId ) || productId <= 0 ) {
+                                return;
+                            }
+                            var sku = $row.find( 'input[name^="sop_line_sku"]' ).val() || '';
+                            var imageId = parseInt( $row.find( 'input[name^="sop_line_image_id"]' ).val(), 10 );
+                            if ( isNaN( imageId ) ) { imageId = 0; }
+                            var location = $row.find( 'input[name^="sop_line_location"]' ).val() || '';
+                            var qty = parseFloat( $row.find( 'input[name^="sop_line_qty"]' ).val() );
+                            if ( isNaN( qty ) ) { qty = 0; }
+                            var moq = parseFloat( $row.find( 'input[name^="sop_line_moq"]' ).val() );
+                            if ( isNaN( moq ) ) { moq = 0; }
+                            var costRmb = parseFloat( $row.find( 'input[name^="sop_line_cost_rmb"]' ).val() );
+                            if ( isNaN( costRmb ) ) { costRmb = 0; }
+                            var productNotes = $row.find( 'textarea[name^="sop_line_product_notes"]' ).val() || '';
+                            var orderNotes = $row.find( 'textarea[name^="sop_line_order_notes"]' ).val() || '';
+                            var cartonNo = $row.find( 'input[name^="sop_line_carton_no"]' ).val() || '';
+                            var cubicCm = parseFloat( $row.find( '.column-cubic-item' ).data( 'cubic-cm' ) );
+                            if ( isNaN( cubicCm ) ) { cubicCm = 0; }
+                            var cbmTotal = ( cubicCm * qty ) / 1000000;
+
+                            lines.push( {
+                                product_id: productId,
+                                sku: sku,
+                                image_id: imageId,
+                                location: location,
+                                qty: qty,
+                                moq: moq,
+                                cost_rmb: costRmb,
+                                product_notes: productNotes,
+                                order_notes: orderNotes,
+                                carton_no: cartonNo,
+                                cbm_per_unit: cubicCm,
+                                cbm_total: cbmTotal
+                            } );
+                        } );
+                        var payloadLines = {
+                            v: 1,
+                            lines: lines
+                        };
+                        $linesField.val( JSON.stringify( payloadLines ) );
+                        return true;
+                    } catch ( err ) {
+                        alert( 'Could not prepare line items for saving. Please retry.' );
+                        return false;
+                    }
+                }
+
+                function sopPreorderStripLineInputNames() {
+                    $( '[name^="sop_line_"]' ).removeAttr( 'name' );
+                    $( '[name="sop_product_id[]"]' ).removeAttr( 'name' );
+                    $( '[name="sop_sku[]"]' ).removeAttr( 'name' );
+                    $( '[name="sop_removed[]"]' ).removeAttr( 'name' );
+                }
+
+                function sopPreorderPrepareSheetSubmit() {
+                    sopPoBuildPayload();
+                    var okLines = sopPreorderBuildLinesPayload();
+                    if ( ! okLines ) {
+                        return false;
+                    }
+                    sopPreorderStripLineInputNames();
+                    return true;
+                }
+
                 if ( $form.length ) {
                     $form.on( 'submit', function() {
-                        sopPoBuildPayload();
+                        return sopPreorderPrepareSheetSubmit();
                     } );
                 }
 
@@ -4507,7 +4583,9 @@ function sop_preorder_render_admin_page() {
                 if ( $topUpdate.length && $form.length ) {
                     $topUpdate.on( 'click', function( e ) {
                         e.preventDefault();
-                        sopPoBuildPayload();
+                        if ( ! sopPreorderPrepareSheetSubmit() ) {
+                            return;
+                        }
                         if ( $form[0] && typeof $form[0].submit === 'function' ) {
                             $form[0].submit();
                         }
