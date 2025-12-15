@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.49 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.50 *
+ * - V12.50 - SOQ cell layout: center value and keep help icon on its own line.
  * - V12.49 - Add SOQ "Why" tooltip; save sheets via JSON lines payload to avoid max_input_vars truncation on large sheets.
  * - V12.47 - Download dropdown stacked/narrow labels; Order Summary naming/casing polish.
  * - V12.46 - UI polish: Download dropdown labels/width; Order Summary label; Update Sheet casing.
@@ -1518,7 +1519,7 @@ function sop_preorder_render_admin_page() {
                                     </td>
                                     <td class="column-suggested" data-column="soq">
                                         <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
-                                            <?php echo esc_html( number_format_i18n( $suggested_order_qty, 0 ) ); ?>
+                                            <span class="sop-preorder-soq__num"><?php echo esc_html( number_format_i18n( $suggested_order_qty, 0 ) ); ?></span>
                                             <?php if ( $soq_tooltip ) : ?>
                                                 <span class="dashicons dashicons-editor-help sop-soq-why" title="<?php echo esc_attr( $soq_tooltip ); ?>" aria-label="<?php echo esc_attr( $soq_tooltip ); ?>"></span>
                                             <?php endif; ?>
@@ -2062,11 +2063,31 @@ function sop_preorder_render_admin_page() {
             gap: 12px;
         }
 
+        .column-suggested {
+            text-align: center;
+        }
+
+        .sop-preorder-soq {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .sop-preorder-soq__num {
+            display: block;
+            line-height: 1.1;
+        }
+
         .sop-soq-why {
-            display: inline-block;
-            margin-left: 4px;
+            display: block;
+            margin-left: 0;
             vertical-align: middle;
             cursor: help;
+            line-height: 1;
+            width: 16px;
+            height: 16px;
         }
         .sop-soq-why.dashicons {
             font-size: 16px;
