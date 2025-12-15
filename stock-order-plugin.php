@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.9 - Pre-Order save uses JSON lines payload to avoid truncation; Order Summary XLS 2dp amounts.
- * Version: 5.9.9
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.10 - SOQ “Why” tooltip + JSON save payload for large sheets.
+ * Version: 5.9.10
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.9' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.10' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {

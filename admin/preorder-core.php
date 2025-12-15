@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.29
- * - Accept sop_lines_json payload to avoid max_input_vars truncation on large sheets.
+ * File version: 11.30
+ * - Add SOQ forecast context for tooltip ("Why" trust SOQ) and accept sop_lines_json payload to avoid max_input_vars truncation on large sheets.
  * - Add PO XLS export handler (order sheet export unchanged).
  * - Clear balance FX/ USD when deposit FX is not locked.
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
@@ -1728,6 +1728,15 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
 
         $regular_line_price  = $regular_unit_price * $order;
         $suggested_order_qty = 0.0;
+        $soq_qty_sold            = null;
+        $soq_total_days          = null;
+        $soq_demand_per_day      = null;
+        $soq_stock_at_arrival    = null;
+        $soq_buffer_target_units = null;
+        $soq_reason              = '';
+        $soq_fallback_applied    = 0;
+        $soq_suggested_raw       = 0.0;
+        $soq_current_stock       = (float) $stock_on_hand;
 
         if ( isset( $forecast_by_product[ $product_id ] ) && is_array( $forecast_by_product[ $product_id ] ) ) {
             $forecast_row = $forecast_by_product[ $product_id ];
@@ -1735,18 +1744,38 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             // Pre-Order Sheet uses Suggested (Raw) as SOQ.
             if ( isset( $forecast_row['suggested_raw'] ) ) {
                 $suggested_order_qty = (float) $forecast_row['suggested_raw'];
+                $soq_suggested_raw   = (float) $forecast_row['suggested_raw'];
             } elseif ( isset( $forecast_row['suggested_capped'] ) ) {
                 // Backwards compatibility if only capped is present.
                 $suggested_order_qty = (float) $forecast_row['suggested_capped'];
+                $soq_suggested_raw   = (float) $forecast_row['suggested_capped'];
             }
 
             if ( $suggested_order_qty < 0 ) {
                 $suggested_order_qty = 0.0;
             }
+
+            $soq_qty_sold            = isset( $forecast_row['qty_sold'] ) ? (int) $forecast_row['qty_sold'] : null;
+            $soq_total_days          = isset( $forecast_row['total_days'] ) ? (float) $forecast_row['total_days'] : null;
+            $soq_demand_per_day      = isset( $forecast_row['demand_per_day'] ) ? (float) $forecast_row['demand_per_day'] : null;
+            $soq_stock_at_arrival    = isset( $forecast_row['stock_at_arrival'] ) ? (float) $forecast_row['stock_at_arrival'] : null;
+            $soq_buffer_target_units = isset( $forecast_row['buffer_target_units'] ) ? (float) $forecast_row['buffer_target_units'] : null;
+            $soq_current_stock       = isset( $forecast_row['current_stock'] ) ? (float) $forecast_row['current_stock'] : $soq_current_stock;
         }
 
         // SOQ should be rounded up to the nearest whole number.
         $suggested_order_qty = ceil( $suggested_order_qty );
+
+        $soq_fallback_applied = ( $soq_current_stock <= 0 && ( $soq_demand_per_day === null || $soq_demand_per_day <= 0 ) && ( $soq_buffer_target_units === null || $soq_buffer_target_units <= 0 ) && $soq_suggested_raw > 0 ) ? 1 : 0;
+        if ( $soq_fallback_applied ) {
+            $soq_reason = __( 'Fallback applied', 'sop' );
+        } elseif ( $soq_qty_sold === null || $soq_qty_sold <= 0 || $soq_demand_per_day === null || $soq_demand_per_day <= 0 ) {
+            $soq_reason = __( 'No sales in window', 'sop' );
+        } elseif ( $soq_suggested_raw <= 0 ) {
+            $soq_reason = __( 'Stock covers buffer', 'sop' );
+        } else {
+            $soq_reason = __( 'Order required to reach buffer', 'sop' );
+        }
 
         $rows[] = [
             'product_id'          => $product_id,
@@ -1776,6 +1805,13 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             'regular_line_price'  => $regular_line_price,
             'carton_no'           => '',
             'carton_sort_min'     => null,
+            'soq_qty_sold'            => $soq_qty_sold,
+            'soq_total_days'          => $soq_total_days,
+            'soq_demand_per_day'      => $soq_demand_per_day,
+            'soq_stock_at_arrival'    => $soq_stock_at_arrival,
+            'soq_buffer_target_units' => $soq_buffer_target_units,
+            'soq_reason'              => $soq_reason,
+            'soq_fallback_applied'    => $soq_fallback_applied,
         ];
 
     }

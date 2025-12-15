@@ -1,6 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.48 *
- * - V12.48 - Save sheets via JSON lines payload to avoid max_input_vars truncation on large sheets.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.49 *
+ * - V12.49 - Add SOQ "Why" tooltip; save sheets via JSON lines payload to avoid max_input_vars truncation on large sheets.
  * - V12.47 - Download dropdown stacked/narrow labels; Order Summary naming/casing polish.
  * - V12.46 - UI polish: Download dropdown labels/width; Order Summary label; Update Sheet casing.
  * - V12.45 - UI: Download dropdown (Order Sheet / Order Summary); rename Purchase Order button to Order Summary; Update Sheet label casing.
@@ -1336,6 +1336,41 @@ function sop_preorder_render_admin_page() {
                                 $suggested_order_qty  = isset( $row['suggested_order_qty'] ) ? (float) $row['suggested_order_qty'] : 0.0;
                                 $cubic_cm             = isset( $row['cubic_cm'] ) ? (float) $row['cubic_cm'] : 0.0;
                                 $line_cbm             = isset( $row['line_cbm'] ) ? (float) $row['line_cbm'] : 0.0;
+                                $soq_qty_sold            = isset( $row['soq_qty_sold'] ) ? (int) $row['soq_qty_sold'] : null;
+                                $soq_total_days          = isset( $row['soq_total_days'] ) ? (float) $row['soq_total_days'] : null;
+                                $soq_demand_per_day      = isset( $row['soq_demand_per_day'] ) ? (float) $row['soq_demand_per_day'] : null;
+                                $soq_stock_at_arrival    = isset( $row['soq_stock_at_arrival'] ) ? (float) $row['soq_stock_at_arrival'] : null;
+                                $soq_buffer_target_units = isset( $row['soq_buffer_target_units'] ) ? (float) $row['soq_buffer_target_units'] : null;
+                                $soq_reason              = isset( $row['soq_reason'] ) ? (string) $row['soq_reason'] : '';
+                                $soq_tooltip             = '';
+                                if ( null !== $soq_total_days && $soq_total_days > 0 ) {
+                                    $soq_tooltip_parts = array();
+                                    $soq_tooltip_parts[] = sprintf(
+                                        /* translators: 1: lookback days, 2: qty sold */
+                                        __( 'Qty sold (%1$sd): %2$s', 'sop' ),
+                                        (int) round( $soq_total_days ),
+                                        number_format_i18n( $soq_qty_sold, 0 )
+                                    );
+                                    $soq_tooltip_parts[] = sprintf(
+                                        __( 'Demand/day: %s', 'sop' ),
+                                        number_format_i18n( $soq_demand_per_day, 3 )
+                                    );
+                                    $soq_tooltip_parts[] = sprintf(
+                                        __( 'Stock at arrival: %s', 'sop' ),
+                                        number_format_i18n( $soq_stock_at_arrival, 1 )
+                                    );
+                                    $soq_tooltip_parts[] = sprintf(
+                                        __( 'Buffer target: %s', 'sop' ),
+                                        number_format_i18n( $soq_buffer_target_units, 1 )
+                                    );
+                                    if ( '' !== $soq_reason ) {
+                                        $soq_tooltip_parts[] = sprintf(
+                                            __( 'Reason: %s', 'sop' ),
+                                            $soq_reason
+                                        );
+                                    }
+                                    $soq_tooltip = implode( ' | ', $soq_tooltip_parts );
+                                }
                                 $categories           = '';
                                 if ( isset( $row['category_path'] ) ) {
                                     $categories = $row['category_path'];
@@ -1484,6 +1519,9 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-suggested" data-column="soq">
                                         <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
                                             <?php echo esc_html( number_format_i18n( $suggested_order_qty, 0 ) ); ?>
+                                            <?php if ( $soq_tooltip ) : ?>
+                                                <span class="dashicons dashicons-editor-help sop-soq-why" title="<?php echo esc_attr( $soq_tooltip ); ?>" aria-label="<?php echo esc_attr( $soq_tooltip ); ?>"></span>
+                                            <?php endif; ?>
                                         </span>
                                     </td>
                                     <td class="column-order-qty" data-column="order_qty" data-sort="order_qty">
@@ -2022,6 +2060,19 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-top-right {
             margin-left: auto;
             gap: 12px;
+        }
+
+        .sop-soq-why {
+            display: inline-block;
+            margin-left: 4px;
+            vertical-align: middle;
+            cursor: help;
+        }
+        .sop-soq-why.dashicons {
+            font-size: 16px;
+            line-height: 1;
+            width: 16px;
+            height: 16px;
         }
 
         .sop-download-dropdown {
