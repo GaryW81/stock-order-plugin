@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.50 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.51 *
+ * - V12.51 - Fix shift-select checkbox range after sorting; keep selection/remove in visual order.
  * - V12.50 - SOQ cell layout: center value and keep help icon on its own line.
  * - V12.49 - Add SOQ "Why" tooltip; save sheets via JSON lines payload to avoid max_input_vars truncation on large sheets.
  * - V12.47 - Download dropdown stacked/narrow labels; Order Summary naming/casing polish.
@@ -2993,7 +2994,6 @@ function sop_preorder_render_admin_page() {
 
             var $table = $('.sop-preorder-table');
             var containerCbm = <?php echo json_encode( $effective_cbm ); ?>;
-            var $rowCheckboxes       = $table.find('.sop-preorder-select-row');
             var $selectAllCheckbox   = $('#sop-preorder-select-all');
             var $removeSelectedBtn   = $('#sop-preorder-remove-selected');
             var $showRemovedCheckbox = $('#sop-preorder-show-removed');
@@ -3005,7 +3005,7 @@ function sop_preorder_render_admin_page() {
             var currentNotesTextarea = null;
             var currentNotesType     = 'product';
             var currentNotesRowIndex = null;
-            var lastClickedIndex     = null;
+            var lastClickedCheckbox  = null;
             var hasUnsavedChanges    = false;
             var $sheetForm           = $('#sop-preorder-sheet-form');
             var $columnsWrapper      = $('.sop-preorder-columns');
@@ -3183,9 +3183,14 @@ function sop_preorder_render_admin_page() {
                 return $el.closest( 'tr.sop-preorder-row' );
             }
 
+            function sopPreorderGetRowCheckboxesForSelection() {
+                return $table.find('tbody tr:visible:not(.sop-preorder-row-removed) .sop-preorder-select-row');
+            }
+
             function sopPreorderGetSelectedRows() {
                 var rows = [];
-                $rowCheckboxes.each( function( index, checkbox ) {
+                var $checkboxes = sopPreorderGetRowCheckboxesForSelection();
+                $checkboxes.each( function( index, checkbox ) {
                     if ( ! checkbox.checked ) {
                         return;
                     }
@@ -3241,38 +3246,42 @@ function sop_preorder_render_admin_page() {
             }
 
             // Selection: select-all and shift-click range.
-            if ( $selectAllCheckbox.length && $rowCheckboxes.length ) {
+            if ( $selectAllCheckbox.length ) {
                 $selectAllCheckbox.on( 'change', function() {
                     var checked = this.checked;
-                    $rowCheckboxes.each( function() {
-                        this.checked = checked;
-                    } );
+                    var $checkboxes = sopPreorderGetRowCheckboxesForSelection();
+                    $checkboxes.prop( 'checked', checked );
+                    lastClickedCheckbox = null;
                 } );
 
-                $rowCheckboxes.each( function( index ) {
-                    $( this ).on( 'click', function( event ) {
-                        if ( event.shiftKey && lastClickedIndex !== null ) {
-                            var start   = Math.min( lastClickedIndex, index );
-                            var end     = Math.max( lastClickedIndex, index );
-                            var checked = this.checked;
+                $table.on( 'click', '.sop-preorder-select-row', function( event ) {
+                    var $checkboxes   = sopPreorderGetRowCheckboxesForSelection();
+                    var currentIndex  = $checkboxes.index( this );
+                    var lastIndex     = lastClickedCheckbox ? $checkboxes.index( lastClickedCheckbox ) : -1;
 
-                            $rowCheckboxes.each( function( i ) {
-                                if ( i >= start && i <= end ) {
-                                    this.checked = checked;
-                                }
-                            } );
-                        }
-                        lastClickedIndex = index;
-                    } );
+                    if ( event.shiftKey && lastIndex !== -1 && currentIndex !== -1 ) {
+                        var start   = Math.min( lastIndex, currentIndex );
+                        var end     = Math.max( lastIndex, currentIndex );
+                        var checked = this.checked;
+
+                        $checkboxes.slice( start, end + 1 ).prop( 'checked', checked );
+                    }
+
+                    lastClickedCheckbox = this;
                 } );
             }
 
             // Remove selected rows.
-            if ( $removeSelectedBtn.length && $rowCheckboxes.length ) {
+            if ( $removeSelectedBtn.length ) {
                 $removeSelectedBtn.on( 'click', function( e ) {
                     e.preventDefault();
 
-                    $rowCheckboxes.each( function() {
+                    var $checkboxes = sopPreorderGetRowCheckboxesForSelection();
+                    if ( ! $checkboxes.length ) {
+                        return;
+                    }
+
+                    $checkboxes.each( function() {
                         if ( ! this.checked ) {
                             return;
                         }
