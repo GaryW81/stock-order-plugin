@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.7 - Order Summary XLS non-RMB Deposit/Balance header styling.
- * Version: 5.9.7
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.8 - Order Summary XLS amount formatting (2dp).
+ * Version: 5.9.8
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.7' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.8' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
