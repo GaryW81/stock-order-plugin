@@ -1,5 +1,6 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.66 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.67 *
+* - V12.67 - Header icons: 80px width with auto height (rectangular PNGs), background on panels.
 * - V12.66 - Fix: apply custom header icon data URIs on icon panels (dashicon fallback retained).
 * - V12.65 - Cleanup: remove unused icon experiment code paths; keep CSS data-URI icons.
 * - V12.64 - UI: header icons 80px, icon panel padding 3px, white icon background.
@@ -2206,7 +2207,7 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-card-icon.sop-has-custom-icon {
             background-repeat: no-repeat;
             background-position: center;
-            background-size: 80px 80px;
+            background-size: 80px auto;
         }
 
         .sop-preorder-card-icon.sop-has-custom-icon .dashicons {
