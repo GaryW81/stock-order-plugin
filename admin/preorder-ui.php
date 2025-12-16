@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.58 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.59 *
+* - V12.59 - Header icons: embed PNGs as data URIs (avoid plugin URL routing issues).
 * - V12.58 - Fix custom PNG header icons URL via plugins_url anchored to main plugin file.
 * - V12.57 - Support custom header icons via assets/icons/*.png (fallback to dashicons).
 * - V12.56 - Add order retail value + profit summary (GBP excl VAT) to Pre-Order sheet.
@@ -82,17 +83,17 @@ if ( ! function_exists( 'sop_preorder_render_header_icon' ) ) {
      * @return string                        HTML for the icon.
      */
     function sop_preorder_render_header_icon( $filename, $fallback_dashicon_class, $alt ) {
-        $path = trailingslashit( SOP_PLUGIN_DIR ) . 'assets/icons/' . $filename;
+        $path = trailingslashit( SOP_PLUGIN_DIR ) . 'assets/icons/' . ltrim( $filename, '/' );
 
         if ( file_exists( $path ) ) {
-            $ver = (string) filemtime( $path );
-            $plugin_file = trailingslashit( SOP_PLUGIN_DIR ) . 'stock-order-plugin.php';
-            $src = plugins_url( 'assets/icons/' . ltrim( $filename, '/' ), $plugin_file );
-            if ( ! empty( $src ) && is_string( $src ) ) {
-                $src = add_query_arg( 'ver', rawurlencode( $ver ), $src );
-                return '<img class="sop-preorder-header-icon-img" src="' . esc_url( $src ) . '" alt="' . esc_attr( $alt ) . '" />';
+            $size = @filesize( $path );
+            if ( false !== $size && $size > 0 && $size <= 250000 ) {
+                $bin = @file_get_contents( $path );
+                if ( $bin ) {
+                    $src = 'data:image/png;base64,' . base64_encode( $bin );
+                    return '<img class="sop-preorder-header-icon-img" src="' . esc_attr( $src ) . '" alt="' . esc_attr( $alt ) . '" />';
+                }
             }
-
         }
 
         return '<span class="dashicons ' . esc_attr( $fallback_dashicon_class ) . ' sop-preorder-header-icon-fallback" aria-hidden="true"></span>';
