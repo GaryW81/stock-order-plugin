@@ -1,5 +1,6 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.67 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.68 *
+* - V12.68 - SOQ tooltip marker uses ai-logo PNG via CSS background (single data URI, dashicon fallback).
 * - V12.67 - SOQ tooltip: remove native title; 3-line custom tooltip (2+2+1) only.
 * - V12.67 - Header icons: 80px width with auto height (rectangular PNGs), background on panels.
 * - V12.66 - Fix: apply custom header icon data URIs on icon panels (dashicon fallback retained).
@@ -202,6 +203,7 @@ function sop_preorder_render_admin_page() {
     $sop_icon_supplier_uri  = sop_preorder_get_header_icon_data_uri( 'supplier.png' );
     $sop_icon_container_uri = sop_preorder_get_header_icon_data_uri( 'container.png' );
     $sop_icon_rounding_uri  = sop_preorder_get_header_icon_data_uri( 'rounding.png' );
+    $sop_icon_ai_uri        = sop_preorder_get_header_icon_data_uri( 'ai-logo.png' );
 
     // Company profile (buyer) details.
     $sop_company_profile   = function_exists( 'sop_get_company_profile' ) ? sop_get_company_profile() : array();
@@ -1603,7 +1605,7 @@ function sop_preorder_render_admin_page() {
                                         <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
                                             <span class="sop-preorder-soq__num"><?php echo esc_html( number_format_i18n( $suggested_order_qty, 0 ) ); ?></span>
                                             <?php if ( $soq_tooltip ) : ?>
-                                                <span class="dashicons dashicons-editor-help sop-soq-why" data-soq-why="<?php echo esc_attr( $soq_tooltip ); ?>" aria-label="<?php echo esc_attr( $soq_tooltip ); ?>"></span>
+                                                <span class="dashicons dashicons-editor-help sop-soq-why<?php echo ! empty( $sop_icon_ai_uri ) ? ' sop-soq-why-ai' : ''; ?>" data-soq-why="<?php echo esc_attr( $soq_tooltip ); ?>" aria-label="<?php echo esc_attr( $soq_tooltip ); ?>">?</span>
                                             <?php endif; ?>
                                         </span>
                                     </td>
@@ -2172,14 +2174,14 @@ function sop_preorder_render_admin_page() {
             vertical-align: middle;
             cursor: help;
             line-height: 1;
-            width: 16px;
-            height: 16px;
+            width: 14px;
+            height: 14px;
         }
         .sop-soq-why.dashicons {
-            font-size: 16px;
+            font-size: 14px;
             line-height: 1;
-            width: 16px;
-            height: 16px;
+            width: 14px;
+            height: 14px;
         }
 
         .sop-soq-tooltip {
@@ -2209,6 +2211,18 @@ function sop_preorder_render_admin_page() {
         .sop-soq-tooltip-line--reason {
             white-space: normal;
         }
+
+        <?php if ( ! empty( $sop_icon_ai_uri ) ) : ?>
+        .sop-soq-why-ai {
+            background-image: url('<?php echo esc_attr( $sop_icon_ai_uri ); ?>');
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+            color: transparent;
+            text-indent: -9999px;
+            overflow: hidden;
+        }
+        <?php endif; ?>
 
         .sop-preorder-header-icon-fallback {
             font-size: 80px;
