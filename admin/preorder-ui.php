@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.55 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.56 *
+* - V12.56 - Add order retail value + profit summary (GBP excl VAT) to Pre-Order sheet.
 * - V12.55 - Persist removed rows via JSON save payload and keep SOQ tooltip clipping fixes.
 * - V12.54 - Fix SOQ help tooltip clipping/positioning (body-fixed + flip).
 * - V12.53 - Fix planning sync selectors to use form= attributes; avoid overwriting saved values when controls not found.
@@ -1114,6 +1115,9 @@ function sop_preorder_render_admin_page() {
                             <span><strong><?php esc_html_e( 'Total SKUs', 'sop' ); ?>:</strong> <span id="sop-total-skus"><?php echo esc_html( number_format_i18n( $total_skus, 0 ) ); ?></span></span>
                             <span><strong><?php esc_html_e( 'Total Cost (GBP)', 'sop' ); ?>:</strong> <span id="sop-total-cost-gbp"><?php echo esc_html( wc_price( $total_cost_gbp ) ); ?></span></span>
                             <span><strong><?php printf( esc_html__( 'Total Cost (%s)', 'sop' ), esc_html( $supplier_currency ) ); ?>:</strong> <span id="sop-total-cost-supplier"><?php echo esc_html( $currency_symbol . ' ' . number_format_i18n( $total_cost_supplier, 2 ) ); ?></span></span>
+                            <span><strong><?php esc_html_e( 'Total Retail (GBP excl.)', 'sop' ); ?>:</strong> <span id="sop-total-retail-gbp-excl"><?php echo esc_html( wc_price( 0 ) ); ?></span></span>
+                            <span><strong><?php esc_html_e( 'Est. Profit (GBP)', 'sop' ); ?>:</strong> <span id="sop-total-profit-gbp"><?php echo esc_html( wc_price( 0 ) ); ?></span></span>
+                            <span><strong><?php esc_html_e( 'Margin', 'sop' ); ?>:</strong> <span id="sop-total-margin-pct"><?php echo esc_html( number_format_i18n( 0, 1 ) ); ?>%</span></span>
                         </div>
                         <div class="sop-preorder-fill">
                             <strong><?php esc_html_e( 'Container Fill', 'sop' ); ?>:</strong>
@@ -1550,7 +1554,7 @@ function sop_preorder_render_admin_page() {
                                             <?php echo esc_html( number_format_i18n( $line_cbm, 3 ) ); ?>
                                         </span>
                                     </td>
-                                    <td class="column-regular-unit" data-column="regular_unit">
+                                    <td class="column-regular-unit" data-column="regular_unit" data-price-excl="<?php echo esc_attr( number_format( $regular_unit_price, 4, '.', '' ) ); ?>">
                                         <?php echo esc_html( number_format_i18n( $regular_unit_price, 2 ) ); ?>
                                     </td>
                                     <td class="column-regular-line" data-column="regular_line">
@@ -3475,6 +3479,7 @@ function sop_preorder_render_admin_page() {
                 var totalCostGbp = 0;
                 var totalCostSupplier = 0;
                 var totalCbm = 0;
+                var totalRetailExcl = 0;
 
                 $table.find('tbody tr').each(function() {
                     var $row = $(this);
@@ -3491,9 +3496,11 @@ function sop_preorder_render_admin_page() {
                     var costGbp = parseFloat($row.find('.sop-line-total-gbp').data('cost-gbp')) || 0;
                     var costSupplier = parseFloat($row.find('.sop-line-total-supplier').data('cost-supplier')) || 0;
                     var cubicCm = parseFloat($row.find('.column-cubic-item').data('cubic-cm')) || 0;
+                    var priceExcl = parseFloat($row.find('.column-regular-unit').data('price-excl')) || 0;
 
                     var lineTotalGbp = qty * costGbp;
                     var lineTotalSupplier = qty * costSupplier;
+                    var lineRetailExcl = qty * priceExcl;
 
                     $row.find('.sop-line-total-gbp').text(lineTotalGbp.toFixed(2));
                     $row.find('.sop-line-total-supplier').text(lineTotalSupplier.toFixed(2));
@@ -3513,12 +3520,20 @@ function sop_preorder_render_admin_page() {
                     totalCostSupplier += lineTotalSupplier;
                     totalCbm += lineCbm;
                     totalSkus += 1;
+                    totalRetailExcl += lineRetailExcl;
                 });
 
                 $('#sop-total-units').text(Math.round(totalUnits));
                 $('#sop-total-skus').text(totalSkus);
                 $('#sop-total-cost-gbp').text(wc_price_format(totalCostGbp));
                 $('#sop-total-cost-supplier').text(totalCostSupplier.toFixed(2));
+
+                var totalProfit = totalRetailExcl - totalCostGbp;
+                var marginPct = totalRetailExcl > 0 ? ( totalProfit / totalRetailExcl ) * 100 : 0;
+
+                $('#sop-total-retail-gbp-excl').text(wc_price_format(totalRetailExcl));
+                $('#sop-total-profit-gbp').text(wc_price_format(totalProfit));
+                $('#sop-total-margin-pct').text(marginPct.toFixed(1) + '%');
 
                 var usedCbmPercent = 0;
                 if ( containerCbm > 0 && totalCbm > 0 ) {
