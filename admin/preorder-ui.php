@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.61 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.62 *
+* - V12.62 - Header icons: embed custom PNGs as CSS data URIs (multisite-safe), dashicon fallback retained.
 * - V12.61 - Header icons: serve via wp_ajax_sop_icon (no static/data URI issues).
  * - V12.60 - Fix data-URI icon escaping (preserve data: scheme; avoid esc_url stripping).
  * - V12.59 - Header icons: embed PNGs as data URIs (avoid plugin URL routing issues).
@@ -85,44 +86,49 @@ if ( ! function_exists( 'sop_preorder_render_header_icon' ) ) {
      * @return string                        HTML for the icon.
      */
     function sop_preorder_render_header_icon( $filename, $fallback_dashicon_class, $alt ) {
-        $filename = ltrim( $filename, '/' );
-        $map      = array(
-            'supplier.png'  => 'supplier',
-            'container.png' => 'container',
-            'rounding.png'  => 'rounding',
-            'ai-logo.png'   => 'ai',
-        );
+        $data_uri = sop_preorder_get_header_icon_data_uri( $filename );
 
-        if ( ! isset( $map[ $filename ] ) ) {
-            return '<span class="dashicons ' . esc_attr( $fallback_dashicon_class ) . ' sop-preorder-header-icon-fallback" aria-hidden="true"></span>';
+        $has_custom = '' !== $data_uri;
+        $classes    = 'sop-preorder-header-icon-wrap';
+        $icon_html  = '';
+
+        if ( $has_custom ) {
+            $classes .= ' sop-has-custom-icon';
+            $icon_html .= '<img class="sop-preorder-header-icon-img" src="' . esc_attr( $data_uri ) . '" alt="' . esc_attr( $alt ) . '" onerror="this.style.display=\'none\'; if (this.nextElementSibling) { this.nextElementSibling.style.display=\'block\'; }" />';
         }
 
-        $path = trailingslashit( SOP_PLUGIN_DIR ) . 'assets/icons/' . $filename;
+        $icon_html .= '<span class="dashicons ' . esc_attr( $fallback_dashicon_class ) . ' sop-preorder-header-icon-fallback" aria-hidden="true"' . ( $has_custom ? ' style="display:none;"' : '' ) . '></span>';
 
-        if ( file_exists( $path ) ) {
-            $size = @filesize( $path );
-            if ( false !== $size && $size > 0 && $size <= 500000 ) {
-                $ver = (string) filemtime( $path );
-                $src = add_query_arg(
-                    array(
-                        'action' => 'sop_icon',
-                        'icon'   => $map[ $filename ],
-                        'ver'    => $ver,
-                    ),
-                    admin_url( 'admin-ajax.php' )
-                );
-                if ( ! empty( $src ) && is_string( $src ) ) {
-                    return sprintf(
-                        '<span class="sop-preorder-header-icon-wrap"><img class="sop-preorder-header-icon-img" src="%s" alt="%s" onerror="this.style.display=\'none\'; if (this.nextElementSibling) { this.nextElementSibling.style.display=\'block\'; }" /><span class="dashicons %s sop-preorder-header-icon-fallback" aria-hidden="true" style="display:none;"></span></span>',
-                        esc_url( $src ),
-                        esc_attr( $alt ),
-                        esc_attr( $fallback_dashicon_class )
-                    );
-                }
-            }
+        return '<span class="' . esc_attr( $classes ) . '">' . $icon_html . '</span>';
+    }
+}
+
+if ( ! function_exists( 'sop_preorder_get_header_icon_data_uri' ) ) {
+    /**
+     * Get a base64 data URI for a header icon PNG, with size cap.
+     *
+     * @param string $filename Filename inside assets/icons.
+     * @return string Data URI or empty string on failure.
+     */
+    function sop_preorder_get_header_icon_data_uri( $filename ) {
+        $root_dir = defined( 'SOP_PLUGIN_DIR' ) && SOP_PLUGIN_DIR ? trailingslashit( SOP_PLUGIN_DIR ) : trailingslashit( dirname( __FILE__, 2 ) );
+        $path     = $root_dir . 'assets/icons/' . ltrim( $filename, '/' );
+
+        if ( ! file_exists( $path ) ) {
+            return '';
         }
 
-        return '<span class="dashicons ' . esc_attr( $fallback_dashicon_class ) . ' sop-preorder-header-icon-fallback" aria-hidden="true"></span>';
+        $size = @filesize( $path );
+        if ( false === $size || $size <= 0 || $size > 250000 ) {
+            return '';
+        }
+
+        $bin = @file_get_contents( $path );
+        if ( ! $bin ) {
+            return '';
+        }
+
+        return 'data:image/png;base64,' . base64_encode( $bin );
     }
 }
 
@@ -2198,6 +2204,16 @@ function sop_preorder_render_admin_page() {
             line-height: 28px;
             display: block;
             margin: 0 auto;
+        }
+
+        .sop-preorder-card-icon.sop-has-custom-icon {
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 28px 28px;
+        }
+
+        .sop-preorder-card-icon.sop-has-custom-icon .dashicons {
+            display: none;
         }
 
         .sop-download-dropdown {
