@@ -1,9 +1,9 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.64 *
- * - V12.64 - UI: header icons 80px, icon panel padding 3px, white icon background.
-* - V12.63 - UI: double header card icon size (56px).
-* - V12.62 - Header icons: embed custom PNGs as CSS data URIs (multisite-safe), dashicon fallback retained.
-* - V12.61 - Header icons: serve via wp_ajax_sop_icon (no static/data URI issues).
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.65 *
+* - V12.65 - Cleanup: remove unused icon experiment code paths; keep CSS data-URI icons.
+* - V12.64 - UI: header icons 80px, icon panel padding 3px, white icon background.
+ * - V12.63 - UI: double header card icon size (56px).
+ * - V12.62 - Header icons: embed custom PNGs as CSS data URIs (multisite-safe), dashicon fallback retained.
  * - V12.60 - Fix data-URI icon escaping (preserve data: scheme; avoid esc_url stripping).
  * - V12.59 - Header icons: embed PNGs as data URIs (avoid plugin URL routing issues).
  * - V12.58 - Fix custom PNG header icons URL via plugins_url anchored to main plugin file.
@@ -92,16 +92,16 @@ if ( ! function_exists( 'sop_preorder_render_header_icon' ) ) {
 
         $has_custom = '' !== $data_uri;
         $classes    = 'sop-preorder-header-icon-wrap';
-        $icon_html  = '';
+        $style      = '';
 
         if ( $has_custom ) {
             $classes .= ' sop-has-custom-icon';
-            $icon_html .= '<img class="sop-preorder-header-icon-img" src="' . esc_attr( $data_uri ) . '" alt="' . esc_attr( $alt ) . '" onerror="this.style.display=\'none\'; if (this.nextElementSibling) { this.nextElementSibling.style.display=\'block\'; }" />';
+            $style    = ' style="background-image:url(' . esc_attr( $data_uri ) . ');"';
         }
 
-        $icon_html .= '<span class="dashicons ' . esc_attr( $fallback_dashicon_class ) . ' sop-preorder-header-icon-fallback" aria-hidden="true"' . ( $has_custom ? ' style="display:none;"' : '' ) . '></span>';
+        $icon_html = '<span class="dashicons ' . esc_attr( $fallback_dashicon_class ) . ' sop-preorder-header-icon-fallback" aria-hidden="true"></span>';
 
-        return '<span class="' . esc_attr( $classes ) . '">' . $icon_html . '</span>';
+        return '<span class="' . esc_attr( $classes ) . '"' . $style . '>' . $icon_html . '</span>';
     }
 }
 
@@ -2192,14 +2192,6 @@ function sop_preorder_render_admin_page() {
             display: block;
             margin: 0 auto;
             text-align: center;
-        }
-
-        .sop-preorder-header-icon-img {
-            display: block;
-            width: 80px;
-            height: 80px;
-            margin: 0 auto;
-            object-fit: contain;
         }
 
         .sop-preorder-header-icon-fallback {

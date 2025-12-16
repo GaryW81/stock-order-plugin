@@ -11,4 +11,4 @@ Recommended:
 - transparent background
 - simple bold shapes for clarity at small sizes
 
-The Pre-Order screen will automatically use these icons when present.
+The Pre-Order screen will automatically embed these icons from disk as CSS data URIs (no HTTP request needed).

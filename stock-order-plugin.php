@@ -1,8 +1,8 @@
 ﻿<?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.11 - Serve header icons via AJAX to avoid static URL issues.
- * Version: 5.9.11
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.12 - Cleanup unused header icon AJAX endpoint.
+ * Version: 5.9.12
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.11' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.12' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -31,53 +31,6 @@ require_once SOP_PLUGIN_DIR . 'includes/forecast-core.php';
 require_once SOP_PLUGIN_DIR . 'includes/class-sop-legacy-history.php';
 require_once SOP_PLUGIN_DIR . 'includes/supplier-meta-box.php';
 require_once SOP_PLUGIN_DIR . 'includes/class-sop-preorder-exporter.php';
-
-add_action( 'wp_ajax_sop_icon', 'sop_ajax_serve_icon' );
-/**
- * Serve whitelisted header icons via admin-ajax to avoid static URL/CSP issues.
- *
- * @return void
- */
-function sop_ajax_serve_icon() {
-    if ( ! ( current_user_can( 'manage_woocommerce' ) || current_user_can( 'manage_options' ) ) ) {
-        status_header( 403 );
-        exit;
-    }
-
-    $icon = isset( $_GET['icon'] ) ? sanitize_key( wp_unslash( $_GET['icon'] ) ) : '';
-
-    $map = array(
-        'supplier'  => 'supplier.png',
-        'container' => 'container.png',
-        'rounding'  => 'rounding.png',
-        'ai'        => 'ai-logo.png',
-    );
-
-    if ( empty( $icon ) || ! isset( $map[ $icon ] ) ) {
-        status_header( 404 );
-        exit;
-    }
-
-    $path = trailingslashit( SOP_PLUGIN_DIR ) . 'assets/icons/' . $map[ $icon ];
-
-    if ( ! file_exists( $path ) ) {
-        status_header( 404 );
-        exit;
-    }
-
-    $size = @filesize( $path );
-    if ( false === $size || $size <= 0 || $size > 500000 ) {
-        status_header( 404 );
-        exit;
-    }
-
-    header( 'Content-Type: image/png' );
-    header( 'Content-Length: ' . (string) $size );
-    header( 'Cache-Control: private, max-age=86400' );
-
-    @readfile( $path );
-    exit;
-}
 
 // Admin-only includes.
 if ( is_admin() ) {
