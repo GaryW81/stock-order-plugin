@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.54 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.55 *
+* - V12.55 - Persist removed rows via JSON save payload and keep SOQ tooltip clipping fixes.
 * - V12.54 - Fix SOQ help tooltip clipping/positioning (body-fixed + flip).
 * - V12.53 - Fix planning sync selectors to use form= attributes; avoid overwriting saved values when controls not found.
 * - V12.52 - Persist pallet layer + allowance through sheet saves and keep shift-select in visual order.
@@ -4692,27 +4693,35 @@ function sop_preorder_render_admin_page() {
                             var costRmb = parseFloat( $row.find( 'input[name^="sop_line_cost_rmb"]' ).val() );
                             if ( isNaN( costRmb ) ) { costRmb = 0; }
                             var productNotes = $row.find( 'textarea[name^="sop_line_product_notes"]' ).val() || '';
-                            var orderNotes = $row.find( 'textarea[name^="sop_line_order_notes"]' ).val() || '';
-                            var cartonNo = $row.find( 'input[name^="sop_line_carton_no"]' ).val() || '';
-                            var cubicCm = parseFloat( $row.find( '.column-cubic-item' ).data( 'cubic-cm' ) );
-                            if ( isNaN( cubicCm ) ) { cubicCm = 0; }
-                            var cbmTotal = ( cubicCm * qty ) / 1000000;
+                        var orderNotes = $row.find( 'textarea[name^="sop_line_order_notes"]' ).val() || '';
+                        var cartonNo = $row.find( 'input[name^="sop_line_carton_no"]' ).val() || '';
+                        var cubicCm = parseFloat( $row.find( '.column-cubic-item' ).data( 'cubic-cm' ) );
+                        if ( isNaN( cubicCm ) ) { cubicCm = 0; }
+                        var cbmTotal = ( cubicCm * qty ) / 1000000;
+                        var removedVal = 0;
+                        var $removedInput = $row.find( '.sop-preorder-removed-flag' );
+                        if ( $removedInput.length && String( $removedInput.val() ) === '1' ) {
+                            removedVal = 1;
+                        } else if ( $row.hasClass( 'sop-preorder-row-removed' ) ) {
+                            removedVal = 1;
+                        }
 
-                            lines.push( {
-                                product_id: productId,
-                                sku: sku,
-                                image_id: imageId,
+                        lines.push( {
+                            product_id: productId,
+                            sku: sku,
+                            image_id: imageId,
                                 location: location,
                                 qty: qty,
                                 moq: moq,
                                 cost_rmb: costRmb,
-                                product_notes: productNotes,
-                                order_notes: orderNotes,
-                                carton_no: cartonNo,
-                                cbm_per_unit: cubicCm,
-                                cbm_total: cbmTotal
-                            } );
+                            product_notes: productNotes,
+                            order_notes: orderNotes,
+                            carton_no: cartonNo,
+                            cbm_per_unit: cubicCm,
+                            cbm_total: cbmTotal,
+                            removed: removedVal
                         } );
+                    } );
                         var payloadLines = {
                             v: 1,
                             lines: lines

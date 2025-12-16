@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.31
+ * File version: 11.32
+ * - Persist removed rows by updating _sop_preorder_removed from JSON payload (and legacy when provided).
  * - Carry container planning params (pallet/allowance) through save redirects and accept pallet layer from save form.
  * - Add SOQ forecast context for tooltip ("Why" trust SOQ) and accept sop_lines_json payload to avoid max_input_vars truncation on large sheets.
  * - Add PO XLS export handler (order sheet export unchanged).
@@ -618,6 +619,7 @@ function sop_handle_save_preorder_sheet() {
 
     $lines      = array();
     $sort_index = 0;
+    $removed_meta_updates = array();
 
     $lines_json_raw = isset( $_POST['sop_lines_json'] ) ? wp_unslash( $_POST['sop_lines_json'] ) : '';
     $has_lines_json = is_string( $lines_json_raw ) && '' !== trim( $lines_json_raw );
@@ -637,6 +639,12 @@ function sop_handle_save_preorder_sheet() {
             $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
             if ( $product_id <= 0 ) {
                 continue;
+            }
+
+            $has_removed_key = is_array( $line ) && array_key_exists( 'removed', $line );
+            if ( $has_removed_key ) {
+                $removed_val = ! empty( $line['removed'] ) ? 1 : 0;
+                $removed_meta_updates[ $product_id ] = $removed_val;
             }
 
             $sku       = isset( $line['sku'] ) ? sanitize_text_field( $line['sku'] ) : '';
@@ -723,6 +731,10 @@ function sop_handle_save_preorder_sheet() {
                 'cbm_total_owner'     => $cbm_total,
                 'sort_index'          => $sort_index++,
             );
+
+            if ( isset( $_POST['sop_removed'] ) && is_array( $_POST['sop_removed'] ) && array_key_exists( $key, $_POST['sop_removed'] ) ) {
+                $removed_meta_updates[ $product_id ] = ! empty( $_POST['sop_removed'][ $key ] ) ? 1 : 0;
+            }
         }
     }
 
@@ -783,6 +795,15 @@ function sop_handle_save_preorder_sheet() {
         $redirect = add_query_arg( $redirect_args, admin_url( 'admin.php' ) );
         wp_safe_redirect( $redirect );
         exit;
+    }
+
+    if ( ! empty( $removed_meta_updates ) ) {
+        foreach ( $removed_meta_updates as $pid => $removed_val ) {
+            $pid = (int) $pid;
+            if ( $pid > 0 ) {
+                update_post_meta( $pid, '_sop_preorder_removed', $removed_val ? 1 : 0 );
+            }
+        }
     }
 
     $redirect_args = $redirect_common;
