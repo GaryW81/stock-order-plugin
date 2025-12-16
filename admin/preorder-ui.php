@@ -1,5 +1,6 @@
 ﻿<?php
 /*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.67 *
+* - V12.67 - SOQ tooltip: remove native title; 3-line custom tooltip (2+2+1) only.
 * - V12.67 - Header icons: 80px width with auto height (rectangular PNGs), background on panels.
 * - V12.66 - Fix: apply custom header icon data URIs on icon panels (dashicon fallback retained).
 * - V12.65 - Cleanup: remove unused icon experiment code paths; keep CSS data-URI icons.
@@ -1602,7 +1603,7 @@ function sop_preorder_render_admin_page() {
                                         <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
                                             <span class="sop-preorder-soq__num"><?php echo esc_html( number_format_i18n( $suggested_order_qty, 0 ) ); ?></span>
                                             <?php if ( $soq_tooltip ) : ?>
-                                                <span class="dashicons dashicons-editor-help sop-soq-why" title="<?php echo esc_attr( $soq_tooltip ); ?>" aria-label="<?php echo esc_attr( $soq_tooltip ); ?>"></span>
+                                                <span class="dashicons dashicons-editor-help sop-soq-why" data-soq-why="<?php echo esc_attr( $soq_tooltip ); ?>" aria-label="<?php echo esc_attr( $soq_tooltip ); ?>"></span>
                                             <?php endif; ?>
                                         </span>
                                     </td>
@@ -2193,6 +2194,20 @@ function sop_preorder_render_admin_page() {
             line-height: 1.4;
             max-width: 320px;
             display: none;
+        }
+
+        .sop-soq-tooltip-lines {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sop-soq-tooltip-line--nowrap {
+            white-space: nowrap;
+        }
+
+        .sop-soq-tooltip-line--reason {
+            white-space: normal;
         }
 
         .sop-preorder-header-icon-fallback {
@@ -3359,13 +3374,37 @@ function sop_preorder_render_admin_page() {
                     return;
                 }
                 var $trigger = $( triggerEl );
-                var tooltipText = $trigger.attr( 'aria-label' ) || $trigger.attr( 'title' ) || '';
+                var tooltipText = $trigger.data( 'soq-why' ) || $trigger.attr( 'aria-label' ) || '';
                 if ( ! tooltipText ) {
                     return;
                 }
 
                 soqTooltipActiveEl = triggerEl;
-                $soqTooltip.text( tooltipText );
+                var parts = String( tooltipText ).split( '|' ).map( function( part ) {
+                    return $.trim( part );
+                } ).filter( function( part ) {
+                    return part.length > 0;
+                } );
+
+                $soqTooltip.empty();
+
+                if ( parts.length === 5 ) {
+                    var $linesWrap = $( '<div class="sop-soq-tooltip-lines"></div>' );
+                    var $line1 = $( '<div class="sop-soq-tooltip-line sop-soq-tooltip-line--nowrap"></div>' ).text( parts[0] + ' | ' + parts[1] );
+                    var $line2 = $( '<div class="sop-soq-tooltip-line sop-soq-tooltip-line--nowrap"></div>' ).text( parts[2] + ' | ' + parts[3] );
+                    var $line3 = $( '<div class="sop-soq-tooltip-line sop-soq-tooltip-line--reason"></div>' ).text( parts[4] );
+                    $linesWrap.append( $line1, $line2, $line3 );
+                    $soqTooltip.append( $linesWrap );
+                } else if ( parts.length > 0 ) {
+                    var $wrap = $( '<div class="sop-soq-tooltip-lines"></div>' );
+                    parts.forEach( function( part ) {
+                        $wrap.append( $( '<div class="sop-soq-tooltip-line"></div>' ).text( part ) );
+                    } );
+                    $soqTooltip.append( $wrap );
+                } else {
+                    $soqTooltip.text( tooltipText );
+                }
+
                 $soqTooltip.css( { display: 'block', visibility: 'hidden' } );
 
                 var rect = triggerEl.getBoundingClientRect();
@@ -3461,6 +3500,18 @@ function sop_preorder_render_admin_page() {
 
             // SOQ tooltip: show/hide and protect from clipping.
             if ( $table.length ) {
+                $table.find( '.sop-soq-why' ).each( function() {
+                    var $el = $( this );
+                    var rawTitle = $el.attr( 'title' );
+                    if ( rawTitle && ! $el.data( 'soq-why' ) ) {
+                        $el.attr( 'data-soq-why', rawTitle );
+                    }
+                    $el.removeAttr( 'title' );
+                    if ( ! $el.attr( 'aria-label' ) && $el.data( 'soq-why' ) ) {
+                        $el.attr( 'aria-label', $el.data( 'soq-why' ) );
+                    }
+                } );
+
                 $table.on( 'mouseenter focus', '.sop-soq-why', function() {
                     sopPreorderShowSoqTooltip( this );
                 } );
