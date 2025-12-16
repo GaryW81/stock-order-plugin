@@ -1,5 +1,6 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.63 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.64 *
+* - V12.64 - UI: header icons 80px, icon panel padding 3px, white icon background.
 * - V12.63 - UI: double header card icon size (56px).
 * - V12.62 - Header icons: embed custom PNGs as CSS data URIs (multisite-safe), dashicon fallback retained.
 * - V12.61 - Header icons: serve via wp_ajax_sop_icon (no static/data URI issues).
@@ -2085,12 +2086,14 @@ function sop_preorder_render_admin_page() {
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0 16px;
+            padding: 3px;
             border-right: 1px solid #c3c4c7;
-            background-color: #f7f7f7;
+            background-color: #fff;
             border-top-left-radius: 8px;
             border-bottom-left-radius: 8px;
-            min-width: 72px;\n            min-height: 72px;\n        }
+            min-width: 92px;
+            min-height: 92px;
+        }
 
         .sop-preorder-card-main {
             flex: 1;
@@ -2101,10 +2104,11 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-card-icon .dashicons {
-            font-size: 56px;
-            width: 56px;
-            height: 56px;
-            color: #111827;\n            line-height: 56px;
+            font-size: 80px;
+            width: 80px;
+            height: 80px;
+            color: #111827;
+            line-height: 80px;
         }
 
         .sop-preorder-card-row {
@@ -2192,17 +2196,17 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-header-icon-img {
             display: block;
-            width: 56px;
-            height: 56px;
+            width: 80px;
+            height: 80px;
             margin: 0 auto;
             object-fit: contain;
         }
 
         .sop-preorder-header-icon-fallback {
-            font-size: 56px;
-            width: 56px;
-            height: 56px;
-            line-height: 56px;
+            font-size: 80px;
+            width: 80px;
+            height: 80px;
+            line-height: 80px;
             display: block;
             margin: 0 auto;
         }
@@ -2210,7 +2214,7 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-card-icon.sop-has-custom-icon {
             background-repeat: no-repeat;
             background-position: center;
-            background-size: 56px 56px;
+            background-size: 80px 80px;
         }
 
         .sop-preorder-card-icon.sop-has-custom-icon .dashicons {
