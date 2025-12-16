@@ -1,10 +1,11 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.60 *
-* - V12.60 - Fix data-URI icon escaping (preserve data: scheme; avoid esc_url stripping).
-* - V12.59 - Header icons: embed PNGs as data URIs (avoid plugin URL routing issues).
-* - V12.58 - Fix custom PNG header icons URL via plugins_url anchored to main plugin file.
-* - V12.57 - Support custom header icons via assets/icons/*.png (fallback to dashicons).
-* - V12.56 - Add order retail value + profit summary (GBP excl VAT) to Pre-Order sheet.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.61 *
+* - V12.61 - Header icons: serve via wp_ajax_sop_icon (no static/data URI issues).
+ * - V12.60 - Fix data-URI icon escaping (preserve data: scheme; avoid esc_url stripping).
+ * - V12.59 - Header icons: embed PNGs as data URIs (avoid plugin URL routing issues).
+ * - V12.58 - Fix custom PNG header icons URL via plugins_url anchored to main plugin file.
+ * - V12.57 - Support custom header icons via assets/icons/*.png (fallback to dashicons).
+ * - V12.56 - Add order retail value + profit summary (GBP excl VAT) to Pre-Order sheet.
 * - V12.55 - Persist removed rows via JSON save payload and keep SOQ tooltip clipping fixes.
 * - V12.54 - Fix SOQ help tooltip clipping/positioning (body-fixed + flip).
 * - V12.53 - Fix planning sync selectors to use form= attributes; avoid overwriting saved values when controls not found.
@@ -84,18 +85,38 @@ if ( ! function_exists( 'sop_preorder_render_header_icon' ) ) {
      * @return string                        HTML for the icon.
      */
     function sop_preorder_render_header_icon( $filename, $fallback_dashicon_class, $alt ) {
-        $path = trailingslashit( SOP_PLUGIN_DIR ) . 'assets/icons/' . ltrim( $filename, '/' );
+        $filename = ltrim( $filename, '/' );
+        $map      = array(
+            'supplier.png'  => 'supplier',
+            'container.png' => 'container',
+            'rounding.png'  => 'rounding',
+            'ai-logo.png'   => 'ai',
+        );
+
+        if ( ! isset( $map[ $filename ] ) ) {
+            return '<span class="dashicons ' . esc_attr( $fallback_dashicon_class ) . ' sop-preorder-header-icon-fallback" aria-hidden="true"></span>';
+        }
+
+        $path = trailingslashit( SOP_PLUGIN_DIR ) . 'assets/icons/' . $filename;
 
         if ( file_exists( $path ) ) {
             $size = @filesize( $path );
-            if ( false !== $size && $size > 0 && $size <= 250000 ) {
-                $bin = @file_get_contents( $path );
-                if ( $bin ) {
-                    $src = 'data:image/png;base64,' . base64_encode( $bin );
+            if ( false !== $size && $size > 0 && $size <= 500000 ) {
+                $ver = (string) filemtime( $path );
+                $src = add_query_arg(
+                    array(
+                        'action' => 'sop_icon',
+                        'icon'   => $map[ $filename ],
+                        'ver'    => $ver,
+                    ),
+                    admin_url( 'admin-ajax.php' )
+                );
+                if ( ! empty( $src ) && is_string( $src ) ) {
                     return sprintf(
-                        '<img class="sop-preorder-header-icon-img" src="%s" alt="%s" />',
-                        esc_attr( $src ),
-                        esc_attr( $alt )
+                        '<span class="sop-preorder-header-icon-wrap"><img class="sop-preorder-header-icon-img" src="%s" alt="%s" onerror="this.style.display=\'none\'; if (this.nextElementSibling) { this.nextElementSibling.style.display=\'block\'; }" /><span class="dashicons %s sop-preorder-header-icon-fallback" aria-hidden="true" style="display:none;"></span></span>',
+                        esc_url( $src ),
+                        esc_attr( $alt ),
+                        esc_attr( $fallback_dashicon_class )
                     );
                 }
             }
@@ -1045,7 +1066,7 @@ function sop_preorder_render_admin_page() {
 
             <div class="sop-preorder-card sop-preorder-card--top">
                 <div class="sop-preorder-card-icon sop-preorder-card-icon--supplier" aria-hidden="true">
-                    <?php echo wp_kses_post( sop_preorder_render_header_icon( 'supplier.png', 'dashicons-admin-users', __( 'Supplier', 'sop' ) ) ); ?>
+                    <?php echo sop_preorder_render_header_icon( 'supplier.png', 'dashicons-admin-users', __( 'Supplier', 'sop' ) ); ?>
                 </div>
                 <div class="sop-preorder-card-main sop-preorder-card-main--top">
                     <div class="sop-preorder-card-row sop-preorder-top-row">
@@ -1106,7 +1127,7 @@ function sop_preorder_render_admin_page() {
 
             <div class="sop-preorder-card sop-preorder-card--planning">
                 <div class="sop-preorder-card-icon sop-preorder-card-icon--container" aria-hidden="true">
-                    <?php echo wp_kses_post( sop_preorder_render_header_icon( 'container.png', 'dashicons-admin-multisite', __( 'Container', 'sop' ) ) ); ?>
+                    <?php echo sop_preorder_render_header_icon( 'container.png', 'dashicons-admin-multisite', __( 'Container', 'sop' ) ); ?>
                 </div>
                 <div class="sop-preorder-card-main sop-preorder-card-main--middle">
                     <div class="sop-preorder-card__row sop-preorder-card__row--container-top">
@@ -1167,7 +1188,7 @@ function sop_preorder_render_admin_page() {
 
             <div class="sop-preorder-card sop-preorder-card--tools">
                 <div class="sop-preorder-card-icon sop-preorder-card-icon--planner" aria-hidden="true">
-                    <?php echo wp_kses_post( sop_preorder_render_header_icon( 'rounding.png', 'dashicons-clipboard', __( 'Rounding', 'sop' ) ) ); ?>
+                    <?php echo sop_preorder_render_header_icon( 'rounding.png', 'dashicons-clipboard', __( 'Rounding', 'sop' ) ); ?>
                 </div>
                     <div class="sop-preorder-card-main sop-preorder-card-main--tools">
                         <div class="sop-preorder-card-row sop-preorder-bottom-row">
@@ -2154,6 +2175,12 @@ function sop_preorder_render_admin_page() {
             line-height: 1.4;
             max-width: 320px;
             display: none;
+        }
+
+        .sop-preorder-header-icon-wrap {
+            display: block;
+            margin: 0 auto;
+            text-align: center;
         }
 
         .sop-preorder-header-icon-img {
