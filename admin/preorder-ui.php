@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.59 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.60 *
+* - V12.60 - Fix data-URI icon escaping (preserve data: scheme; avoid esc_url stripping).
 * - V12.59 - Header icons: embed PNGs as data URIs (avoid plugin URL routing issues).
 * - V12.58 - Fix custom PNG header icons URL via plugins_url anchored to main plugin file.
 * - V12.57 - Support custom header icons via assets/icons/*.png (fallback to dashicons).
@@ -91,7 +92,11 @@ if ( ! function_exists( 'sop_preorder_render_header_icon' ) ) {
                 $bin = @file_get_contents( $path );
                 if ( $bin ) {
                     $src = 'data:image/png;base64,' . base64_encode( $bin );
-                    return '<img class="sop-preorder-header-icon-img" src="' . esc_attr( $src ) . '" alt="' . esc_attr( $alt ) . '" />';
+                    return sprintf(
+                        '<img class="sop-preorder-header-icon-img" src="%s" alt="%s" />',
+                        esc_attr( $src ),
+                        esc_attr( $alt )
+                    );
                 }
             }
         }
