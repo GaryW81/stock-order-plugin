@@ -1,5 +1,6 @@
 ﻿<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.69 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.70 *
+* - V12.70 - Adjust SOQ tooltip marker size to 20px (AI icon background with fallback).
 * - V12.69 - Increase SOQ tooltip marker size to 25px.
 * - V12.68 - SOQ tooltip marker uses ai-logo PNG via CSS background (single data URI, dashicon fallback).
 * - V12.67 - SOQ tooltip: remove native title; 3-line custom tooltip (2+2+1) only.
@@ -2175,14 +2176,14 @@ function sop_preorder_render_admin_page() {
             vertical-align: middle;
             cursor: help;
             line-height: 1;
-            width: 25px;
-            height: 25px;
+            width: 20px;
+            height: 20px;
         }
         .sop-soq-why.dashicons {
-            font-size: 25px;
+            font-size: 20px;
             line-height: 1;
-            width: 25px;
-            height: 25px;
+            width: 20px;
+            height: 20px;
         }
 
         .sop-soq-tooltip {
