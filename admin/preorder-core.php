@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.32
+ * File version: 11.33
+ * - Export: exclude removed and zero-qty lines from order sheet XLS.
  * - Persist removed rows by updating _sop_preorder_removed from JSON payload (and legacy when provided).
  * - Carry container planning params (pallet/allowance) through save redirects and accept pallet layer from save form.
  * - Add SOQ forecast context for tooltip ("Why" trust SOQ) and accept sop_lines_json payload to avoid max_input_vars truncation on large sheets.
@@ -968,8 +969,28 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
     $lines = sop_get_preorder_sheet_lines( $sheet_id );
     $lines = is_array( $lines ) ? $lines : array();
 
+    $filtered_lines = array();
+    foreach ( $lines as $line ) {
+        $qty = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0.0;
+        if ( $qty <= 0 ) {
+            continue;
+        }
+
+        $pid = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+        if ( $pid > 0 ) {
+            $removed_meta = get_post_meta( $pid, '_sop_preorder_removed', true );
+            if ( '1' === (string) $removed_meta || 1 === (int) $removed_meta ) {
+                continue;
+            }
+        }
+
+        $filtered_lines[] = $line;
+    }
+
+    $lines = $filtered_lines;
+
     if ( empty( $lines ) ) {
-        return new WP_Error( 'sop_export_no_lines', __( 'No lines found for this sheet.', 'sop' ) );
+        return new WP_Error( 'sop_export_no_orderable_lines', __( 'No orderable lines found (Qty > 0).', 'sop' ) );
     }
 
     $supplier_name = '';
