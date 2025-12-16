@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.53 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.54 *
+* - V12.54 - Fix SOQ help tooltip clipping/positioning (body-fixed + flip).
 * - V12.53 - Fix planning sync selectors to use form= attributes; avoid overwriting saved values when controls not found.
 * - V12.52 - Persist pallet layer + allowance through sheet saves and keep shift-select in visual order.
 * - V12.51 - Fix shift-select checkbox range after sorting; keep selection/remove in visual order.
@@ -1626,6 +1627,7 @@ function sop_preorder_render_admin_page() {
                     </tbody>
                 </table>
             </div>
+            <div id="sop-soq-tooltip" class="sop-soq-tooltip" aria-live="polite"></div>
 
             <div id="sop-preorder-notes-overlay" class="sop-preorder-notes-overlay" style="display:none;">
                 <div class="sop-preorder-notes-overlay-backdrop"></div>
@@ -2098,6 +2100,20 @@ function sop_preorder_render_admin_page() {
             line-height: 1;
             width: 16px;
             height: 16px;
+        }
+
+        .sop-soq-tooltip {
+            position: fixed;
+            z-index: 999999;
+            pointer-events: none;
+            background: #111827;
+            color: #fff;
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            line-height: 1.4;
+            max-width: 320px;
+            display: none;
         }
 
         .sop-download-dropdown {
@@ -3005,6 +3021,8 @@ function sop_preorder_render_admin_page() {
             var $notesOverlayTitle   = $notesOverlay.find('.sop-preorder-notes-overlay-title');
             var $notesOverlayProduct = $notesOverlay.find('.sop-preorder-notes-overlay-product');
             var $notesOverlayTextarea = $notesOverlay.find('.sop-preorder-notes-overlay-textarea');
+            var $soqTooltip         = $('#sop-soq-tooltip');
+            var $tableWrapper       = $('.sop-preorder-table-wrapper');
             var currentNotesTextarea = null;
             var currentNotesType     = 'product';
             var currentNotesRowIndex = null;
@@ -3017,9 +3035,14 @@ function sop_preorder_render_admin_page() {
             var $columnCheckboxes    = $columnsPanel.find('input[type="checkbox"]');
             var sopPreorderIsSubmittingSheet = false;
             var $saveUpdateButtons   = $( '#sop-update-sheet-top, #sop-update-sheet-bottom, .sop-preorder-save-sheet, .sop-preorder-update-sheet' );
+            var soqTooltipActiveEl   = null;
 
             function sopMarkUnsavedChanges() {
                 hasUnsavedChanges = true;
+            }
+
+            if ( $soqTooltip.length ) {
+                $soqTooltip.appendTo( document.body );
             }
 
             function sopPreorderApplyColumnVisibility() {
@@ -3205,6 +3228,50 @@ function sop_preorder_render_admin_page() {
                 return rows;
             }
 
+            function sopPreorderHideSoqTooltip() {
+                if ( ! $soqTooltip.length ) {
+                    return;
+                }
+                soqTooltipActiveEl = null;
+                $soqTooltip.hide().css( 'visibility', 'hidden' ).text( '' );
+            }
+
+            function sopPreorderShowSoqTooltip( triggerEl ) {
+                if ( ! $soqTooltip.length || ! triggerEl ) {
+                    return;
+                }
+                var $trigger = $( triggerEl );
+                var tooltipText = $trigger.attr( 'aria-label' ) || $trigger.attr( 'title' ) || '';
+                if ( ! tooltipText ) {
+                    return;
+                }
+
+                soqTooltipActiveEl = triggerEl;
+                $soqTooltip.text( tooltipText );
+                $soqTooltip.css( { display: 'block', visibility: 'hidden' } );
+
+                var rect = triggerEl.getBoundingClientRect();
+                var tooltipWidth = $soqTooltip.outerWidth();
+                var tooltipHeight = $soqTooltip.outerHeight();
+                var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+                var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+
+                var left = rect.left + ( rect.width / 2 ) - ( tooltipWidth / 2 );
+                left = Math.max( 8, Math.min( left, viewportWidth - tooltipWidth - 8 ) );
+
+                var top = rect.bottom + 8;
+                if ( top + tooltipHeight + 8 > viewportHeight ) {
+                    top = rect.top - tooltipHeight - 8;
+                }
+                top = Math.max( 8, top );
+
+                $soqTooltip.css( {
+                    left: left + 'px',
+                    top: top + 'px',
+                    visibility: 'visible'
+                } );
+            }
+
             function sopPreorderOpenNotesOverlayForRow( $row, notesType ) {
                 if ( ! $row || ! $row.length ) {
                     return;
@@ -3273,6 +3340,24 @@ function sop_preorder_render_admin_page() {
                     lastClickedCheckbox = this;
                 } );
             }
+
+            // SOQ tooltip: show/hide and protect from clipping.
+            if ( $table.length ) {
+                $table.on( 'mouseenter focus', '.sop-soq-why', function() {
+                    sopPreorderShowSoqTooltip( this );
+                } );
+                $table.on( 'mouseleave blur', '.sop-soq-why', function() {
+                    sopPreorderHideSoqTooltip();
+                } );
+            }
+            if ( $tableWrapper.length ) {
+                $tableWrapper.on( 'scroll', function() {
+                    sopPreorderHideSoqTooltip();
+                } );
+            }
+            $( window ).on( 'scroll resize', function() {
+                sopPreorderHideSoqTooltip();
+            } );
 
             // Remove selected rows.
             if ( $removeSelectedBtn.length ) {
