@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.52 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.53 *
+* - V12.53 - Fix planning sync selectors to use form= attributes; avoid overwriting saved values when controls not found.
 * - V12.52 - Persist pallet layer + allowance through sheet saves and keep shift-select in visual order.
 * - V12.51 - Fix shift-select checkbox range after sorting; keep selection/remove in visual order.
  * - V12.50 - SOQ cell layout: center value and keep help icon on its own line.
@@ -4647,23 +4648,66 @@ function sop_preorder_render_admin_page() {
             }
 
             function sopPreorderSyncPlanningFieldsToSheetForm() {
-                var $filterForm = $( '#sop-preorder-filter-form' );
-                var $sheetForm  = $( '#sop-preorder-sheet-form' );
-                if ( ! $filterForm.length || ! $sheetForm.length ) {
+                var $sheetForm = $( '#sop-preorder-sheet-form' );
+                if ( ! $sheetForm.length ) {
                     return;
                 }
 
-                var containerType = $filterForm.find( 'select[name="sop_container"]' ).val() || '';
-                var allowanceVal  = $filterForm.find( 'input[name="sop_allowance"]' ).val();
-                var palletOn      = $filterForm.find( 'input[name="sop_pallet_layer"]' ).is( ':checked' ) ? 1 : 0;
+                var $hiddenContainer = $sheetForm.find( 'input[name="sop_container_type"]' );
+                var $hiddenAllowance = $sheetForm.find( 'input[name="sop_allowance_percent"]' );
+                var $hiddenPallet    = $sheetForm.find( 'input[name="sop_pallet_layer"]' );
 
-                if ( typeof allowanceVal === 'undefined' || allowanceVal === null || allowanceVal === '' ) {
-                    allowanceVal = 0;
+                var containerType = $hiddenContainer.length ? $hiddenContainer.val() : '';
+                var allowanceVal  = $hiddenAllowance.length ? $hiddenAllowance.val() : 0;
+                var palletOn      = $hiddenPallet.length ? parseInt( $hiddenPallet.val(), 10 ) : 0;
+                if ( isNaN( palletOn ) ) {
+                    palletOn = 0;
                 }
 
-                $sheetForm.find( 'input[name="sop_container_type"]' ).val( containerType );
-                $sheetForm.find( 'input[name="sop_allowance_percent"]' ).val( allowanceVal );
-                $sheetForm.find( 'input[name="sop_pallet_layer"]' ).val( palletOn );
+                var $containerSelect = $( 'select[name="sop_container"][form="sop-preorder-filter-form"]' );
+                var $allowanceInput  = $( 'input[name="sop_allowance"][form="sop-preorder-filter-form"]' );
+                var $palletCheckbox  = $( 'input[type="checkbox"][name="sop_pallet_layer"][form="sop-preorder-filter-form"]' );
+
+                if ( !$containerSelect.length && !$allowanceInput.length && !$palletCheckbox.length ) {
+                    return;
+                }
+
+                if ( $containerSelect.length ) {
+                    var selectedContainer = $containerSelect.val();
+                    if ( typeof selectedContainer !== 'undefined' && selectedContainer !== null && selectedContainer !== '' ) {
+                        containerType = selectedContainer;
+                    }
+                }
+
+                if ( $allowanceInput.length ) {
+                    var inputAllowance = $allowanceInput.val();
+                    if ( typeof inputAllowance !== 'undefined' && inputAllowance !== null && inputAllowance !== '' ) {
+                        allowanceVal = inputAllowance;
+                    }
+                }
+
+                if ( $palletCheckbox.length ) {
+                    palletOn = $palletCheckbox.is( ':checked' ) ? 1 : 0;
+                }
+
+                allowanceVal = parseFloat( allowanceVal );
+                if ( isNaN( allowanceVal ) ) {
+                    allowanceVal = 0;
+                } else if ( allowanceVal > 50 ) {
+                    allowanceVal = 50;
+                } else if ( allowanceVal < -50 ) {
+                    allowanceVal = -50;
+                }
+
+                if ( $hiddenContainer.length ) {
+                    $hiddenContainer.val( containerType );
+                }
+                if ( $hiddenAllowance.length ) {
+                    $hiddenAllowance.val( allowanceVal );
+                }
+                if ( $hiddenPallet.length ) {
+                    $hiddenPallet.val( palletOn );
+                }
             }
 
             function sopPreorderPrepareSheetSubmit() {
