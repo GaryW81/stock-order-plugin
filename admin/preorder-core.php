@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.30
+ * File version: 11.31
+ * - Carry container planning params (pallet/allowance) through save redirects and accept pallet layer from save form.
  * - Add SOQ forecast context for tooltip ("Why" trust SOQ) and accept sop_lines_json payload to avoid max_input_vars truncation on large sheets.
  * - Add PO XLS export handler (order sheet export unchanged).
  * - Clear balance FX/ USD when deposit FX is not locked.
@@ -565,13 +566,9 @@ function sop_handle_save_preorder_sheet() {
     }
 
     if ( $supplier_id < 1 ) {
-        $redirect = add_query_arg(
-            array(
-                'page'      => 'sop-preorder-sheet',
-                'sop_saved' => '0',
-            ),
-            admin_url( 'admin.php' )
-        );
+        $redirect_args = $redirect_common;
+        $redirect_args['sop_saved'] = '0';
+        $redirect = add_query_arg( $redirect_args, admin_url( 'admin.php' ) );
         wp_safe_redirect( $redirect );
         exit;
     }
@@ -579,9 +576,31 @@ function sop_handle_save_preorder_sheet() {
     $now_utc        = current_time( 'mysql', true );
     $container_type = isset( $_POST['sop_container_type'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_container_type'] ) ) : '';
     $allowance      = isset( $_POST['sop_allowance_percent'] ) ? floatval( wp_unslash( $_POST['sop_allowance_percent'] ) ) : 0;
+    $pallet_layer   = ! empty( $_POST['sop_pallet_layer'] ) ? 1 : 0;
+
+    $allowed_containers = array( '', '20ft', '40ft', '40ft_hc' );
+    if ( ! in_array( $container_type, $allowed_containers, true ) ) {
+        $container_type = '';
+    }
+
+    if ( $allowance > 50 ) {
+        $allowance = 50;
+    } elseif ( $allowance < -50 ) {
+        $allowance = -50;
+    }
     $order_number_label = isset( $_POST['sop_header_order_number'] )
         ? sanitize_text_field( wp_unslash( $_POST['sop_header_order_number'] ) )
         : '';
+
+    $redirect_common = array(
+        'page'            => 'sop-preorder-sheet',
+        'sop_supplier_id' => $supplier_id,
+        'sop_container'   => $container_type,
+        'sop_allowance'   => $allowance,
+    );
+    if ( $pallet_layer ) {
+        $redirect_common['sop_pallet_layer'] = 1;
+    }
 
     $header_data = array(
         'supplier_id'      => $supplier_id,
@@ -606,14 +625,10 @@ function sop_handle_save_preorder_sheet() {
     if ( $has_lines_json ) {
         $decoded = json_decode( $lines_json_raw, true );
         if ( ! is_array( $decoded ) || ! isset( $decoded['lines'] ) || ! is_array( $decoded['lines'] ) || empty( $decoded['lines'] ) ) {
-            $redirect = add_query_arg(
-                array(
-                    'page'        => 'sop-preorder-sheet',
-                    'sop_saved'   => '0',
-                    'sop_sheet_id'=> (int) $sheet_id,
-                ),
-                admin_url( 'admin.php' )
-            );
+            $redirect_args = $redirect_common;
+            $redirect_args['sop_saved']    = '0';
+            $redirect_args['sop_sheet_id'] = (int) $sheet_id;
+            $redirect = add_query_arg( $redirect_args, admin_url( 'admin.php' ) );
             wp_safe_redirect( $redirect );
             exit;
         }
@@ -725,15 +740,10 @@ function sop_handle_save_preorder_sheet() {
                     $header_data['updated_at'] = current_time( 'mysql', true );
                     $update_result              = sop_update_preorder_sheet( $sheet_id, $header_data );
                     if ( is_wp_error( $update_result ) ) {
-                        $redirect = add_query_arg(
-                            array(
-                                'page'        => 'sop-preorder-sheet',
-                                'supplier_id' => $supplier_id,
-                                'sop_saved'   => '0',
-                                'sop_sheet_id'=> (int) $sheet_id,
-                            ),
-                            admin_url( 'admin.php' )
-                        );
+                        $redirect_args = $redirect_common;
+                        $redirect_args['sop_saved']    = '0';
+                        $redirect_args['sop_sheet_id'] = (int) $sheet_id;
+                        $redirect = add_query_arg( $redirect_args, admin_url( 'admin.php' ) );
                         wp_safe_redirect( $redirect );
                         exit;
                     }
@@ -750,13 +760,9 @@ function sop_handle_save_preorder_sheet() {
     if ( ! $is_update ) {
         $sheet_id = sop_insert_preorder_sheet( $header_data );
         if ( is_wp_error( $sheet_id ) || ! $sheet_id ) {
-            $redirect = add_query_arg(
-                array(
-                    'page'        => 'sop-preorder-sheet',
-                    'sop_saved'   => '0',
-                ),
-                admin_url( 'admin.php' )
-            );
+            $redirect_args = $redirect_common;
+            $redirect_args['sop_saved'] = '0';
+            $redirect = add_query_arg( $redirect_args, admin_url( 'admin.php' ) );
             wp_safe_redirect( $redirect );
             exit;
         }
@@ -771,26 +777,18 @@ function sop_handle_save_preorder_sheet() {
         ? sop_replace_preorder_sheet_lines( (int) $sheet_id, $lines )
         : sop_insert_preorder_sheet_lines( (int) $sheet_id, $lines );
     if ( is_wp_error( $lines_result ) ) {
-        $redirect = add_query_arg(
-            array(
-                'page'        => 'sop-preorder-sheet',
-                'sop_saved'   => '0',
-                'sop_sheet_id'=> (int) $sheet_id,
-            ),
-            admin_url( 'admin.php' )
-        );
+        $redirect_args = $redirect_common;
+        $redirect_args['sop_saved']    = '0';
+        $redirect_args['sop_sheet_id'] = (int) $sheet_id;
+        $redirect = add_query_arg( $redirect_args, admin_url( 'admin.php' ) );
         wp_safe_redirect( $redirect );
         exit;
     }
 
-    $redirect = add_query_arg(
-        array(
-            'page'        => 'sop-preorder-sheet',
-            'sop_saved'   => '1',
-            'sop_sheet_id'=> (int) $sheet_id,
-        ),
-        admin_url( 'admin.php' )
-    );
+    $redirect_args = $redirect_common;
+    $redirect_args['sop_saved']    = '1';
+    $redirect_args['sop_sheet_id'] = (int) $sheet_id;
+    $redirect = add_query_arg( $redirect_args, admin_url( 'admin.php' ) );
 
     wp_safe_redirect( $redirect );
     exit;

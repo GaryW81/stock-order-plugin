@@ -1,6 +1,7 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.51 *
- * - V12.51 - Fix shift-select checkbox range after sorting; keep selection/remove in visual order.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.52 *
+* - V12.52 - Persist pallet layer + allowance through sheet saves and keep shift-select in visual order.
+* - V12.51 - Fix shift-select checkbox range after sorting; keep selection/remove in visual order.
  * - V12.50 - SOQ cell layout: center value and keep help icon on its own line.
  * - V12.49 - Add SOQ "Why" tooltip; save sheets via JSON lines payload to avoid max_input_vars truncation on large sheets.
  * - V12.47 - Download dropdown stacked/narrow labels; Order Summary naming/casing polish.
@@ -1238,6 +1239,7 @@ function sop_preorder_render_admin_page() {
                 <input type="hidden" name="sop_supplier_name" value="<?php echo isset( $supplier['name'] ) ? esc_attr( $supplier['name'] ) : ''; ?>" />
                 <input type="hidden" name="sop_container_type" value="<?php echo esc_attr( $container_selection ); ?>" />
                 <input type="hidden" name="sop_allowance_percent" value="<?php echo esc_attr( $allowance ); ?>" />
+                <input type="hidden" name="sop_pallet_layer" value="<?php echo esc_attr( $pallet_layer ? 1 : 0 ); ?>" />
                 <input type="hidden" name="sop_po_payload" id="sop-po-payload" value="" />
                 <input type="hidden" name="sop_lines_json" id="sop-lines-json" value="" />
 
@@ -4637,19 +4639,40 @@ function sop_preorder_render_admin_page() {
                     }
                 }
 
-                function sopPreorderStripLineInputNames() {
-                    $( '[name^="sop_line_"]' ).removeAttr( 'name' );
-                    $( '[name="sop_product_id[]"]' ).removeAttr( 'name' );
-                    $( '[name="sop_sku[]"]' ).removeAttr( 'name' );
-                    $( '[name="sop_removed[]"]' ).removeAttr( 'name' );
+            function sopPreorderStripLineInputNames() {
+                $( '[name^="sop_line_"]' ).removeAttr( 'name' );
+                $( '[name="sop_product_id[]"]' ).removeAttr( 'name' );
+                $( '[name="sop_sku[]"]' ).removeAttr( 'name' );
+                $( '[name="sop_removed[]"]' ).removeAttr( 'name' );
+            }
+
+            function sopPreorderSyncPlanningFieldsToSheetForm() {
+                var $filterForm = $( '#sop-preorder-filter-form' );
+                var $sheetForm  = $( '#sop-preorder-sheet-form' );
+                if ( ! $filterForm.length || ! $sheetForm.length ) {
+                    return;
                 }
 
-                function sopPreorderPrepareSheetSubmit() {
-                    sopPoBuildPayload();
-                    var okLines = sopPreorderBuildLinesPayload();
-                    if ( ! okLines ) {
-                        return false;
-                    }
+                var containerType = $filterForm.find( 'select[name="sop_container"]' ).val() || '';
+                var allowanceVal  = $filterForm.find( 'input[name="sop_allowance"]' ).val();
+                var palletOn      = $filterForm.find( 'input[name="sop_pallet_layer"]' ).is( ':checked' ) ? 1 : 0;
+
+                if ( typeof allowanceVal === 'undefined' || allowanceVal === null || allowanceVal === '' ) {
+                    allowanceVal = 0;
+                }
+
+                $sheetForm.find( 'input[name="sop_container_type"]' ).val( containerType );
+                $sheetForm.find( 'input[name="sop_allowance_percent"]' ).val( allowanceVal );
+                $sheetForm.find( 'input[name="sop_pallet_layer"]' ).val( palletOn );
+            }
+
+            function sopPreorderPrepareSheetSubmit() {
+                sopPreorderSyncPlanningFieldsToSheetForm();
+                sopPoBuildPayload();
+                var okLines = sopPreorderBuildLinesPayload();
+                if ( ! okLines ) {
+                    return false;
+                }
                     sopPreorderStripLineInputNames();
                     return true;
                 }
