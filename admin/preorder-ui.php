@@ -1,5 +1,6 @@
-<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.62 *
+﻿<?php
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.63 *
+* - V12.63 - UI: double header card icon size (56px).
 * - V12.62 - Header icons: embed custom PNGs as CSS data URIs (multisite-safe), dashicon fallback retained.
 * - V12.61 - Header icons: serve via wp_ajax_sop_icon (no static/data URI issues).
  * - V12.60 - Fix data-URI icon escaping (preserve data: scheme; avoid esc_url stripping).
@@ -24,7 +25,7 @@
  * - V12.40 - PO modal edits mark unsaved changes via delegated handlers.
  * - V12.39 - Fix JS error preventing PO modal open (restore toggleBalanceFxAvailability).
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
- * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
+ * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMDâ‡„MD helper.
  * - V12.36 - Product title links to product edit screen.
  * - V12.35 - Fix SKU search scroll so matched row sits below sticky table header.
  * - V12.34 - Fix SKU search scroll offset so first match sits below sticky header.
@@ -1777,7 +1778,7 @@ function sop_preorder_render_admin_page() {
                                     <input type="date"
                                            name="sop_po_holiday_start"
                                            value="<?php echo esc_attr( $po_holiday_start ); ?>"<?php echo $po_disabled_attr; ?> />
-                                    <span class="sop-po-holiday-separator">–</span>
+                                    <span class="sop-po-holiday-separator">â€“</span>
                                     <input type="date"
                                            name="sop_po_holiday_end"
                                            value="<?php echo esc_attr( $po_holiday_end ); ?>"<?php echo $po_disabled_attr; ?> />
@@ -1827,7 +1828,7 @@ function sop_preorder_render_admin_page() {
                                         $po_total_skus  = isset( $total_skus ) ? (int) $total_skus : 0;
                                         $po_total_units = isset( $total_units ) ? (int) $total_units : 0;
                                         printf(
-                                            esc_html__( 'Purchase order #%1$s – %2$d SKUs / %3$d pcs', 'sop' ),
+                                            esc_html__( 'Purchase order #%1$s â€“ %2$d SKUs / %3$d pcs', 'sop' ),
                                             esc_html( $sheet_order_number_label ),
                                             $po_total_skus,
                                             $po_total_units
@@ -2084,12 +2085,12 @@ function sop_preorder_render_admin_page() {
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0 10px;
+            padding: 0 16px;
             border-right: 1px solid #c3c4c7;
             background-color: #f7f7f7;
             border-top-left-radius: 8px;
             border-bottom-left-radius: 8px;
-        }
+            min-width: 72px;\n            min-height: 72px;\n        }
 
         .sop-preorder-card-main {
             flex: 1;
@@ -2100,10 +2101,10 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-card-icon .dashicons {
-            font-size: 28px;
-            width: 28px;
-            height: 28px;
-            color: #111827;
+            font-size: 56px;
+            width: 56px;
+            height: 56px;
+            color: #111827;\n            line-height: 56px;
         }
 
         .sop-preorder-card-row {
@@ -2191,17 +2192,17 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-header-icon-img {
             display: block;
-            width: 28px;
-            height: 28px;
+            width: 56px;
+            height: 56px;
             margin: 0 auto;
             object-fit: contain;
         }
 
         .sop-preorder-header-icon-fallback {
-            font-size: 28px;
-            width: 28px;
-            height: 28px;
-            line-height: 28px;
+            font-size: 56px;
+            width: 56px;
+            height: 56px;
+            line-height: 56px;
             display: block;
             margin: 0 auto;
         }
@@ -2209,7 +2210,7 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-card-icon.sop-has-custom-icon {
             background-repeat: no-repeat;
             background-position: center;
-            background-size: 28px 28px;
+            background-size: 56px 56px;
         }
 
         .sop-preorder-card-icon.sop-has-custom-icon .dashicons {
