@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.56 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.57 *
+* - V12.57 - Support custom header icons via assets/icons/*.png (fallback to dashicons).
 * - V12.56 - Add order retail value + profit summary (GBP excl VAT) to Pre-Order sheet.
 * - V12.55 - Persist removed rows via JSON save payload and keep SOQ tooltip clipping fixes.
 * - V12.54 - Fix SOQ help tooltip clipping/positioning (body-fixed + flip).
@@ -68,6 +69,30 @@
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
+}
+
+if ( ! function_exists( 'sop_preorder_render_header_icon' ) ) {
+    /**
+     * Render a header icon using a custom PNG when available, falling back to dashicons.
+     *
+     * @param string $filename               PNG filename inside assets/icons.
+     * @param string $fallback_dashicon_class Dashicon class to use when PNG is missing.
+     * @param string $alt                    Alt text for the icon.
+     * @return string                        HTML for the icon.
+     */
+    function sop_preorder_render_header_icon( $filename, $fallback_dashicon_class, $alt ) {
+        $path = trailingslashit( SOP_PLUGIN_DIR ) . 'assets/icons/' . $filename;
+
+        if ( file_exists( $path ) ) {
+            $ver = (string) filemtime( $path );
+            $src = trailingslashit( SOP_PLUGIN_URL ) . 'assets/icons/' . rawurlencode( $filename );
+            $src = add_query_arg( 'ver', rawurlencode( $ver ), $src );
+
+            return '<img class="sop-preorder-header-icon-img" src="' . esc_url( $src ) . '" alt="' . esc_attr( $alt ) . '" />';
+        }
+
+        return '<span class="dashicons ' . esc_attr( $fallback_dashicon_class ) . ' sop-preorder-header-icon-fallback" aria-hidden="true"></span>';
+    }
 }
 
 function sop_preorder_render_admin_page() {
@@ -1010,7 +1035,7 @@ function sop_preorder_render_admin_page() {
 
             <div class="sop-preorder-card sop-preorder-card--top">
                 <div class="sop-preorder-card-icon sop-preorder-card-icon--supplier" aria-hidden="true">
-                    <span class="dashicons dashicons-admin-users"></span>
+                    <?php echo wp_kses_post( sop_preorder_render_header_icon( 'supplier.png', 'dashicons-admin-users', __( 'Supplier', 'sop' ) ) ); ?>
                 </div>
                 <div class="sop-preorder-card-main sop-preorder-card-main--top">
                     <div class="sop-preorder-card-row sop-preorder-top-row">
@@ -1071,7 +1096,7 @@ function sop_preorder_render_admin_page() {
 
             <div class="sop-preorder-card sop-preorder-card--planning">
                 <div class="sop-preorder-card-icon sop-preorder-card-icon--container" aria-hidden="true">
-                    <span class="dashicons dashicons-admin-multisite"></span>
+                    <?php echo wp_kses_post( sop_preorder_render_header_icon( 'container.png', 'dashicons-admin-multisite', __( 'Container', 'sop' ) ) ); ?>
                 </div>
                 <div class="sop-preorder-card-main sop-preorder-card-main--middle">
                     <div class="sop-preorder-card__row sop-preorder-card__row--container-top">
@@ -1132,7 +1157,7 @@ function sop_preorder_render_admin_page() {
 
             <div class="sop-preorder-card sop-preorder-card--tools">
                 <div class="sop-preorder-card-icon sop-preorder-card-icon--planner" aria-hidden="true">
-                    <span class="dashicons dashicons-clipboard"></span>
+                    <?php echo wp_kses_post( sop_preorder_render_header_icon( 'rounding.png', 'dashicons-clipboard', __( 'Rounding', 'sop' ) ) ); ?>
                 </div>
                     <div class="sop-preorder-card-main sop-preorder-card-main--tools">
                         <div class="sop-preorder-card-row sop-preorder-bottom-row">
@@ -2119,6 +2144,23 @@ function sop_preorder_render_admin_page() {
             line-height: 1.4;
             max-width: 320px;
             display: none;
+        }
+
+        .sop-preorder-header-icon-img {
+            display: block;
+            width: 28px;
+            height: 28px;
+            margin: 0 auto;
+            object-fit: contain;
+        }
+
+        .sop-preorder-header-icon-fallback {
+            font-size: 28px;
+            width: 28px;
+            height: 28px;
+            line-height: 28px;
+            display: block;
+            margin: 0 auto;
         }
 
         .sop-download-dropdown {
