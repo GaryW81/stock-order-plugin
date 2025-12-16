@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.22
+ * File version: 1.1.23
+ * - Order sheet export: restore image sizing to 80px cell / 78px image.
  * - Order Summary XLS: amounts forced to 2dp (FX unchanged); non-RMB header merged/grey/bold; A/B remain 180px.
  * - Layout polish: set Order Summary XLS column A/B to 180px.
  * - Layout polish: adjust C/D widths; rename Payment terms → Terms.
@@ -33,7 +34,7 @@ class SOP_Preorder_Excel_Exporter {
         $image_cell_size_px  = 80; // Outer dimension for the image column.
         $image_padding_px    = 1;  // Padding inside the image cell.
         $row_height_px       = 80; // Row height to match image cell.
-        $image_display_size_px = 60; // Actual image size inside the cell.
+        $image_display_size_px = max( 1, (int) $image_cell_size_px - ( 2 * (int) $image_padding_px ) ); // Actual image size inside the cell.
 
         // Determine sheet-level FX for USD display: Balance FX (payload) > supplier effective FX.
         $sheet_fx_for_usd = 0.0;
@@ -138,7 +139,7 @@ class SOP_Preorder_Excel_Exporter {
             }
 
             $img_td_style = sprintf(
-                'width:%dpx;height:%dpx;border:1px solid #000;vertical-align:middle;text-align:center;',
+                'width:%dpx;height:%dpx;border:1px solid #000;vertical-align:middle;text-align:center;padding:0;',
                 (int) $image_cell_size_px,
                 (int) $image_cell_size_px
             );
@@ -146,7 +147,7 @@ class SOP_Preorder_Excel_Exporter {
             $html .= '<tr style="height:' . (int) $row_height_px . 'px;">';
             $html .= '<td style="' . $img_td_style . '">';
             if ( $thumb_url ) {
-                $html .= '<img src="' . esc_url( $thumb_url ) . '" alt="" width="' . (int) $image_display_size_px . '" height="' . (int) $image_display_size_px . '" style="display:block;margin:5px auto;" />';
+                $html .= '<img src="' . esc_url( $thumb_url ) . '" alt="" width="' . (int) $image_display_size_px . '" height="' . (int) $image_display_size_px . '" style="display:block;margin:0 auto;" />';
             }
             $html .= '</td>';
             $html .= '<td>' . esc_html( $sku ) . '</td>';
