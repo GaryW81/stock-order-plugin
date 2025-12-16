@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.23
+ * File version: 1.1.24
+ * - Order sheet export: set image display size to ~62px (~1.65cm) to match Excel scaling.
  * - Order sheet export: restore image sizing to 80px cell / 78px image.
  * - Order Summary XLS: amounts forced to 2dp (FX unchanged); non-RMB header merged/grey/bold; A/B remain 180px.
  * - Layout polish: set Order Summary XLS column A/B to 180px.
@@ -34,7 +35,7 @@ class SOP_Preorder_Excel_Exporter {
         $image_cell_size_px  = 80; // Outer dimension for the image column.
         $image_padding_px    = 1;  // Padding inside the image cell.
         $row_height_px       = 80; // Row height to match image cell.
-        $image_display_size_px = max( 1, (int) $image_cell_size_px - ( 2 * (int) $image_padding_px ) ); // Actual image size inside the cell.
+        $image_display_size_px = 62; // Actual image size inside the cell (approx 1.65cm / 62% scale).
 
         // Determine sheet-level FX for USD display: Balance FX (payload) > supplier effective FX.
         $sheet_fx_for_usd = 0.0;
