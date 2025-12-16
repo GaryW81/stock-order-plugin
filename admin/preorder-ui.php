@@ -1,6 +1,6 @@
 ﻿<?php
 /*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.64 *
-* - V12.64 - UI: header icons 80px, icon panel padding 3px, white icon background.
+ * - V12.64 - UI: header icons 80px, icon panel padding 3px, white icon background.
 * - V12.63 - UI: double header card icon size (56px).
 * - V12.62 - Header icons: embed custom PNGs as CSS data URIs (multisite-safe), dashicon fallback retained.
 * - V12.61 - Header icons: serve via wp_ajax_sop_icon (no static/data URI issues).
@@ -1200,7 +1200,7 @@ function sop_preorder_render_admin_page() {
                 </div>
                     <div class="sop-preorder-card-main sop-preorder-card-main--tools">
                         <div class="sop-preorder-card-row sop-preorder-bottom-row">
-                            <div class="sop-preorder-bottom-left">
+                            <div class="sop-preorder-bottom-left sop-preorder-toolbar-row sop-preorder-toolbar-row--rounding">
                                 <span><?php esc_html_e( 'Rounding:', 'sop' ); ?></span>
                                 <label class="sop-round-step-label">
                                     <?php esc_html_e( 'Step:', 'sop' ); ?>
@@ -1213,7 +1213,7 @@ function sop_preorder_render_admin_page() {
                                 <button type="button" class="button" id="sop-round-down" data-round-mode="down" <?php echo $sop_disabled_attr; ?>><?php esc_html_e( 'Round Down', 'sop' ); ?></button>
                             </div>
 
-                            <div class="sop-preorder-bottom-middle">
+                            <div class="sop-preorder-bottom-middle sop-preorder-toolbar-row sop-preorder-toolbar-row--actions">
                                 <button type="button" class="button" id="sop-apply-soq-to-qty" <?php echo $sop_disabled_attr; ?>><?php esc_html_e( 'Apply SOQ to Qty', 'sop' ); ?></button>
                                 <button type="button" class="button" id="sop-preorder-remove-selected" <?php echo $sop_disabled_attr; ?>><?php esc_html_e( 'Remove selected', 'sop' ); ?></button>
                                 <label for="sop-preorder-show-removed" class="sop-preorder-show-removed">
@@ -1222,7 +1222,7 @@ function sop_preorder_render_admin_page() {
                                 </label>
                             </div>
 
-                            <div class="sop-preorder-bottom-right">
+                            <div class="sop-preorder-bottom-right sop-preorder-toolbar-row sop-preorder-toolbar-row--search">
                             <div class="sop-preorder-filter-sku">
                                 <label for="sop_sku_filter" class="screen-reader-text">
                                     <?php esc_html_e( 'Search by SKU', 'sop' ); ?>
@@ -2268,12 +2268,32 @@ function sop_preorder_render_admin_page() {
             width: 100%;
         }
 
+        .sop-preorder-bottom-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px 24px;
+        }
+
         /* Add vertical space between the top and bottom rows of Tile 2 (container planning) */
         .sop-preorder-middle-bottom {
             margin-top: 10px;
         }
 
         .sop-preorder-bottom-right {
+            margin-left: auto;
+        }
+
+        .sop-preorder-toolbar-row--rounding {
+            flex: 1 1 100%;
+        }
+
+        .sop-preorder-toolbar-row--actions {
+            flex: 0 1 auto;
+        }
+
+        .sop-preorder-toolbar-row--search {
+            flex: 0 1 auto;
             margin-left: auto;
         }
 
