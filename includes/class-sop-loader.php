@@ -1,6 +1,9 @@
 <?php
 /**
  * Main loader for the Stock Order Plugin.
+ *
+ * File version: 1.0.01
+ * - Goods-In v1: load goods-in admin core/UI.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -47,6 +50,8 @@ class sop_Loader {
         require_once SOP_PLUGIN_DIR . 'admin/product-mapping.php';
         require_once SOP_PLUGIN_DIR . 'admin/preorder-core.php';
         require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';
+        require_once SOP_PLUGIN_DIR . 'admin/goods-in-core.php';
+        require_once SOP_PLUGIN_DIR . 'admin/goods-in-ui.php';
     }
 
     /**

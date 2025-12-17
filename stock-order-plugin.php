@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.12 - Cleanup unused header icon AJAX endpoint.
- * Version: 5.9.12
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.13 - Goods-In v1 receiving screen + outstanding inbound.
+ * Version: 5.9.13
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.12' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.13' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -38,6 +38,8 @@ if ( is_admin() ) {
     require_once SOP_PLUGIN_DIR . 'admin/product-mapping.php';
     require_once SOP_PLUGIN_DIR . 'admin/preorder-core.php';
     require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';
+    require_once SOP_PLUGIN_DIR . 'admin/goods-in-core.php';
+    require_once SOP_PLUGIN_DIR . 'admin/goods-in-ui.php';
 
     /**
      * Register Saved sheets submenu.

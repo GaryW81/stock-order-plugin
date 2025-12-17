@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 1 (DB + Helpers)
- * File version: 1.0.01
+ * File version: 1.0.02
  *
  * - Declares sop_DB class (schema + helpers).
  * - Defines all core Stock Order Plugin tables.
@@ -9,6 +9,7 @@
  * - Stores current schema version in 'sop_db_version' option.
  * - Adds generic CRUD helpers for all SOP tables.
  * - 1.0.01 - Inbound stock helper: sum locked sheet qty per product.
+ * - 1.0.02 - Goods-In v1: add goods-in columns to preorder lines and compute inbound as outstanding.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -26,7 +27,7 @@ if ( ! class_exists( 'sop_DB' ) ) {
          * Current schema version for this project.
          * Bump this when tables/columns change in future phases.
          */
-        const VERSION = '1.2.0';
+        const VERSION = '1.2.1';
 
         /**
          * Return list of logical table keys => physical table names.
@@ -285,6 +286,13 @@ if ( ! class_exists( 'sop_DB' ) ) {
                 cbm_per_unit DECIMAL(14,6) NOT NULL DEFAULT 0,
                 cbm_total_owner DECIMAL(14,6) NOT NULL DEFAULT 0,
                 sort_index INT(11) NOT NULL DEFAULT 0,
+                goods_in_received_qty DECIMAL(14,3) NOT NULL DEFAULT 0,
+                goods_in_missing_qty DECIMAL(14,3) NOT NULL DEFAULT 0,
+                goods_in_reject_qty DECIMAL(14,3) NOT NULL DEFAULT 0,
+                goods_in_reject_reason VARCHAR(50) NOT NULL DEFAULT '',
+                goods_in_notes LONGTEXT NULL,
+                goods_in_stock_added_qty DECIMAL(14,3) NOT NULL DEFAULT 0,
+                goods_in_updated_at DATETIME NULL,
                 PRIMARY KEY  (id),
                 KEY sheet_id (sheet_id),
                 KEY product_id (product_id),
@@ -436,7 +444,8 @@ if ( ! class_exists( 'sop_DB' ) ) {
 /**
  * Get a map of inbound quantities per product from locked preorder sheets.
  *
- * Inbound = sum of qty_owner across sheet lines for sheets marked as locked.
+ * Inbound = outstanding quantity across locked/receiving sheets:
+ * ordered - stocked - missing - rejected (clamped to zero).
  * Used to prevent reordering products already on the way.
  *
  * @param int $exclude_sheet_id Optional sheet ID to exclude (e.g. current draft sheet being edited).
@@ -459,15 +468,30 @@ if ( ! function_exists( 'sop_db_get_inbound_qty_map' ) ) {
             $tbl_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
         }
 
+        $has_is_locked = false;
+        try {
+            $col = $wpdb->get_var( "SHOW COLUMNS FROM {$tbl_sheets} LIKE 'is_locked'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            if ( ! empty( $col ) ) {
+                $has_is_locked = true;
+            }
+        } catch ( \Throwable $t ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+        }
+
         $where  = array();
         $values = array();
 
         // Only orderable (non-zero) quantities.
         $where[] = 'l.qty_owner > 0';
 
-        // Locked / ordered sheets only.
-        $where[]  = 's.status = %s';
-        $values[] = 'locked';
+        // Exclude removed products (removed flag is stored on product meta).
+        $where[] = "( pm.meta_value IS NULL OR pm.meta_value <> '1' )";
+
+        // Locked / ordered sheets only (include 'receiving' for goods-in progress).
+        if ( $has_is_locked ) {
+            $where[] = "( s.status IN ( 'locked', 'receiving' ) OR ( s.is_locked IS NOT NULL AND s.is_locked = 1 ) )";
+        } else {
+            $where[] = "s.status IN ( 'locked', 'receiving' )";
+        }
 
         // Exclude received/completed/cancelled (future-proofing).
         $where[] = "( s.status IS NULL OR s.status NOT IN ( 'received','complete','completed','closed','cancelled' ) )";
@@ -479,12 +503,32 @@ if ( ! function_exists( 'sop_db_get_inbound_qty_map' ) ) {
 
         $where_sql = implode( ' AND ', $where );
 
-        $sql = "SELECT l.product_id, SUM(l.qty_owner) AS inbound_qty
+        $sql = "SELECT
+                    l.product_id,
+                    SUM(
+                        CASE
+                            WHEN (
+                                l.qty_owner
+                                - COALESCE(l.goods_in_stock_added_qty, 0)
+                                - COALESCE(l.goods_in_missing_qty, 0)
+                                - COALESCE(l.goods_in_reject_qty, 0)
+                            ) > 0
+                            THEN (
+                                l.qty_owner
+                                - COALESCE(l.goods_in_stock_added_qty, 0)
+                                - COALESCE(l.goods_in_missing_qty, 0)
+                                - COALESCE(l.goods_in_reject_qty, 0)
+                            )
+                            ELSE 0
+                        END
+                    ) AS inbound_qty
                 FROM {$tbl_lines} l
                 INNER JOIN {$tbl_sheets} s ON s.id = l.sheet_id
+                LEFT JOIN {$wpdb->postmeta} pm ON pm.post_id = l.product_id AND pm.meta_key = %s
                 WHERE {$where_sql}
                 GROUP BY l.product_id";
 
+        $values = array_merge( array( '_sop_preorder_removed' ), $values );
         $prepared = $wpdb->prepare( $sql, $values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows     = $wpdb->get_results( $prepared, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
@@ -504,8 +548,7 @@ if ( ! function_exists( 'sop_db_get_inbound_qty_map' ) ) {
                 continue;
             }
 
-            // Pre-Order UI currently treats inbound as whole units.
-            $map[ $pid ] = (int) round( $qty );
+            $map[ $pid ] = $qty;
         }
 
         return $map;
