@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.24
+ * File version: 1.1.25
+ * - Order sheet: force SKU column to TEXT to prevent scientific notation in Excel.
  * - Order sheet export: set image display size to ~62px (~1.65cm) to match Excel scaling.
  * - Order sheet export: restore image sizing to 80px cell / 78px image.
  * - Order Summary XLS: amounts forced to 2dp (FX unchanged); non-RMB header merged/grey/bold; A/B remain 180px.
@@ -95,7 +96,7 @@ class SOP_Preorder_Excel_Exporter {
 
         foreach ( $lines as $line ) {
             $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-            $sku         = isset( $line['sku'] ) ? $line['sku'] : '';
+            $sku         = isset( $line['sku'] ) ? (string) $line['sku'] : '';
             $brand       = isset( $line['brand'] ) ? $line['brand'] : '';
             $name        = isset( $line['product_name'] ) ? $line['product_name'] : '';
             $categories  = isset( $line['categories'] ) ? $line['categories'] : '';
@@ -144,6 +145,7 @@ class SOP_Preorder_Excel_Exporter {
                 (int) $image_cell_size_px,
                 (int) $image_cell_size_px
             );
+            $sku_td_style = 'mso-number-format:"\\@";';
 
             $html .= '<tr style="height:' . (int) $row_height_px . 'px;">';
             $html .= '<td style="' . $img_td_style . '">';
@@ -151,7 +153,7 @@ class SOP_Preorder_Excel_Exporter {
                 $html .= '<img src="' . esc_url( $thumb_url ) . '" alt="" width="' . (int) $image_display_size_px . '" height="' . (int) $image_display_size_px . '" style="display:block;margin:0 auto;" />';
             }
             $html .= '</td>';
-            $html .= '<td>' . esc_html( $sku ) . '</td>';
+            $html .= '<td style="' . $sku_td_style . '">' . esc_html( $sku ) . '</td>';
             $html .= '<td>' . esc_html( $brand ) . '</td>';
             $html .= '<td>' . esc_html( $name ) . '</td>';
             $html .= '<td>' . esc_html( $categories ) . '</td>';
