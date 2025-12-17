@@ -1,12 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.40
+ * File version: 11.41
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
- * - COGS lookup: include _cogs_total_value (site uses this key).
- * - COGS lookup: include _cost_of_goods/cost_of_goods keys.
- * - Debug: add COGS meta scan output (sop_debug_costs=1).
- * - Debug: emit cost_debug_json for all suppliers (not GBP-only).
+ * - Cleanup: remove sop_debug_costs tooling; keep minimal COGS key list.
  * - GBP suppliers: cost priority = COGS → RMB converted → blank.
  * - Export: exclude removed and zero-qty lines from order sheet XLS.
  * - Persist removed rows by updating _sop_preorder_removed from JSON payload (and legacy when provided).
@@ -1446,10 +1443,6 @@ function sop_preorder_get_cogs_value_gbp( $product_id ) {
         '_cogs_total_value',
         '_cogs_value',
         '_cost_of_goods',
-        'cost_of_goods',
-        'cogs_value',
-        '_wc_cog_cost',
-        '_wc_cogs_cost',
     );
 
     $parse_decimal = static function ( $raw ) {
@@ -1701,13 +1694,6 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
     $supplier_id      = (int) $supplier_id;
     $supplier_currency = sop_preorder_normalise_currency( $supplier_currency );
 
-    $sop_debug_costs = false;
-    if ( isset( $_GET['sop_debug_costs'] ) && '1' === (string) wp_unslash( $_GET['sop_debug_costs'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        if ( current_user_can( 'manage_woocommerce' ) || current_user_can( 'manage_options' ) ) {
-            $sop_debug_costs = true;
-        }
-    }
-
     if ( $supplier_id <= 0 ) {
         return [];
     }
@@ -1819,74 +1805,6 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             $cost_supplier = '';
         }
         $cost_gbp      = sop_preorder_get_cost_gbp_for_product( $product_id, $settings );
-
-        $cost_debug_json = '';
-        if ( $sop_debug_costs ) {
-            global $wpdb;
-
-            $blog_id = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
-            $pid     = (int) $product_id;
-
-            $scan = array();
-            if ( isset( $wpdb ) && $pid > 0 ) {
-                $table   = $wpdb->postmeta;
-                $sql     = "SELECT meta_key, meta_value
-                            FROM {$table}
-                            WHERE post_id = %d
-                              AND ( meta_key LIKE %s OR meta_key LIKE %s OR meta_key LIKE %s )
-                            LIMIT 30";
-                $results = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-                    $wpdb->prepare( $sql, $pid, '%cog%', '%cost%', '%goods%' )
-                );
-
-                if ( is_array( $results ) ) {
-                    foreach ( $results as $r ) {
-                        if ( ! isset( $r->meta_key ) ) {
-                            continue;
-                        }
-                        $k = (string) $r->meta_key;
-                        $v = isset( $r->meta_value ) && is_scalar( $r->meta_value ) ? (string) $r->meta_value : '';
-                        if ( strlen( $v ) > 120 ) {
-                            $v = substr( $v, 0, 120 ) . '…';
-                        }
-                        $scan[ $k ] = $v;
-                    }
-                }
-            }
-
-            $cogs_postmeta__cogs_total_value = get_post_meta( $pid, '_cogs_total_value', true );
-            $cogs_postmeta__cogs_value       = get_post_meta( $pid, '_cogs_value', true );
-            $cogs_postmeta__cost_of_goods    = get_post_meta( $pid, '_cost_of_goods', true );
-            $cogs_wcmeta__cogs_total_value   = $product ? $product->get_meta( '_cogs_total_value', true ) : '';
-            $cogs_wcmeta__cogs_value         = $product ? $product->get_meta( '_cogs_value', true ) : '';
-            $cogs_wcmeta__cost_of_goods      = $product ? $product->get_meta( '_cost_of_goods', true ) : '';
-
-            $cost_debug = array(
-                'blog_id'                    => $blog_id,
-                'product_id'                 => $pid,
-                'supplier_currency'          => $supplier_currency,
-                'cogs_postmeta__cogs_total_value' => is_scalar( $cogs_postmeta__cogs_total_value ) ? (string) $cogs_postmeta__cogs_total_value : '',
-                'cogs_postmeta__cogs_value'  => is_scalar( $cogs_postmeta__cogs_value ) ? (string) $cogs_postmeta__cogs_value : '',
-                'cogs_postmeta__cost_of_goods' => is_scalar( $cogs_postmeta__cost_of_goods ) ? (string) $cogs_postmeta__cost_of_goods : '',
-                'cogs_wcmeta__cogs_total_value' => is_scalar( $cogs_wcmeta__cogs_total_value ) ? (string) $cogs_wcmeta__cogs_total_value : '',
-                'cogs_wcmeta__cogs_value'    => is_scalar( $cogs_wcmeta__cogs_value ) ? (string) $cogs_wcmeta__cogs_value : '',
-                'cogs_wcmeta__cost_of_goods' => is_scalar( $cogs_wcmeta__cost_of_goods ) ? (string) $cogs_wcmeta__cost_of_goods : '',
-                'resolved_cost_supplier'     => is_scalar( $cost_supplier ) ? (string) $cost_supplier : '',
-                'scan'                       => $scan,
-            );
-
-            $cost_debug_json = wp_json_encode( $cost_debug );
-            if ( ! is_string( $cost_debug_json ) ) {
-                $cost_debug_json = '';
-            } elseif ( strlen( $cost_debug_json ) > 8000 ) {
-                $cost_debug['scan']           = array();
-                $cost_debug['scan_truncated'] = 1;
-                $cost_debug_json              = wp_json_encode( $cost_debug );
-                if ( ! is_string( $cost_debug_json ) ) {
-                    $cost_debug_json = '';
-                }
-            }
-        }
 
         // Location (warehouse bin/shelf), using SOP bin location with fallback to existing Woo meta.
         $location = get_post_meta( $product_id, '_sop_bin_location', true );
@@ -2026,7 +1944,6 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             'inbound_qty'         => $inbound_qty,
             'cost_supplier'       => $cost_supplier,
             'cost_gbp'            => $cost_gbp,
-            'cost_debug_json'     => $cost_debug_json,
             'location'            => $location,
             'brand'               => $brand,
             'category'            => $category_path,
