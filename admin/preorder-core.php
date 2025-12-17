@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.41
+ * File version: 11.42
+ * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
  * - Cleanup: remove sop_debug_costs tooling; keep minimal COGS key list.
  * - GBP suppliers: cost priority = COGS → RMB converted → blank.
@@ -1698,6 +1699,34 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         return [];
     }
 
+    // Inbound stock from locked sheets: exclude current draft sheet (so it doesn't count itself).
+    $exclude_sheet_id = 0;
+    $current_sheet_id = isset( $_GET['sop_sheet_id'] ) ? (int) $_GET['sop_sheet_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    if ( 0 === $current_sheet_id && isset( $_GET['sop_preorder_sheet_id'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $current_sheet_id = (int) $_GET['sop_preorder_sheet_id']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    }
+
+    if ( $current_sheet_id > 0 && function_exists( 'sop_get_preorder_sheet' ) ) {
+        $sheet = sop_get_preorder_sheet( $current_sheet_id );
+        if ( is_array( $sheet ) ) {
+            $sheet_status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
+            $is_locked    = ( 'locked' === $sheet_status );
+            if ( isset( $sheet['is_locked'] ) && (int) $sheet['is_locked'] === 1 ) {
+                $is_locked = true;
+            }
+
+            if ( ! $is_locked ) {
+                $exclude_sheet_id = (int) $current_sheet_id;
+            }
+        }
+    }
+
+    $inbound_map = array();
+    if ( function_exists( 'sop_db_get_inbound_qty_map' ) ) {
+        $inbound_map = sop_db_get_inbound_qty_map( $exclude_sheet_id );
+        $inbound_map = is_array( $inbound_map ) ? $inbound_map : array();
+    }
+
     // Preload forecast rows for this supplier and index by product ID.
     $forecast_by_product = array();
 
@@ -1709,7 +1738,12 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
 
             // Protect against any runtime errors inside the forecast engine.
             try {
-                $forecast_rows = $engine->get_supplier_forecast( $supplier_id, array() );
+                $forecast_rows = $engine->get_supplier_forecast(
+                    $supplier_id,
+                    array(
+                        'inbound_map' => $inbound_map,
+                    )
+                );
             } catch ( \Throwable $t ) { // PHP 7+.
                 // Log the error but do not break the Pre-Order Sheet.
                 error_log(
@@ -1798,7 +1832,10 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         }
 
 
-        $inbound_qty = 0.0;
+        $inbound_qty = isset( $inbound_map[ $product_id ] ) ? (float) $inbound_map[ $product_id ] : 0.0;
+        if ( $inbound_qty < 0 ) {
+            $inbound_qty = 0.0;
+        }
 
         $cost_supplier = sop_preorder_get_cost_for_supplier_currency( $product_id, $supplier_currency, $settings );
         if ( null === $cost_supplier ) {
@@ -1914,6 +1951,12 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
             $soq_stock_at_arrival    = isset( $forecast_row['stock_at_arrival'] ) ? (float) $forecast_row['stock_at_arrival'] : null;
             $soq_buffer_target_units = isset( $forecast_row['buffer_target_units'] ) ? (float) $forecast_row['buffer_target_units'] : null;
             $soq_current_stock       = isset( $forecast_row['current_stock'] ) ? (float) $forecast_row['current_stock'] : $soq_current_stock;
+            if ( isset( $forecast_row['inbound_qty'] ) ) {
+                $inbound_qty = (float) $forecast_row['inbound_qty'];
+                if ( $inbound_qty < 0 ) {
+                    $inbound_qty = 0.0;
+                }
+            }
         }
 
         // SOQ should be rounded up to the nearest whole number.

@@ -9,7 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.23
+ * File version: 1.0.24
+ * - Inbound: support inbound_map (locked sheet quantities) in stock_at_arrival and suggested_raw.
  * - Correct fallback SOQ to prefer monthly cap × buffer and treat MOQ as one-off pack size.
  */
 
@@ -630,13 +631,23 @@ class Stock_Order_Plugin_Core_Engine {
         $lead_demand   = $demand_per_day * $lead_days;
         $buffer_demand = $demand_per_day * $buffer_days;
 
+        $inbound_qty = 0.0;
+        if ( ! empty( $args['inbound_map'] ) && is_array( $args['inbound_map'] ) && isset( $args['inbound_map'][ $product_id ] ) ) {
+            $inbound_qty = (float) $args['inbound_map'][ $product_id ];
+        }
+        if ( $inbound_qty < 0 ) {
+            $inbound_qty = 0.0;
+        }
+
         $current_stock = (int) $product->get_stock_quantity();
         if ( $current_stock < 0 ) {
             $current_stock = 0;
         }
 
+        $effective_stock_for_forecast = (float) $current_stock + $inbound_qty;
+
         // Stock remaining when the shipment lands (before new order), clamped at zero.
-        $stock_at_arrival = max( 0.0, (float) $current_stock - $lead_demand );
+        $stock_at_arrival = max( 0.0, $effective_stock_for_forecast - $lead_demand );
 
         // Target stock on arrival is based solely on buffer coverage.
         $target_at_arrival   = $buffer_demand;
@@ -724,7 +735,7 @@ class Stock_Order_Plugin_Core_Engine {
             $fallback_monthly = (float) $max_per_month;
         }
 
-        if ( $current_stock <= 0 && $suggested_qty_final <= 0 ) {
+        if ( $effective_stock_for_forecast <= 0 && $suggested_qty_final <= 0 ) {
             if ( $fallback_monthly > 0 && $buffer_months > 0 ) {
                 // We have a genuine monthly reference: order one full buffer window.
                 $fallback_soq = (int) ceil( $fallback_monthly * $buffer_months );
@@ -748,6 +759,7 @@ class Stock_Order_Plugin_Core_Engine {
             'sku'               => $product->get_sku(),
             'name'              => $product->get_name(),
             'current_stock'     => $current_stock,
+            'inbound_qty'       => (float) $inbound_qty,
             'qty_sold'          => (int) $sales['qty_sold'],
             'demand_per_day'    => (float) $demand_per_day,
             'forecast_days'     => (float) $forecast_days,

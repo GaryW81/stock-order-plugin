@@ -1,12 +1,14 @@
 <?php
 /**
  * Stock Order Plugin - Phase 1 (DB + Helpers)
+ * File version: 1.0.01
  *
  * - Declares sop_DB class (schema + helpers).
  * - Defines all core Stock Order Plugin tables.
  * - Installs/updates tables using dbDelta() when the DB version changes.
  * - Stores current schema version in 'sop_db_version' option.
  * - Adds generic CRUD helpers for all SOP tables.
+ * - 1.0.01 - Inbound stock helper: sum locked sheet qty per product.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -429,4 +431,83 @@ if ( ! class_exists( 'sop_DB' ) ) {
             sop_DB::maybe_install();
         }
     } );
+}
+
+/**
+ * Get a map of inbound quantities per product from locked preorder sheets.
+ *
+ * Inbound = sum of qty_owner across sheet lines for sheets marked as locked.
+ * Used to prevent reordering products already on the way.
+ *
+ * @param int $exclude_sheet_id Optional sheet ID to exclude (e.g. current draft sheet being edited).
+ *
+ * @return array<int,int> Map of product_id => inbound_qty.
+ */
+if ( ! function_exists( 'sop_db_get_inbound_qty_map' ) ) {
+    function sop_db_get_inbound_qty_map( $exclude_sheet_id = 0 ) : array {
+        global $wpdb;
+
+        $exclude_sheet_id = (int) $exclude_sheet_id;
+
+        $tbl_sheets = function_exists( 'sop_get_preorder_sheet_table_name' ) ? sop_get_preorder_sheet_table_name() : '';
+        $tbl_lines  = function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ? sop_get_preorder_sheet_lines_table_name() : '';
+
+        if ( '' === $tbl_sheets ) {
+            $tbl_sheets = $wpdb->prefix . 'sop_preorder_sheet';
+        }
+        if ( '' === $tbl_lines ) {
+            $tbl_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
+        }
+
+        $where  = array();
+        $values = array();
+
+        // Only orderable (non-zero) quantities.
+        $where[] = 'l.qty_owner > 0';
+
+        // Locked / ordered sheets only.
+        $where[]  = 's.status = %s';
+        $values[] = 'locked';
+
+        // Exclude received/completed/cancelled (future-proofing).
+        $where[] = "( s.status IS NULL OR s.status NOT IN ( 'received','complete','completed','closed','cancelled' ) )";
+
+        if ( $exclude_sheet_id > 0 ) {
+            $where[]  = 's.id <> %d';
+            $values[] = $exclude_sheet_id;
+        }
+
+        $where_sql = implode( ' AND ', $where );
+
+        $sql = "SELECT l.product_id, SUM(l.qty_owner) AS inbound_qty
+                FROM {$tbl_lines} l
+                INNER JOIN {$tbl_sheets} s ON s.id = l.sheet_id
+                WHERE {$where_sql}
+                GROUP BY l.product_id";
+
+        $prepared = $wpdb->prepare( $sql, $values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $rows     = $wpdb->get_results( $prepared, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+        if ( empty( $rows ) || ! is_array( $rows ) ) {
+            return array();
+        }
+
+        $map = array();
+        foreach ( $rows as $row ) {
+            $pid = isset( $row['product_id'] ) ? (int) $row['product_id'] : 0;
+            if ( $pid <= 0 ) {
+                continue;
+            }
+
+            $qty = isset( $row['inbound_qty'] ) ? (float) $row['inbound_qty'] : 0.0;
+            if ( $qty <= 0 ) {
+                continue;
+            }
+
+            // Pre-Order UI currently treats inbound as whole units.
+            $map[ $pid ] = (int) round( $qty );
+        }
+
+        return $map;
+    }
 }
