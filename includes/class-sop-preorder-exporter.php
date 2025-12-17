@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.25
- * - Order sheet: force SKU column to TEXT to prevent scientific notation in Excel.
+ * File version: 1.1.26
+ * - Order sheet: SKU uses number 0-dec format (no scientific); left-align SKUs; middle-align rows.
  * - Order sheet export: set image display size to ~62px (~1.65cm) to match Excel scaling.
  * - Order sheet export: restore image sizing to 80px cell / 78px image.
  * - Order Summary XLS: amounts forced to 2dp (FX unchanged); non-RMB header merged/grey/bold; A/B remain 180px.
@@ -96,7 +96,13 @@ class SOP_Preorder_Excel_Exporter {
 
         foreach ( $lines as $line ) {
             $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-            $sku         = isset( $line['sku'] ) ? (string) $line['sku'] : '';
+            $sku_raw     = isset( $line['sku'] ) ? (string) $line['sku'] : '';
+            $sku_raw     = trim( $sku_raw );
+            $sku_digits  = preg_replace( '/\s+/', '', $sku_raw );
+            $sku_to_output = $sku_raw;
+            if ( '' !== $sku_digits && preg_match( '/^\d+$/', $sku_digits ) ) {
+                $sku_to_output = $sku_digits;
+            }
             $brand       = isset( $line['brand'] ) ? $line['brand'] : '';
             $name        = isset( $line['product_name'] ) ? $line['product_name'] : '';
             $categories  = isset( $line['categories'] ) ? $line['categories'] : '';
@@ -145,7 +151,8 @@ class SOP_Preorder_Excel_Exporter {
                 (int) $image_cell_size_px,
                 (int) $image_cell_size_px
             );
-            $sku_td_style = 'mso-number-format:"\\@";';
+            $td_style     = 'border:1px solid #000;vertical-align:middle;';
+            $sku_td_style = 'border:1px solid #000;vertical-align:middle;text-align:left;mso-number-format:"0";';
 
             $html .= '<tr style="height:' . (int) $row_height_px . 'px;">';
             $html .= '<td style="' . $img_td_style . '">';
@@ -153,20 +160,20 @@ class SOP_Preorder_Excel_Exporter {
                 $html .= '<img src="' . esc_url( $thumb_url ) . '" alt="" width="' . (int) $image_display_size_px . '" height="' . (int) $image_display_size_px . '" style="display:block;margin:0 auto;" />';
             }
             $html .= '</td>';
-            $html .= '<td style="' . $sku_td_style . '">' . esc_html( $sku ) . '</td>';
-            $html .= '<td>' . esc_html( $brand ) . '</td>';
-            $html .= '<td>' . esc_html( $name ) . '</td>';
-            $html .= '<td>' . esc_html( $categories ) . '</td>';
-            $html .= '<td>' . esc_html( $moq ) . '</td>';
-            $html .= '<td>' . esc_html( $qty ) . '</td>';
-            $html .= '<td>' . esc_html( $cost_rmb ) . '</td>';
-            $html .= '<td>' . esc_html( $cost_usd ) . '</td>';
-            $html .= '<td>' . esc_html( $line_total_rmb ) . '</td>';
-            $html .= '<td>' . esc_html( $product_notes ) . '</td>';
-            $html .= '<td>' . esc_html( $order_notes ) . '</td>';
-            $html .= '<td>' . esc_html( $carton_number ) . '</td>';
-            $html .= '<td>' . esc_html( $cm3_per_unit ) . '</td>';
-            $html .= '<td>' . esc_html( $line_cbm ) . '</td>';
+            $html .= '<td style="' . $sku_td_style . '">' . esc_html( $sku_to_output ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $brand ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $name ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $categories ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $moq ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $qty ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $cost_rmb ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $cost_usd ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $line_total_rmb ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $product_notes ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $order_notes ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $carton_number ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $cm3_per_unit ) . '</td>';
+            $html .= '<td style="' . $td_style . '">' . esc_html( $line_cbm ) . '</td>';
             $html .= '</tr>';
         }
 
