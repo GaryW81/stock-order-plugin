@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.39
+ * File version: 11.40
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
+ * - COGS lookup: include _cogs_total_value (site uses this key).
  * - COGS lookup: include _cost_of_goods/cost_of_goods keys.
  * - Debug: add COGS meta scan output (sop_debug_costs=1).
  * - Debug: emit cost_debug_json for all suppliers (not GBP-only).
@@ -1442,6 +1443,7 @@ function sop_preorder_get_cogs_value_gbp( $product_id ) {
     $product_id = (int) $product_id;
 
     $keys = array(
+        '_cogs_total_value',
         '_cogs_value',
         '_cost_of_goods',
         'cost_of_goods',
@@ -1852,17 +1854,21 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
                 }
             }
 
-            $cogs_postmeta__cogs_value      = get_post_meta( $pid, '_cogs_value', true );
-            $cogs_postmeta__cost_of_goods   = get_post_meta( $pid, '_cost_of_goods', true );
-            $cogs_wcmeta__cogs_value        = $product ? $product->get_meta( '_cogs_value', true ) : '';
-            $cogs_wcmeta__cost_of_goods     = $product ? $product->get_meta( '_cost_of_goods', true ) : '';
+            $cogs_postmeta__cogs_total_value = get_post_meta( $pid, '_cogs_total_value', true );
+            $cogs_postmeta__cogs_value       = get_post_meta( $pid, '_cogs_value', true );
+            $cogs_postmeta__cost_of_goods    = get_post_meta( $pid, '_cost_of_goods', true );
+            $cogs_wcmeta__cogs_total_value   = $product ? $product->get_meta( '_cogs_total_value', true ) : '';
+            $cogs_wcmeta__cogs_value         = $product ? $product->get_meta( '_cogs_value', true ) : '';
+            $cogs_wcmeta__cost_of_goods      = $product ? $product->get_meta( '_cost_of_goods', true ) : '';
 
             $cost_debug = array(
                 'blog_id'                    => $blog_id,
                 'product_id'                 => $pid,
                 'supplier_currency'          => $supplier_currency,
+                'cogs_postmeta__cogs_total_value' => is_scalar( $cogs_postmeta__cogs_total_value ) ? (string) $cogs_postmeta__cogs_total_value : '',
                 'cogs_postmeta__cogs_value'  => is_scalar( $cogs_postmeta__cogs_value ) ? (string) $cogs_postmeta__cogs_value : '',
                 'cogs_postmeta__cost_of_goods' => is_scalar( $cogs_postmeta__cost_of_goods ) ? (string) $cogs_postmeta__cost_of_goods : '',
+                'cogs_wcmeta__cogs_total_value' => is_scalar( $cogs_wcmeta__cogs_total_value ) ? (string) $cogs_wcmeta__cogs_total_value : '',
                 'cogs_wcmeta__cogs_value'    => is_scalar( $cogs_wcmeta__cogs_value ) ? (string) $cogs_wcmeta__cogs_value : '',
                 'cogs_wcmeta__cost_of_goods' => is_scalar( $cogs_wcmeta__cost_of_goods ) ? (string) $cogs_wcmeta__cost_of_goods : '',
                 'resolved_cost_supplier'     => is_scalar( $cost_supplier ) ? (string) $cost_supplier : '',
