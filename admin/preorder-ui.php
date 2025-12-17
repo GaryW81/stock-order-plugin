@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.73 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.74 *
+* - V12.74 - Debug: expose meta scan JSON on cost input (sop_debug_costs=1).
 * - V12.73 - Debug: include _cost_of_goods keys in sop_debug_costs output.
 * - V12.72 - GBP cost debug: optional sop_debug_costs=1 adds cost meta data-* attrs (no selector/name changes).
 * - V12.71 - GBP supplier cost: keep missing cost blank in UI (no forced 0), while totals treat blank as 0.
@@ -1610,7 +1611,13 @@ function sop_preorder_render_admin_page() {
                                         ?>
                                     </td>
                                     <td class="column-cost-supplier" data-column="cost_supplier">
-                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier_display ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb"<?php echo $sop_cost_debug_attrs; ?> <?php echo $sop_disabled_attr; ?> />
+                                        <?php
+                                        $sop_cost_scan_attr = '';
+                                        if ( ! empty( $row['cost_debug_json'] ) ) {
+                                            $sop_cost_scan_attr = ' data-sop-cost-debug="' . esc_attr( $row['cost_debug_json'] ) . '"';
+                                        }
+                                        ?>
+                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier_display ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb"<?php echo $sop_cost_debug_attrs; ?><?php echo $sop_cost_scan_attr; ?> <?php echo $sop_disabled_attr; ?> />
                                     </td>
                                     <?php if ( 'RMB' === $supplier_currency ) : ?>
                                         <?php
