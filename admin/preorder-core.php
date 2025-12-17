@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.36
+ * File version: 11.37
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
+ * - COGS lookup: include _cost_of_goods/cost_of_goods keys.
  * - GBP suppliers: cost priority = COGS → RMB converted → blank.
  * - Export: exclude removed and zero-qty lines from order sheet XLS.
  * - Persist removed rows by updating _sop_preorder_removed from JSON payload (and legacy when provided).
@@ -1440,6 +1441,8 @@ function sop_preorder_get_cogs_value_gbp( $product_id ) {
 
     $keys = array(
         '_cogs_value',
+        '_cost_of_goods',
+        'cost_of_goods',
         'cogs_value',
         '_wc_cog_cost',
         '_wc_cogs_cost',

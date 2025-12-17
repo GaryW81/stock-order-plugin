@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.72 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.73 *
+* - V12.73 - Debug: include _cost_of_goods keys in sop_debug_costs output.
 * - V12.72 - GBP cost debug: optional sop_debug_costs=1 adds cost meta data-* attrs (no selector/name changes).
 * - V12.71 - GBP supplier cost: keep missing cost blank in UI (no forced 0), while totals treat blank as 0.
 * - V12.70 - Adjust SOQ tooltip marker size to 20px (AI icon background with fallback).
@@ -1514,9 +1515,12 @@ function sop_preorder_render_admin_page() {
                                 $sop_cost_debug_attrs = '';
                                 if ( $sop_debug_costs ) {
                                     $sop_dbg_postmeta = get_post_meta( $product_id, '_cogs_value', true );
+                                    $sop_dbg_postmeta_cog = get_post_meta( $product_id, '_cost_of_goods', true );
                                     $sop_dbg_wcmeta   = '';
+                                    $sop_dbg_wcmeta_cog = '';
                                     if ( $product ) {
                                         $sop_dbg_wcmeta = $product->get_meta( '_cogs_value', true );
+                                        $sop_dbg_wcmeta_cog = $product->get_meta( '_cost_of_goods', true );
                                     }
 
                                     $sop_dbg_resolved = '';
@@ -1528,10 +1532,12 @@ function sop_preorder_render_admin_page() {
                                     }
 
                                     $sop_cost_debug_attrs = sprintf(
-                                        ' data-sop-product-id="%d" data-sop-cogs-postmeta="%s" data-sop-cogs-wcmeta="%s" data-sop-cogs-resolved="%s"',
+                                        ' data-sop-product-id="%d" data-sop-cogs-postmeta="%s" data-sop-cogs-wcmeta="%s" data-sop-cogs-postmeta-cost_of_goods="%s" data-sop-cogs-wcmeta-cost_of_goods="%s" data-sop-cogs-resolved="%s"',
                                         (int) $product_id,
                                         esc_attr( (string) $sop_dbg_postmeta ),
                                         esc_attr( (string) $sop_dbg_wcmeta ),
+                                        esc_attr( (string) $sop_dbg_postmeta_cog ),
+                                        esc_attr( (string) $sop_dbg_wcmeta_cog ),
                                         esc_attr( (string) $sop_dbg_resolved )
                                     );
                                 }
