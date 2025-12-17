@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.70 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.71 *
+* - V12.71 - GBP supplier cost: keep missing cost blank in UI (no forced 0), while totals treat blank as 0.
 * - V12.70 - Adjust SOQ tooltip marker size to 20px (AI icon background with fallback).
 * - V12.69 - Increase SOQ tooltip marker size to 25px.
 * - V12.68 - SOQ tooltip marker uses ai-logo PNG via CSS background (single data URI, dashicon fallback).
@@ -1415,8 +1416,11 @@ function sop_preorder_render_admin_page() {
                                 $order_qty            = (float) $row['manual_order_qty'];
                                 $stock_on_hand        = (float) $row['stock_on_hand'];
                                 $inbound_qty          = (float) $row['inbound_qty'];
-                                $cost_gbp             = (float) $row['cost_gbp'];
-                                $cost_supplier        = (float) $row['cost_supplier'];
+                                $cost_gbp = isset( $row['cost_gbp'] ) ? (float) $row['cost_gbp'] : 0.0;
+
+                                $cost_supplier_raw     = isset( $row['cost_supplier'] ) ? $row['cost_supplier'] : '';
+                                $cost_supplier_num     = is_numeric( $cost_supplier_raw ) ? (float) $cost_supplier_raw : 0.0;
+                                $cost_supplier_display = is_numeric( $cost_supplier_raw ) ? (string) $cost_supplier_raw : '';
 
                                 $location             = isset( $row['location'] ) ? $row['location'] : '';
                                 $brand                = isset( $row['brand'] ) ? $row['brand'] : '';
@@ -1475,7 +1479,7 @@ function sop_preorder_render_admin_page() {
                                 $regular_line_price   = $regular_unit_price * $order_qty;
 
                                 $line_total_gbp       = $order_qty * $cost_gbp;
-                                $line_total_sup       = $order_qty * $cost_supplier;
+                                $line_total_sup       = $order_qty * $cost_supplier_num;
                                 $row_classes          = array( 'sop-preorder-row' );
                                 if ( ! empty( $row['removed'] ) ) {
                                     $row_classes[] = 'sop-preorder-row-removed';
@@ -1567,11 +1571,11 @@ function sop_preorder_render_admin_page() {
                                         ?>
                                     </td>
                                     <td class="column-cost-supplier" data-column="cost_supplier">
-                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb" <?php echo $sop_disabled_attr; ?> />
+                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier_display ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb" <?php echo $sop_disabled_attr; ?> />
                                     </td>
                                     <?php if ( 'RMB' === $supplier_currency ) : ?>
                                         <?php
-                                        $unit_cost_rmb  = $cost_supplier;
+                                        $unit_cost_rmb  = $cost_supplier_num;
                                         $unit_cost_usd  = 0.0;
                                         if ( $unit_cost_rmb > 0 ) {
                                             if ( $sheet_fx_for_usd > 0 ) {
@@ -1618,7 +1622,7 @@ function sop_preorder_render_admin_page() {
                                         <span class="sop-line-total-gbp" data-cost-gbp="<?php echo esc_attr( $cost_gbp ); ?>" style="display:none;">
                                             <?php echo esc_html( number_format_i18n( $line_total_gbp, 2 ) ); ?>
                                         </span>
-                                        <span class="sop-line-total-supplier" data-cost-supplier="<?php echo esc_attr( $cost_supplier ); ?>">
+                                        <span class="sop-line-total-supplier" data-cost-supplier="<?php echo esc_attr( $cost_supplier_num ); ?>">
                                             <?php echo esc_html( number_format_i18n( $line_total_sup, 2 ) ); ?>
                                         </span>
                                     </td>

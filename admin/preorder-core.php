@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.34
+ * File version: 11.35
+ * - GBP suppliers: read Woo COGS meta keys; missing cost returns blank (NULL) for display.
  * - GBP suppliers: cost priority = COGS → RMB converted → blank.
  * - Export: exclude removed and zero-qty lines from order sheet XLS.
  * - Persist removed rows by updating _sop_preorder_removed from JSON payload (and legacy when provided).
@@ -1425,6 +1426,43 @@ function sop_preorder_resolve_supplier_params( $preferred_supplier_id = 0 ) {
     ];
 }
 
+/**
+ * Read WooCommerce cost-of-goods meta for a product (GBP).
+ *
+ * Returns NULL when no value is present.
+ *
+ * @param int $product_id Product ID.
+ *
+ * @return float|null Cost-of-goods value in GBP, or NULL when missing.
+ */
+function sop_preorder_get_cogs_value_gbp( $product_id ) {
+    $product_id = (int) $product_id;
+
+    $keys = array(
+        '_cogs_value',
+        'cogs_value',
+    );
+
+    foreach ( $keys as $key ) {
+        $raw = get_post_meta( $product_id, $key, true );
+        if ( '' === $raw || null === $raw ) {
+            continue;
+        }
+
+        if ( function_exists( 'wc_format_decimal' ) ) {
+            $norm = wc_format_decimal( $raw );
+        } else {
+            $norm = trim( (string) $raw );
+        }
+
+        if ( '' !== $norm && is_numeric( $norm ) ) {
+            return (float) $norm;
+        }
+    }
+
+    return null;
+}
+
 function sop_preorder_get_cost_gbp_for_product( $product_id, $settings = null ) {
     if ( ! $settings ) {
         $settings = sop_preorder_get_settings();
@@ -1439,12 +1477,12 @@ function sop_preorder_get_cost_gbp_for_product( $product_id, $settings = null ) 
     $cost_rmb = get_post_meta( $product_id, '_sop_cost_rmb', true );
     $cost_usd = get_post_meta( $product_id, '_sop_cost_usd', true );
     $cost_eur = get_post_meta( $product_id, '_sop_cost_eur', true );
-    $cost_gbp = get_post_meta( $product_id, '_cogs_value', true );
+    $cost_gbp = sop_preorder_get_cogs_value_gbp( $product_id );
 
     $cost_rmb = $cost_rmb !== '' ? (float) $cost_rmb : null;
     $cost_usd = $cost_usd !== '' ? (float) $cost_usd : null;
     $cost_eur = $cost_eur !== '' ? (float) $cost_eur : null;
-    $cost_gbp = $cost_gbp !== '' ? (float) $cost_gbp : null;
+    $cost_gbp = $cost_gbp !== null ? (float) $cost_gbp : null;
 
     if ( $cost_rmb !== null && $rate_rmb > 0 ) {
         return $cost_rmb / $rate_rmb;
@@ -1478,9 +1516,9 @@ function sop_preorder_get_cost_for_supplier_currency( $product_id, $supplier_cur
     $rate_eur = (float) ( $settings['currency_rates']['EUR'] ?? 0 );
 
     if ( 'GBP' === $supplier_currency ) {
-        $cogs = get_post_meta( $product_id, '_cogs_value', true );
-        if ( '' !== $cogs && is_numeric( $cogs ) ) {
-            return (float) $cogs;
+        $cogs = sop_preorder_get_cogs_value_gbp( $product_id );
+        if ( null !== $cogs ) {
+            return $cogs;
         }
 
         $cost_rmb = get_post_meta( $product_id, '_sop_cost_rmb', true );
