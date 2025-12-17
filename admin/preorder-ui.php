@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.70 *
 * - V12.70 - Adjust SOQ tooltip marker size to 20px (AI icon background with fallback).
 * - V12.69 - Increase SOQ tooltip marker size to 25px.
@@ -133,7 +133,7 @@ function sop_preorder_render_admin_page() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to access this page.', 'sop' ) );
     }
- 
+
     $suppliers = sop_preorder_get_suppliers();
     $settings  = sop_preorder_get_settings();
 
