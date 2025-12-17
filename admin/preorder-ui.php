@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.71 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.72 *
+* - V12.72 - GBP cost debug: optional sop_debug_costs=1 adds cost meta data-* attrs (no selector/name changes).
 * - V12.71 - GBP supplier cost: keep missing cost blank in UI (no forced 0), while totals treat blank as 0.
 * - V12.70 - Adjust SOQ tooltip marker size to 20px (AI icon background with fallback).
 * - V12.69 - Increase SOQ tooltip marker size to 25px.
@@ -133,6 +134,13 @@ if ( ! function_exists( 'sop_preorder_get_header_icon_data_uri' ) ) {
 function sop_preorder_render_admin_page() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to access this page.', 'sop' ) );
+    }
+
+    $sop_debug_costs = false;
+    if ( isset( $_GET['sop_debug_costs'] ) && '1' === (string) wp_unslash( $_GET['sop_debug_costs'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( current_user_can( 'manage_woocommerce' ) || current_user_can( 'manage_options' ) ) {
+            $sop_debug_costs = true;
+        }
     }
 
     $suppliers = sop_preorder_get_suppliers();
@@ -1502,6 +1510,31 @@ function sop_preorder_render_admin_page() {
                                 if ( $product ) {
                                     $image_id = $product->get_image_id();
                                 }
+
+                                $sop_cost_debug_attrs = '';
+                                if ( $sop_debug_costs ) {
+                                    $sop_dbg_postmeta = get_post_meta( $product_id, '_cogs_value', true );
+                                    $sop_dbg_wcmeta   = '';
+                                    if ( $product ) {
+                                        $sop_dbg_wcmeta = $product->get_meta( '_cogs_value', true );
+                                    }
+
+                                    $sop_dbg_resolved = '';
+                                    if ( function_exists( 'sop_preorder_get_cogs_value_gbp' ) ) {
+                                        $sop_dbg_val = sop_preorder_get_cogs_value_gbp( $product_id );
+                                        if ( null !== $sop_dbg_val ) {
+                                            $sop_dbg_resolved = (string) $sop_dbg_val;
+                                        }
+                                    }
+
+                                    $sop_cost_debug_attrs = sprintf(
+                                        ' data-sop-product-id="%d" data-sop-cogs-postmeta="%s" data-sop-cogs-wcmeta="%s" data-sop-cogs-resolved="%s"',
+                                        (int) $product_id,
+                                        esc_attr( (string) $sop_dbg_postmeta ),
+                                        esc_attr( (string) $sop_dbg_wcmeta ),
+                                        esc_attr( (string) $sop_dbg_resolved )
+                                    );
+                                }
                                 ?>
                                 <tr data-index="<?php echo esc_attr( $index ); ?>" class="<?php echo esc_attr( implode( ' ', $row_classes ) ); ?>">
                                     <input type="hidden" name="sop_line_product_id[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $product_id ); ?>" />
@@ -1571,7 +1604,7 @@ function sop_preorder_render_admin_page() {
                                         ?>
                                     </td>
                                     <td class="column-cost-supplier" data-column="cost_supplier">
-                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier_display ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb" <?php echo $sop_disabled_attr; ?> />
+                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier_display ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb"<?php echo $sop_cost_debug_attrs; ?> <?php echo $sop_disabled_attr; ?> />
                                     </td>
                                     <?php if ( 'RMB' === $supplier_currency ) : ?>
                                         <?php

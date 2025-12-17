@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.35
- * - GBP suppliers: read Woo COGS meta keys; missing cost returns blank (NULL) for display.
+ * File version: 11.36
+ * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
  * - GBP suppliers: cost priority = COGS → RMB converted → blank.
  * - Export: exclude removed and zero-qty lines from order sheet XLS.
  * - Persist removed rows by updating _sop_preorder_removed from JSON payload (and legacy when provided).
@@ -1441,22 +1441,79 @@ function sop_preorder_get_cogs_value_gbp( $product_id ) {
     $keys = array(
         '_cogs_value',
         'cogs_value',
+        '_wc_cog_cost',
+        '_wc_cogs_cost',
     );
 
-    foreach ( $keys as $key ) {
-        $raw = get_post_meta( $product_id, $key, true );
-        if ( '' === $raw || null === $raw ) {
-            continue;
+    $parse_decimal = static function ( $raw ) {
+        $raw = trim( (string) $raw );
+        if ( '' === $raw ) {
+            return null;
         }
 
         if ( function_exists( 'wc_format_decimal' ) ) {
             $norm = wc_format_decimal( $raw );
         } else {
-            $norm = trim( (string) $raw );
+            $norm = str_replace( ' ', '', $raw );
+            if ( false !== strpos( $norm, ',' ) && false !== strpos( $norm, '.' ) ) {
+                $norm = str_replace( ',', '', $norm );
+            } elseif ( false !== strpos( $norm, ',' ) ) {
+                $norm = str_replace( ',', '.', $norm );
+            }
         }
 
         if ( '' !== $norm && is_numeric( $norm ) ) {
             return (float) $norm;
+        }
+
+        return null;
+    };
+
+    $try_product_id = static function ( $try_product_id ) use ( $keys, $parse_decimal ) {
+        $try_product_id = (int) $try_product_id;
+        if ( $try_product_id <= 0 ) {
+            return null;
+        }
+
+        if ( function_exists( 'wc_get_product' ) ) {
+            $product = wc_get_product( $try_product_id );
+            if ( $product ) {
+                foreach ( $keys as $key ) {
+                    $raw = $product->get_meta( $key, true );
+                    $val = $parse_decimal( $raw );
+                    if ( null !== $val ) {
+                        return $val;
+                    }
+                }
+            }
+        }
+
+        foreach ( $keys as $key ) {
+            $raw = get_post_meta( $try_product_id, $key, true );
+            $val = $parse_decimal( $raw );
+            if ( null !== $val ) {
+                return $val;
+            }
+        }
+
+        return null;
+    };
+
+    $val = $try_product_id( $product_id );
+    if ( null !== $val ) {
+        return $val;
+    }
+
+    if ( function_exists( 'wc_get_product' ) ) {
+        $product = wc_get_product( $product_id );
+        if ( $product && method_exists( $product, 'is_type' ) && $product->is_type( 'variation' ) && method_exists( $product, 'get_parent_id' ) ) {
+            $parent_id = (int) $product->get_parent_id();
+            if ( $parent_id > 0 ) {
+                $parent_val = $try_product_id( $parent_id );
+                if ( null !== $parent_val ) {
+                    return $parent_val;
+                }
+            }
         }
     }
 
