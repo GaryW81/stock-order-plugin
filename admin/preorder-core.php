@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.33
+ * File version: 11.34
+ * - GBP suppliers: cost priority = COGS → RMB converted → blank.
  * - Export: exclude removed and zero-qty lines from order sheet XLS.
  * - Persist removed rows by updating _sop_preorder_removed from JSON payload (and legacy when provided).
  * - Carry container planning params (pallet/allowance) through save redirects and accept pallet layer from save form.
@@ -1476,6 +1477,20 @@ function sop_preorder_get_cost_for_supplier_currency( $product_id, $supplier_cur
     $rate_usd = (float) ( $settings['currency_rates']['USD'] ?? 0 );
     $rate_eur = (float) ( $settings['currency_rates']['EUR'] ?? 0 );
 
+    if ( 'GBP' === $supplier_currency ) {
+        $cogs = get_post_meta( $product_id, '_cogs_value', true );
+        if ( '' !== $cogs && is_numeric( $cogs ) ) {
+            return (float) $cogs;
+        }
+
+        $cost_rmb = get_post_meta( $product_id, '_sop_cost_rmb', true );
+        if ( '' !== $cost_rmb && is_numeric( $cost_rmb ) && $rate_rmb > 0 ) {
+            return (float) $cost_rmb / $rate_rmb;
+        }
+
+        return null;
+    }
+
     if ( 'RMB' === $supplier_currency ) {
         $cost_rmb = get_post_meta( $product_id, '_sop_cost_rmb', true );
         if ( $cost_rmb !== '' ) {
@@ -1691,6 +1706,9 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         $inbound_qty = 0.0;
 
         $cost_supplier = sop_preorder_get_cost_for_supplier_currency( $product_id, $supplier_currency, $settings );
+        if ( null === $cost_supplier ) {
+            $cost_supplier = '';
+        }
         $cost_gbp      = sop_preorder_get_cost_gbp_for_product( $product_id, $settings );
 
         // Location (warehouse bin/shelf), using SOP bin location with fallback to existing Woo meta.
