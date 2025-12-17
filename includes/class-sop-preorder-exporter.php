@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.26
- * - Order sheet: SKU uses number 0-dec format (no scientific); left-align SKUs; middle-align rows.
+ * File version: 1.1.27
+ * - Order sheet: prevent scientific SKU display using zero-width prefix + text format (no apostrophe).
  * - Order sheet export: set image display size to ~62px (~1.65cm) to match Excel scaling.
  * - Order sheet export: restore image sizing to 80px cell / 78px image.
  * - Order Summary XLS: amounts forced to 2dp (FX unchanged); non-RMB header merged/grey/bold; A/B remain 180px.
@@ -101,7 +101,7 @@ class SOP_Preorder_Excel_Exporter {
             $sku_digits  = preg_replace( '/\s+/', '', $sku_raw );
             $sku_to_output = $sku_raw;
             if ( '' !== $sku_digits && preg_match( '/^\d+$/', $sku_digits ) ) {
-                $sku_to_output = $sku_digits;
+                $sku_to_output = "\u{200B}" . $sku_digits;
             }
             $brand       = isset( $line['brand'] ) ? $line['brand'] : '';
             $name        = isset( $line['product_name'] ) ? $line['product_name'] : '';
@@ -152,7 +152,7 @@ class SOP_Preorder_Excel_Exporter {
                 (int) $image_cell_size_px
             );
             $td_style     = 'border:1px solid #000;vertical-align:middle;';
-            $sku_td_style = 'border:1px solid #000;vertical-align:middle;text-align:left;mso-number-format:"0";';
+            $sku_td_style = 'border:1px solid #000;vertical-align:middle;text-align:left;mso-number-format:\'\\@\';';
 
             $html .= '<tr style="height:' . (int) $row_height_px . 'px;">';
             $html .= '<td style="' . $img_td_style . '">';
