@@ -1,12 +1,13 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.03
+ * File version: 1.0.04
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
  * - Add unsaved changes warning for edited goods-in forms; column toggle dropdown; location column reposition/wrapping.
  * - Adjusted Location/SKU/Product widths and always-visible sort indicators.
+ * - Confine horizontal scrolling to table container (prevent full-page scrollbar).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -336,6 +337,7 @@ function sop_render_goods_in_page() {
             </div>
         </div>
 
+        <div class="sop-goodsin-table-scroll" aria-label="Goods-In table scroll">
         <table class="widefat striped" id="sop-goodsin-lines">
             <thead>
             <tr>
@@ -440,6 +442,7 @@ function sop_render_goods_in_page() {
             <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
 
         <?php if ( 'report' === $view || 'received' === $status ) : ?>
             <h3><?php esc_html_e( 'Goods-In Report (Issues)', 'sop' ); ?></h3>
@@ -606,6 +609,16 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-columns-list li {
             margin: 0 0 6px 0;
+        }
+        .sop-goodsin-table-scroll {
+            display: block;
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+            box-sizing: border-box;
+        }
+        .sop-goodsin-table-scroll #sop-goodsin-lines {
+            min-width: 100%;
         }
     </style>
 
