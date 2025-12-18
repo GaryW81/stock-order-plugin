@@ -1,11 +1,11 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.01
+ * File version: 1.0.02
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
- * - Add unsaved changes warning for edited goods-in forms.
+ * - Add unsaved changes warning for edited goods-in forms; column toggle dropdown; location column reposition/wrapping.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -289,31 +289,71 @@ function sop_render_goods_in_page() {
         <input type="hidden" name="action" id="sop-goodsin-action" value="sop_goodsin_save" />
         <input type="hidden" name="sop_goodsin_payload_json" id="sop-goodsin-payload-json" value="" />
 
-        <p>
-            <button type="button" class="button button-primary sop-goodsin-submit" data-action="save"><?php esc_html_e( 'Save progress', 'sop' ); ?></button>
-            <button type="button" class="button sop-goodsin-submit" data-action="apply_selected"><?php esc_html_e( 'Add selected to stock', 'sop' ); ?></button>
-            <button type="button" class="button button-secondary sop-goodsin-submit" data-action="complete"><?php esc_html_e( 'Complete Goods-In', 'sop' ); ?></button>
-        </p>
+        <div class="sop-goodsin-toolbar">
+            <div class="sop-goodsin-toolbar-actions">
+                <button type="button" class="button button-primary sop-goodsin-submit" data-action="save"><?php esc_html_e( 'Save progress', 'sop' ); ?></button>
+                <button type="button" class="button sop-goodsin-submit" data-action="apply_selected"><?php esc_html_e( 'Add selected to stock', 'sop' ); ?></button>
+                <button type="button" class="button button-secondary sop-goodsin-submit" data-action="complete"><?php esc_html_e( 'Complete Goods-In', 'sop' ); ?></button>
+            </div>
+            <div class="sop-goodsin-toolbar-columns">
+                <?php
+                $columns_config = array(
+                    'image'          => __( 'Image', 'sop' ),
+                    'location'       => __( 'Location', 'sop' ),
+                    'sku'            => __( 'SKU', 'sop' ),
+                    'product'        => __( 'Product', 'sop' ),
+                    'ordered'        => __( 'Ordered', 'sop' ),
+                    'received'       => __( 'Received', 'sop' ),
+                    'missing'        => __( 'Missing', 'sop' ),
+                    'reject'         => __( 'Reject', 'sop' ),
+                    'reason'         => __( 'Reason', 'sop' ),
+                    'carton'         => __( 'Carton no.', 'sop' ),
+                    'product_notes'  => __( 'Product notes', 'sop' ),
+                    'order_notes'    => __( 'Order notes', 'sop' ),
+                    'goodsin_notes'  => __( 'Goods-In Notes', 'sop' ),
+                    'stocked'        => __( 'Stocked', 'sop' ),
+                    'outstanding'    => __( 'Outstanding', 'sop' ),
+                );
+                ?>
+                <div class="sop-goodsin-columns">
+                    <button type="button" class="button sop-goodsin-columns-toggle" aria-expanded="false"><?php esc_html_e( 'Columns', 'sop' ); ?></button>
+                    <div class="sop-goodsin-columns-popover" aria-hidden="true">
+                        <div class="sop-goodsin-columns-panel">
+                            <ul class="sop-goodsin-columns-list">
+                                <?php foreach ( $columns_config as $col_key => $col_label ) : ?>
+                                    <li>
+                                        <label>
+                                            <input type="checkbox" data-column="<?php echo esc_attr( $col_key ); ?>" checked="checked" />
+                                            <?php echo esc_html( $col_label ); ?>
+                                        </label>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <table class="widefat striped" id="sop-goodsin-lines">
             <thead>
             <tr>
                 <th class="check-column" data-sortable="false"><input type="checkbox" id="sop-goodsin-select-all" /></th>
-                <th class="sop-goodsin-col-image" data-sortable="false"><?php esc_html_e( 'Image', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="sku" data-sort-type="text"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="product" data-sort-type="text"><?php esc_html_e( 'Product', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="location" data-sort-type="text"><?php esc_html_e( 'Location', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="ordered" data-sort-type="number"><?php esc_html_e( 'Ordered', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="received" data-sort-type="number"><?php esc_html_e( 'Received', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="missing" data-sort-type="number"><?php esc_html_e( 'Missing', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="reject" data-sort-type="number"><?php esc_html_e( 'Reject', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="reason" data-sort-type="text"><?php esc_html_e( 'Reason', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="carton" data-sort-type="text"><?php esc_html_e( 'Carton no.', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="product_notes" data-sort-type="text"><?php esc_html_e( 'Product notes', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="order_notes" data-sort-type="text"><?php esc_html_e( 'Order notes', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="goodsin_notes" data-sort-type="text"><?php esc_html_e( 'Goods-In Notes', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="stocked" data-sort-type="number"><?php esc_html_e( 'Stocked', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="outstanding" data-sort-type="number"><?php esc_html_e( 'Outstanding', 'sop' ); ?></th>
+                <th class="sop-goodsin-col-image" data-sortable="false" data-column="image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-location" data-sort-key="location" data-sort-type="text" data-column="location"><?php esc_html_e( 'Location', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="sku" data-sort-type="text" data-column="sku"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="product" data-sort-type="text" data-column="product"><?php esc_html_e( 'Product', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="ordered" data-sort-type="number" data-column="ordered"><?php esc_html_e( 'Ordered', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="received" data-sort-type="number" data-column="received"><?php esc_html_e( 'Received', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="missing" data-sort-type="number" data-column="missing"><?php esc_html_e( 'Missing', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="reject" data-sort-type="number" data-column="reject"><?php esc_html_e( 'Reject', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="reason" data-sort-type="text" data-column="reason"><?php esc_html_e( 'Reason', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="carton" data-sort-type="text" data-column="carton"><?php esc_html_e( 'Carton no.', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="product_notes" data-sort-type="text" data-column="product_notes"><?php esc_html_e( 'Product notes', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="order_notes" data-sort-type="text" data-column="order_notes"><?php esc_html_e( 'Order notes', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="goodsin_notes" data-sort-type="text" data-column="goodsin_notes"><?php esc_html_e( 'Goods-In Notes', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="stocked" data-sort-type="number" data-column="stocked"><?php esc_html_e( 'Stocked', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="outstanding" data-sort-type="number" data-column="outstanding"><?php esc_html_e( 'Outstanding', 'sop' ); ?></th>
             </tr>
             </thead>
             <tbody>
@@ -371,15 +411,15 @@ function sop_render_goods_in_page() {
                     <td class="check-column">
                         <input type="checkbox" class="sop-goodsin-select" name="selected_lines[<?php echo esc_attr( $line_id ); ?>]" value="1" />
                     </td>
-                    <td class="sop-goodsin-col-image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
-                    <td><?php echo esc_html( $sku ); ?></td>
-                    <td><?php echo $product_link ? '<a href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>' : esc_html( $name ); ?></td>
-                    <td><?php echo esc_html( $location ); ?></td>
-                    <td><?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?></td>
-                    <td><input type="number" class="sop-goodsin-received sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" name="received_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
-                    <td><input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" name="missing_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
-                    <td><input type="number" class="sop-goodsin-reject sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $reject ); ?>" name="reject_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
-                    <td>
+                    <td class="sop-goodsin-col-image" data-column="image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
+                    <td class="sop-goodsin-col-location" data-column="location"><?php echo esc_html( $location ); ?></td>
+                    <td data-column="sku"><?php echo esc_html( $sku ); ?></td>
+                    <td data-column="product"><?php echo $product_link ? '<a href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>' : esc_html( $name ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+                    <td data-column="ordered"><?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?></td>
+                    <td data-column="received"><input type="number" class="sop-goodsin-received sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" name="received_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
+                    <td data-column="missing"><input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" name="missing_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
+                    <td data-column="reject"><input type="number" class="sop-goodsin-reject sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $reject ); ?>" name="reject_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
+                    <td data-column="reason">
                         <select class="sop-goodsin-reject-reason" name="reject_reason[<?php echo esc_attr( $line_id ); ?>]">
                             <option value=""><?php esc_html_e( '—', 'sop' ); ?></option>
                             <option value="wrong_spec" <?php selected( $reason, 'wrong_spec' ); ?>><?php esc_html_e( 'Wrong spec', 'sop' ); ?></option>
@@ -388,12 +428,12 @@ function sop_render_goods_in_page() {
                             <option value="other" <?php selected( $reason, 'other' ); ?>><?php esc_html_e( 'Other', 'sop' ); ?></option>
                         </select>
                     </td>
-                    <td class="sop-goodsin-carton"></td>
-                    <td class="sop-goodsin-text-col"><?php echo esc_html( $product_notes ); ?></td>
-                    <td class="sop-goodsin-text-col"><?php echo esc_html( $order_notes ); ?></td>
-                    <td><input type="text" class="sop-goodsin-notes" value="<?php echo esc_attr( $notes ); ?>" name="goods_in_notes[<?php echo esc_attr( $line_id ); ?>]" /></td>
-                    <td><?php echo esc_html( number_format_i18n( $stocked, 0 ) ); ?></td>
-                    <td><?php echo esc_html( number_format_i18n( $outstanding, 0 ) ); ?></td>
+                    <td class="sop-goodsin-carton" data-column="carton"></td>
+                    <td class="sop-goodsin-text-col" data-column="product_notes"><?php echo esc_html( $product_notes ); ?></td>
+                    <td class="sop-goodsin-text-col" data-column="order_notes"><?php echo esc_html( $order_notes ); ?></td>
+                    <td data-column="goodsin_notes"><input type="text" class="sop-goodsin-notes" value="<?php echo esc_attr( $notes ); ?>" name="goods_in_notes[<?php echo esc_attr( $line_id ); ?>]" /></td>
+                    <td data-column="stocked"><?php echo esc_html( number_format_i18n( $stocked, 0 ) ); ?></td>
+                    <td data-column="outstanding"><?php echo esc_html( number_format_i18n( $outstanding, 0 ) ); ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
@@ -458,6 +498,12 @@ function sop_render_goods_in_page() {
             width: 80px;
             text-align: center;
         }
+        .sop-goodsin-col-location {
+            width: 10ch;
+            max-width: 12ch;
+            white-space: normal;
+            word-break: break-word;
+        }
         .sop-goodsin-img-wrap {
             width: 80px;
             height: 80px;
@@ -496,6 +542,47 @@ function sop_render_goods_in_page() {
             content: " ▼";
             font-size: 11px;
         }
+        #sop-goodsin-lines .check-column input[type="checkbox"] {
+            margin: 0 !important;
+        }
+        .sop-goodsin-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .sop-goodsin-columns {
+            position: relative;
+            display: inline-block;
+        }
+        .sop-goodsin-columns-popover {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            margin-top: 6px;
+            z-index: 1000;
+            background: #fff;
+            border: 1px solid #ccd0d4;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            padding: 10px;
+            min-width: 240px;
+        }
+        .sop-goodsin-columns.is-open .sop-goodsin-columns-popover {
+            display: block;
+        }
+        .sop-goodsin-columns-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            max-height: 320px;
+            overflow: auto;
+        }
+        .sop-goodsin-columns-list li {
+            margin: 0 0 6px 0;
+        }
     </style>
 
     <script>
@@ -504,6 +591,9 @@ function sop_render_goods_in_page() {
             var $payload = $('#sop-goodsin-payload-json');
             var $actionField = $('#sop-goodsin-action');
             var dirty = false;
+            var $columnsToggle = $('.sop-goodsin-columns-toggle');
+            var $columnsWrapper = $('.sop-goodsin-columns');
+            var $columnCheckboxes = $('.sop-goodsin-columns-list input[type="checkbox"]');
 
             function markDirty() {
                 dirty = true;
@@ -571,6 +661,32 @@ function sop_render_goods_in_page() {
                 e.returnValue = '';
             });
 
+            function updateRowSortData($tr) {
+                if (!$tr || !$tr.length) {
+                    return;
+                }
+                var receivedVal = parseFloat($tr.find('.sop-goodsin-received').val()) || 0;
+                var missingVal = parseFloat($tr.find('.sop-goodsin-missing').val()) || 0;
+                var rejectVal = parseFloat($tr.find('.sop-goodsin-reject').val()) || 0;
+                var reasonVal = ($tr.find('.sop-goodsin-reject-reason').val() || '').toString().toLowerCase();
+                var notesVal = ($tr.find('.sop-goodsin-notes').val() || '').toString().toLowerCase();
+                var orderedVal = parseFloat($tr.data('sort-ordered')) || 0;
+                var stockedVal = parseFloat($tr.data('sort-stocked')) || 0;
+                var outstandingVal = Math.max(0, orderedVal - (stockedVal + missingVal + rejectVal));
+                $tr.data('sort-received', receivedVal);
+                $tr.data('sort-missing', missingVal);
+                $tr.data('sort-reject', rejectVal);
+                $tr.data('sort-reason', reasonVal);
+                $tr.data('sort-goodsin_notes', notesVal);
+                $tr.data('sort-outstanding', outstandingVal);
+            }
+
+            $('#sop-goodsin-lines').on('input change', '.sop-goodsin-received, .sop-goodsin-missing, .sop-goodsin-reject, .sop-goodsin-reject-reason, .sop-goodsin-notes', function(){
+                var $tr = $(this).closest('tr');
+                updateRowSortData($tr);
+                markDirty();
+            });
+
             function sortTable($th) {
                 var sortKey = $th.data('sort-key');
                 var sortType = $th.data('sort-type') || 'text';
@@ -612,6 +728,49 @@ function sop_render_goods_in_page() {
             $('#sop-goodsin-lines').on('click', '.sop-goodsin-sort', function(){
                 sortTable($(this));
             });
+
+            function sopGoodsinUpdateColumnsToggleLabel() {
+                if (!$columnsToggle.length || !$columnCheckboxes.length) {
+                    return;
+                }
+                var checkedCount = $columnCheckboxes.filter(':checked').length;
+                $columnsToggle.text(checkedCount + ' ' + '<?php echo esc_js( __( 'columns selected', 'sop' ) ); ?>');
+            }
+
+            function sopGoodsinApplyColumnVisibility() {
+                $columnCheckboxes.each(function(){
+                    var $cb = $(this);
+                    var col = $cb.data('column');
+                    if (!col) { return; }
+                    var show = $cb.is(':checked');
+                    $('#sop-goodsin-lines [data-column="' + col + '"]').toggle(show);
+                });
+            }
+
+            $columnsToggle.on('click', function(e){
+                e.preventDefault();
+                var isOpen = $columnsWrapper.hasClass('is-open');
+                $columnsWrapper.toggleClass('is-open', !isOpen);
+                $columnsToggle.attr('aria-expanded', !isOpen);
+                $columnsWrapper.find('.sop-goodsin-columns-popover').attr('aria-hidden', isOpen);
+            });
+
+            $columnCheckboxes.on('change', function(){
+                sopGoodsinUpdateColumnsToggleLabel();
+                sopGoodsinApplyColumnVisibility();
+            });
+
+            $(document).on('click', function(e){
+                if (!$(e.target).closest('.sop-goodsin-columns').length) {
+                    $columnsWrapper.removeClass('is-open');
+                    $columnsToggle.attr('aria-expanded', 'false');
+                    $columnsWrapper.find('.sop-goodsin-columns-popover').attr('aria-hidden', 'true');
+                }
+            });
+
+            sopGoodsinUpdateColumnsToggleLabel();
+            sopGoodsinApplyColumnVisibility();
+            $('#sop-goodsin-lines tbody tr').each(function(){ updateRowSortData($(this)); });
         })(jQuery);
     </script>
     <?php
