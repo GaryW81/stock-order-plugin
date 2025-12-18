@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.15
+ * File version: 1.0.17
+ * - Allow max_order_qty_per_month to save decimals (2dp), accept comma, and never block product save.
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
@@ -16,6 +17,33 @@
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
+}
+
+if ( ! function_exists( 'sop_parse_decimal_2dp' ) ) {
+    /**
+     * Parse a raw decimal string to a normalised 2dp string.
+     *
+     * @param string $raw Raw input.
+     * @return string|null 2dp string or null if empty/invalid.
+     */
+    function sop_parse_decimal_2dp( $raw ) {
+        $raw = trim( (string) $raw );
+        if ( '' === $raw ) {
+            return null;
+        }
+
+        $raw = str_replace( ',', '.', $raw );
+
+        if ( ! is_numeric( $raw ) ) {
+            return null;
+        }
+
+        if ( function_exists( 'wc_format_decimal' ) ) {
+            return wc_format_decimal( $raw, 2 );
+        }
+
+        return number_format( (float) $raw, 2, '.', '' );
+    }
 }
 
 // Require DB + domain helpers from Phase 1.
@@ -76,10 +104,16 @@ function sop_render_product_supplier_metabox( $post ) {
     }
 
     if ( '' !== $max_order_qty_per_month ) {
-        $max_order_qty_per_month = (float) str_replace( ',', '.', (string) $max_order_qty_per_month );
-        $max_order_qty_per_month = max( 0, $max_order_qty_per_month );
-    } else {
-        $max_order_qty_per_month = '';
+        $parsed_max_order_qty_per_month = sop_parse_decimal_2dp( $max_order_qty_per_month );
+        if ( null !== $parsed_max_order_qty_per_month ) {
+            $max_float = (float) $parsed_max_order_qty_per_month;
+            if ( $max_float < 0 ) {
+                $parsed_max_order_qty_per_month = '0.00';
+            }
+            $max_order_qty_per_month = $parsed_max_order_qty_per_month;
+        } else {
+            $max_order_qty_per_month = '';
+        }
     }
 
     $preorder_notes = get_post_meta( $post->ID, '_sop_preorder_notes', true );
@@ -168,7 +202,7 @@ function sop_render_product_supplier_metabox( $post ) {
             <?php esc_html_e( 'Max order quantity per month', 'sop' ); ?>
         </label>
         <input type="number"
-               step="1"
+               step="0.01"
                min="0"
                name="sop_max_order_qty_per_month"
                id="sop_max_order_qty_per_month"
@@ -318,17 +352,20 @@ function sop_save_product_supplier_meta( $post_id ) {
 
     // Max order quantity per month (manual cap for forecast suggestions).
     if ( isset( $_POST['sop_max_order_qty_per_month'] ) ) {
-        $raw = trim( (string) wp_unslash( $_POST['sop_max_order_qty_per_month'] ) );
+        $raw_max = trim( (string) wp_unslash( $_POST['sop_max_order_qty_per_month'] ) );
 
-        if ( '' === $raw ) {
-            // Empty field removes the cap (primary meta only).
+        $parsed_max = sop_parse_decimal_2dp( $raw_max );
+
+        if ( null === $parsed_max ) {
+            // Empty or invalid removes the cap (primary meta only).
             delete_post_meta( $post_id, 'max_order_qty_per_month' );
         } else {
-            $raw           = str_replace( ',', '.', $raw );
-            $max_per_month = (float) $raw;
-            $max_per_month = max( 0, $max_per_month );
+            $parsed_float = (float) $parsed_max;
+            if ( $parsed_float < 0 ) {
+                $parsed_max = '0.00';
+            }
 
-            update_post_meta( $post_id, 'max_order_qty_per_month', $max_per_month );
+            update_post_meta( $post_id, 'max_order_qty_per_month', $parsed_max );
         }
     }
 
