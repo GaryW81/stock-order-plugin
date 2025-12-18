@@ -1,11 +1,11 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.00
+ * File version: 1.0.01
  *
- * - List locked/receiving sheets.
- * - Receive against a sheet using JSON payload to avoid max_input_vars.
- * - Save progress, apply stock, and complete with a simple issues report.
+ * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
+ * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
+ * - Add unsaved changes warning for edited goods-in forms.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -109,6 +109,9 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
                 l.image_id,
                 l.goods_in_received_qty,
                 l.goods_in_missing_qty,
+                l.location,
+                l.product_notes_owner,
+                l.order_notes_owner,
                 l.goods_in_reject_qty,
                 l.goods_in_reject_reason,
                 l.goods_in_notes,
@@ -289,53 +292,95 @@ function sop_render_goods_in_page() {
         <p>
             <button type="button" class="button button-primary sop-goodsin-submit" data-action="save"><?php esc_html_e( 'Save progress', 'sop' ); ?></button>
             <button type="button" class="button sop-goodsin-submit" data-action="apply_selected"><?php esc_html_e( 'Add selected to stock', 'sop' ); ?></button>
-            <button type="button" class="button sop-goodsin-submit" data-action="apply_all"><?php esc_html_e( 'Add all to stock', 'sop' ); ?></button>
             <button type="button" class="button button-secondary sop-goodsin-submit" data-action="complete"><?php esc_html_e( 'Complete Goods-In', 'sop' ); ?></button>
         </p>
 
         <table class="widefat striped" id="sop-goodsin-lines">
             <thead>
             <tr>
-                <th class="check-column"><input type="checkbox" id="sop-goodsin-select-all" /></th>
-                <th><?php esc_html_e( 'SKU', 'sop' ); ?></th>
-                <th><?php esc_html_e( 'Product', 'sop' ); ?></th>
-                <th><?php esc_html_e( 'Ordered', 'sop' ); ?></th>
-                <th><?php esc_html_e( 'Received', 'sop' ); ?></th>
-                <th><?php esc_html_e( 'Missing', 'sop' ); ?></th>
-                <th><?php esc_html_e( 'Reject', 'sop' ); ?></th>
-                <th><?php esc_html_e( 'Reason', 'sop' ); ?></th>
-                <th><?php esc_html_e( 'Notes', 'sop' ); ?></th>
-                <th><?php esc_html_e( 'Stocked', 'sop' ); ?></th>
-                <th><?php esc_html_e( 'Outstanding', 'sop' ); ?></th>
+                <th class="check-column" data-sortable="false"><input type="checkbox" id="sop-goodsin-select-all" /></th>
+                <th class="sop-goodsin-col-image" data-sortable="false"><?php esc_html_e( 'Image', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="sku" data-sort-type="text"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="product" data-sort-type="text"><?php esc_html_e( 'Product', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="location" data-sort-type="text"><?php esc_html_e( 'Location', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="ordered" data-sort-type="number"><?php esc_html_e( 'Ordered', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="received" data-sort-type="number"><?php esc_html_e( 'Received', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="missing" data-sort-type="number"><?php esc_html_e( 'Missing', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="reject" data-sort-type="number"><?php esc_html_e( 'Reject', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="reason" data-sort-type="text"><?php esc_html_e( 'Reason', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="carton" data-sort-type="text"><?php esc_html_e( 'Carton no.', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="product_notes" data-sort-type="text"><?php esc_html_e( 'Product notes', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="order_notes" data-sort-type="text"><?php esc_html_e( 'Order notes', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="goodsin_notes" data-sort-type="text"><?php esc_html_e( 'Goods-In Notes', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="stocked" data-sort-type="number"><?php esc_html_e( 'Stocked', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="outstanding" data-sort-type="number"><?php esc_html_e( 'Outstanding', 'sop' ); ?></th>
             </tr>
             </thead>
             <tbody>
             <?php foreach ( $lines as $line ) :
-                $line_id = isset( $line['line_id'] ) ? (int) $line['line_id'] : 0;
-                $pid     = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-                $sku     = isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '';
-                $name    = isset( $line['product_name'] ) ? (string) $line['product_name'] : '';
-                $ordered = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0.0;
+                $line_id  = isset( $line['line_id'] ) ? (int) $line['line_id'] : 0;
+                $pid      = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+                $sku      = isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '';
+                $name     = isset( $line['product_name'] ) ? (string) $line['product_name'] : '';
+                $location = isset( $line['location'] ) ? (string) $line['location'] : '';
+                $ordered  = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0.0;
                 $received = isset( $line['goods_in_received_qty'] ) ? (float) $line['goods_in_received_qty'] : 0.0;
                 $missing  = isset( $line['goods_in_missing_qty'] ) ? (float) $line['goods_in_missing_qty'] : 0.0;
                 $reject   = isset( $line['goods_in_reject_qty'] ) ? (float) $line['goods_in_reject_qty'] : 0.0;
                 $reason   = isset( $line['goods_in_reject_reason'] ) ? (string) $line['goods_in_reject_reason'] : '';
                 $notes    = isset( $line['goods_in_notes'] ) ? (string) $line['goods_in_notes'] : '';
                 $stocked  = isset( $line['goods_in_stock_added_qty'] ) ? (float) $line['goods_in_stock_added_qty'] : 0.0;
+                $product_notes = isset( $line['product_notes_owner'] ) ? (string) $line['product_notes_owner'] : '';
+                $order_notes   = isset( $line['order_notes_owner'] ) ? (string) $line['order_notes_owner'] : '';
                 $outstanding = max( 0.0, $ordered - $stocked - $missing - $reject );
+
+                $product      = function_exists( 'wc_get_product' ) ? wc_get_product( $pid ) : null;
+                $image_html   = '';
+                if ( $product && method_exists( $product, 'get_image_id' ) ) {
+                    $img_id = $product->get_image_id();
+                    if ( $img_id ) {
+                        $image_html = wp_get_attachment_image( $img_id, array( 100, 100 ), false, array( 'class' => 'sop-goodsin-img' ) );
+                    }
+                }
+                if ( '' === $image_html && ! empty( $line['image_id'] ) ) {
+                    $image_html = wp_get_attachment_image( (int) $line['image_id'], array( 100, 100 ), false, array( 'class' => 'sop-goodsin-img' ) );
+                }
+                if ( '' === $image_html ) {
+                    $placeholder = function_exists( 'wc_placeholder_img_src' ) ? wc_placeholder_img_src( 'woocommerce_thumbnail' ) : '';
+                    if ( $placeholder ) {
+                        $image_html = '<img class="sop-goodsin-img" src="' . esc_url( $placeholder ) . '" alt="" />';
+                    }
+                }
+                $product_link = $pid > 0 ? get_edit_post_link( $pid, '' ) : '';
                 ?>
-                <tr data-line-id="<?php echo esc_attr( $line_id ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>">
+                <tr data-line-id="<?php echo esc_attr( $line_id ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>"
+                    data-sort-sku="<?php echo esc_attr( mb_strtolower( $sku ) ); ?>"
+                    data-sort-product="<?php echo esc_attr( mb_strtolower( $name ) ); ?>"
+                    data-sort-location="<?php echo esc_attr( mb_strtolower( $location ) ); ?>"
+                    data-sort-ordered="<?php echo esc_attr( $ordered ); ?>"
+                    data-sort-received="<?php echo esc_attr( $received ); ?>"
+                    data-sort-missing="<?php echo esc_attr( $missing ); ?>"
+                    data-sort-reject="<?php echo esc_attr( $reject ); ?>"
+                    data-sort-reason="<?php echo esc_attr( mb_strtolower( $reason ) ); ?>"
+                    data-sort-carton=""
+                    data-sort-product_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $product_notes ) ) ); ?>"
+                    data-sort-order_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $order_notes ) ) ); ?>"
+                    data-sort-goodsin_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $notes ) ) ); ?>"
+                    data-sort-stocked="<?php echo esc_attr( $stocked ); ?>"
+                    data-sort-outstanding="<?php echo esc_attr( $outstanding ); ?>">
                     <td class="check-column">
-                        <input type="checkbox" class="sop-goodsin-select" />
+                        <input type="checkbox" class="sop-goodsin-select" name="selected_lines[<?php echo esc_attr( $line_id ); ?>]" value="1" />
                     </td>
+                    <td class="sop-goodsin-col-image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
                     <td><?php echo esc_html( $sku ); ?></td>
-                    <td><?php echo esc_html( $name ); ?></td>
+                    <td><?php echo $product_link ? '<a href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>' : esc_html( $name ); ?></td>
+                    <td><?php echo esc_html( $location ); ?></td>
                     <td><?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?></td>
-                    <td><input type="number" class="sop-goodsin-received" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" /></td>
-                    <td><input type="number" class="sop-goodsin-missing" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" /></td>
-                    <td><input type="number" class="sop-goodsin-reject" step="1" min="0" value="<?php echo esc_attr( $reject ); ?>" /></td>
+                    <td><input type="number" class="sop-goodsin-received sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" name="received_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
+                    <td><input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" name="missing_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
+                    <td><input type="number" class="sop-goodsin-reject sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $reject ); ?>" name="reject_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
                     <td>
-                        <select class="sop-goodsin-reject-reason">
+                        <select class="sop-goodsin-reject-reason" name="reject_reason[<?php echo esc_attr( $line_id ); ?>]">
                             <option value=""><?php esc_html_e( '—', 'sop' ); ?></option>
                             <option value="wrong_spec" <?php selected( $reason, 'wrong_spec' ); ?>><?php esc_html_e( 'Wrong spec', 'sop' ); ?></option>
                             <option value="wrong_colour" <?php selected( $reason, 'wrong_colour' ); ?>><?php esc_html_e( 'Wrong colour', 'sop' ); ?></option>
@@ -343,7 +388,10 @@ function sop_render_goods_in_page() {
                             <option value="other" <?php selected( $reason, 'other' ); ?>><?php esc_html_e( 'Other', 'sop' ); ?></option>
                         </select>
                     </td>
-                    <td><input type="text" class="sop-goodsin-notes" value="<?php echo esc_attr( $notes ); ?>" /></td>
+                    <td class="sop-goodsin-carton"></td>
+                    <td class="sop-goodsin-text-col"><?php echo esc_html( $product_notes ); ?></td>
+                    <td class="sop-goodsin-text-col"><?php echo esc_html( $order_notes ); ?></td>
+                    <td><input type="text" class="sop-goodsin-notes" value="<?php echo esc_attr( $notes ); ?>" name="goods_in_notes[<?php echo esc_attr( $line_id ); ?>]" /></td>
                     <td><?php echo esc_html( number_format_i18n( $stocked, 0 ) ); ?></td>
                     <td><?php echo esc_html( number_format_i18n( $outstanding, 0 ) ); ?></td>
                 </tr>
@@ -396,11 +444,70 @@ function sop_render_goods_in_page() {
         <?php endif; ?>
     </form>
 
+    <style>
+        #sop-goodsin-lines th,
+        #sop-goodsin-lines td {
+            vertical-align: middle;
+        }
+        #sop-goodsin-lines .check-column {
+            width: 36px;
+            padding-left: 6px;
+            padding-right: 6px;
+        }
+        .sop-goodsin-col-image {
+            width: 80px;
+            text-align: center;
+        }
+        .sop-goodsin-img-wrap {
+            width: 80px;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #sop-goodsin-lines tbody td {
+            height: 80px;
+        }
+        .sop-goodsin-img {
+            width: 78px;
+            height: 78px;
+            object-fit: contain;
+            display: block;
+        }
+        .sop-goodsin-col-narrow {
+            white-space: nowrap;
+        }
+        .sop-goodsin-narrow {
+            width: 7ch;
+        }
+        .sop-goodsin-text-col {
+            max-width: 260px;
+            word-break: break-word;
+        }
+        .sop-goodsin-sort {
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .sop-goodsin-sort.sorted-asc::after {
+            content: " ▲";
+            font-size: 11px;
+        }
+        .sop-goodsin-sort.sorted-desc::after {
+            content: " ▼";
+            font-size: 11px;
+        }
+    </style>
+
     <script>
         (function($){
             var $form = $('#sop-goodsin-form');
             var $payload = $('#sop-goodsin-payload-json');
             var $actionField = $('#sop-goodsin-action');
+            var dirty = false;
+
+            function markDirty() {
+                dirty = true;
+            }
 
             function buildPayload(actionType) {
                 var lines = [];
@@ -444,12 +551,66 @@ function sop_render_goods_in_page() {
                 setAction(actionType);
                 var payloadObj = buildPayload(actionType);
                 $payload.val(JSON.stringify(payloadObj));
+                dirty = false;
                 $form.trigger('submit');
             });
 
             $('#sop-goodsin-select-all').on('change', function(){
                 var checked = $(this).is(':checked');
                 $('.sop-goodsin-select').prop('checked', checked);
+                markDirty();
+            });
+
+            $('#sop-goodsin-lines').on('input change', 'input, select, textarea', markDirty);
+
+            $(window).on('beforeunload', function(e){
+                if (!dirty) {
+                    return;
+                }
+                e.preventDefault();
+                e.returnValue = '';
+            });
+
+            function sortTable($th) {
+                var sortKey = $th.data('sort-key');
+                var sortType = $th.data('sort-type') || 'text';
+                if (!sortKey) { return; }
+
+                var currentDir = $th.hasClass('sorted-asc') ? 'asc' : ($th.hasClass('sorted-desc') ? 'desc' : '');
+                var newDir = currentDir === 'asc' ? 'desc' : 'asc';
+
+                $('.sop-goodsin-sort').removeClass('sorted-asc sorted-desc');
+                $th.addClass(newDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+
+                var $rows = $('#sop-goodsin-lines tbody tr');
+                var rowsArr = $rows.get();
+
+                rowsArr.sort(function(a, b){
+                    var aVal = $(a).data('sort-' + sortKey);
+                    var bVal = $(b).data('sort-' + sortKey);
+
+                    if (sortType === 'number') {
+                        aVal = parseFloat(aVal) || 0;
+                        bVal = parseFloat(bVal) || 0;
+                    } else {
+                        aVal = (aVal || '').toString().toLowerCase();
+                        bVal = (bVal || '').toString().toLowerCase();
+                    }
+
+                    if (aVal < bVal) {
+                        return newDir === 'asc' ? -1 : 1;
+                    }
+                    if (aVal > bVal) {
+                        return newDir === 'asc' ? 1 : -1;
+                    }
+                    return 0;
+                });
+
+                $('#sop-goodsin-lines tbody').append(rowsArr);
+            }
+
+            $('#sop-goodsin-lines').on('click', '.sop-goodsin-sort', function(){
+                sortTable($(this));
             });
         })(jQuery);
     </script>
@@ -457,4 +618,3 @@ function sop_render_goods_in_page() {
 
     echo '</div>';
 }
-

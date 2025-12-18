@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.00
+ * File version: 1.0.01
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -91,6 +91,74 @@ function sop_goodsin_get_sheet_lines_map( $sheet_id ) {
 }
 
 /**
+ * Normalise incoming goods-in line payload values against DB row.
+ *
+ * @param array $line_in
+ * @param array $db_row
+ * @return array
+ */
+function sop_goodsin_normalize_line_payload( array $line_in, array $db_row ) {
+    $ordered_qty = isset( $db_row['qty_owner'] ) ? (float) $db_row['qty_owner'] : 0.0;
+    $stock_added = isset( $db_row['goods_in_stock_added_qty'] ) ? (float) $db_row['goods_in_stock_added_qty'] : 0.0;
+    if ( $ordered_qty < 0 ) {
+        $ordered_qty = 0.0;
+    }
+    if ( $stock_added < 0 ) {
+        $stock_added = 0.0;
+    }
+
+    $received_qty = isset( $line_in['received_qty'] ) ? (float) $line_in['received_qty'] : 0.0;
+    $missing_qty  = isset( $line_in['missing_qty'] ) ? (float) $line_in['missing_qty'] : 0.0;
+    $reject_qty   = isset( $line_in['reject_qty'] ) ? (float) $line_in['reject_qty'] : 0.0;
+    $reject_reason = isset( $line_in['reject_reason'] ) ? sanitize_text_field( (string) $line_in['reject_reason'] ) : '';
+    $notes         = isset( $line_in['notes'] ) ? wp_kses_post( (string) $line_in['notes'] ) : '';
+
+    if ( $received_qty < 0 ) {
+        $received_qty = 0.0;
+    }
+    if ( $missing_qty < 0 ) {
+        $missing_qty = 0.0;
+    }
+    if ( $reject_qty < 0 ) {
+        $reject_qty = 0.0;
+    }
+
+    if ( $received_qty > $ordered_qty ) {
+        $received_qty = $ordered_qty;
+    }
+    if ( $missing_qty > $ordered_qty ) {
+        $missing_qty = $ordered_qty;
+    }
+    if ( $reject_qty > $received_qty ) {
+        $reject_qty = $received_qty;
+    }
+
+    $max_other = max( 0.0, $ordered_qty - $stock_added );
+    if ( ( $missing_qty + $reject_qty ) > $max_other ) {
+        $reject_qty  = min( $reject_qty, $max_other );
+        $missing_qty = max( 0.0, $max_other - $reject_qty );
+    }
+
+    return array(
+        'ordered_qty'   => $ordered_qty,
+        'stock_added'   => $stock_added,
+        'received_qty'  => $received_qty,
+        'missing_qty'   => $missing_qty,
+        'reject_qty'    => $reject_qty,
+        'reject_reason' => $reject_reason,
+        'notes'         => $notes,
+        'update'        => array(
+            'goods_in_received_qty' => $received_qty,
+            'goods_in_missing_qty'  => $missing_qty,
+            'goods_in_reject_qty'   => $reject_qty,
+            'goods_in_reject_reason'=> $reject_reason,
+            'goods_in_notes'        => ( '' !== $notes ) ? $notes : null,
+            'goods_in_updated_at'   => current_time( 'mysql', true ),
+        ),
+    );
+}
+
+/**
  * Save receiving progress for a sheet.
  */
 function sop_handle_goodsin_save() {
@@ -159,58 +227,8 @@ function sop_handle_goodsin_save() {
             continue;
         }
 
-        $ordered_qty = isset( $db_row['qty_owner'] ) ? (float) $db_row['qty_owner'] : 0.0;
-        $stock_added = isset( $db_row['goods_in_stock_added_qty'] ) ? (float) $db_row['goods_in_stock_added_qty'] : 0.0;
-        if ( $ordered_qty < 0 ) {
-            $ordered_qty = 0.0;
-        }
-        if ( $stock_added < 0 ) {
-            $stock_added = 0.0;
-        }
-
-        $received_qty = isset( $line_in['received_qty'] ) ? (float) $line_in['received_qty'] : 0.0;
-        $missing_qty  = isset( $line_in['missing_qty'] ) ? (float) $line_in['missing_qty'] : 0.0;
-        $reject_qty   = isset( $line_in['reject_qty'] ) ? (float) $line_in['reject_qty'] : 0.0;
-        $reject_reason = isset( $line_in['reject_reason'] ) ? sanitize_text_field( (string) $line_in['reject_reason'] ) : '';
-        $notes         = isset( $line_in['notes'] ) ? wp_kses_post( (string) $line_in['notes'] ) : '';
-
-        if ( $received_qty < 0 ) {
-            $received_qty = 0.0;
-        }
-        if ( $missing_qty < 0 ) {
-            $missing_qty = 0.0;
-        }
-        if ( $reject_qty < 0 ) {
-            $reject_qty = 0.0;
-        }
-
-        // Clamp to ordered.
-        if ( $received_qty > $ordered_qty ) {
-            $received_qty = $ordered_qty;
-        }
-        if ( $missing_qty > $ordered_qty ) {
-            $missing_qty = $ordered_qty;
-        }
-        if ( $reject_qty > $received_qty ) {
-            $reject_qty = $received_qty;
-        }
-
-        // Ensure stock_added + missing + reject never exceeds ordered.
-        $max_other = max( 0.0, $ordered_qty - $stock_added );
-        if ( ( $missing_qty + $reject_qty ) > $max_other ) {
-            // Prefer keeping reject within received; clamp missing to remainder.
-            $reject_qty = min( $reject_qty, $max_other );
-            $missing_qty = max( 0.0, $max_other - $reject_qty );
-        }
-
-        $update = array(
-            'goods_in_received_qty' => $received_qty,
-            'goods_in_missing_qty'  => $missing_qty,
-            'goods_in_reject_qty'   => $reject_qty,
-            'goods_in_reject_reason'=> $reject_reason,
-            'goods_in_notes'        => ( '' !== $notes ) ? $notes : null,
-            'goods_in_updated_at'   => current_time( 'mysql', true ),
-        );
+        $norm = sop_goodsin_normalize_line_payload( $line_in, $db_row );
+        $update = $norm['update'];
 
         $formats = array(
             '%f',
@@ -263,7 +281,6 @@ function sop_handle_goodsin_apply_stock() {
 
     $payload  = sop_goodsin_get_payload_from_post();
     $sheet_id = isset( $payload['sheet_id'] ) ? (int) $payload['sheet_id'] : 0;
-    $apply_mode = isset( $payload['action'] ) ? (string) $payload['action'] : '';
 
     $redirect = add_query_arg(
         array(
@@ -277,8 +294,6 @@ function sop_handle_goodsin_apply_stock() {
         wp_safe_redirect( add_query_arg( 'sop_msg', 'invalid_payload', $redirect ) );
         exit;
     }
-
-    $apply_all = ( 'apply_all' === $apply_mode );
 
     $sheet = sop_goodsin_get_sheet( $sheet_id );
     if ( ! $sheet ) {
@@ -314,7 +329,7 @@ function sop_handle_goodsin_apply_stock() {
         }
 
         $selected = ! empty( $line_in['selected'] );
-        if ( ! $apply_all && ! $selected ) {
+        if ( ! $selected ) {
             continue;
         }
 
@@ -324,16 +339,26 @@ function sop_handle_goodsin_apply_stock() {
         }
 
         $db_row    = $lines_map[ $line_id ];
+        $norm      = sop_goodsin_normalize_line_payload( $line_in, $db_row );
         $product_id = isset( $db_row['product_id'] ) ? (int) $db_row['product_id'] : 0;
-        $ordered_qty = isset( $db_row['qty_owner'] ) ? (float) $db_row['qty_owner'] : 0.0;
-        $received_qty = isset( $db_row['goods_in_received_qty'] ) ? (float) $db_row['goods_in_received_qty'] : 0.0;
-        $missing_qty  = isset( $db_row['goods_in_missing_qty'] ) ? (float) $db_row['goods_in_missing_qty'] : 0.0;
-        $reject_qty   = isset( $db_row['goods_in_reject_qty'] ) ? (float) $db_row['goods_in_reject_qty'] : 0.0;
-        $stock_added  = isset( $db_row['goods_in_stock_added_qty'] ) ? (float) $db_row['goods_in_stock_added_qty'] : 0.0;
+        $ordered_qty = $norm['ordered_qty'];
+        $received_qty = $norm['received_qty'];
+        $missing_qty  = $norm['missing_qty'];
+        $reject_qty   = $norm['reject_qty'];
+        $stock_added  = $norm['stock_added'];
 
         if ( $ordered_qty <= 0 || $product_id <= 0 ) {
             continue;
         }
+
+        // Save latest values before applying.
+        $wpdb->update(
+            $tbl_lines,
+            $norm['update'],
+            array( 'id' => $line_id, 'sheet_id' => $sheet_id ),
+            array( '%f', '%f', '%f', '%s', '%s', '%s' ),
+            array( '%d', '%d' )
+        );
 
         $accepted_qty = max( 0.0, $received_qty - $reject_qty );
         $to_apply     = max( 0.0, $accepted_qty - $stock_added );
@@ -526,4 +551,3 @@ function sop_handle_goodsin_complete() {
 add_action( 'admin_post_sop_goodsin_save', 'sop_handle_goodsin_save' );
 add_action( 'admin_post_sop_goodsin_apply_stock', 'sop_handle_goodsin_apply_stock' );
 add_action( 'admin_post_sop_goodsin_complete', 'sop_handle_goodsin_complete' );
-
