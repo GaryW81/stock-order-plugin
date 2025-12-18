@@ -1,11 +1,12 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.02
+ * File version: 1.0.03
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
  * - Add unsaved changes warning for edited goods-in forms; column toggle dropdown; location column reposition/wrapping.
+ * - Adjusted Location/SKU/Product widths and always-visible sort indicators.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -341,8 +342,8 @@ function sop_render_goods_in_page() {
                 <th class="check-column" data-sortable="false"><input type="checkbox" id="sop-goodsin-select-all" /></th>
                 <th class="sop-goodsin-col-image" data-sortable="false" data-column="image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-location" data-sort-key="location" data-sort-type="text" data-column="location"><?php esc_html_e( 'Location', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="sku" data-sort-type="text" data-column="sku"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort" data-sort-key="product" data-sort-type="text" data-column="product"><?php esc_html_e( 'Product', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-sku" data-sort-key="sku" data-sort-type="text" data-column="sku"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-product" data-sort-key="product" data-sort-type="text" data-column="product"><?php esc_html_e( 'Product', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="ordered" data-sort-type="number" data-column="ordered"><?php esc_html_e( 'Ordered', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="received" data-sort-type="number" data-column="received"><?php esc_html_e( 'Received', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="missing" data-sort-type="number" data-column="missing"><?php esc_html_e( 'Missing', 'sop' ); ?></th>
@@ -392,6 +393,7 @@ function sop_render_goods_in_page() {
                     }
                 }
                 $product_link = $pid > 0 ? get_edit_post_link( $pid, '' ) : '';
+                $carton = isset( $line['carton_number'] ) ? (string) $line['carton_number'] : '';
                 ?>
                 <tr data-line-id="<?php echo esc_attr( $line_id ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>"
                     data-sort-sku="<?php echo esc_attr( mb_strtolower( $sku ) ); ?>"
@@ -402,7 +404,7 @@ function sop_render_goods_in_page() {
                     data-sort-missing="<?php echo esc_attr( $missing ); ?>"
                     data-sort-reject="<?php echo esc_attr( $reject ); ?>"
                     data-sort-reason="<?php echo esc_attr( mb_strtolower( $reason ) ); ?>"
-                    data-sort-carton=""
+                    data-sort-carton="<?php echo esc_attr( mb_strtolower( $carton ) ); ?>"
                     data-sort-product_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $product_notes ) ) ); ?>"
                     data-sort-order_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $order_notes ) ) ); ?>"
                     data-sort-goodsin_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $notes ) ) ); ?>"
@@ -413,8 +415,8 @@ function sop_render_goods_in_page() {
                     </td>
                     <td class="sop-goodsin-col-image" data-column="image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
                     <td class="sop-goodsin-col-location" data-column="location"><?php echo esc_html( $location ); ?></td>
-                    <td data-column="sku"><?php echo esc_html( $sku ); ?></td>
-                    <td data-column="product"><?php echo $product_link ? '<a href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>' : esc_html( $name ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+                    <td class="sop-goodsin-col-sku" data-column="sku"><?php echo esc_html( $sku ); ?></td>
+                    <td class="sop-goodsin-col-product" data-column="product"><?php echo $product_link ? '<a href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>' : esc_html( $name ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
                     <td data-column="ordered"><?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?></td>
                     <td data-column="received"><input type="number" class="sop-goodsin-received sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" name="received_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
                     <td data-column="missing"><input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" name="missing_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
@@ -428,7 +430,7 @@ function sop_render_goods_in_page() {
                             <option value="other" <?php selected( $reason, 'other' ); ?>><?php esc_html_e( 'Other', 'sop' ); ?></option>
                         </select>
                     </td>
-                    <td class="sop-goodsin-carton" data-column="carton"></td>
+                    <td class="sop-goodsin-carton" data-column="carton"><?php echo esc_html( $carton ); ?></td>
                     <td class="sop-goodsin-text-col" data-column="product_notes"><?php echo esc_html( $product_notes ); ?></td>
                     <td class="sop-goodsin-text-col" data-column="order_notes"><?php echo esc_html( $order_notes ); ?></td>
                     <td data-column="goodsin_notes"><input type="text" class="sop-goodsin-notes" value="<?php echo esc_attr( $notes ); ?>" name="goods_in_notes[<?php echo esc_attr( $line_id ); ?>]" /></td>
@@ -499,8 +501,19 @@ function sop_render_goods_in_page() {
             text-align: center;
         }
         .sop-goodsin-col-location {
-            width: 10ch;
-            max-width: 12ch;
+            width: 90px;
+            min-width: 90px;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+        .sop-goodsin-col-sku {
+            width: 104px;
+            min-width: 104px;
+            white-space: nowrap;
+        }
+        .sop-goodsin-col-product {
+            width: 288px;
+            min-width: 288px;
             white-space: normal;
             word-break: break-word;
         }
@@ -533,14 +546,25 @@ function sop_render_goods_in_page() {
         .sop-goodsin-sort {
             cursor: pointer;
             white-space: nowrap;
+            position: relative;
+            padding-right: 14px;
+        }
+        .sop-goodsin-sort::after {
+            content: '\25B2';
+            opacity: 0.3;
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
         }
         .sop-goodsin-sort.sorted-asc::after {
-            content: " ▲";
-            font-size: 11px;
+            content: '\25B2';
+            opacity: 1;
         }
         .sop-goodsin-sort.sorted-desc::after {
-            content: " ▼";
-            font-size: 11px;
+            content: '\25BC';
+            opacity: 1;
         }
         #sop-goodsin-lines .check-column input[type="checkbox"] {
             margin: 0 !important;
