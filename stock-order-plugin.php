@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Stock Order Plugin (SOP)
- * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.14 - Goods-In v1 receiving screen + outstanding inbound.
- * Version: 5.9.14
+ * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control. V5.9.15 - Goods-In v1 receiving screen + outstanding inbound.
+ * Version: 5.9.15
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.14' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.15' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
