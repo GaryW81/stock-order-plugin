@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.41 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.42 *
+ * - V12.42 - Force saved sheet container fill to use saved/derived CBM and cm3 values.
  * - V12.41 - Fix saved sheet container fill % by applying saved CBM/cm3 line data to totals.
  * - V12.40 - Fix saved-sheet container fill CBM fallbacks.
  * - V12.39 - Fix totals rendering (wc_price HTML).
@@ -657,6 +658,8 @@ function sop_preorder_render_admin_page() {
                     // Apply saved CBM/cm3 values for container fill on saved sheets.
                     if ( isset( $line['cbm_per_unit'] ) && is_numeric( $line['cbm_per_unit'] ) && (float) $line['cbm_per_unit'] > 0 ) {
                         $row['cubic_cm'] = (float) $line['cbm_per_unit'];
+                    } elseif ( isset( $line['cm3_per_unit'] ) && is_numeric( $line['cm3_per_unit'] ) && (float) $line['cm3_per_unit'] > 0 ) {
+                        $row['cubic_cm'] = (float) $line['cm3_per_unit'];
                     }
 
                     if ( isset( $line['cbm_total_owner'] ) && is_numeric( $line['cbm_total_owner'] ) && (float) $line['cbm_total_owner'] > 0 ) {
@@ -742,6 +745,8 @@ function sop_preorder_render_admin_page() {
             $line_cbm_for_total = (float) $row['line_cbm'];
         } elseif ( isset( $row['cubic_cm'] ) && is_numeric( $row['cubic_cm'] ) && (float) $row['cubic_cm'] > 0 ) {
             $line_cbm_for_total = ( (float) $row['cubic_cm'] * $qty ) / 1000000;
+        } elseif ( isset( $row['cm3_per_unit'] ) && is_numeric( $row['cm3_per_unit'] ) && (float) $row['cm3_per_unit'] > 0 ) {
+            $line_cbm_for_total = ( (float) $row['cm3_per_unit'] * $qty ) / 1000000;
         }
 
         $total_cbm += $line_cbm_for_total;

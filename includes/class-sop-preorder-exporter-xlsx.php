@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.04
+ * File version: 1.0.05
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -399,6 +399,7 @@ class SOP_Preorder_XLSX_Exporter {
         $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
         $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
         $xml .= self::build_cols_xml();
+        $xml .= '<sheetFormatPr defaultRowHeight="48" customHeight="1"/>';
         $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
         if ( $has_drawing ) {
             $xml .= '<drawing r:id="rId1"/>';
