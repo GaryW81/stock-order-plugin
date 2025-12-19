@@ -1,10 +1,11 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.02
+ * File version: 1.0.03
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
+ * - Increase XLSX row height to ~80px.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -251,7 +252,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_row_xml( $row_num, $cells, $is_header = false, $styles = array(), $row_offset_for_height = 0 ) {
-        $xml = '<row r="' . (int) $row_num . '"' . ( $is_header ? '' : ' ht="45.35" customHeight="1"' ) . '>';
+        $xml = '<row r="' . (int) $row_num . '"' . ( $is_header ? '' : ' ht="48" customHeight="1"' ) . '>';
         $col_index = 0;
         foreach ( $cells as $cell_value ) {
             $col_letter = self::column_letter( $col_index ) . $row_num;

@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.38 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.39 *
+ * - V12.39 - Fix totals rendering (wc_price HTML).
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMDâ‡„MD helper.
  * - V12.36 - Product title links to product edit screen.
@@ -1163,10 +1164,10 @@ function sop_preorder_render_admin_page() {
                         <div class="sop-preorder-totals">
                             <span><strong><?php esc_html_e( 'Total Units', 'sop' ); ?>:</strong> <span id="sop-total-units"><?php echo esc_html( number_format_i18n( $total_units, 0 ) ); ?></span></span>
                             <span><strong><?php esc_html_e( 'Total SKUs', 'sop' ); ?>:</strong> <span id="sop-total-skus"><?php echo esc_html( number_format_i18n( $total_skus, 0 ) ); ?></span></span>
-                            <span><strong><?php esc_html_e( 'Total Cost (GBP)', 'sop' ); ?>:</strong> <span id="sop-total-cost-gbp"><?php echo esc_html( wc_price( $total_cost_gbp ) ); ?></span></span>
+                            <span><strong><?php esc_html_e( 'Total Cost (GBP)', 'sop' ); ?>:</strong> <span id="sop-total-cost-gbp"><?php echo wp_kses_post( wc_price( $total_cost_gbp ) ); ?></span></span>
                             <span><strong><?php printf( esc_html__( 'Total Cost (%s)', 'sop' ), esc_html( $supplier_currency ) ); ?>:</strong> <span id="sop-total-cost-supplier"><?php echo esc_html( $currency_symbol . ' ' . number_format_i18n( $total_cost_supplier, 2 ) ); ?></span></span>
-                            <span><strong><?php esc_html_e( 'Total Retail (GBP excl.)', 'sop' ); ?>:</strong> <span id="sop-total-retail-gbp-excl"><?php echo esc_html( wc_price( 0 ) ); ?></span></span>
-                            <span><strong><?php esc_html_e( 'Est. Profit (GBP)', 'sop' ); ?>:</strong> <span id="sop-total-profit-gbp"><?php echo esc_html( wc_price( 0 ) ); ?></span></span>
+                            <span><strong><?php esc_html_e( 'Total Retail (GBP excl.)', 'sop' ); ?>:</strong> <span id="sop-total-retail-gbp-excl"><?php echo wp_kses_post( wc_price( 0 ) ); ?></span></span>
+                            <span><strong><?php esc_html_e( 'Est. Profit (GBP)', 'sop' ); ?>:</strong> <span id="sop-total-profit-gbp"><?php echo wp_kses_post( wc_price( 0 ) ); ?></span></span>
                             <span><strong><?php esc_html_e( 'Margin', 'sop' ); ?>:</strong> <span id="sop-total-margin-pct"><?php echo esc_html( number_format_i18n( 0, 1 ) ); ?>%</span></span>
                         </div>
                         <div class="sop-preorder-fill">
