@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.39 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.40 *
+ * - V12.40 - Fix saved-sheet container fill CBM fallbacks.
  * - V12.39 - Fix totals rendering (wc_price HTML).
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMDâ‡„MD helper.
@@ -1404,7 +1405,32 @@ function sop_preorder_render_admin_page() {
                                 $brand                = isset( $row['brand'] ) ? $row['brand'] : '';
                                 $suggested_order_qty  = isset( $row['suggested_order_qty'] ) ? (float) $row['suggested_order_qty'] : 0.0;
                                 $cubic_cm             = isset( $row['cubic_cm'] ) ? (float) $row['cubic_cm'] : 0.0;
-                                $line_cbm             = isset( $row['line_cbm'] ) ? (float) $row['line_cbm'] : 0.0;
+                                $cbm_per_unit         = isset( $row['cbm_per_unit'] ) ? (float) $row['cbm_per_unit'] : 0.0;
+                                if ( $cbm_per_unit <= 0 && isset( $row['cm3_per_unit'] ) && is_numeric( $row['cm3_per_unit'] ) ) {
+                                    $cbm_per_unit = (float) $row['cm3_per_unit'] / 1000000;
+                                }
+                                if ( $cbm_per_unit <= 0 && $cubic_cm > 0 ) {
+                                    $cbm_per_unit = $cubic_cm / 1000000;
+                                }
+
+                                $line_cbm = 0.0;
+                                if ( isset( $row['line_cbm'] ) && is_numeric( $row['line_cbm'] ) ) {
+                                    $line_cbm = (float) $row['line_cbm'];
+                                } elseif ( isset( $row['cbm_total_owner'] ) && is_numeric( $row['cbm_total_owner'] ) ) {
+                                    $line_cbm = (float) $row['cbm_total_owner'];
+                                } elseif ( isset( $row['cbm_total'] ) && is_numeric( $row['cbm_total'] ) ) {
+                                    $line_cbm = (float) $row['cbm_total'];
+                                } elseif ( $cbm_per_unit > 0 && $order_qty > 0 ) {
+                                    $line_cbm = $cbm_per_unit * $order_qty;
+                                }
+
+                                if ( $cbm_per_unit <= 0 && $line_cbm > 0 && $order_qty > 0 ) {
+                                    $cbm_per_unit = $line_cbm / $order_qty;
+                                }
+
+                                if ( $cubic_cm <= 0 && $cbm_per_unit > 0 ) {
+                                    $cubic_cm = $cbm_per_unit * 1000000;
+                                }
                                 $soq_qty_sold            = isset( $row['soq_qty_sold'] ) ? (int) $row['soq_qty_sold'] : null;
                                 $soq_total_days          = isset( $row['soq_total_days'] ) ? (float) $row['soq_total_days'] : null;
                                 $soq_demand_per_day      = isset( $row['soq_demand_per_day'] ) ? (float) $row['soq_demand_per_day'] : null;
@@ -1487,7 +1513,7 @@ function sop_preorder_render_admin_page() {
                                     <input type="hidden" name="sop_line_sku[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $sku ); ?>" />
                                     <input type="hidden" name="sop_line_image_id[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $image_id ); ?>" />
                                     <input type="hidden" name="sop_line_location[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $location ); ?>" />
-                                    <input type="hidden" name="sop_line_cbm_per_unit[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( isset( $row['cbm_per_unit'] ) ? $row['cbm_per_unit'] : 0 ); ?>" />
+                                    <input type="hidden" name="sop_line_cbm_per_unit[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cbm_per_unit ); ?>" />
                                     <input type="hidden" name="sop_line_cbm_total[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $line_cbm ); ?>" />
                                     <td class="sop-preorder-col-select">
                                         <input
