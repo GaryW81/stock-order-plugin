@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.40 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.41 *
+ * - V12.41 - Fix saved sheet container fill % by applying saved CBM/cm3 line data to totals.
  * - V12.40 - Fix saved-sheet container fill CBM fallbacks.
  * - V12.39 - Fix totals rendering (wc_price HTML).
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
@@ -653,6 +654,24 @@ function sop_preorder_render_admin_page() {
                         $row['carton_no'] = $carton_val;
                     }
 
+                    // Apply saved CBM/cm3 values for container fill on saved sheets.
+                    if ( isset( $line['cbm_per_unit'] ) && is_numeric( $line['cbm_per_unit'] ) && (float) $line['cbm_per_unit'] > 0 ) {
+                        $row['cubic_cm'] = (float) $line['cbm_per_unit'];
+                    }
+
+                    if ( isset( $line['cbm_total_owner'] ) && is_numeric( $line['cbm_total_owner'] ) && (float) $line['cbm_total_owner'] > 0 ) {
+                        $row['line_cbm']        = (float) $line['cbm_total_owner'];
+                        $row['cbm_total_owner'] = (float) $line['cbm_total_owner'];
+                    } else {
+                        $cubic_cm_overlay = isset( $row['cubic_cm'] ) ? (float) $row['cubic_cm'] : 0.0;
+                        $qty_overlay      = isset( $row['manual_order_qty'] ) ? (float) $row['manual_order_qty'] : 0.0;
+                        if ( $cubic_cm_overlay > 0 && $qty_overlay > 0 ) {
+                            $computed_line_cbm     = ( $cubic_cm_overlay * $qty_overlay ) / 1000000;
+                            $row['line_cbm']        = $computed_line_cbm;
+                            $row['cbm_total_owner'] = $computed_line_cbm;
+                        }
+                    }
+
                     $overlay_stats['matched_rows']++;
                 }
                 unset( $row );
@@ -718,9 +737,14 @@ function sop_preorder_render_admin_page() {
         $total_cost_gbp      += $qty * (float) $row['cost_gbp'];
         $total_cost_supplier += $qty * (float) $row['cost_supplier'];
 
-        if ( isset( $row['line_cbm'] ) ) {
-            $total_cbm += (float) $row['line_cbm'];
+        $line_cbm_for_total = 0.0;
+        if ( isset( $row['line_cbm'] ) && is_numeric( $row['line_cbm'] ) && (float) $row['line_cbm'] > 0 ) {
+            $line_cbm_for_total = (float) $row['line_cbm'];
+        } elseif ( isset( $row['cubic_cm'] ) && is_numeric( $row['cubic_cm'] ) && (float) $row['cubic_cm'] > 0 ) {
+            $line_cbm_for_total = ( (float) $row['cubic_cm'] * $qty ) / 1000000;
         }
+
+        $total_cbm += $line_cbm_for_total;
 
         $total_skus++;
     }
