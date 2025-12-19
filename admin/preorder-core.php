@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.42
+ * File version: 11.43
  * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
  * - Cleanup: remove sop_debug_costs tooling; keep minimal COGS key list.
@@ -11,6 +11,7 @@
  * - Carry container planning params (pallet/allowance) through save redirects and accept pallet layer from save form.
  * - Add SOQ forecast context for tooltip ("Why" trust SOQ) and accept sop_lines_json payload to avoid max_input_vars truncation on large sheets.
  * - Add PO XLS export handler (order sheet export unchanged).
+ * - Add embedded XLSX export (images embedded, no external URLs).
  * - Clear balance FX/ USD when deposit FX is not locked.
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
  * - 11.17 - Ensure Purchase Order modal fields are explicitly persisted on save (insert/update).
@@ -891,6 +892,75 @@ function sop_handle_export_preorder_sheet_csv() {
     header( 'Expires: 0' );
 
     echo $html;
+    exit;
+}
+
+add_action( 'admin_post_sop_export_preorder_sheet_xlsx', 'sop_handle_export_preorder_sheet_xlsx' );
+function sop_handle_export_preorder_sheet_xlsx() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You are not allowed to export pre-order sheets.', 'sop' ) );
+    }
+
+    $nonce = isset( $_REQUEST['_wpnonce'] ) ? wp_unslash( $_REQUEST['_wpnonce'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    if ( ! wp_verify_nonce( $nonce, 'sop_export_preorder_sheet_xlsx' ) ) {
+        wp_die( esc_html__( 'Invalid export request.', 'sop' ) );
+    }
+
+    $sheet_id    = isset( $_REQUEST['sop_sheet_id'] ) ? (int) $_REQUEST['sop_sheet_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    $supplier_id = isset( $_REQUEST['supplier_id'] ) ? (int) $_REQUEST['supplier_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+
+    if ( $sheet_id <= 0 || ! function_exists( 'sop_get_preorder_sheet' ) || ! function_exists( 'sop_get_preorder_sheet_lines' ) ) {
+        wp_die( esc_html__( 'Pre-order sheet not found for export.', 'sop' ) );
+    }
+
+    $dataset = sop_preorder_build_export_dataset( $sheet_id, $supplier_id );
+    if ( is_wp_error( $dataset ) ) {
+        wp_die( esc_html( $dataset->get_error_message() ) );
+    }
+
+    list( $sheet, $lines ) = $dataset;
+
+    $supplier_slug = '';
+    if ( function_exists( 'sop_get_supplier_label' ) && ! empty( $sheet['supplier_id'] ) ) {
+        $supplier_label = sop_get_supplier_label( (int) $sheet['supplier_id'] );
+        $supplier_slug  = sanitize_title( $supplier_label );
+    } elseif ( ! empty( $sheet['title'] ) ) {
+        $supplier_slug = sanitize_title( $sheet['title'] );
+    } elseif ( ! empty( $sheet['supplier_id'] ) ) {
+        $supplier_slug = 'supplier-' . (int) $sheet['supplier_id'];
+    } else {
+        $supplier_slug = 'supplier';
+    }
+
+    $order_number = ! empty( $sheet['order_number_label'] ) ? preg_replace( '/[^0-9A-Za-z\-_]/', '', $sheet['order_number_label'] ) : (string) (int) $sheet_id;
+    $version      = ! empty( $sheet['edit_version'] ) ? (int) $sheet['edit_version'] : 1;
+    $order_date   = ! empty( $sheet['order_date_owner'] ) ? preg_replace( '/[^0-9\-]/', '', $sheet['order_date_owner'] ) : gmdate( 'Y-m-d' );
+
+    $filename = sprintf(
+        '%s-order-%s-v%d-%s.xlsx',
+        $supplier_slug,
+        $order_number,
+        $version,
+        $order_date
+    );
+
+    if ( ! class_exists( 'SOP_Preorder_XLSX_Exporter' ) ) {
+        wp_die( esc_html__( 'XLSX exporter is not available.', 'sop' ) );
+    }
+
+    $xlsx_path = SOP_Preorder_XLSX_Exporter::build_xlsx_file( $sheet, $lines );
+    if ( is_wp_error( $xlsx_path ) ) {
+        wp_die( esc_html( $xlsx_path->get_error_message() ) );
+    }
+
+    nocache_headers();
+    header( 'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' );
+    header( 'Content-Disposition: attachment; filename="' . sanitize_file_name( $filename ) . '"' );
+    header( 'Pragma: no-cache' );
+    header( 'Expires: 0' );
+
+    readfile( $xlsx_path );
+    @unlink( $xlsx_path );
     exit;
 }
 
