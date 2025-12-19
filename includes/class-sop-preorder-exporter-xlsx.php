@@ -1,12 +1,13 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.05
+ * File version: 1.0.06
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
  * - Increase XLSX row height to ~80px.
  * - Set XLSX data row height to 48pt (~80px).
+ * - Harden XML + fix Excel repair + enforce 80px row height.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -236,8 +237,10 @@ class SOP_Preorder_XLSX_Exporter {
         return htmlspecialchars( (string) $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
     }
 
-    private static function esc_xml_text( $value ) {
-        $value = str_replace( array( "\r\n", "\r" ), "\n", (string) $value );
+    private static function sanitize_xml_text( $value ) {
+        $value = (string) $value;
+        $value = str_replace( array( "\r\n", "\r" ), "\n", $value );
+        $value = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $value );
         $value = htmlspecialchars( $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
         return str_replace( "\n", '&#10;', $value );
     }
@@ -262,7 +265,7 @@ class SOP_Preorder_XLSX_Exporter {
             if ( is_numeric( $cell_value ) ) {
                 $xml .= '<c r="' . $col_letter . '"' . ( null !== $style_idx ? ' s="' . (int) $style_idx . '"' : '' ) . '><v>' . $cell_value . '</v></c>';
             } else {
-                $xml .= '<c r="' . $col_letter . '" t="inlineStr"' . ( null !== $style_idx ? ' s="' . (int) $style_idx . '"' : '' ) . '><is><t xml:space="preserve">' . self::esc_xml_text( $cell_value ) . '</t></is></c>';
+                $xml .= '<c r="' . $col_letter . '" t="inlineStr"' . ( null !== $style_idx ? ' s="' . (int) $style_idx . '"' : '' ) . '><is><t xml:space="preserve">' . self::sanitize_xml_text( $cell_value ) . '</t></is></c>';
             }
 
             $col_index++;
@@ -320,7 +323,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_content_types_xml( $has_images ) {
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">';
         $xml .= '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>';
         $xml .= '<Default Extension="xml" ContentType="application/xml"/>';
@@ -341,7 +344,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_root_rels_xml() {
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
         $xml .= '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>';
         $xml .= '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>';
@@ -351,7 +354,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_workbook_xml() {
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
         $xml .= '<sheets>';
         $xml .= '<sheet name="Order Sheet" sheetId="1" r:id="rId1"/>';
@@ -361,7 +364,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_workbook_rels_xml() {
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
         $xml .= '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>';
         $xml .= '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>';
@@ -369,7 +372,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_styles_xml() {
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
         $xml .= '<fonts count="1"><font/></fonts>';
         $xml .= '<fills count="1"><fill/></fills>';
@@ -386,7 +389,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_sheet_rels_xml( $has_drawing ) {
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
         if ( $has_drawing ) {
             $xml .= '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>';
@@ -396,7 +399,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_sheet_xml( $rows_xml, $has_drawing ) {
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
         $xml .= self::build_cols_xml();
         $xml .= '<sheetFormatPr defaultRowHeight="48" customHeight="1"/>';
@@ -419,7 +422,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_drawing_xml( $images ) {
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
         $idx = 0;
         foreach ( $images as $img ) {
@@ -440,7 +443,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_drawing_rels_xml( $images ) {
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
         foreach ( $images as $index => $img ) {
             $ext = isset( $img['ext'] ) ? $img['ext'] : 'png';
@@ -452,7 +455,7 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_app_xml() {
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">';
         $xml .= '<Application>Microsoft Excel</Application>';
         $xml .= '<DocSecurity>0</DocSecurity>';
@@ -466,7 +469,7 @@ class SOP_Preorder_XLSX_Exporter {
 
     private static function build_core_xml() {
         $now = gmdate( 'Y-m-d\\TH:i:s\\Z' );
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">';
         $xml .= '<dcterms:created xsi:type="dcterms:W3CDTF">' . $now . '</dcterms:created>';
         $xml .= '<dcterms:modified xsi:type="dcterms:W3CDTF">' . $now . '</dcterms:modified>';
