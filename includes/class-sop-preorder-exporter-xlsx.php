@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.01
+ * File version: 1.0.02
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -41,10 +41,8 @@ class SOP_Preorder_XLSX_Exporter {
         $media_files = array();
         $image_index = 1;
         $row_index   = 2; // Data rows start at 2 (row 1 is header).
-        $image_size_px = 78;
-        $emu_per_px  = 9525;
-        $img_cx      = $image_size_px * $emu_per_px;
-        $img_cy      = $image_size_px * $emu_per_px;
+        $img_cx      = 576000; // 1.6cm in EMUs.
+        $img_cy      = 576000; // 1.6cm in EMUs.
 
         // Determine sheet-level FX for USD display: Balance FX (payload) > supplier effective FX > converter helper.
         $sheet_fx_for_usd = 0.0;
@@ -90,13 +88,7 @@ class SOP_Preorder_XLSX_Exporter {
 
         foreach ( $lines as $line ) {
             $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-            $sku_raw    = isset( $line['sku'] ) ? (string) $line['sku'] : '';
-            $sku_raw    = trim( $sku_raw );
-            $sku_digits = preg_replace( '/\s+/', '', $sku_raw );
-            $sku_to_output = $sku_raw;
-            if ( '' !== $sku_digits && preg_match( '/^\d+$/', $sku_digits ) ) {
-                $sku_to_output = "\u{200B}" . $sku_digits;
-            }
+            $sku_to_output = isset( $line['sku'] ) ? (string) $line['sku'] : '';
 
             $brand       = isset( $line['brand'] ) ? $line['brand'] : '';
             $name        = isset( $line['product_name'] ) ? $line['product_name'] : '';
@@ -138,9 +130,22 @@ class SOP_Preorder_XLSX_Exporter {
                 self::format_number_cell( $line_cbm, 6 ),
             );
 
-            $row_styles = array(  // Only SKU uses text style.
-                null,
-                1,
+            $row_styles = array(
+                null, // Image placeholder.
+                3,    // SKU: wrap + text format preserved.
+                null, // Brand.
+                2,    // Product name wrap.
+                2,    // Categories wrap.
+                null, // MOQ.
+                null, // Qty.
+                null, // Unit price RMB.
+                null, // Unit price USD.
+                null, // Total RMB.
+                2,    // Product notes wrap.
+                null, // Order notes.
+                null, // Carton no.
+                null, // cm3 per unit.
+                null, // Line CBM.
             );
 
             $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles );
@@ -229,6 +234,12 @@ class SOP_Preorder_XLSX_Exporter {
         return htmlspecialchars( (string) $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
     }
 
+    private static function esc_xml_text( $value ) {
+        $value = str_replace( array( "\r\n", "\r" ), "\n", (string) $value );
+        $value = htmlspecialchars( $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
+        return str_replace( "\n", '&#10;', $value );
+    }
+
     private static function column_letter( $index ) {
         $index = (int) $index;
         $letter = '';
@@ -240,18 +251,16 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_row_xml( $row_num, $cells, $is_header = false, $styles = array(), $row_offset_for_height = 0 ) {
-        $xml = '<row r="' . (int) $row_num . '"' . ( $is_header ? '' : ' ht="60" customHeight="1"' ) . '>';
+        $xml = '<row r="' . (int) $row_num . '"' . ( $is_header ? '' : ' ht="45.35" customHeight="1"' ) . '>';
         $col_index = 0;
         foreach ( $cells as $cell_value ) {
             $col_letter = self::column_letter( $col_index ) . $row_num;
             $style_idx  = isset( $styles[ $col_index ] ) ? $styles[ $col_index ] : null;
 
-            if ( is_string( $cell_value ) || ( is_numeric( $cell_value ) && $cell_value === '' ) ) {
-                $xml .= '<c r="' . $col_letter . '" t="inlineStr"' . ( null !== $style_idx ? ' s="' . (int) $style_idx . '"' : '' ) . '><is><t xml:space="preserve">' . self::esc_xml( $cell_value ) . '</t></is></c>';
-            } elseif ( is_numeric( $cell_value ) ) {
+            if ( is_numeric( $cell_value ) ) {
                 $xml .= '<c r="' . $col_letter . '"' . ( null !== $style_idx ? ' s="' . (int) $style_idx . '"' : '' ) . '><v>' . $cell_value . '</v></c>';
             } else {
-                $xml .= '<c r="' . $col_letter . '" t="inlineStr"' . ( null !== $style_idx ? ' s="' . (int) $style_idx . '"' : '' ) . '><is><t xml:space="preserve">' . self::esc_xml( $cell_value ) . '</t></is></c>';
+                $xml .= '<c r="' . $col_letter . '" t="inlineStr"' . ( null !== $style_idx ? ' s="' . (int) $style_idx . '"' : '' ) . '><is><t xml:space="preserve">' . self::esc_xml_text( $cell_value ) . '</t></is></c>';
             }
 
             $col_index++;
@@ -295,7 +304,7 @@ class SOP_Preorder_XLSX_Exporter {
             return '';
         }
 
-        $editor->resize( 78, 78, true );
+        $editor->resize( 60, 60, true );
         $tmp_converted = wp_tempnam( 'sop-img' );
         if ( ! $tmp_converted ) {
             return '';
@@ -364,9 +373,11 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<fills count="1"><fill/></fills>';
         $xml .= '<borders count="1"><border/></borders>';
         $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
-        $xml .= '<cellXfs count="2">';
+        $xml .= '<cellXfs count="4">';
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>';
         $xml .= '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'; // Text format.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>';
+        $xml .= '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf>'; // Text + wrap.
         $xml .= '</cellXfs>';
         $xml .= '</styleSheet>';
         return $xml;
@@ -385,11 +396,22 @@ class SOP_Preorder_XLSX_Exporter {
     private static function build_sheet_xml( $rows_xml, $has_drawing ) {
         $xml  = '<?xml version="1.0" encoding="UTF-8"?>';
         $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+        $xml .= self::build_cols_xml();
         $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
         if ( $has_drawing ) {
             $xml .= '<drawing r:id="rId1"/>';
         }
         $xml .= '</worksheet>';
+        return $xml;
+    }
+
+    private static function build_cols_xml() {
+        $xml  = '<cols>';
+        $xml .= '<col min="2" max="2" width="10.34" customWidth="1"/>'; // SKU (B).
+        $xml .= '<col min="4" max="4" width="32.60" customWidth="1"/>'; // Product name (D).
+        $xml .= '<col min="5" max="5" width="32.60" customWidth="1"/>'; // Categories (E).
+        $xml .= '<col min="11" max="11" width="27.15" customWidth="1"/>'; // Product notes (K).
+        $xml .= '</cols>';
         return $xml;
     }
 
