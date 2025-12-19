@@ -1,39 +1,5 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.77 *
-* - V12.77 - Download: add Order Sheet (XLSX) with embedded images.
-* - V12.76 - Cleanup: remove sop_debug_costs debug attributes and keep cost display blanks stable.
-* - V12.71 - GBP supplier cost: keep missing cost blank in UI (no forced 0), while totals treat blank as 0.
-* - V12.70 - Adjust SOQ tooltip marker size to 20px (AI icon background with fallback).
-* - V12.69 - Increase SOQ tooltip marker size to 25px.
-* - V12.68 - SOQ tooltip marker uses ai-logo PNG via CSS background (single data URI, dashicon fallback).
-* - V12.67 - SOQ tooltip: remove native title; 3-line custom tooltip (2+2+1) only.
-* - V12.67 - Header icons: 80px width with auto height (rectangular PNGs), background on panels.
-* - V12.66 - Fix: apply custom header icon data URIs on icon panels (dashicon fallback retained).
-* - V12.65 - Cleanup: remove unused icon experiment code paths; keep CSS data-URI icons.
-* - V12.64 - UI: header icons 80px, icon panel padding 3px, white icon background.
- * - V12.63 - UI: double header card icon size (56px).
- * - V12.62 - Header icons: embed custom PNGs as CSS data URIs (multisite-safe), dashicon fallback retained.
- * - V12.60 - Fix data-URI icon escaping (preserve data: scheme; avoid esc_url stripping).
- * - V12.59 - Header icons: embed PNGs as data URIs (avoid plugin URL routing issues).
- * - V12.58 - Fix custom PNG header icons URL via plugins_url anchored to main plugin file.
- * - V12.57 - Support custom header icons via assets/icons/*.png (fallback to dashicons).
- * - V12.56 - Add order retail value + profit summary (GBP excl VAT) to Pre-Order sheet.
-* - V12.55 - Persist removed rows via JSON save payload and keep SOQ tooltip clipping fixes.
-* - V12.54 - Fix SOQ help tooltip clipping/positioning (body-fixed + flip).
-* - V12.53 - Fix planning sync selectors to use form= attributes; avoid overwriting saved values when controls not found.
-* - V12.52 - Persist pallet layer + allowance through sheet saves and keep shift-select in visual order.
-* - V12.51 - Fix shift-select checkbox range after sorting; keep selection/remove in visual order.
- * - V12.50 - SOQ cell layout: center value and keep help icon on its own line.
- * - V12.49 - Add SOQ "Why" tooltip; save sheets via JSON lines payload to avoid max_input_vars truncation on large sheets.
- * - V12.47 - Download dropdown stacked/narrow labels; Order Summary naming/casing polish.
- * - V12.46 - UI polish: Download dropdown labels/width; Order Summary label; Update Sheet casing.
- * - V12.45 - UI: Download dropdown (Order Sheet / Order Summary); rename Purchase Order button to Order Summary; Update Sheet label casing.
- * - V12.44 - Add PO XLS download button (order sheet export unchanged).
- * - V12.43 - Fix PO modal handling-day counting (order date is day 0; handling starts next day).
- * - V12.42 - Lead time supports days/weeks; PO dates use supplier lead weeks.
- * - V12.41 - Fix: PO modal dates recalc for non-RMB suppliers.
- * - V12.40 - PO modal edits mark unsaved changes via delegated handlers.
- * - V12.39 - Fix JS error preventing PO modal open (restore toggleBalanceFxAvailability).
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.38 *
  * - V12.38 - Add simple PO totals for non-RMB suppliers and keep hidden date fields always rendered.
  * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMDâ‡„MD helper.
  * - V12.36 - Product title links to product edit screen.
@@ -1944,7 +1910,9 @@ function sop_preorder_render_admin_page() {
 
                             <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Deposit FX rate (RMB per USD)', 'sop' ); ?></label>
-                                <input type="number"
+                                <input type="text"
+                                       inputmode="decimal"
+                                       autocomplete="off"
                                        step="0.0001"
                                        name="sop_po_deposit_fx_rate"
                                        class="sop-po-fx-input"
@@ -1989,7 +1957,9 @@ function sop_preorder_render_admin_page() {
 
                             <div class="sop-po-field sop-po-totals-field">
                                 <label><?php esc_html_e( 'Balance FX rate (RMB per USD)', 'sop' ); ?></label>
-                                <input type="number"
+                                <input type="text"
+                                       inputmode="decimal"
+                                       autocomplete="off"
                                        step="0.0001"
                                        name="sop_po_balance_fx_rate"
                                        class="sop-po-fx-input"
@@ -3186,8 +3156,6 @@ function sop_preorder_render_admin_page() {
             var $notesOverlayTitle   = $notesOverlay.find('.sop-preorder-notes-overlay-title');
             var $notesOverlayProduct = $notesOverlay.find('.sop-preorder-notes-overlay-product');
             var $notesOverlayTextarea = $notesOverlay.find('.sop-preorder-notes-overlay-textarea');
-            var $soqTooltip         = $('#sop-soq-tooltip');
-            var $tableWrapper       = $('.sop-preorder-table-wrapper');
             var currentNotesTextarea = null;
             var currentNotesType     = 'product';
             var currentNotesRowIndex = null;
@@ -3227,26 +3195,8 @@ function sop_preorder_render_admin_page() {
             });
 
             $(document).on('change input', '.sop-preorder-notes-overlay textarea', function() {
-                sopMarkUnsavedChanges();
+                hasUnsavedChanges = true;
             });
-
-            // PO modal: mark unsaved on user edits inside overlay via delegated listeners.
-            $( document ).on( 'input change', '#sop-rates-dates-overlay input, #sop-rates-dates-overlay select, #sop-rates-dates-overlay textarea', function( e ) {
-                if ( ! e || ! e.originalEvent ) {
-                    return;
-                }
-
-                var $el = $( this );
-                if ( $el.is( ':disabled' ) || $el.prop( 'readonly' ) ) {
-                    return;
-                }
-
-                sopMarkUnsavedChanges();
-            } );
-
-            $( document ).on( 'click', '#sop-rates-dates-overlay .sop-po-add-extra, #sop-rates-dates-overlay .sop-po-extra-remove', function() {
-                sopMarkUnsavedChanges();
-            } );
 
             // Removing or restoring rows also creates unsaved changes.
             $( document ).on( 'click', '#sop-preorder-remove-selected', function() {
@@ -4351,6 +4301,54 @@ function sop_preorder_render_admin_page() {
                     return num;
                 }
 
+                function sopNormaliseFxRateOnBlur( $input ) {
+                    if ( ! $input || ! $input.length ) {
+                        return;
+                    }
+                    var raw = $input.val();
+                    if ( raw === '' || raw === null || typeof raw === 'undefined' ) {
+                        return;
+                    }
+                    raw = String( raw ).trim().replace( ',', '.' );
+                    if ( raw === '.' || raw === '-' ) {
+                        return;
+                    }
+                    var n = parseFloat( raw );
+                    if ( isNaN( n ) ) {
+                        $input.val( '' );
+                        return;
+                    }
+                    $input.val( n.toFixed( 3 ) );
+                }
+
+                function toggleBalanceFxAvailability() {
+                    var depositLocked = $depositFxLocked.is( ':checked' );
+                    var shouldDisableRate = balanceFxRateInitiallyDisabled || ! depositLocked;
+
+                    if ( $balanceFxRateInput.length ) {
+                        $balanceFxRateInput.prop( 'disabled', shouldDisableRate );
+                        if ( ! depositLocked && ! balanceFxRateInitiallyDisabled ) {
+                            $balanceFxRateInput.val( '' );
+                        }
+                    }
+
+                    if ( $balanceFxLocked.length ) {
+                        var shouldDisableLock = balanceFxLockInitiallyDisabled || ! depositLocked;
+                        $balanceFxLocked.prop( 'disabled', shouldDisableLock );
+                        if ( shouldDisableLock ) {
+                            $balanceFxLocked.prop( 'checked', false );
+                        }
+                    }
+
+                    if ( $balanceFxHelp.length ) {
+                        if ( depositLocked || balanceFxRateInitiallyDisabled ) {
+                            $balanceFxHelp.hide();
+                        } else {
+                            $balanceFxHelp.show();
+                        }
+                    }
+                }
+
                 function recalcPoTotals() {
                     var extrasTotalRmb = 0;
                     $extrasAmountInputs.each( function() {
@@ -4498,12 +4496,28 @@ function sop_preorder_render_admin_page() {
                 }
 
                 bindExtras();
+
+                if ( $depositFxLocked.length ) {
+                    $depositFxLocked.on( 'change', function() {
+                        toggleBalanceFxAvailability();
+                        recalcPoTotals();
+                    } );
+                }
+
+                if ( $depositFxRateInput.length ) {
+                    $depositFxRateInput.on( 'blur', function() {
+                        sopNormaliseFxRateOnBlur( $depositFxRateInput );
+                        recalcPoTotals();
+                    } );
+                }
+                if ( $balanceFxRateInput.length ) {
+                    $balanceFxRateInput.on( 'blur', function() {
+                        sopNormaliseFxRateOnBlur( $balanceFxRateInput );
+                        recalcPoTotals();
+                    } );
+                }
+
                 $( 'input[name=\"sop_po_deposit_usd\"], #sop-po-deposit-fx-rate, #sop-po-balance-fx-rate' ).on( 'input change', recalcPoTotals );
-                $depositFxLocked.on( 'change', function() {
-                    toggleBalanceFxAvailability();
-                    recalcPoTotals();
-                } );
-                toggleBalanceFxAvailability();
                 recalcPoTotals();
 
                 function closeModal() {
