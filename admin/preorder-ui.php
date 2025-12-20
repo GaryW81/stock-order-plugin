@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.42 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.43 *
+ * - V12.43 - Fix SOQ order advice tooltip hover.
  * - V12.42 - Force saved sheet container fill to use saved/derived CBM and cm3 values.
  * - V12.41 - Fix saved sheet container fill % by applying saved CBM/cm3 line data to totals.
  * - V12.40 - Fix saved-sheet container fill CBM fallbacks.
@@ -1645,7 +1646,7 @@ function sop_preorder_render_admin_page() {
                                         <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
                                             <span class="sop-preorder-soq__num"><?php echo esc_html( number_format_i18n( $suggested_order_qty, 0 ) ); ?></span>
                                             <?php if ( $soq_tooltip ) : ?>
-                                                <span class="dashicons dashicons-editor-help sop-soq-why<?php echo ! empty( $sop_icon_ai_uri ) ? ' sop-soq-why-ai' : ''; ?>" data-soq-why="<?php echo esc_attr( $soq_tooltip ); ?>" aria-label="<?php echo esc_attr( $soq_tooltip ); ?>">?</span>
+                                                <span class="dashicons dashicons-editor-help sop-soq-why sop-soq-advice<?php echo ! empty( $sop_icon_ai_uri ) ? ' sop-soq-why-ai' : ''; ?>" data-sop-tooltip="<?php echo esc_attr( $soq_tooltip ); ?>" aria-label="<?php echo esc_attr( $soq_tooltip ); ?>" title="<?php echo esc_attr( $soq_tooltip ); ?>">?</span>
                                             <?php endif; ?>
                                         </span>
                                     </td>
@@ -1770,6 +1771,8 @@ function sop_preorder_render_admin_page() {
                     </p>
                 </div>
             </div>
+
+            <div id="sop-tooltip" class="sop-tooltip" style="display:none;"></div>
 
             <div class="sop-preorder-actions">
                 <?php if ( ! $sop_sheet_is_locked ) : ?>
@@ -2254,6 +2257,21 @@ function sop_preorder_render_admin_page() {
 
         .sop-soq-tooltip-line--reason {
             white-space: normal;
+        }
+
+        .sop-tooltip{
+            position:absolute;
+            z-index: 999999;
+            background:#111;
+            color:#fff;
+            padding:8px 10px;
+            border-radius:6px;
+            font-size:12px;
+            line-height:1.3;
+            max-width:320px;
+            box-shadow:0 2px 10px rgba(0,0,0,0.25);
+            pointer-events:none;
+            white-space:normal;
         }
 
         <?php if ( ! empty( $sop_icon_ai_uri ) ) : ?>
