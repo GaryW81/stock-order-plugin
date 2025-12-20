@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.28
+ * File version: 1.0.29
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -24,6 +24,7 @@
  * - Enforce PO XLSX row-by-row layout with expanded address lines.
  * - Align PO Buyer/Seller rows to match legacy XLS block offsets.
  * - Hide PO gridlines and confine borders to table area.
+ * - Ensure PO rows fill A–E with bordered cells (borders visible on blanks).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -941,13 +942,13 @@ class SOP_Preorder_XLSX_Exporter {
         return $clean;
     }
 
-    private static function po_row_from_specs( $row_num, array $specs, &$merge_cells, $row_height = null, $row_style = null ) {
+    private static function po_fill_row_ae( array $specs, $default_style = 0 ) {
         $cells = array();
         for ( $i = 0; $i < 5; $i++ ) {
             $cells[ $i ] = array(
                 'col'        => $i,
                 'v'          => '',
-                's'          => 0,
+                's'          => (int) $default_style,
                 'colspan'    => 1,
                 'type'       => 'str',
                 'skip_merge' => true,
@@ -957,7 +958,7 @@ class SOP_Preorder_XLSX_Exporter {
         foreach ( $specs as $spec ) {
             $col   = isset( $spec['col'] ) ? max( 0, min( 4, (int) $spec['col'] ) ) : 0;
             $span  = isset( $spec['span'] ) ? max( 1, (int) $spec['span'] ) : 1;
-            $style = isset( $spec['s'] ) ? (int) $spec['s'] : 0;
+            $style = isset( $spec['s'] ) ? (int) $spec['s'] : (int) $default_style;
             $cells[ $col ] = array(
                 'col'        => $col,
                 'v'          => isset( $spec['v'] ) ? $spec['v'] : '',
@@ -980,8 +981,11 @@ class SOP_Preorder_XLSX_Exporter {
         }
 
         ksort( $cells );
-        $cells = array_values( $cells );
+        return array_values( $cells );
+    }
 
+    private static function po_row_from_specs( $row_num, array $specs, &$merge_cells, $row_height = null, $row_style = null ) {
+        $cells = self::po_fill_row_ae( $specs, 0 );
         return self::build_po_row_xml( $row_num, $cells, $merge_cells, $row_height, $row_style );
     }
 
