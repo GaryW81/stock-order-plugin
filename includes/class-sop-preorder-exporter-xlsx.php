@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.27
+ * File version: 1.0.28
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -482,132 +482,104 @@ class SOP_Preorder_XLSX_Exporter {
         $row_num      = 1;
 
         // Title.
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array(
-                    'v'       => __( 'Purchase Order', 'sop' ),
-                    's'       => 1,
-                    'colspan' => 5,
-                ),
+                array( 'col' => 0, 'span' => 5, 'v' => __( 'Purchase Order', 'sop' ), 's' => 1 ),
             ),
             $merge_cells,
             16
         );
 
         // Buyer/Seller headers.
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array(
-                    'v'       => __( 'Buyer', 'sop' ),
-                    's'       => 2,
-                    'colspan' => 2,
-                ),
-                array(
-                    'v'       => __( 'Seller', 'sop' ),
-                    's'       => 2,
-                    'colspan' => 3,
-                ),
+                array( 'col' => 0, 'span' => 2, 'v' => __( 'Buyer', 'sop' ), 's' => 2 ),
+                array( 'col' => 2, 'span' => 3, 'v' => __( 'Seller', 'sop' ), 's' => 2 ),
             ),
             $merge_cells
         );
 
         // Company row.
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array( 'v' => $buyer_company, 's' => 0, 'colspan' => 2 ),
-                array( 'v' => $seller_company, 's' => 0, 'colspan' => 3 ),
+                array( 'col' => 0, 'span' => 2, 'v' => $buyer_company, 's' => 0 ),
+                array( 'col' => 2, 'span' => 3, 'v' => $seller_company, 's' => 0 ),
             ),
             $merge_cells
         );
 
-        // Billing block with vertical merge for seller address.
-        $billing_start = $row_num;
-        $billing_count = max( 1, count( $billing_lines ) );
-        $billing_end   = $billing_start + $billing_count - 1;
-        if ( $billing_count > 0 ) {
-            self::po_merge_add( $merge_cells, self::po_merge_ref( 2, $billing_start, 4, $billing_end ) );
-        }
-
-        foreach ( $billing_lines as $idx => $line ) {
-            $cells = array(
-                array( 'v' => $line, 's' => 0, 'colspan' => 2 ),
+        // Billing block rows (per-row merges, no vertical merge).
+        $seller_address_lines = self::po_expand_block_lines( $seller_address );
+        $billing_max          = max( count( $billing_lines ), count( $seller_address_lines ) );
+        $billing_max          = max( 1, $billing_max );
+        for ( $i = 0; $i < $billing_max; $i++ ) {
+            $buyer_val  = isset( $billing_lines[ $i ] ) ? $billing_lines[ $i ] : '';
+            $seller_val = isset( $seller_address_lines[ $i ] ) ? $seller_address_lines[ $i ] : '';
+            $rows_xml  .= self::po_row_from_specs(
+                $row_num++,
+                array(
+                    array( 'col' => 0, 'span' => 2, 'v' => $buyer_val, 's' => 0 ),
+                    array( 'col' => 2, 'span' => 3, 'v' => $seller_val, 's' => 9 ),
+                ),
+                $merge_cells
             );
-            if ( 0 === $idx ) {
-                $cells[] = array(
-                    'v'          => $seller_address,
-                    's'          => 9,
-                    'colspan'    => 3,
-                    'skip_merge' => true,
-                );
-            }
-            $rows_xml .= self::build_po_row_xml( $row_num++, $cells, $merge_cells );
         }
 
         // Email row.
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array( 'v' => $buyer_email, 's' => 0, 'colspan' => 2 ),
-                array( 'v' => $seller_email, 's' => 0, 'colspan' => 3 ),
+                array( 'col' => 0, 'span' => 2, 'v' => $buyer_email, 's' => 0 ),
+                array( 'col' => 2, 'span' => 3, 'v' => $seller_email, 's' => 0 ),
             ),
             $merge_cells
         );
 
         // Phone row.
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array( 'v' => $buyer_phone, 's' => 0, 'colspan' => 2 ),
-                array( 'v' => $seller_phone, 's' => 0, 'colspan' => 3 ),
+                array( 'col' => 0, 'span' => 2, 'v' => $buyer_phone, 's' => 0 ),
+                array( 'col' => 2, 'span' => 3, 'v' => $seller_phone, 's' => 0 ),
             ),
             $merge_cells
         );
 
         // Shipping label / contact row.
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array( 'v' => $shipping_label, 's' => 0, 'colspan' => 2 ),
-                array( 'v' => $seller_contact, 's' => 0, 'colspan' => 3 ),
+                array( 'col' => 0, 'span' => 2, 'v' => $shipping_label, 's' => 0 ),
+                array( 'col' => 2, 'span' => 3, 'v' => $seller_contact, 's' => 0 ),
             ),
             $merge_cells
         );
 
-        // Shipping block with vertical merge for seller bank.
-        $ship_start = $row_num;
-        $ship_count = max( 1, count( $shipping_lines ) );
-        $ship_end   = $ship_start + $ship_count - 1;
-        if ( $ship_count > 0 ) {
-            self::po_merge_add( $merge_cells, self::po_merge_ref( 2, $ship_start, 4, $ship_end ) );
-        }
-
-        foreach ( $shipping_lines as $idx => $line ) {
-            $cells = array(
-                array( 'v' => $line, 's' => 0, 'colspan' => 2 ),
+        // Shipping block rows (per-row merges).
+        $seller_bank_lines = self::po_expand_block_lines( $seller_bank );
+        $ship_max          = max( count( $shipping_lines ), count( $seller_bank_lines ) );
+        $ship_max          = max( 1, $ship_max );
+        for ( $i = 0; $i < $ship_max; $i++ ) {
+            $buyer_val  = isset( $shipping_lines[ $i ] ) ? $shipping_lines[ $i ] : '';
+            $seller_val = isset( $seller_bank_lines[ $i ] ) ? $seller_bank_lines[ $i ] : '';
+            $rows_xml  .= self::po_row_from_specs(
+                $row_num++,
+                array(
+                    array( 'col' => 0, 'span' => 2, 'v' => $buyer_val, 's' => 0 ),
+                    array( 'col' => 2, 'span' => 3, 'v' => $seller_val, 's' => 9 ),
+                ),
+                $merge_cells
             );
-            if ( 0 === $idx ) {
-                $cells[] = array(
-                    'v'          => $seller_bank,
-                    's'          => 9,
-                    'colspan'    => 3,
-                    'skip_merge' => true,
-                );
-            }
-            $rows_xml .= self::build_po_row_xml( $row_num++, $cells, $merge_cells );
         }
 
         // PO Details heading.
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array(
-                    'v'       => __( 'PO Details', 'sop' ),
-                    's'       => 2,
-                    'colspan' => 5,
-                ),
+                array( 'col' => 0, 'span' => 5, 'v' => __( 'PO Details', 'sop' ), 's' => 2 ),
             ),
             $merge_cells
         );
@@ -619,182 +591,129 @@ class SOP_Preorder_XLSX_Exporter {
         $safe_load     = $load_date ? self::format_po_date_display( $load_date ) : '';
         $safe_eta      = $arrival_date ? self::format_po_date_display( $arrival_date ) : '';
 
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array( 'v' => __( 'PO #', 'sop' ), 's' => 1 ),
-                array( 'v' => $po_number, 's' => 0 ),
-                array( 'v' => __( 'Order date', 'sop' ), 's' => 1, 'colspan' => 2 ),
-                array( 'v' => $safe_order, 's' => 0 ),
+                array( 'col' => 0, 'span' => 1, 'v' => __( 'PO #', 'sop' ), 's' => 1 ),
+                array( 'col' => 1, 'span' => 1, 'v' => $po_number, 's' => 0 ),
+                array( 'col' => 2, 'span' => 2, 'v' => __( 'Order date', 'sop' ), 's' => 1 ),
+                array( 'col' => 4, 'span' => 1, 'v' => $safe_order, 's' => 0 ),
             ),
             $merge_cells
         );
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array( 'v' => __( 'Holiday start', 'sop' ), 's' => 1 ),
-                array( 'v' => $safe_hol_from, 's' => 0 ),
-                array( 'v' => __( 'Holiday end', 'sop' ), 's' => 1, 'colspan' => 2 ),
-                array( 'v' => $safe_hol_to, 's' => 0 ),
+                array( 'col' => 0, 'span' => 1, 'v' => __( 'Holiday start', 'sop' ), 's' => 1 ),
+                array( 'col' => 1, 'span' => 1, 'v' => $safe_hol_from, 's' => 0 ),
+                array( 'col' => 2, 'span' => 2, 'v' => __( 'Holiday end', 'sop' ), 's' => 1 ),
+                array( 'col' => 4, 'span' => 1, 'v' => $safe_hol_to, 's' => 0 ),
             ),
             $merge_cells
         );
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array( 'v' => __( 'Load date', 'sop' ), 's' => 1 ),
-                array( 'v' => $safe_load, 's' => 0 ),
-                array( 'v' => __( 'ETA / Delivery', 'sop' ), 's' => 1, 'colspan' => 2 ),
-                array( 'v' => $safe_eta, 's' => 0 ),
+                array( 'col' => 0, 'span' => 1, 'v' => __( 'Load date', 'sop' ), 's' => 1 ),
+                array( 'col' => 1, 'span' => 1, 'v' => $safe_load, 's' => 0 ),
+                array( 'col' => 2, 'span' => 2, 'v' => __( 'ETA / Delivery', 'sop' ), 's' => 1 ),
+                array( 'col' => 4, 'span' => 1, 'v' => $safe_eta, 's' => 0 ),
             ),
             $merge_cells
         );
 
         // Purchase order values heading + header.
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array(
-                    'v'       => __( 'Purchase order values', 'sop' ),
-                    's'       => 2,
-                    'colspan' => 5,
-                ),
+                array( 'col' => 0, 'span' => 5, 'v' => __( 'Purchase order values', 'sop' ), 's' => 2 ),
             ),
             $merge_cells
         );
 
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array(
-                    'v'       => __( 'Description', 'sop' ),
-                    's'       => 3,
-                    'colspan' => 4,
-                ),
-                array(
-                    'v' => sprintf( __( 'Amount (%s)', 'sop' ), $currency_label ),
-                    's' => 8,
-                ),
+                array( 'col' => 0, 'span' => 4, 'v' => __( 'Description', 'sop' ), 's' => 3 ),
+                array( 'col' => 4, 'span' => 1, 'v' => sprintf( __( 'Amount (%s)', 'sop' ), $currency_label ), 's' => 8 ),
             ),
             $merge_cells
         );
 
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array(
-                    'v'       => $summary_label,
-                    's'       => 0,
-                    'colspan' => 4,
-                ),
-                array(
-                    'v'    => $format_amount( $base_total ),
-                    's'    => 4,
-                    'type' => 'num',
-                ),
+                array( 'col' => 0, 'span' => 4, 'v' => $summary_label, 's' => 0 ),
+                array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $base_total ), 's' => 4, 'type' => 'num' ),
             ),
             $merge_cells
         );
 
         if ( ! empty( $extras_rows ) ) {
             foreach ( $extras_rows as $extra_row ) {
-                $rows_xml .= self::build_po_row_xml(
+                $rows_xml .= self::po_row_from_specs(
                     $row_num++,
                     array(
-                        array(
-                            'v'       => $extra_row['label'],
-                            's'       => 0,
-                            'colspan' => 4,
-                        ),
-                        array(
-                            'v'    => $format_amount( $extra_row['amount'] ),
-                            's'    => 4,
-                            'type' => 'num',
-                        ),
+                        array( 'col' => 0, 'span' => 4, 'v' => $extra_row['label'], 's' => 0 ),
+                        array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $extra_row['amount'] ), 's' => 4, 'type' => 'num' ),
                     ),
                     $merge_cells
                 );
             }
         }
 
-        $rows_xml .= self::build_po_row_xml(
+        $rows_xml .= self::po_row_from_specs(
             $row_num++,
             array(
-                array(
-                    'v'       => sprintf( __( 'Total (%s)', 'sop' ), $currency_label ),
-                    's'       => 11,
-                    'colspan' => 4,
-                ),
-                array(
-                    'v'    => $format_amount( $total_with_extras ),
-                    's'    => 5,
-                    'type' => 'num',
-                ),
+                array( 'col' => 0, 'span' => 4, 'v' => sprintf( __( 'Total (%s)', 'sop' ), $currency_label ), 's' => 11 ),
+                array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $total_with_extras ), 's' => 5, 'type' => 'num' ),
             ),
             $merge_cells
         );
 
         // Deposit / Balance block.
         if ( 'RMB' === $supplier_currency ) {
-            $rows_xml .= self::build_po_row_xml(
+            $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(
-                    array(
-                        'v'       => __( 'Deposit / Balance', 'sop' ),
-                        's'       => 10,
-                        'colspan' => 5,
-                    ),
+                    array( 'col' => 0, 'span' => 5, 'v' => __( 'Deposit / Balance', 'sop' ), 's' => 10 ),
                 ),
                 $merge_cells,
                 15
             );
 
-            $rows_xml .= self::build_po_row_xml(
+            $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(
-                    array( 'v' => __( 'Payment', 'sop' ), 's' => 7 ),
-                    array( 'v' => __( 'Value', 'sop' ), 's' => 7 ),
-                    array( 'v' => __( 'Deposit FX (RMB/USD)', 'sop' ), 's' => 7 ),
-                    array( 'v' => __( 'Value', 'sop' ), 's' => 7 ),
-                    array( 'v' => __( 'Deposit (RMB)', 'sop' ), 's' => 8 ),
+                    array( 'col' => 0, 'span' => 1, 'v' => __( 'Payment', 'sop' ), 's' => 7 ),
+                    array( 'col' => 1, 'span' => 1, 'v' => __( 'Value', 'sop' ), 's' => 7 ),
+                    array( 'col' => 2, 'span' => 1, 'v' => __( 'Deposit FX (RMB/USD)', 'sop' ), 's' => 7 ),
+                    array( 'col' => 3, 'span' => 1, 'v' => __( 'Value', 'sop' ), 's' => 7 ),
+                    array( 'col' => 4, 'span' => 1, 'v' => __( 'Deposit (RMB)', 'sop' ), 's' => 8 ),
                 ),
                 $merge_cells
             );
 
-            $rows_xml .= self::build_po_row_xml(
+            $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(
-                    array( 'v' => __( 'Deposit (USD)', 'sop' ), 's' => 0 ),
-                    array( 'v' => $format_amount( $deposit_usd ), 's' => 4, 'type' => 'num' ),
-                    array(
-                        'v' => $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), number_format( $deposit_fx, 3 ) ) : '',
-                        's' => 6,
-                    ),
-                    array(
-                        'v'    => $deposit_fx > 0 ? number_format( $deposit_fx, 3, '.', '' ) : '',
-                        's'    => 6,
-                        'type' => 'str',
-                    ),
-                    array( 'v' => $format_amount( $deposit_rmb ), 's' => 4, 'type' => 'num' ),
+                    array( 'col' => 0, 'span' => 1, 'v' => __( 'Deposit (USD)', 'sop' ), 's' => 0 ),
+                    array( 'col' => 1, 'span' => 1, 'v' => $format_amount( $deposit_usd ), 's' => 4, 'type' => 'num' ),
+                    array( 'col' => 2, 'span' => 1, 'v' => $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), number_format( $deposit_fx, 3 ) ) : '', 's' => 6 ),
+                    array( 'col' => 3, 'span' => 1, 'v' => $deposit_fx > 0 ? number_format( $deposit_fx, 3, '.', '' ) : '', 's' => 6, 'type' => 'str' ),
+                    array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $deposit_rmb ), 's' => 4, 'type' => 'num' ),
                 ),
                 $merge_cells
             );
 
-            $rows_xml .= self::build_po_row_xml(
+            $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(
-                    array( 'v' => __( 'Balance (USD)', 'sop' ), 's' => 0 ),
-                    array( 'v' => $balance_usd > 0 ? $format_amount( $balance_usd ) : '', 's' => 4, 'type' => 'num' ),
-                    array(
-                        'v' => $balance_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), number_format( $balance_fx, 3 ) ) : '',
-                        's' => 6,
-                    ),
-                    array(
-                        'v'    => $balance_fx > 0 ? number_format( $balance_fx, 3, '.', '' ) : '',
-                        's'    => 6,
-                        'type' => 'str',
-                    ),
-                    array( 'v' => $format_amount( $balance_rmb ), 's' => 4, 'type' => 'num' ),
+                    array( 'col' => 0, 'span' => 1, 'v' => __( 'Balance (USD)', 'sop' ), 's' => 0 ),
+                    array( 'col' => 1, 'span' => 1, 'v' => $balance_usd > 0 ? $format_amount( $balance_usd ) : '', 's' => 4, 'type' => 'num' ),
+                    array( 'col' => 2, 'span' => 1, 'v' => $balance_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), number_format( $balance_fx, 3 ) ) : '', 's' => 6 ),
+                    array( 'col' => 3, 'span' => 1, 'v' => $balance_fx > 0 ? number_format( $balance_fx, 3, '.', '' ) : '', 's' => 6, 'type' => 'str' ),
+                    array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $balance_rmb ), 's' => 4, 'type' => 'num' ),
                 ),
                 $merge_cells
             );
@@ -805,72 +724,44 @@ class SOP_Preorder_XLSX_Exporter {
                 $balance_simple = 0.0;
             }
 
-            $rows_xml .= self::build_po_row_xml(
+            $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(
-                    array(
-                        'v'       => __( 'Deposit / Balance', 'sop' ),
-                        's'       => 2,
-                        'colspan' => 5,
-                    ),
+                    array( 'col' => 0, 'span' => 5, 'v' => __( 'Deposit / Balance', 'sop' ), 's' => 2 ),
                 ),
                 $merge_cells
             );
 
-            $rows_xml .= self::build_po_row_xml(
+            $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(
-                    array(
-                        'v'       => sprintf( __( 'Deposit (%s)', 'sop' ), $currency_label ),
-                        's'       => 0,
-                        'colspan' => 4,
-                    ),
-                    array(
-                        'v'    => $format_amount( $deposit_simple ),
-                        's'    => 4,
-                        'type' => 'num',
-                    ),
+                    array( 'col' => 0, 'span' => 4, 'v' => sprintf( __( 'Deposit (%s)', 'sop' ), $currency_label ), 's' => 0 ),
+                    array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $deposit_simple ), 's' => 4, 'type' => 'num' ),
                 ),
                 $merge_cells
             );
-            $rows_xml .= self::build_po_row_xml(
+            $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(
-                    array(
-                        'v'       => sprintf( __( 'Balance (%s)', 'sop' ), $currency_label ),
-                        's'       => 0,
-                        'colspan' => 4,
-                    ),
-                    array(
-                        'v'    => $format_amount( $balance_simple ),
-                        's'    => 4,
-                        'type' => 'num',
-                    ),
+                    array( 'col' => 0, 'span' => 4, 'v' => sprintf( __( 'Balance (%s)', 'sop' ), $currency_label ), 's' => 0 ),
+                    array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $balance_simple ), 's' => 4, 'type' => 'num' ),
                 ),
                 $merge_cells
             );
         }
 
         if ( $payment_terms ) {
-            $rows_xml .= self::build_po_row_xml(
+            $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(
-                    array(
-                        'v'       => __( 'Terms', 'sop' ),
-                        's'       => 2,
-                        'colspan' => 5,
-                    ),
+                    array( 'col' => 0, 'span' => 5, 'v' => __( 'Terms', 'sop' ), 's' => 2 ),
                 ),
                 $merge_cells
             );
-            $rows_xml .= self::build_po_row_xml(
+            $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(
-                    array(
-                        'v'       => $payment_terms,
-                        's'       => 9,
-                        'colspan' => 5,
-                    ),
+                    array( 'col' => 0, 'span' => 5, 'v' => $payment_terms, 's' => 9 ),
                 ),
                 $merge_cells
             );
@@ -1050,6 +941,50 @@ class SOP_Preorder_XLSX_Exporter {
         return $clean;
     }
 
+    private static function po_row_from_specs( $row_num, array $specs, &$merge_cells, $row_height = null, $row_style = null ) {
+        $cells = array();
+        for ( $i = 0; $i < 5; $i++ ) {
+            $cells[ $i ] = array(
+                'col'        => $i,
+                'v'          => '',
+                's'          => 0,
+                'colspan'    => 1,
+                'type'       => 'str',
+                'skip_merge' => true,
+            );
+        }
+
+        foreach ( $specs as $spec ) {
+            $col   = isset( $spec['col'] ) ? max( 0, min( 4, (int) $spec['col'] ) ) : 0;
+            $span  = isset( $spec['span'] ) ? max( 1, (int) $spec['span'] ) : 1;
+            $style = isset( $spec['s'] ) ? (int) $spec['s'] : 0;
+            $cells[ $col ] = array(
+                'col'        => $col,
+                'v'          => isset( $spec['v'] ) ? $spec['v'] : '',
+                's'          => $style,
+                'colspan'    => $span,
+                'type'       => isset( $spec['type'] ) ? $spec['type'] : 'str',
+                'skip_merge' => ! empty( $spec['skip_merge'] ),
+            );
+
+            for ( $i = 1; $i < $span && ( $col + $i ) < 5; $i++ ) {
+                $cells[ $col + $i ] = array(
+                    'col'        => $col + $i,
+                    'v'          => '',
+                    's'          => $style,
+                    'colspan'    => 1,
+                    'type'       => 'str',
+                    'skip_merge' => true,
+                );
+            }
+        }
+
+        ksort( $cells );
+        $cells = array_values( $cells );
+
+        return self::build_po_row_xml( $row_num, $cells, $merge_cells, $row_height, $row_style );
+    }
+
     private static function format_po_date_display( $value ) {
         $value = (string) $value;
         if ( '' === trim( $value ) ) {
@@ -1125,8 +1060,15 @@ class SOP_Preorder_XLSX_Exporter {
             $colspan    = isset( $cell['colspan'] ) ? max( 1, (int) $cell['colspan'] ) : 1;
             $type       = isset( $cell['type'] ) ? $cell['type'] : 'str';
             $skip_merge = ! empty( $cell['skip_merge'] );
-            $col_ref    = self::column_letter( $col_index ) . $row_num;
-            $end_col    = self::column_letter( $col_index + $colspan - 1 );
+            $current_col = $col_index;
+            if ( isset( $cell['col'] ) ) {
+                $current_col = (int) $cell['col'];
+                if ( $current_col < $col_index ) {
+                    $col_index = $current_col;
+                }
+            }
+            $col_ref = self::column_letter( $current_col ) . $row_num;
+            $end_col = self::column_letter( $current_col + $colspan - 1 );
 
             if ( $colspan > 1 && ! $skip_merge ) {
                 $merge_ref = $col_ref . ':' . $end_col . $row_num;
@@ -1139,7 +1081,7 @@ class SOP_Preorder_XLSX_Exporter {
                 $xml .= '<c r="' . $col_ref . '" t="inlineStr" s="' . $style . '"><is><t xml:space="preserve">' . self::sanitize_po_text( $value ) . '</t></is></c>';
             }
 
-            $col_index += $colspan;
+            $col_index = $current_col + $colspan;
         }
 
         $xml .= '</row>';
@@ -1288,7 +1230,7 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '</fills>';
         $xml .= '<borders count="2">';
         $xml .= '<border><left/><right/><top/><bottom/><diagonal/></border>';
-        $xml .= '<border><left style="thin"><color rgb="FF666666"/></left><right style="thin"><color rgb="FF666666"/></right><top style="thin"><color rgb="FF666666"/></top><bottom style="thin"><color rgb="FF666666"/></bottom><diagonal/></border>';
+        $xml .= '<border><left style="thin"><color rgb="FFCCCCCC"/></left><right style="thin"><color rgb="FFCCCCCC"/></right><top style="thin"><color rgb="FFCCCCCC"/></top><bottom style="thin"><color rgb="FFCCCCCC"/></bottom><diagonal/></border>';
         $xml .= '</borders>';
         $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
         $xml .= '<cellXfs count="12">';
