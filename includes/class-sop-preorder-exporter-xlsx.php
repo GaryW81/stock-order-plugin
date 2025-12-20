@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.16
+ * File version: 1.0.17
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -18,6 +18,7 @@
  * - Center-align Brand column horizontally.
  * - Center-align columns F–N.
  * - Align SKU/notes/carton left; align numeric columns right.
+ * - Increase Image column width to target ~80px.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -465,7 +466,7 @@ class SOP_Preorder_XLSX_Exporter {
 
     private static function build_cols_xml( $show_usd_column = true ) {
         $xml  = '<cols>';
-        $xml .= '<col min="1" max="1" width="8.28" customWidth="1"/>'; // Image (A).
+        $xml .= '<col min="1" max="1" width="8.94" customWidth="1"/>'; // Image (A).
         $xml .= '<col min="2" max="2" width="10.34" customWidth="1"/>'; // SKU (B).
         $xml .= '<col min="4" max="4" width="32.60" customWidth="1"/>'; // Product name (D).
         $xml .= '<col min="5" max="5" width="32.60" customWidth="1"/>'; // Categories (E).
