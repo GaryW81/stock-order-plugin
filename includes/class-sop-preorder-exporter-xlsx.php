@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.21
+ * File version: 1.0.22
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -23,6 +23,7 @@
  * - Align PO XLSX layout to match legacy Order Summary (XLS) exactly.
  * - Enforce PO XLSX row-by-row layout with expanded address lines.
  * - Align PO Buyer/Seller rows to match legacy XLS block offsets.
+ * - Hide PO gridlines and confine borders to table area.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1202,7 +1203,7 @@ class SOP_Preorder_XLSX_Exporter {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
         $xml .= '<dimension ref="A1:E' . (int) $max_row . '"/>';
-        $xml .= '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
+        $xml .= '<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>';
         $xml .= '<sheetFormatPr defaultRowHeight="15" customHeight="1"/>';
         $xml .= self::build_purchase_order_cols_xml();
         $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
