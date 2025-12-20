@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.15
+ * File version: 1.0.16
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -17,6 +17,7 @@
  * - Set Image column to 80px width.
  * - Center-align Brand column horizontally.
  * - Center-align columns F–N.
+ * - Align SKU/notes/carton left; align numeric columns right.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -161,22 +162,22 @@ class SOP_Preorder_XLSX_Exporter {
 
             $row_styles = array(
                 null, // Image placeholder.
-                3,    // SKU: wrap + text format preserved.
+                6,    // SKU left align.
                 5,    // Brand center.
-                2,    // Product name wrap.
-                2,    // Categories wrap.
-                5,    // MOQ center.
-                5,    // Qty center.
-                5,    // Unit price (supplier currency) center.
-                5,    // Total (supplier currency) center.
-                5,    // Product notes center.
-                5,    // Order notes center.
-                5,    // Carton no. center.
-                5,    // cm3 per unit center.
-                5,    // Line CBM center.
+                2,    // Product name wrap (centered vertically).
+                2,    // Categories wrap (centered vertically).
+                7,    // MOQ right.
+                7,    // Qty right.
+                7,    // Unit price (supplier currency) right.
+                7,    // Total (supplier currency) right.
+                6,    // Product notes left.
+                6,    // Order notes left.
+                6,    // Carton no. left.
+                7,    // cm3 per unit right.
+                7,    // Line CBM right.
             );
             if ( $show_usd_column ) {
-                array_splice( $row_styles, 8, 0, array( 5 ) ); // Unit price USD center.
+                array_splice( $row_styles, 8, 0, array( 7 ) ); // Unit price USD right.
             }
 
             $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles );
@@ -421,13 +422,15 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<fills count="1"><fill/></fills>';
         $xml .= '<borders count="1"><border/></borders>';
         $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
-        $xml .= '<cellXfs count="6">';
+        $xml .= '<cellXfs count="8">';
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf>';
         $xml .= '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>'; // Text format.
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>';
         $xml .= '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>'; // Text + wrap.
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf>'; // Default centered (explicit).
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'; // Center horizontal + vertical.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>'; // Left align.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>'; // Right align.
         $xml .= '</cellXfs>';
         $xml .= '</styleSheet>';
         return $xml;
