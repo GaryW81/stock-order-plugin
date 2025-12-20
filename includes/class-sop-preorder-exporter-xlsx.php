@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.20
+ * File version: 1.0.21
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -22,6 +22,7 @@
  * - Add Purchase Order (Order Summary) XLSX export mirroring HTML layout.
  * - Align PO XLSX layout to match legacy Order Summary (XLS) exactly.
  * - Enforce PO XLSX row-by-row layout with expanded address lines.
+ * - Align PO Buyer/Seller rows to match legacy XLS block offsets.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -455,37 +456,30 @@ class SOP_Preorder_XLSX_Exporter {
             $pcs_total
         );
 
-        $buyer_lines = array();
-        $buyer_lines[] = isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '';
-        $buyer_lines   = array_merge( $buyer_lines, self::po_expand_lines( isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '' ) );
-        if ( ! empty( $buyer_profile['email'] ) ) {
-            $buyer_lines[] = $buyer_profile['email'];
-        }
-        if ( ! empty( $buyer_profile['phone_landline'] ) ) {
-            $buyer_lines[] = $buyer_profile['phone_landline'];
-        }
-        $buyer_lines[] = __( 'Shipping address:', 'sop' );
-        $shipping_addr = '';
+        $buyer_items = array(
+            isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '',
+            isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '',
+            isset( $buyer_profile['email'] ) ? $buyer_profile['email'] : '',
+            isset( $buyer_profile['phone_landline'] ) ? $buyer_profile['phone_landline'] : '',
+            __( 'Shipping address:', 'sop' ),
+            '',
+        );
         if ( ! empty( $buyer_profile['shipping_address'] ) ) {
-            $shipping_addr = $buyer_profile['shipping_address'];
+            $buyer_items[5] = $buyer_profile['shipping_address'];
         } elseif ( ! empty( $buyer_profile['billing_address'] ) ) {
-            $shipping_addr = $buyer_profile['billing_address'];
+            $buyer_items[5] = $buyer_profile['billing_address'];
         }
-        $buyer_lines = array_merge( $buyer_lines, self::po_expand_lines( $shipping_addr ) );
 
-        $seller_lines   = array();
-        $seller_lines[] = $supplier_pi['company_name'];
-        $seller_lines   = array_merge( $seller_lines, self::po_expand_lines( $supplier_pi['company_address'] ) );
-        if ( ! empty( $supplier_pi['company_email'] ) ) {
-            $seller_lines[] = $supplier_pi['company_email'];
-        }
-        if ( ! empty( $supplier_pi['company_phone'] ) ) {
-            $seller_lines[] = $supplier_pi['company_phone'];
-        }
-        $seller_lines[] = $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : '';
-        $seller_lines[] = $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : '';
+        $seller_items = array(
+            $supplier_pi['company_name'],
+            $supplier_pi['company_address'],
+            $supplier_pi['company_email'],
+            $supplier_pi['company_phone'],
+            $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : '',
+            $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : '',
+        );
 
-        $max_lines = max( count( $buyer_lines ), count( $seller_lines ) );
+        $max_items = max( count( $buyer_items ), count( $seller_items ) );
 
         $rows_xml     = '';
         $merge_cells  = array();
@@ -523,25 +517,35 @@ class SOP_Preorder_XLSX_Exporter {
             $merge_cells
         );
 
-        for ( $i = 0; $i < $max_lines; $i++ ) {
-            $buyer_line  = isset( $buyer_lines[ $i ] ) ? $buyer_lines[ $i ] : '';
-            $seller_line = isset( $seller_lines[ $i ] ) ? $seller_lines[ $i ] : '';
-            $rows_xml   .= self::build_po_row_xml(
-                $row_num++,
-                array(
+        for ( $i = 0; $i < $max_items; $i++ ) {
+            $buyer_block  = isset( $buyer_items[ $i ] ) ? $buyer_items[ $i ] : '';
+            $seller_block = isset( $seller_items[ $i ] ) ? $seller_items[ $i ] : '';
+
+            $buyer_lines_block  = self::po_expand_block_lines( $buyer_block );
+            $seller_lines_block = self::po_expand_block_lines( $seller_block );
+
+            $block_rows = max( count( $buyer_lines_block ), count( $seller_lines_block ) );
+            for ( $r = 0; $r < $block_rows; $r++ ) {
+                $buyer_line  = isset( $buyer_lines_block[ $r ] ) ? $buyer_lines_block[ $r ] : '';
+                $seller_line = isset( $seller_lines_block[ $r ] ) ? $seller_lines_block[ $r ] : '';
+
+                $rows_xml .= self::build_po_row_xml(
+                    $row_num++,
                     array(
-                        'v'       => $buyer_line,
-                        's'       => 0,
-                        'colspan' => 2,
+                        array(
+                            'v'       => $buyer_line,
+                            's'       => 0,
+                            'colspan' => 2,
+                        ),
+                        array(
+                            'v'       => $seller_line,
+                            's'       => 0,
+                            'colspan' => 3,
+                        ),
                     ),
-                    array(
-                        'v'       => $seller_line,
-                        's'       => 0,
-                        'colspan' => 3,
-                    ),
-                ),
-                $merge_cells
-            );
+                    $merge_cells
+                );
+            }
         }
 
         // PO Details heading.
@@ -886,6 +890,14 @@ class SOP_Preorder_XLSX_Exporter {
             if ( '' !== $line ) {
                 $lines[] = $line;
             }
+        }
+        return $lines;
+    }
+
+    private static function po_expand_block_lines( $text ) {
+        $lines = self::po_expand_lines( $text );
+        if ( empty( $lines ) ) {
+            return array( '' );
         }
         return $lines;
     }
