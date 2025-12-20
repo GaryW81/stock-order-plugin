@@ -483,6 +483,8 @@ class SOP_Preorder_XLSX_Exporter {
         $merge_cells  = array();
         $row_num      = 1;
 
+        $po_grid_style = 0;
+
         // Title.
         $rows_xml .= self::po_row_from_specs(
             $row_num++,
@@ -490,7 +492,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 0, 'span' => 5, 'v' => __( 'Purchase Order', 'sop' ), 's' => 1 ),
             ),
             $merge_cells,
-            16
+            16,
+            null,
+            $po_grid_style
         );
 
         // Buyer/Seller headers.
@@ -500,7 +504,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 0, 'span' => 2, 'v' => __( 'Buyer', 'sop' ), 's' => 2 ),
                 array( 'col' => 2, 'span' => 3, 'v' => __( 'Seller', 'sop' ), 's' => 2 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         // Company row.
@@ -510,7 +516,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 0, 'span' => 2, 'v' => $buyer_company, 's' => 0 ),
                 array( 'col' => 2, 'span' => 3, 'v' => $seller_company, 's' => 0 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         // Billing block rows (per-row merges, no vertical merge).
@@ -526,7 +534,9 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'col' => 0, 'span' => 2, 'v' => $buyer_val, 's' => 0 ),
                     array( 'col' => 2, 'span' => 3, 'v' => $seller_val, 's' => 9 ),
                 ),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
         }
 
@@ -537,7 +547,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 0, 'span' => 2, 'v' => $buyer_email, 's' => 0 ),
                 array( 'col' => 2, 'span' => 3, 'v' => $seller_email, 's' => 0 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         // Phone row.
@@ -547,7 +559,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 0, 'span' => 2, 'v' => $buyer_phone, 's' => 0 ),
                 array( 'col' => 2, 'span' => 3, 'v' => $seller_phone, 's' => 0 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         // Shipping label / contact row.
@@ -557,7 +571,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 0, 'span' => 2, 'v' => $shipping_label, 's' => 0 ),
                 array( 'col' => 2, 'span' => 3, 'v' => $seller_contact, 's' => 0 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         // Shipping block rows (per-row merges).
@@ -573,7 +589,9 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'col' => 0, 'span' => 2, 'v' => $buyer_val, 's' => 0 ),
                     array( 'col' => 2, 'span' => 3, 'v' => $seller_val, 's' => 9 ),
                 ),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
         }
 
@@ -583,7 +601,9 @@ class SOP_Preorder_XLSX_Exporter {
             array(
                 array( 'col' => 0, 'span' => 5, 'v' => __( 'PO Details', 'sop' ), 's' => 2 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         $po_number     = isset( $sheet_header['id'] ) ? $sheet_header['id'] : '';
@@ -601,7 +621,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 2, 'span' => 2, 'v' => __( 'Order date', 'sop' ), 's' => 1 ),
                 array( 'col' => 4, 'span' => 1, 'v' => $safe_order, 's' => 0 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
         $rows_xml .= self::po_row_from_specs(
             $row_num++,
@@ -611,7 +633,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 2, 'span' => 2, 'v' => __( 'Holiday end', 'sop' ), 's' => 1 ),
                 array( 'col' => 4, 'span' => 1, 'v' => $safe_hol_to, 's' => 0 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
         $rows_xml .= self::po_row_from_specs(
             $row_num++,
@@ -621,7 +645,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 2, 'span' => 2, 'v' => __( 'ETA / Delivery', 'sop' ), 's' => 1 ),
                 array( 'col' => 4, 'span' => 1, 'v' => $safe_eta, 's' => 0 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         // Purchase order values heading + header.
@@ -630,7 +656,9 @@ class SOP_Preorder_XLSX_Exporter {
             array(
                 array( 'col' => 0, 'span' => 5, 'v' => __( 'Purchase order values', 'sop' ), 's' => 2 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         $rows_xml .= self::po_row_from_specs(
@@ -639,7 +667,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 0, 'span' => 4, 'v' => __( 'Description', 'sop' ), 's' => 3 ),
                 array( 'col' => 4, 'span' => 1, 'v' => sprintf( __( 'Amount (%s)', 'sop' ), $currency_label ), 's' => 8 ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         $rows_xml .= self::po_row_from_specs(
@@ -648,7 +678,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 0, 'span' => 4, 'v' => $summary_label, 's' => 0 ),
                 array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $base_total ), 's' => 4, 'type' => 'num' ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         if ( ! empty( $extras_rows ) ) {
@@ -659,7 +691,9 @@ class SOP_Preorder_XLSX_Exporter {
                         array( 'col' => 0, 'span' => 4, 'v' => $extra_row['label'], 's' => 0 ),
                         array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $extra_row['amount'] ), 's' => 4, 'type' => 'num' ),
                     ),
-                    $merge_cells
+                    $merge_cells,
+                    null,
+                    $po_grid_style
                 );
             }
         }
@@ -670,7 +704,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array( 'col' => 0, 'span' => 4, 'v' => sprintf( __( 'Total (%s)', 'sop' ), $currency_label ), 's' => 11 ),
                 array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $total_with_extras ), 's' => 5, 'type' => 'num' ),
             ),
-            $merge_cells
+            $merge_cells,
+            null,
+            $po_grid_style
         );
 
         // Deposit / Balance block.
@@ -681,7 +717,9 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'col' => 0, 'span' => 5, 'v' => __( 'Deposit / Balance', 'sop' ), 's' => 10 ),
                 ),
                 $merge_cells,
-                15
+                15,
+                null,
+                $po_grid_style
             );
 
             $rows_xml .= self::po_row_from_specs(
@@ -693,7 +731,9 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'col' => 3, 'span' => 1, 'v' => __( 'Value', 'sop' ), 's' => 7 ),
                     array( 'col' => 4, 'span' => 1, 'v' => __( 'Deposit (RMB)', 'sop' ), 's' => 8 ),
                 ),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
 
             $rows_xml .= self::po_row_from_specs(
@@ -705,7 +745,9 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'col' => 3, 'span' => 1, 'v' => $deposit_fx > 0 ? number_format( $deposit_fx, 3, '.', '' ) : '', 's' => 6, 'type' => 'str' ),
                     array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $deposit_rmb ), 's' => 4, 'type' => 'num' ),
                 ),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
 
             $rows_xml .= self::po_row_from_specs(
@@ -717,7 +759,9 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'col' => 3, 'span' => 1, 'v' => $balance_fx > 0 ? number_format( $balance_fx, 3, '.', '' ) : '', 's' => 6, 'type' => 'str' ),
                     array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $balance_rmb ), 's' => 4, 'type' => 'num' ),
                 ),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
         } else {
             $deposit_simple = $deposit_usd;
@@ -731,7 +775,9 @@ class SOP_Preorder_XLSX_Exporter {
                 array(
                     array( 'col' => 0, 'span' => 5, 'v' => __( 'Deposit / Balance', 'sop' ), 's' => 2 ),
                 ),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
 
             $rows_xml .= self::po_row_from_specs(
@@ -740,7 +786,9 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'col' => 0, 'span' => 4, 'v' => sprintf( __( 'Deposit (%s)', 'sop' ), $currency_label ), 's' => 0 ),
                     array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $deposit_simple ), 's' => 4, 'type' => 'num' ),
                 ),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
             $rows_xml .= self::po_row_from_specs(
                 $row_num++,
@@ -748,7 +796,9 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'col' => 0, 'span' => 4, 'v' => sprintf( __( 'Balance (%s)', 'sop' ), $currency_label ), 's' => 0 ),
                     array( 'col' => 4, 'span' => 1, 'v' => $format_amount( $balance_simple ), 's' => 4, 'type' => 'num' ),
                 ),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
         }
 
@@ -758,14 +808,18 @@ class SOP_Preorder_XLSX_Exporter {
                 array(
                     array( 'col' => 0, 'span' => 5, 'v' => __( 'Terms', 'sop' ), 's' => 2 ),
                 ),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
             $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(
                     array( 'col' => 0, 'span' => 5, 'v' => $payment_terms, 's' => 9 ),
                 ),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
         }
 
@@ -774,7 +828,9 @@ class SOP_Preorder_XLSX_Exporter {
             $rows_xml .= self::po_row_from_specs(
                 $row_num++,
                 array(),
-                $merge_cells
+                $merge_cells,
+                null,
+                $po_grid_style
             );
         }
 
@@ -997,8 +1053,14 @@ class SOP_Preorder_XLSX_Exporter {
         return array_values( $cells );
     }
 
-    private static function po_row_from_specs( $row_num, array $specs, &$merge_cells, $row_height = null, $row_style = null ) {
+    private static function po_row_from_specs( $row_num, array $specs, &$merge_cells, $row_height = null, $row_style = null, $force_style = null ) {
         $cells = self::po_fill_row_ae( $specs, 0 );
+        if ( null !== $force_style ) {
+            foreach ( $cells as &$c ) {
+                $c['s'] = (int) $force_style;
+            }
+            unset( $c );
+        }
         return self::build_po_row_xml( $row_num, $cells, $merge_cells, $row_height, $row_style );
     }
 
