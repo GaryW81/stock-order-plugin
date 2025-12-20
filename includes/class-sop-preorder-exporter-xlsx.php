@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.17
+ * File version: 1.0.18
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -19,6 +19,7 @@
  * - Center-align columns F–N.
  * - Align SKU/notes/carton left; align numeric columns right.
  * - Increase Image column width to target ~80px.
+ * - Add Purchase Order (Order Summary) XLSX export mirroring HTML layout.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -270,6 +271,581 @@ class SOP_Preorder_XLSX_Exporter {
         return $xlsx_path;
     }
 
+    /**
+     * Build a Purchase Order / Order Summary XLSX (no images) mirroring the HTML layout.
+     *
+     * @param array $sheet_header Sheet header data.
+     * @param array $line_rows    Line rows.
+     * @return string|WP_Error    Path to XLSX temp file or error.
+     */
+    public static function build_purchase_order_xlsx_file( array $sheet_header, array $line_rows ) {
+        if ( ! class_exists( 'ZipArchive' ) ) {
+            return new WP_Error( 'sop_export_zip_missing', __( 'XLSX export requires ZipArchive.', 'sop' ) );
+        }
+
+        $tmp_base = wp_tempnam( 'sop-po-xlsx' );
+        if ( ! $tmp_base ) {
+            return new WP_Error( 'sop_export_tmp_failed', __( 'Could not create temp file for PO XLSX export.', 'sop' ) );
+        }
+        $xlsx_path = $tmp_base . '.xlsx';
+        @rename( $tmp_base, $xlsx_path );
+
+        $zip = new ZipArchive();
+        if ( true !== $zip->open( $xlsx_path, ZipArchive::CREATE | ZipArchive::OVERWRITE ) ) {
+            return new WP_Error( 'sop_export_zip_open_failed', __( 'Could not open XLSX archive for writing.', 'sop' ) );
+        }
+
+        $po_payload = array();
+        if ( ! empty( $sheet_header['header_notes_owner'] ) && is_string( $sheet_header['header_notes_owner'] ) ) {
+            $decoded = json_decode( $sheet_header['header_notes_owner'], true );
+            if ( is_array( $decoded ) ) {
+                $po_payload = $decoded;
+            }
+        }
+
+        $supplier_id   = isset( $sheet_header['supplier_id'] ) ? (int) $sheet_header['supplier_id'] : 0;
+        $supplier_name = isset( $sheet_header['supplier_name'] ) ? $sheet_header['supplier_name'] : '';
+
+        $supplier_params = function_exists( 'sop_preorder_resolve_supplier_params' )
+            ? sop_preorder_resolve_supplier_params( $supplier_id )
+            : array();
+
+        $supplier_currency = ! empty( $supplier_params['currency_code'] ) ? $supplier_params['currency_code'] : 'GBP';
+        $currency_label    = $supplier_currency;
+
+        $supplier_pi = array(
+            'company_name'    => $supplier_name,
+            'company_address' => '',
+            'company_phone'   => '',
+            'company_email'   => '',
+            'contact_name'    => '',
+            'bank_details'    => '',
+            'payment_terms'   => '',
+        );
+
+        if ( $supplier_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
+            $supplier_obj = sop_supplier_get_by_id( $supplier_id );
+            if ( $supplier_obj && ! empty( $supplier_obj->settings_json ) ) {
+                $settings_arr = json_decode( $supplier_obj->settings_json, true );
+                if ( is_array( $settings_arr ) ) {
+                    if ( ! empty( $settings_arr['pi_company_name'] ) ) {
+                        $supplier_pi['company_name'] = (string) $settings_arr['pi_company_name'];
+                    }
+                    if ( ! empty( $settings_arr['pi_company_address'] ) ) {
+                        $supplier_pi['company_address'] = (string) $settings_arr['pi_company_address'];
+                    }
+                    if ( ! empty( $settings_arr['pi_company_phone'] ) ) {
+                        $supplier_pi['company_phone'] = (string) $settings_arr['pi_company_phone'];
+                    }
+                    if ( ! empty( $settings_arr['pi_company_email'] ) ) {
+                        $supplier_pi['company_email'] = (string) $settings_arr['pi_company_email'];
+                    }
+                    if ( ! empty( $settings_arr['pi_contact_name'] ) ) {
+                        $supplier_pi['contact_name'] = (string) $settings_arr['pi_contact_name'];
+                    }
+                    if ( ! empty( $settings_arr['pi_bank_details'] ) ) {
+                        $supplier_pi['bank_details'] = (string) $settings_arr['pi_bank_details'];
+                    }
+                    if ( ! empty( $settings_arr['pi_payment_terms'] ) ) {
+                        $supplier_pi['payment_terms'] = (string) $settings_arr['pi_payment_terms'];
+                    }
+                }
+            }
+        }
+
+        $buyer_profile = function_exists( 'sop_get_company_profile' ) ? sop_get_company_profile() : array();
+
+        $order_date    = isset( $po_payload['order_date'] ) ? $po_payload['order_date'] : '';
+        $load_date     = isset( $po_payload['load_date'] ) ? $po_payload['load_date'] : '';
+        $arrival_date  = isset( $po_payload['arrival_date'] ) ? $po_payload['arrival_date'] : '';
+        $holiday_start = isset( $po_payload['holiday_start'] ) ? $po_payload['holiday_start'] : '';
+        $holiday_end   = isset( $po_payload['holiday_end'] ) ? $po_payload['holiday_end'] : '';
+
+        $payment_terms = '';
+        if ( ! empty( $sheet_header['header_payment_terms_owner'] ) ) {
+            $payment_terms = (string) $sheet_header['header_payment_terms_owner'];
+        } elseif ( ! empty( $supplier_pi['payment_terms'] ) ) {
+            $payment_terms = (string) $supplier_pi['payment_terms'];
+        }
+
+        $format_amount = function( $value, $allow_blank = false ) {
+            if ( '' === $value || null === $value ) {
+                return $allow_blank ? '' : number_format( 0, 2, '.', '' );
+            }
+            $num = (float) $value;
+            if ( $allow_blank && $num <= 0 ) {
+                return '';
+            }
+            return number_format( $num, 2, '.', '' );
+        };
+
+        $base_total = 0.0;
+        foreach ( $line_rows as $line ) {
+            $qty        = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : ( isset( $line['qty'] ) ? (float) $line['qty'] : 0 );
+            $cost_rmb   = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : ( isset( $line['cost'] ) ? (float) $line['cost'] : 0.0 );
+            $line_total = isset( $line['line_total_rmb'] ) ? (float) $line['line_total_rmb'] : ( isset( $line['line_total'] ) ? (float) $line['line_total'] : ( $qty * $cost_rmb ) );
+            $base_total += $line_total;
+        }
+
+        $extras_total = 0.0;
+        $extras_rows  = array();
+        if ( isset( $po_payload['po_extras'] ) && is_array( $po_payload['po_extras'] ) ) {
+            foreach ( $po_payload['po_extras'] as $extra ) {
+                $label  = isset( $extra['label'] ) ? $extra['label'] : '';
+                $amount = isset( $extra['amount_rmb'] ) ? (float) $extra['amount_rmb'] : 0.0;
+                if ( '' !== $label || 0.0 !== $amount ) {
+                    $extras_rows[] = array(
+                        'label'  => $label,
+                        'amount' => $amount,
+                    );
+                    $extras_total += $amount;
+                }
+            }
+        }
+
+        $total_with_extras = $base_total + $extras_total;
+
+        $sku_keys  = array();
+        $pcs_total = 0.0;
+        foreach ( $line_rows as $line ) {
+            $qty = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : ( isset( $line['qty'] ) ? (float) $line['qty'] : 0 );
+            if ( $qty <= 0 ) {
+                continue;
+            }
+            $key = '';
+            if ( isset( $line['product_id'] ) && $line['product_id'] ) {
+                $key = 'p-' . (int) $line['product_id'];
+            } elseif ( isset( $line['sku'] ) ) {
+                $key = 's-' . $line['sku'];
+            }
+            if ( $key ) {
+                $sku_keys[ $key ] = true;
+            }
+            $pcs_total += $qty;
+        }
+        $sku_count = count( $sku_keys );
+
+        $deposit_usd    = isset( $po_payload['deposit_usd'] ) ? (float) $po_payload['deposit_usd'] : 0.0;
+        $deposit_fx     = isset( $po_payload['deposit_fx_rate'] ) ? (float) $po_payload['deposit_fx_rate'] : 0.0;
+        $deposit_rmb    = isset( $po_payload['deposit_rmb'] ) ? (float) $po_payload['deposit_rmb'] : 0.0;
+        $balance_usd    = isset( $po_payload['balance_usd'] ) ? (float) $po_payload['balance_usd'] : 0.0;
+        $balance_fx     = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
+        $balance_rmb    = isset( $po_payload['balance_rmb'] ) ? (float) $po_payload['balance_rmb'] : 0.0;
+
+        if ( $deposit_rmb <= 0 && $deposit_usd > 0 && $deposit_fx > 0 ) {
+            $deposit_rmb = $deposit_usd * $deposit_fx;
+        }
+        if ( $balance_rmb <= 0 ) {
+            $balance_rmb = $total_with_extras - $deposit_rmb;
+            if ( $balance_rmb < 0 ) {
+                $balance_rmb = 0.0;
+            }
+        }
+        if ( $balance_usd <= 0 && $balance_rmb > 0 && $balance_fx > 0 ) {
+            $balance_usd = $balance_rmb / $balance_fx;
+        }
+
+        $summary_label = sprintf(
+            /* translators: 1: PO number, 2: SKU count, 3: total pieces */
+            __( 'Purchase order #%1$s - %2$d SKUs / %3$.0f pcs', 'sop' ),
+            isset( $sheet_header['id'] ) ? $sheet_header['id'] : '',
+            (int) $sku_count,
+            $pcs_total
+        );
+
+        $buyer_lines  = array(
+            isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '',
+            isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '',
+            isset( $buyer_profile['email'] ) ? $buyer_profile['email'] : '',
+            isset( $buyer_profile['phone_landline'] ) ? $buyer_profile['phone_landline'] : '',
+        );
+        $seller_lines = array(
+            $supplier_pi['company_name'],
+            $supplier_pi['company_address'],
+            $supplier_pi['company_email'],
+            $supplier_pi['company_phone'],
+            $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : '',
+            $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : '',
+        );
+
+        $shipping_lines = array();
+        if ( isset( $buyer_profile['shipping_address'] ) && $buyer_profile['shipping_address'] ) {
+            $shipping_lines[] = __( 'Shipping address:', 'sop' );
+            $shipping_lines[] = $buyer_profile['shipping_address'];
+        } elseif ( isset( $buyer_profile['billing_address'] ) && $buyer_profile['billing_address'] ) {
+            $shipping_lines[] = __( 'Shipping address:', 'sop' );
+            $shipping_lines[] = $buyer_profile['billing_address'];
+        }
+
+        $buyer_full_lines = array_merge( $buyer_lines, $shipping_lines );
+        $max_lines        = max( count( $buyer_full_lines ), count( $seller_lines ) );
+
+        $rows_xml     = '';
+        $merge_cells  = array();
+        $row_num      = 1;
+
+        // Title.
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array(
+                    'v'       => __( 'Purchase Order', 'sop' ),
+                    's'       => 2,
+                    'colspan' => 5,
+                ),
+            ),
+            $merge_cells,
+            26
+        );
+
+        // Buyer/Seller headers.
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array(
+                    'v'       => __( 'Buyer', 'sop' ),
+                    's'       => 4,
+                    'colspan' => 2,
+                ),
+                array(
+                    'v'       => __( 'Seller', 'sop' ),
+                    's'       => 4,
+                    'colspan' => 3,
+                ),
+            ),
+            $merge_cells
+        );
+
+        for ( $i = 0; $i < $max_lines; $i++ ) {
+            $buyer_line  = isset( $buyer_full_lines[ $i ] ) && '' !== $buyer_full_lines[ $i ] ? $buyer_full_lines[ $i ] : '';
+            $seller_line = isset( $seller_lines[ $i ] ) && '' !== $seller_lines[ $i ] ? $seller_lines[ $i ] : '';
+            $rows_xml   .= self::build_po_row_xml(
+                $row_num++,
+                array(
+                    array(
+                        'v'       => $buyer_line,
+                        's'       => 9,
+                        'colspan' => 2,
+                    ),
+                    array(
+                        'v'       => $seller_line,
+                        's'       => 9,
+                        'colspan' => 3,
+                    ),
+                ),
+                $merge_cells
+            );
+        }
+
+        // PO Details heading.
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array(
+                    'v'       => __( 'PO Details', 'sop' ),
+                    's'       => 4,
+                    'colspan' => 5,
+                ),
+            ),
+            $merge_cells
+        );
+
+        $po_number     = isset( $sheet_header['id'] ) ? $sheet_header['id'] : '';
+        $safe_order    = $order_date ? $order_date : '';
+        $safe_hol_from = $holiday_start ? $holiday_start : '';
+        $safe_hol_to   = $holiday_end ? $holiday_end : '';
+        $safe_load     = $load_date ? $load_date : '';
+        $safe_eta      = $arrival_date ? $arrival_date : '';
+
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array( 'v' => __( 'PO #', 'sop' ), 's' => 1 ),
+                array( 'v' => $po_number, 's' => 0 ),
+                array( 'v' => __( 'Order date', 'sop' ), 's' => 1, 'colspan' => 2 ),
+                array( 'v' => $safe_order, 's' => 0 ),
+            ),
+            $merge_cells
+        );
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array( 'v' => __( 'Holiday start', 'sop' ), 's' => 1 ),
+                array( 'v' => $safe_hol_from, 's' => 0 ),
+                array( 'v' => __( 'Holiday end', 'sop' ), 's' => 1, 'colspan' => 2 ),
+                array( 'v' => $safe_hol_to, 's' => 0 ),
+            ),
+            $merge_cells
+        );
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array( 'v' => __( 'Load date', 'sop' ), 's' => 1 ),
+                array( 'v' => $safe_load, 's' => 0 ),
+                array( 'v' => __( 'ETA / Delivery', 'sop' ), 's' => 1, 'colspan' => 2 ),
+                array( 'v' => $safe_eta, 's' => 0 ),
+            ),
+            $merge_cells
+        );
+
+        // Purchase order values heading + header.
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array(
+                    'v'       => __( 'Purchase order values', 'sop' ),
+                    's'       => 4,
+                    'colspan' => 5,
+                ),
+            ),
+            $merge_cells
+        );
+
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array(
+                    'v'       => __( 'Description', 'sop' ),
+                    's'       => 16,
+                    'colspan' => 4,
+                ),
+                array(
+                    'v' => sprintf( __( 'Amount (%s)', 'sop' ), $currency_label ),
+                    's' => 17,
+                ),
+            ),
+            $merge_cells,
+            16
+        );
+
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array(
+                    'v'       => $summary_label,
+                    's'       => 0,
+                    'colspan' => 4,
+                ),
+                array(
+                    'v'    => $format_amount( $base_total ),
+                    's'    => 6,
+                    'type' => 'num',
+                ),
+            ),
+            $merge_cells
+        );
+
+        if ( ! empty( $extras_rows ) ) {
+            foreach ( $extras_rows as $extra_row ) {
+                $rows_xml .= self::build_po_row_xml(
+                    $row_num++,
+                    array(
+                        array(
+                            'v'       => $extra_row['label'],
+                            's'       => 0,
+                            'colspan' => 4,
+                        ),
+                        array(
+                            'v'    => $format_amount( $extra_row['amount'] ),
+                            's'    => 6,
+                            'type' => 'num',
+                        ),
+                    ),
+                    $merge_cells
+                );
+            }
+        }
+
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array(
+                    'v'       => sprintf( __( 'Total (%s)', 'sop' ), $currency_label ),
+                    's'       => 15,
+                    'colspan' => 4,
+                ),
+                array(
+                    'v'    => $format_amount( $total_with_extras ),
+                    's'    => 7,
+                    'type' => 'num',
+                ),
+            ),
+            $merge_cells
+        );
+
+        // Deposit / Balance block.
+        if ( 'RMB' === $supplier_currency ) {
+            $rows_xml .= self::build_po_row_xml(
+                $row_num++,
+                array(
+                    array(
+                        'v'       => __( 'Deposit / Balance', 'sop' ),
+                        's'       => 3,
+                        'colspan' => 5,
+                    ),
+                ),
+                $merge_cells,
+                15
+            );
+
+            $rows_xml .= self::build_po_row_xml(
+                $row_num++,
+                array(
+                    array( 'v' => __( 'Payment', 'sop' ), 's' => 5 ),
+                    array( 'v' => __( 'Value', 'sop' ), 's' => 5 ),
+                    array( 'v' => __( 'Deposit FX (RMB/USD)', 'sop' ), 's' => 5 ),
+                    array( 'v' => __( 'Value', 'sop' ), 's' => 5 ),
+                    array( 'v' => __( 'Deposit (RMB)', 'sop' ), 's' => 5 ),
+                ),
+                $merge_cells
+            );
+
+            $rows_xml .= self::build_po_row_xml(
+                $row_num++,
+                array(
+                    array( 'v' => __( 'Deposit (USD)', 'sop' ), 's' => 0 ),
+                    array( 'v' => $format_amount( $deposit_usd ), 's' => 6, 'type' => 'num' ),
+                    array(
+                        'v' => $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), number_format( $deposit_fx, 3 ) ) : '',
+                        's' => 8,
+                    ),
+                    array(
+                        'v'    => $deposit_fx > 0 ? number_format( $deposit_fx, 3, '.', '' ) : '',
+                        's'    => 8,
+                        'type' => 'num',
+                    ),
+                    array( 'v' => $format_amount( $deposit_rmb ), 's' => 6, 'type' => 'num' ),
+                ),
+                $merge_cells
+            );
+
+            $rows_xml .= self::build_po_row_xml(
+                $row_num++,
+                array(
+                    array( 'v' => __( 'Balance (USD)', 'sop' ), 's' => 0 ),
+                    array( 'v' => $balance_usd > 0 ? $format_amount( $balance_usd ) : '', 's' => 6, 'type' => 'num' ),
+                    array(
+                        'v' => $balance_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), number_format( $balance_fx, 3 ) ) : '',
+                        's' => 8,
+                    ),
+                    array(
+                        'v'    => $balance_fx > 0 ? number_format( $balance_fx, 3, '.', '' ) : '',
+                        's'    => 8,
+                        'type' => 'num',
+                    ),
+                    array( 'v' => $format_amount( $balance_rmb ), 's' => 6, 'type' => 'num' ),
+                ),
+                $merge_cells
+            );
+        } else {
+            $deposit_simple = $deposit_usd;
+            $balance_simple = $total_with_extras - $deposit_simple;
+            if ( $balance_simple < 0 ) {
+                $balance_simple = 0.0;
+            }
+
+            $rows_xml .= self::build_po_row_xml(
+                $row_num++,
+                array(
+                    array(
+                        'v'       => __( 'Deposit / Balance', 'sop' ),
+                        's'       => 4,
+                        'colspan' => 5,
+                    ),
+                ),
+                $merge_cells
+            );
+
+            $rows_xml .= self::build_po_row_xml(
+                $row_num++,
+                array(
+                    array(
+                        'v'       => sprintf( __( 'Deposit (%s)', 'sop' ), $currency_label ),
+                        's'       => 0,
+                        'colspan' => 4,
+                    ),
+                    array(
+                        'v'    => $format_amount( $deposit_simple ),
+                        's'    => 6,
+                        'type' => 'num',
+                    ),
+                ),
+                $merge_cells
+            );
+            $rows_xml .= self::build_po_row_xml(
+                $row_num++,
+                array(
+                    array(
+                        'v'       => sprintf( __( 'Balance (%s)', 'sop' ), $currency_label ),
+                        's'       => 0,
+                        'colspan' => 4,
+                    ),
+                    array(
+                        'v'    => $format_amount( $balance_simple ),
+                        's'    => 6,
+                        'type' => 'num',
+                    ),
+                ),
+                $merge_cells
+            );
+        }
+
+        if ( $payment_terms ) {
+            $rows_xml .= self::build_po_row_xml(
+                $row_num++,
+                array(
+                    array(
+                        'v'       => __( 'Terms', 'sop' ),
+                        's'       => 4,
+                        'colspan' => 5,
+                    ),
+                ),
+                $merge_cells
+            );
+            $rows_xml .= self::build_po_row_xml(
+                $row_num++,
+                array(
+                    array(
+                        'v'       => $payment_terms,
+                        's'       => 9,
+                        'colspan' => 5,
+                    ),
+                ),
+                $merge_cells
+            );
+        }
+
+        $max_row = $row_num - 1;
+
+        $content_types = self::build_content_types_xml( false );
+        $rels_root     = self::build_root_rels_xml();
+        $workbook      = self::build_purchase_order_workbook_xml();
+        $workbook_rels = self::build_workbook_rels_xml();
+        $styles        = self::build_styles_xml_purchase_order();
+        $sheet_rels    = self::build_sheet_rels_xml( false );
+        $sheet_xml     = self::build_purchase_order_sheet_xml( $rows_xml, $merge_cells, $max_row );
+        $app_xml       = self::build_app_xml_for_title( 'Purchase Order' );
+        $core_xml      = self::build_core_xml();
+
+        if ( 0 !== strpos( $sheet_xml, '<?xml' ) ) {
+            return new WP_Error( 'sop_xlsx_sheet_invalid', __( 'Generated PO sheet XML invalid.', 'sop' ) );
+        }
+
+        $zip->addFromString( '[Content_Types].xml', $content_types );
+        $zip->addFromString( '_rels/.rels', $rels_root );
+        $zip->addFromString( 'docProps/app.xml', $app_xml );
+        $zip->addFromString( 'docProps/core.xml', $core_xml );
+        $zip->addFromString( 'xl/workbook.xml', $workbook );
+        $zip->addFromString( 'xl/_rels/workbook.xml.rels', $workbook_rels );
+        $zip->addFromString( 'xl/styles.xml', $styles );
+        $zip->addFromString( 'xl/worksheets/sheet1.xml', $sheet_xml );
+        $zip->addFromString( 'xl/worksheets/_rels/sheet1.xml.rels', $sheet_rels );
+
+        $zip->close();
+
+        return $xlsx_path;
+    }
+
     private static function esc_xml( $value ) {
         return htmlspecialchars( (string) $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
     }
@@ -280,6 +856,11 @@ class SOP_Preorder_XLSX_Exporter {
         $value = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $value );
         $value = htmlspecialchars( $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
         return str_replace( "\n", '&#10;', $value );
+    }
+
+    private static function sanitize_po_text( $value ) {
+        $value = html_entity_decode( (string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+        return self::sanitize_xml_text( $value );
     }
 
     private static function column_letter( $index ) {
@@ -315,6 +896,43 @@ class SOP_Preorder_XLSX_Exporter {
 
             $col_index++;
         }
+        $xml .= '</row>';
+        return $xml;
+    }
+
+    private static function build_po_row_xml( $row_num, $cells, &$merge_cells, $row_height = null, $row_style = null ) {
+        $attrs = ' r="' . (int) $row_num . '"';
+        if ( null !== $row_style ) {
+            $attrs .= ' s="' . (int) $row_style . '" customFormat="1"';
+        }
+        if ( null !== $row_height ) {
+            $attrs .= ' ht="' . (float) $row_height . '" customHeight="1"';
+        }
+
+        $xml       = '<row' . $attrs . '>';
+        $col_index = 0;
+
+        foreach ( $cells as $cell ) {
+            $value    = isset( $cell['v'] ) ? $cell['v'] : '';
+            $style    = isset( $cell['s'] ) ? (int) $cell['s'] : 0;
+            $colspan  = isset( $cell['colspan'] ) ? max( 1, (int) $cell['colspan'] ) : 1;
+            $type     = isset( $cell['type'] ) ? $cell['type'] : 'str';
+            $col_ref  = self::column_letter( $col_index ) . $row_num;
+            $end_col  = self::column_letter( $col_index + $colspan - 1 );
+
+            if ( $colspan > 1 ) {
+                $merge_cells[] = $col_ref . ':' . $end_col . $row_num;
+            }
+
+            if ( 'num' === $type && '' !== $value && null !== $value ) {
+                $xml .= '<c r="' . $col_ref . '" s="' . $style . '"><v>' . self::esc_xml( $value ) . '</v></c>';
+            } else {
+                $xml .= '<c r="' . $col_ref . '" t="inlineStr" s="' . $style . '"><is><t xml:space="preserve">' . self::sanitize_po_text( $value ) . '</t></is></c>';
+            }
+
+            $col_index += $colspan;
+        }
+
         $xml .= '</row>';
         return $xml;
     }
@@ -408,6 +1026,16 @@ class SOP_Preorder_XLSX_Exporter {
         return $xml;
     }
 
+    private static function build_purchase_order_workbook_xml() {
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+        $xml .= '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+        $xml .= '<sheets>';
+        $xml .= '<sheet name="Purchase Order" sheetId="1" r:id="rId1"/>';
+        $xml .= '</sheets>';
+        $xml .= '</workbook>';
+        return $xml;
+    }
+
     private static function build_workbook_rels_xml() {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
@@ -432,6 +1060,66 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'; // Center horizontal + vertical.
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>'; // Left align.
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>'; // Right align.
+        $xml .= '</cellXfs>';
+        $xml .= '</styleSheet>';
+        return $xml;
+    }
+
+    private static function build_styles_xml_purchase_order() {
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+        $xml .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+        $xml .= '<fonts count="3">';
+        $xml .= '<font><sz val="11"/><name val="Calibri"/></font>';
+        $xml .= '<font><b/><sz val="11"/><name val="Calibri"/></font>';
+        $xml .= '<font><b/><sz val="18"/><name val="Calibri"/></font>';
+        $xml .= '</fonts>';
+        $xml .= '<fills count="3">';
+        $xml .= '<fill><patternFill patternType="none"/></fill>';
+        $xml .= '<fill><patternFill patternType="solid"><fgColor rgb="FFF5F5F5"/><bgColor indexed="64"/></patternFill></fill>';
+        $xml .= '<fill><patternFill patternType="solid"><fgColor rgb="FFF0F0F0"/><bgColor indexed="64"/></patternFill></fill>';
+        $xml .= '</fills>';
+        $xml .= '<borders count="2">';
+        $xml .= '<border><left/><right/><top/><bottom/><diagonal/></border>';
+        $xml .= '<border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/><diagonal/></border>';
+        $xml .= '</borders>';
+        $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
+        $xml .= '<cellXfs count="18">';
+        // 0: normal left.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
+        // 1: bold left.
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
+        // 2: title center (18pt bold).
+        $xml .= '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
+        // 3: header grey1 center bold.
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
+        // 4: header grey1 left bold.
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
+        // 5: header grey2 center bold.
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
+        // 6: amount right (number).
+        $xml .= '<xf numFmtId="4" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
+        // 7: amount right bold (number).
+        $xml .= '<xf numFmtId="4" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
+        // 8: normal center.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
+        // 9: normal left wrap.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>';
+        // 10: normal left fill1.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
+        // 11: normal left fill2.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
+        // 12: center fill1.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
+        // 13: center fill2.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
+        // 14: right fill2 bold (for headers).
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
+        // 15: right bold (label).
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
+        // 16: header grey2 left bold (Description).
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
+        // 17: header grey2 right bold (Amount header).
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
         $xml .= '</cellXfs>';
         $xml .= '</styleSheet>';
         return $xml;
@@ -464,6 +1152,27 @@ class SOP_Preorder_XLSX_Exporter {
         return $xml;
     }
 
+    private static function build_purchase_order_sheet_xml( $rows_xml, $merge_cells, $max_row ) {
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+        $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+        $xml .= '<dimension ref="A1:E' . (int) $max_row . '"/>';
+        $xml .= '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
+        $xml .= '<sheetFormatPr defaultRowHeight="15" customHeight="1"/>';
+        $xml .= self::build_purchase_order_cols_xml();
+        $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
+
+        if ( ! empty( $merge_cells ) ) {
+            $xml .= '<mergeCells count="' . (int) count( $merge_cells ) . '">';
+            foreach ( $merge_cells as $merge_ref ) {
+                $xml .= '<mergeCell ref="' . self::esc_xml( $merge_ref ) . '"/>';
+            }
+            $xml .= '</mergeCells>';
+        }
+
+        $xml .= '</worksheet>';
+        return $xml;
+    }
+
     private static function build_cols_xml( $show_usd_column = true ) {
         $xml  = '<cols>';
         $xml .= '<col min="1" max="1" width="8.94" customWidth="1"/>'; // Image (A).
@@ -472,6 +1181,17 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<col min="5" max="5" width="32.60" customWidth="1"/>'; // Categories (E).
         $product_notes_col = $show_usd_column ? 11 : 10;
         $xml .= '<col min="' . (int) $product_notes_col . '" max="' . (int) $product_notes_col . '" width="27.15" customWidth="1"/>'; // Product notes.
+        $xml .= '</cols>';
+        return $xml;
+    }
+
+    private static function build_purchase_order_cols_xml() {
+        $xml  = '<cols>';
+        $xml .= '<col min="1" max="1" width="18.61" customWidth="1"/>';
+        $xml .= '<col min="2" max="2" width="18.61" customWidth="1"/>';
+        $xml .= '<col min="3" max="3" width="17.36" customWidth="1"/>';
+        $xml .= '<col min="4" max="4" width="13.44" customWidth="1"/>';
+        $xml .= '<col min="5" max="5" width="13.44" customWidth="1"/>';
         $xml .= '</cols>';
         return $xml;
     }
@@ -521,6 +1241,20 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>Order Sheet</vt:lpstr></vt:vector></TitlesOfParts>';
         $xml .= '<Company></Company><LinksUpToDate>false</LinksUpToDate><SharedDoc>false</SharedDoc><HyperlinksChanged>false</HyperlinksChanged><AppVersion>16.0300</AppVersion>';
         $xml .= '</Properties>';
+        return $xml;
+    }
+
+    private static function build_app_xml_for_title( $title ) {
+        $title = $title ? (string) $title : 'Sheet1';
+        $xml   = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+        $xml  .= '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">';
+        $xml  .= '<Application>Microsoft Excel</Application>';
+        $xml  .= '<DocSecurity>0</DocSecurity>';
+        $xml  .= '<ScaleCrop>false</ScaleCrop>';
+        $xml  .= '<HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs>';
+        $xml  .= '<TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>' . self::esc_xml( $title ) . '</vt:lpstr></vt:vector></TitlesOfParts>';
+        $xml  .= '<Company></Company><LinksUpToDate>false</LinksUpToDate><SharedDoc>false</SharedDoc><HyperlinksChanged>false</HyperlinksChanged><AppVersion>16.0300</AppVersion>';
+        $xml  .= '</Properties>';
         return $xml;
     }
 

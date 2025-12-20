@@ -1,6 +1,7 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.45 *
- * - V12.45 - SOQ tooltip: restore custom tooltip + improve hover + fix scroll/hover dropouts.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.46 *
+* - V12.46 - Add Order Summary (XLSX) download option.
+* - V12.45 - SOQ tooltip: restore custom tooltip + improve hover + fix scroll/hover dropouts.
  * - V12.44 - SOQ tooltip: suppress native title tooltip + improve hover hit area.
  * - V12.43 - Fix SOQ order advice tooltip hover.
  * - V12.42 - Force saved sheet container fill to use saved/derived CBM and cm3 values.
@@ -1079,6 +1080,11 @@ function sop_preorder_render_admin_page() {
                     <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
                     <?php wp_nonce_field( 'sop_export_purchase_order_xls' ); ?>
                 </form>
+                <form id="sop-preorder-export-po-xlsx-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:none;">
+                    <input type="hidden" name="action" value="sop_export_purchase_order_xlsx" />
+                    <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+                    <?php wp_nonce_field( 'sop_export_purchase_order_xlsx' ); ?>
+                </form>
             <?php endif; ?>
 
             <div class="sop-preorder-card sop-preorder-card--top">
@@ -1131,6 +1137,9 @@ function sop_preorder_render_admin_page() {
                                         </button>
                                         <button type="submit" form="sop-preorder-export-po-form">
                                             <?php esc_html_e( 'Order Summary (XLS)', 'sop' ); ?>
+                                        </button>
+                                        <button type="submit" form="sop-preorder-export-po-xlsx-form">
+                                            <?php esc_html_e( 'Order Summary (XLSX)', 'sop' ); ?>
                                         </button>
                                     </div>
                                 </details>

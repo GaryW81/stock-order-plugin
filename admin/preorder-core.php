@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.43
+ * File version: 11.44
  * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
  * - Cleanup: remove sop_debug_costs tooling; keep minimal COGS key list.
@@ -12,6 +12,7 @@
  * - Add SOQ forecast context for tooltip ("Why" trust SOQ) and accept sop_lines_json payload to avoid max_input_vars truncation on large sheets.
  * - Add PO XLS export handler (order sheet export unchanged).
  * - Add embedded XLSX export (images embedded, no external URLs).
+ * - Add Purchase Order XLSX export handler.
  * - Clear balance FX/ USD when deposit FX is not locked.
  * - Add Purchase Order header fields (dates, deposits, PO extras) with FX and holiday dates for saved sheets, centralised parsing.
  * - 11.17 - Ensure Purchase Order modal fields are explicitly persisted on save (insert/update).
@@ -965,6 +966,7 @@ function sop_handle_export_preorder_sheet_xlsx() {
 }
 
 add_action( 'admin_post_sop_export_purchase_order_xls', 'sop_handle_export_purchase_order_xls' );
+add_action( 'admin_post_sop_export_purchase_order_xlsx', 'sop_handle_export_purchase_order_xlsx' );
 function sop_handle_export_purchase_order_xls() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You are not allowed to export purchase orders.', 'sop' ) );
@@ -1016,6 +1018,62 @@ function sop_handle_export_purchase_order_xls() {
     header( 'Expires: 0' );
 
     echo $html;
+    exit;
+}
+
+function sop_handle_export_purchase_order_xlsx() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You are not allowed to export purchase orders.', 'sop' ) );
+    }
+
+    $nonce = isset( $_REQUEST['_wpnonce'] ) ? wp_unslash( $_REQUEST['_wpnonce'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    if ( ! wp_verify_nonce( $nonce, 'sop_export_purchase_order_xlsx' ) ) {
+        wp_die( esc_html__( 'Invalid PO export request.', 'sop' ) );
+    }
+
+    $sheet_id = isset( $_REQUEST['sop_sheet_id'] ) ? (int) $_REQUEST['sop_sheet_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    if ( $sheet_id <= 0 ) {
+        wp_die( esc_html__( 'Purchase Order not found for export.', 'sop' ) );
+    }
+
+    $dataset = sop_preorder_build_export_dataset( $sheet_id );
+    if ( is_wp_error( $dataset ) ) {
+        wp_die( esc_html( $dataset->get_error_message() ) );
+    }
+
+    list( $sheet_header, $line_rows ) = $dataset;
+
+    $supplier_slug = '';
+    if ( function_exists( 'sop_get_supplier_label' ) && ! empty( $sheet_header['supplier_id'] ) ) {
+        $supplier_label = sop_get_supplier_label( (int) $sheet_header['supplier_id'] );
+        $supplier_slug  = sanitize_title( $supplier_label );
+    } elseif ( ! empty( $sheet_header['supplier_name'] ) ) {
+        $supplier_slug = sanitize_title( $sheet_header['supplier_name'] );
+    } elseif ( ! empty( $sheet_header['supplier_id'] ) ) {
+        $supplier_slug = 'supplier-' . (int) $sheet_header['supplier_id'];
+    } else {
+        $supplier_slug = 'supplier';
+    }
+
+    if ( ! class_exists( 'SOP_Preorder_XLSX_Exporter' ) ) {
+        wp_die( esc_html__( 'XLSX exporter is not available.', 'sop' ) );
+    }
+
+    $xlsx_path = SOP_Preorder_XLSX_Exporter::build_purchase_order_xlsx_file( $sheet_header, $line_rows );
+    if ( is_wp_error( $xlsx_path ) ) {
+        wp_die( esc_html( $xlsx_path->get_error_message() ) );
+    }
+
+    $filename = sanitize_file_name( sprintf( 'purchase-order-%s-%d.xlsx', $supplier_slug, (int) $sheet_id ) );
+
+    nocache_headers();
+    header( 'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' );
+    header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+    header( 'Pragma: no-cache' );
+    header( 'Expires: 0' );
+
+    readfile( $xlsx_path );
+    @unlink( $xlsx_path );
     exit;
 }
 
