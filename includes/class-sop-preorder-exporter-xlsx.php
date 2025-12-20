@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.26
+ * File version: 1.0.27
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -528,7 +528,7 @@ class SOP_Preorder_XLSX_Exporter {
         $billing_count = max( 1, count( $billing_lines ) );
         $billing_end   = $billing_start + $billing_count - 1;
         if ( $billing_count > 0 ) {
-            $merge_cells[] = 'C' . $billing_start . ':E' . $billing_end;
+            self::po_merge_add( $merge_cells, self::po_merge_ref( 2, $billing_start, 4, $billing_end ) );
         }
 
         foreach ( $billing_lines as $idx => $line ) {
@@ -537,9 +537,10 @@ class SOP_Preorder_XLSX_Exporter {
             );
             if ( 0 === $idx ) {
                 $cells[] = array(
-                    'v'       => $seller_address,
-                    's'       => 9,
-                    'colspan' => 3,
+                    'v'          => $seller_address,
+                    's'          => 9,
+                    'colspan'    => 3,
+                    'skip_merge' => true,
                 );
             }
             $rows_xml .= self::build_po_row_xml( $row_num++, $cells, $merge_cells );
@@ -580,7 +581,7 @@ class SOP_Preorder_XLSX_Exporter {
         $ship_count = max( 1, count( $shipping_lines ) );
         $ship_end   = $ship_start + $ship_count - 1;
         if ( $ship_count > 0 ) {
-            $merge_cells[] = 'C' . $ship_start . ':E' . $ship_end;
+            self::po_merge_add( $merge_cells, self::po_merge_ref( 2, $ship_start, 4, $ship_end ) );
         }
 
         foreach ( $shipping_lines as $idx => $line ) {
@@ -589,9 +590,10 @@ class SOP_Preorder_XLSX_Exporter {
             );
             if ( 0 === $idx ) {
                 $cells[] = array(
-                    'v'       => $seller_bank,
-                    's'       => 9,
-                    'colspan' => 3,
+                    'v'          => $seller_bank,
+                    's'          => 9,
+                    'colspan'    => 3,
+                    'skip_merge' => true,
                 );
             }
             $rows_xml .= self::build_po_row_xml( $row_num++, $cells, $merge_cells );
@@ -951,6 +953,103 @@ class SOP_Preorder_XLSX_Exporter {
         return $lines;
     }
 
+    private static function po_merge_ref( $col_start, $row_start, $col_end, $row_end ) {
+        $cs = self::column_letter( min( $col_start, $col_end ) );
+        $ce = self::column_letter( max( $col_start, $col_end ) );
+        $rs = (int) min( $row_start, $row_end );
+        $re = (int) max( $row_start, $row_end );
+        return $cs . $rs . ':' . $ce . $re;
+    }
+
+    private static function po_merge_parse( $ref ) {
+        if ( ! is_string( $ref ) || strpos( $ref, ':' ) === false ) {
+            return null;
+        }
+        list( $a, $b ) = explode( ':', $ref, 2 );
+        $parse = function( $cell ) {
+            if ( ! preg_match( '/^([A-Z]+)([0-9]+)$/', $cell, $m ) ) {
+                return null;
+            }
+            $col = 0;
+            $letters = str_split( $m[1] );
+            foreach ( $letters as $ch ) {
+                $col = $col * 26 + ( ord( $ch ) - 64 );
+            }
+            // zero-index for comparisons.
+            return array( 'col' => $col - 1, 'row' => (int) $m[2] );
+        };
+        $p1 = $parse( $a );
+        $p2 = $parse( $b );
+        if ( ! $p1 || ! $p2 ) {
+            return null;
+        }
+        return array(
+            'c1' => min( $p1['col'], $p2['col'] ),
+            'c2' => max( $p1['col'], $p2['col'] ),
+            'r1' => min( $p1['row'], $p2['row'] ),
+            'r2' => max( $p1['row'], $p2['row'] ),
+        );
+    }
+
+    private static function po_merge_overlaps( $ref_a, $ref_b ) {
+        $a = self::po_merge_parse( $ref_a );
+        $b = self::po_merge_parse( $ref_b );
+        if ( ! $a || ! $b ) {
+            return false;
+        }
+        $h_overlap = $a['c1'] <= $b['c2'] && $b['c1'] <= $a['c2'];
+        $v_overlap = $a['r1'] <= $b['r2'] && $b['r1'] <= $a['r2'];
+        return $h_overlap && $v_overlap;
+    }
+
+    private static function po_merge_add( array &$merges, $ref ) {
+        if ( ! $ref ) {
+            return;
+        }
+        foreach ( $merges as $existing ) {
+            if ( $existing === $ref ) {
+                return;
+            }
+            if ( self::po_merge_overlaps( $existing, $ref ) ) {
+                return;
+            }
+        }
+        $merges[] = $ref;
+    }
+
+    private static function po_merge_sort_unique( array $merges ) {
+        $unique = array();
+        foreach ( $merges as $ref ) {
+            if ( ! in_array( $ref, $unique, true ) ) {
+                $unique[] = $ref;
+            }
+        }
+        usort(
+            $unique,
+            function ( $a, $b ) {
+                $pa = self::po_merge_parse( $a );
+                $pb = self::po_merge_parse( $b );
+                if ( ! $pa || ! $pb ) {
+                    return strcmp( $a, $b );
+                }
+                if ( $pa['r1'] !== $pb['r1'] ) {
+                    return $pa['r1'] - $pb['r1'];
+                }
+                return $pa['c1'] - $pb['c1'];
+            }
+        );
+        return $unique;
+    }
+
+    private static function po_clean_merges( array $merges ) {
+        $sorted = self::po_merge_sort_unique( $merges );
+        $clean  = array();
+        foreach ( $sorted as $ref ) {
+            self::po_merge_add( $clean, $ref );
+        }
+        return $clean;
+    }
+
     private static function format_po_date_display( $value ) {
         $value = (string) $value;
         if ( '' === trim( $value ) ) {
@@ -1021,15 +1120,17 @@ class SOP_Preorder_XLSX_Exporter {
         $col_index = 0;
 
         foreach ( $cells as $cell ) {
-            $value    = isset( $cell['v'] ) ? $cell['v'] : '';
-            $style    = isset( $cell['s'] ) ? (int) $cell['s'] : 0;
-            $colspan  = isset( $cell['colspan'] ) ? max( 1, (int) $cell['colspan'] ) : 1;
-            $type     = isset( $cell['type'] ) ? $cell['type'] : 'str';
-            $col_ref  = self::column_letter( $col_index ) . $row_num;
-            $end_col  = self::column_letter( $col_index + $colspan - 1 );
+            $value      = isset( $cell['v'] ) ? $cell['v'] : '';
+            $style      = isset( $cell['s'] ) ? (int) $cell['s'] : 0;
+            $colspan    = isset( $cell['colspan'] ) ? max( 1, (int) $cell['colspan'] ) : 1;
+            $type       = isset( $cell['type'] ) ? $cell['type'] : 'str';
+            $skip_merge = ! empty( $cell['skip_merge'] );
+            $col_ref    = self::column_letter( $col_index ) . $row_num;
+            $end_col    = self::column_letter( $col_index + $colspan - 1 );
 
-            if ( $colspan > 1 ) {
-                $merge_cells[] = $col_ref . ':' . $end_col . $row_num;
+            if ( $colspan > 1 && ! $skip_merge ) {
+                $merge_ref = $col_ref . ':' . $end_col . $row_num;
+                self::po_merge_add( $merge_cells, $merge_ref );
             }
 
             if ( 'num' === $type && '' !== $value && null !== $value ) {
@@ -1256,6 +1357,7 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= self::build_purchase_order_cols_xml();
         $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
 
+        $merge_cells = self::po_clean_merges( $merge_cells );
         if ( ! empty( $merge_cells ) ) {
             $xml .= '<mergeCells count="' . (int) count( $merge_cells ) . '">';
             foreach ( $merge_cells as $merge_ref ) {
