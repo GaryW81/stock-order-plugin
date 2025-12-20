@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.43 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.44 *
+ * - V12.44 - SOQ tooltip: suppress native title tooltip + improve hover hit area.
  * - V12.43 - Fix SOQ order advice tooltip hover.
  * - V12.42 - Force saved sheet container fill to use saved/derived CBM and cm3 values.
  * - V12.41 - Fix saved sheet container fill % by applying saved CBM/cm3 line data to totals.
@@ -1646,7 +1647,7 @@ function sop_preorder_render_admin_page() {
                                         <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
                                             <span class="sop-preorder-soq__num"><?php echo esc_html( number_format_i18n( $suggested_order_qty, 0 ) ); ?></span>
                                             <?php if ( $soq_tooltip ) : ?>
-                                                <span class="dashicons dashicons-editor-help sop-soq-why sop-soq-advice<?php echo ! empty( $sop_icon_ai_uri ) ? ' sop-soq-why-ai' : ''; ?>" data-sop-tooltip="<?php echo esc_attr( $soq_tooltip ); ?>" aria-label="<?php echo esc_attr( $soq_tooltip ); ?>" title="<?php echo esc_attr( $soq_tooltip ); ?>">?</span>
+                                                <span class="dashicons dashicons-editor-help sop-soq-why sop-soq-advice<?php echo ! empty( $sop_icon_ai_uri ) ? ' sop-soq-why-ai' : ''; ?>" data-sop-tooltip="<?php echo esc_attr( $soq_tooltip ); ?>" aria-label="<?php echo esc_attr( $soq_tooltip ); ?>">?</span>
                                             <?php endif; ?>
                                         </span>
                                     </td>
@@ -2267,11 +2268,23 @@ function sop_preorder_render_admin_page() {
             padding:8px 10px;
             border-radius:6px;
             font-size:12px;
-            line-height:1.3;
-            max-width:320px;
+            line-height:1.35;
+            max-width:360px;
             box-shadow:0 2px 10px rgba(0,0,0,0.25);
             pointer-events:none;
-            white-space:normal;
+            white-space:pre-line;
+        }
+
+        .sop-soq-advice{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            padding:6px;
+            cursor:help;
+        }
+        .sop-soq-advice svg,
+        .sop-soq-advice svg *{
+            pointer-events:none;
         }
 
         <?php if ( ! empty( $sop_icon_ai_uri ) ) : ?>
@@ -3554,34 +3567,39 @@ function sop_preorder_render_admin_page() {
                 } );
             }
 
-            // SOQ tooltip: show/hide and protect from clipping.
-            if ( $table.length ) {
-                $table.find( '.sop-soq-why' ).each( function() {
-                    var $el = $( this );
-                    var rawTitle = $el.attr( 'title' );
-                    if ( rawTitle && ! $el.data( 'soq-why' ) ) {
-                        $el.attr( 'data-soq-why', rawTitle );
-                    }
-                    $el.removeAttr( 'title' );
-                    if ( ! $el.attr( 'aria-label' ) && $el.data( 'soq-why' ) ) {
-                        $el.attr( 'aria-label', $el.data( 'soq-why' ) );
-                    }
+            // SOQ tooltip: delegated hover tooltip using custom container; suppress native titles.
+            var $customTip = $( '#sop-tooltip' );
+            $( document ).on( 'mouseenter', '.sop-soq-advice', function( e ) {
+                if ( ! $customTip.length ) {
+                    return;
+                }
+                var $el   = $( this );
+                $el.removeAttr( 'title' );
+                $el.find( '[title]' ).removeAttr( 'title' );
+                var text = $el.attr( 'data-sop-tooltip' ) || '';
+                text = text.replace( /\s*\|\s*/g, "\n" ).replace( /\s{2,}/g, ' ' );
+                if ( ! text ) {
+                    return;
+                }
+                $customTip.text( text ).show();
+                $customTip.css( {
+                    left: e.pageX + 12 + 'px',
+                    top: e.pageY + 12 + 'px'
                 } );
-
-                $table.on( 'mouseenter focus', '.sop-soq-why', function() {
-                    sopPreorderShowSoqTooltip( this );
+            } );
+            $( document ).on( 'mousemove', '.sop-soq-advice', function( e ) {
+                if ( ! $customTip.length || !$customTip.is( ':visible' ) ) {
+                    return;
+                }
+                $customTip.css( {
+                    left: e.pageX + 12 + 'px',
+                    top: e.pageY + 12 + 'px'
                 } );
-                $table.on( 'mouseleave blur', '.sop-soq-why', function() {
-                    sopPreorderHideSoqTooltip();
-                } );
-            }
-            if ( $tableWrapper.length ) {
-                $tableWrapper.on( 'scroll', function() {
-                    sopPreorderHideSoqTooltip();
-                } );
-            }
-            $( window ).on( 'scroll resize', function() {
-                sopPreorderHideSoqTooltip();
+            } );
+            $( document ).on( 'mouseleave blur', '.sop-soq-advice', function() {
+                if ( $customTip.length ) {
+                    $customTip.hide();
+                }
             } );
 
             // Remove selected rows.
