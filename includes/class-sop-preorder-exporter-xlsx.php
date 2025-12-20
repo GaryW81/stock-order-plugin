@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.14
+ * File version: 1.0.15
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -16,6 +16,7 @@
  * - Revert images to 1.6cm + force vertical middle align via row style.
  * - Set Image column to 80px width.
  * - Center-align Brand column horizontally.
+ * - Center-align columns F–N.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -164,18 +165,18 @@ class SOP_Preorder_XLSX_Exporter {
                 5,    // Brand center.
                 2,    // Product name wrap.
                 2,    // Categories wrap.
-                null, // MOQ.
-                null, // Qty.
-                null, // Unit price (supplier currency).
-                null, // Total (supplier currency).
-                2,    // Product notes wrap.
-                null, // Order notes.
-                null, // Carton no.
-                null, // cm3 per unit.
-                null, // Line CBM.
+                5,    // MOQ center.
+                5,    // Qty center.
+                5,    // Unit price (supplier currency) center.
+                5,    // Total (supplier currency) center.
+                5,    // Product notes center.
+                5,    // Order notes center.
+                5,    // Carton no. center.
+                5,    // cm3 per unit center.
+                5,    // Line CBM center.
             );
             if ( $show_usd_column ) {
-                array_splice( $row_styles, 8, 0, array( null ) ); // Unit price USD style.
+                array_splice( $row_styles, 8, 0, array( 5 ) ); // Unit price USD center.
             }
 
             $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles );
