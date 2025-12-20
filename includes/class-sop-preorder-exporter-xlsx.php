@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.24
+ * File version: 1.0.25
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -457,30 +457,25 @@ class SOP_Preorder_XLSX_Exporter {
             $pcs_total
         );
 
-        $buyer_items = array(
-            isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '',
-            isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '',
-            isset( $buyer_profile['email'] ) ? $buyer_profile['email'] : '',
-            isset( $buyer_profile['phone_landline'] ) ? $buyer_profile['phone_landline'] : '',
-            __( 'Shipping address:', 'sop' ),
-            '',
-        );
+        $buyer_company = isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '';
+        $billing_lines = self::po_expand_block_lines( isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '' );
+        $buyer_email   = isset( $buyer_profile['email'] ) ? $buyer_profile['email'] : '';
+        $buyer_phone   = isset( $buyer_profile['phone_landline'] ) ? $buyer_profile['phone_landline'] : '';
+        $shipping_label = __( 'Shipping address:', 'sop' );
+        $shipping_addr  = '';
         if ( ! empty( $buyer_profile['shipping_address'] ) ) {
-            $buyer_items[5] = $buyer_profile['shipping_address'];
+            $shipping_addr = $buyer_profile['shipping_address'];
         } elseif ( ! empty( $buyer_profile['billing_address'] ) ) {
-            $buyer_items[5] = $buyer_profile['billing_address'];
+            $shipping_addr = $buyer_profile['billing_address'];
         }
+        $shipping_lines = self::po_expand_block_lines( $shipping_addr );
 
-        $seller_items = array(
-            $supplier_pi['company_name'],
-            $supplier_pi['company_address'],
-            $supplier_pi['company_email'],
-            $supplier_pi['company_phone'],
-            $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : '',
-            $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : '',
-        );
-
-        $max_items = max( count( $buyer_items ), count( $seller_items ) );
+        $seller_company = $supplier_pi['company_name'];
+        $seller_address = isset( $supplier_pi['company_address'] ) ? $supplier_pi['company_address'] : '';
+        $seller_email   = isset( $supplier_pi['company_email'] ) ? $supplier_pi['company_email'] : '';
+        $seller_phone   = isset( $supplier_pi['company_phone'] ) ? $supplier_pi['company_phone'] : '';
+        $seller_contact = $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : '';
+        $seller_bank    = $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : '';
 
         $rows_xml     = '';
         $merge_cells  = array();
@@ -518,35 +513,88 @@ class SOP_Preorder_XLSX_Exporter {
             $merge_cells
         );
 
-        for ( $i = 0; $i < $max_items; $i++ ) {
-            $buyer_block  = isset( $buyer_items[ $i ] ) ? $buyer_items[ $i ] : '';
-            $seller_block = isset( $seller_items[ $i ] ) ? $seller_items[ $i ] : '';
+        // Company row.
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array( 'v' => $buyer_company, 's' => 0, 'colspan' => 2 ),
+                array( 'v' => $seller_company, 's' => 0, 'colspan' => 3 ),
+            ),
+            $merge_cells
+        );
 
-            $buyer_lines_block  = self::po_expand_block_lines( $buyer_block );
-            $seller_lines_block = self::po_expand_block_lines( $seller_block );
+        // Billing block with vertical merge for seller address.
+        $billing_start = $row_num;
+        $billing_count = max( 1, count( $billing_lines ) );
+        $billing_end   = $billing_start + $billing_count - 1;
+        if ( $billing_count > 0 ) {
+            $merge_cells[] = 'C' . $billing_start . ':E' . $billing_end;
+        }
 
-            $block_rows = max( count( $buyer_lines_block ), count( $seller_lines_block ) );
-            for ( $r = 0; $r < $block_rows; $r++ ) {
-                $buyer_line  = isset( $buyer_lines_block[ $r ] ) ? $buyer_lines_block[ $r ] : '';
-                $seller_line = isset( $seller_lines_block[ $r ] ) ? $seller_lines_block[ $r ] : '';
-
-                $rows_xml .= self::build_po_row_xml(
-                    $row_num++,
-                    array(
-                        array(
-                            'v'       => $buyer_line,
-                            's'       => 0,
-                            'colspan' => 2,
-                        ),
-                        array(
-                            'v'       => $seller_line,
-                            's'       => 0,
-                            'colspan' => 3,
-                        ),
-                    ),
-                    $merge_cells
+        foreach ( $billing_lines as $idx => $line ) {
+            $cells = array(
+                array( 'v' => $line, 's' => 0, 'colspan' => 2 ),
+            );
+            if ( 0 === $idx ) {
+                $cells[] = array(
+                    'v'       => $seller_address,
+                    's'       => 9,
+                    'colspan' => 3,
                 );
             }
+            $rows_xml .= self::build_po_row_xml( $row_num++, $cells, $merge_cells );
+        }
+
+        // Email row.
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array( 'v' => $buyer_email, 's' => 0, 'colspan' => 2 ),
+                array( 'v' => $seller_email, 's' => 0, 'colspan' => 3 ),
+            ),
+            $merge_cells
+        );
+
+        // Phone row.
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array( 'v' => $buyer_phone, 's' => 0, 'colspan' => 2 ),
+                array( 'v' => $seller_phone, 's' => 0, 'colspan' => 3 ),
+            ),
+            $merge_cells
+        );
+
+        // Shipping label / contact row.
+        $rows_xml .= self::build_po_row_xml(
+            $row_num++,
+            array(
+                array( 'v' => $shipping_label, 's' => 0, 'colspan' => 2 ),
+                array( 'v' => $seller_contact, 's' => 0, 'colspan' => 3 ),
+            ),
+            $merge_cells
+        );
+
+        // Shipping block with vertical merge for seller bank.
+        $ship_start = $row_num;
+        $ship_count = max( 1, count( $shipping_lines ) );
+        $ship_end   = $ship_start + $ship_count - 1;
+        if ( $ship_count > 0 ) {
+            $merge_cells[] = 'C' . $ship_start . ':E' . $ship_end;
+        }
+
+        foreach ( $shipping_lines as $idx => $line ) {
+            $cells = array(
+                array( 'v' => $line, 's' => 0, 'colspan' => 2 ),
+            );
+            if ( 0 === $idx ) {
+                $cells[] = array(
+                    'v'       => $seller_bank,
+                    's'       => 9,
+                    'colspan' => 3,
+                );
+            }
+            $rows_xml .= self::build_po_row_xml( $row_num++, $cells, $merge_cells );
         }
 
         // PO Details heading.
