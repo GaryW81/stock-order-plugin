@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.18
+ * File version: 1.0.19
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -20,6 +20,7 @@
  * - Align SKU/notes/carton left; align numeric columns right.
  * - Increase Image column width to target ~80px.
  * - Add Purchase Order (Order Summary) XLSX export mirroring HTML layout.
+ * - Align PO XLSX layout to match legacy Order Summary (XLS) exactly.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -490,12 +491,12 @@ class SOP_Preorder_XLSX_Exporter {
             array(
                 array(
                     'v'       => __( 'Purchase Order', 'sop' ),
-                    's'       => 2,
+                    's'       => 1,
                     'colspan' => 5,
                 ),
             ),
             $merge_cells,
-            26
+            16
         );
 
         // Buyer/Seller headers.
@@ -504,12 +505,12 @@ class SOP_Preorder_XLSX_Exporter {
             array(
                 array(
                     'v'       => __( 'Buyer', 'sop' ),
-                    's'       => 4,
+                    's'       => 2,
                     'colspan' => 2,
                 ),
                 array(
                     'v'       => __( 'Seller', 'sop' ),
-                    's'       => 4,
+                    's'       => 2,
                     'colspan' => 3,
                 ),
             ),
@@ -543,7 +544,7 @@ class SOP_Preorder_XLSX_Exporter {
             array(
                 array(
                     'v'       => __( 'PO Details', 'sop' ),
-                    's'       => 4,
+                    's'       => 2,
                     'colspan' => 5,
                 ),
             ),
@@ -551,11 +552,11 @@ class SOP_Preorder_XLSX_Exporter {
         );
 
         $po_number     = isset( $sheet_header['id'] ) ? $sheet_header['id'] : '';
-        $safe_order    = $order_date ? $order_date : '';
-        $safe_hol_from = $holiday_start ? $holiday_start : '';
-        $safe_hol_to   = $holiday_end ? $holiday_end : '';
-        $safe_load     = $load_date ? $load_date : '';
-        $safe_eta      = $arrival_date ? $arrival_date : '';
+        $safe_order    = $order_date ? self::format_po_date_display( $order_date ) : '';
+        $safe_hol_from = $holiday_start ? self::format_po_date_display( $holiday_start ) : '';
+        $safe_hol_to   = $holiday_end ? self::format_po_date_display( $holiday_end ) : '';
+        $safe_load     = $load_date ? self::format_po_date_display( $load_date ) : '';
+        $safe_eta      = $arrival_date ? self::format_po_date_display( $arrival_date ) : '';
 
         $rows_xml .= self::build_po_row_xml(
             $row_num++,
@@ -594,7 +595,7 @@ class SOP_Preorder_XLSX_Exporter {
             array(
                 array(
                     'v'       => __( 'Purchase order values', 'sop' ),
-                    's'       => 4,
+                    's'       => 2,
                     'colspan' => 5,
                 ),
             ),
@@ -606,12 +607,12 @@ class SOP_Preorder_XLSX_Exporter {
             array(
                 array(
                     'v'       => __( 'Description', 'sop' ),
-                    's'       => 16,
+                    's'       => 3,
                     'colspan' => 4,
                 ),
                 array(
                     'v' => sprintf( __( 'Amount (%s)', 'sop' ), $currency_label ),
-                    's' => 17,
+                    's' => 8,
                 ),
             ),
             $merge_cells,
@@ -628,7 +629,7 @@ class SOP_Preorder_XLSX_Exporter {
                 ),
                 array(
                     'v'    => $format_amount( $base_total ),
-                    's'    => 6,
+                    's'    => 4,
                     'type' => 'num',
                 ),
             ),
@@ -647,7 +648,7 @@ class SOP_Preorder_XLSX_Exporter {
                         ),
                         array(
                             'v'    => $format_amount( $extra_row['amount'] ),
-                            's'    => 6,
+                            's'    => 4,
                             'type' => 'num',
                         ),
                     ),
@@ -661,12 +662,12 @@ class SOP_Preorder_XLSX_Exporter {
             array(
                 array(
                     'v'       => sprintf( __( 'Total (%s)', 'sop' ), $currency_label ),
-                    's'       => 15,
+                    's'       => 11,
                     'colspan' => 4,
                 ),
                 array(
                     'v'    => $format_amount( $total_with_extras ),
-                    's'    => 7,
+                    's'    => 5,
                     'type' => 'num',
                 ),
             ),
@@ -680,7 +681,7 @@ class SOP_Preorder_XLSX_Exporter {
                 array(
                     array(
                         'v'       => __( 'Deposit / Balance', 'sop' ),
-                        's'       => 3,
+                        's'       => 10,
                         'colspan' => 5,
                     ),
                 ),
@@ -691,11 +692,11 @@ class SOP_Preorder_XLSX_Exporter {
             $rows_xml .= self::build_po_row_xml(
                 $row_num++,
                 array(
-                    array( 'v' => __( 'Payment', 'sop' ), 's' => 5 ),
-                    array( 'v' => __( 'Value', 'sop' ), 's' => 5 ),
-                    array( 'v' => __( 'Deposit FX (RMB/USD)', 'sop' ), 's' => 5 ),
-                    array( 'v' => __( 'Value', 'sop' ), 's' => 5 ),
-                    array( 'v' => __( 'Deposit (RMB)', 'sop' ), 's' => 5 ),
+                    array( 'v' => __( 'Payment', 'sop' ), 's' => 7 ),
+                    array( 'v' => __( 'Value', 'sop' ), 's' => 7 ),
+                    array( 'v' => __( 'Deposit FX (RMB/USD)', 'sop' ), 's' => 7 ),
+                    array( 'v' => __( 'Value', 'sop' ), 's' => 7 ),
+                    array( 'v' => __( 'Deposit (RMB)', 'sop' ), 's' => 8 ),
                 ),
                 $merge_cells
             );
@@ -704,17 +705,17 @@ class SOP_Preorder_XLSX_Exporter {
                 $row_num++,
                 array(
                     array( 'v' => __( 'Deposit (USD)', 'sop' ), 's' => 0 ),
-                    array( 'v' => $format_amount( $deposit_usd ), 's' => 6, 'type' => 'num' ),
+                    array( 'v' => $format_amount( $deposit_usd ), 's' => 4, 'type' => 'num' ),
                     array(
                         'v' => $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), number_format( $deposit_fx, 3 ) ) : '',
-                        's' => 8,
+                        's' => 6,
                     ),
                     array(
                         'v'    => $deposit_fx > 0 ? number_format( $deposit_fx, 3, '.', '' ) : '',
-                        's'    => 8,
-                        'type' => 'num',
+                        's'    => 6,
+                        'type' => 'str',
                     ),
-                    array( 'v' => $format_amount( $deposit_rmb ), 's' => 6, 'type' => 'num' ),
+                    array( 'v' => $format_amount( $deposit_rmb ), 's' => 4, 'type' => 'num' ),
                 ),
                 $merge_cells
             );
@@ -723,17 +724,17 @@ class SOP_Preorder_XLSX_Exporter {
                 $row_num++,
                 array(
                     array( 'v' => __( 'Balance (USD)', 'sop' ), 's' => 0 ),
-                    array( 'v' => $balance_usd > 0 ? $format_amount( $balance_usd ) : '', 's' => 6, 'type' => 'num' ),
+                    array( 'v' => $balance_usd > 0 ? $format_amount( $balance_usd ) : '', 's' => 4, 'type' => 'num' ),
                     array(
                         'v' => $balance_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), number_format( $balance_fx, 3 ) ) : '',
-                        's' => 8,
+                        's' => 6,
                     ),
                     array(
                         'v'    => $balance_fx > 0 ? number_format( $balance_fx, 3, '.', '' ) : '',
-                        's'    => 8,
-                        'type' => 'num',
+                        's'    => 6,
+                        'type' => 'str',
                     ),
-                    array( 'v' => $format_amount( $balance_rmb ), 's' => 6, 'type' => 'num' ),
+                    array( 'v' => $format_amount( $balance_rmb ), 's' => 4, 'type' => 'num' ),
                 ),
                 $merge_cells
             );
@@ -749,7 +750,7 @@ class SOP_Preorder_XLSX_Exporter {
                 array(
                     array(
                         'v'       => __( 'Deposit / Balance', 'sop' ),
-                        's'       => 4,
+                        's'       => 2,
                         'colspan' => 5,
                     ),
                 ),
@@ -766,7 +767,7 @@ class SOP_Preorder_XLSX_Exporter {
                     ),
                     array(
                         'v'    => $format_amount( $deposit_simple ),
-                        's'    => 6,
+                        's'    => 4,
                         'type' => 'num',
                     ),
                 ),
@@ -782,7 +783,7 @@ class SOP_Preorder_XLSX_Exporter {
                     ),
                     array(
                         'v'    => $format_amount( $balance_simple ),
-                        's'    => 6,
+                        's'    => 4,
                         'type' => 'num',
                     ),
                 ),
@@ -796,7 +797,7 @@ class SOP_Preorder_XLSX_Exporter {
                 array(
                     array(
                         'v'       => __( 'Terms', 'sop' ),
-                        's'       => 4,
+                        's'       => 2,
                         'colspan' => 5,
                     ),
                 ),
@@ -861,6 +862,26 @@ class SOP_Preorder_XLSX_Exporter {
     private static function sanitize_po_text( $value ) {
         $value = html_entity_decode( (string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
         return self::sanitize_xml_text( $value );
+    }
+
+    private static function format_po_date_display( $value ) {
+        $value = (string) $value;
+        if ( '' === trim( $value ) ) {
+            return '';
+        }
+
+        // If already contains '/' assume it is user-formatted.
+        if ( strpos( $value, '/' ) !== false ) {
+            return $value;
+        }
+
+        // Try to parse common YYYY-MM-DD formats.
+        $dt = date_create( $value );
+        if ( $dt ) {
+            return $dt->format( 'd/m/Y' );
+        }
+
+        return $value;
     }
 
     private static function column_letter( $index ) {
@@ -1068,10 +1089,9 @@ class SOP_Preorder_XLSX_Exporter {
     private static function build_styles_xml_purchase_order() {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
-        $xml .= '<fonts count="3">';
+        $xml .= '<fonts count="2">';
         $xml .= '<font><sz val="11"/><name val="Calibri"/></font>';
         $xml .= '<font><b/><sz val="11"/><name val="Calibri"/></font>';
-        $xml .= '<font><b/><sz val="18"/><name val="Calibri"/></font>';
         $xml .= '</fonts>';
         $xml .= '<fills count="3">';
         $xml .= '<fill><patternFill patternType="none"/></fill>';
@@ -1083,43 +1103,31 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/><diagonal/></border>';
         $xml .= '</borders>';
         $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
-        $xml .= '<cellXfs count="18">';
+        $xml .= '<cellXfs count="12">';
         // 0: normal left.
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
         // 1: bold left.
         $xml .= '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
-        // 2: title center (18pt bold).
-        $xml .= '<xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
-        // 3: header grey1 center bold.
-        $xml .= '<xf numFmtId="0" fontId="1" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
-        // 4: header grey1 left bold.
+        // 2: section header (fill1) bold left.
         $xml .= '<xf numFmtId="0" fontId="1" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
-        // 5: header grey2 center bold.
-        $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
-        // 6: amount right (number).
-        $xml .= '<xf numFmtId="4" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
-        // 7: amount right bold (number).
-        $xml .= '<xf numFmtId="4" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
-        // 8: normal center.
-        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
-        // 9: normal left wrap.
-        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>';
-        // 10: normal left fill1.
-        $xml .= '<xf numFmtId="0" fontId="0" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
-        // 11: normal left fill2.
-        $xml .= '<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
-        // 12: center fill1.
-        $xml .= '<xf numFmtId="0" fontId="0" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
-        // 13: center fill2.
-        $xml .= '<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
-        // 14: right fill2 bold (for headers).
-        $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
-        // 15: right bold (label).
-        $xml .= '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
-        // 16: header grey2 left bold (Description).
+        // 3: subheader (fill2) bold left.
         $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
-        // 17: header grey2 right bold (Amount header).
+        // 4: amount right (number).
+        $xml .= '<xf numFmtId="4" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
+        // 5: amount right bold (number).
+        $xml .= '<xf numFmtId="4" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
+        // 6: center.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
+        // 7: subheader center (fill2) bold.
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
+        // 8: subheader right (fill2) bold.
         $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
+        // 9: wrap left.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>';
+        //10: section header center (fill1) bold.
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
+        //11: right bold (text).
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
         $xml .= '</cellXfs>';
         $xml .= '</styleSheet>';
         return $xml;
