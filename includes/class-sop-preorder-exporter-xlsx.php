@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.29
+ * File version: 1.0.30
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -25,6 +25,7 @@
  * - Align PO Buyer/Seller rows to match legacy XLS block offsets.
  * - Hide PO gridlines and confine borders to table area.
  * - Ensure PO rows fill A–E with bordered cells (borders visible on blanks).
+ * - Temporary: PO sheet outputs no merges; full A1:E30 bordered grid.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -768,6 +769,18 @@ class SOP_Preorder_XLSX_Exporter {
             );
         }
 
+        // Pad out to row 30 with bordered blank rows.
+        while ( $row_num <= 30 ) {
+            $rows_xml .= self::po_row_from_specs(
+                $row_num++,
+                array(),
+                $merge_cells
+            );
+        }
+
+        // Ignore merges for this build (no mergeCells output).
+        $merge_cells = array();
+
         $max_row = $row_num - 1;
 
         $content_types = self::build_content_types_xml( false );
@@ -1297,20 +1310,11 @@ class SOP_Preorder_XLSX_Exporter {
     private static function build_purchase_order_sheet_xml( $rows_xml, $merge_cells, $max_row ) {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
-        $xml .= '<dimension ref="A1:E' . (int) $max_row . '"/>';
+        $xml .= '<dimension ref="A1:E30"/>';
         $xml .= '<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>';
         $xml .= '<sheetFormatPr defaultRowHeight="15" customHeight="1"/>';
         $xml .= self::build_purchase_order_cols_xml();
         $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
-
-        $merge_cells = self::po_clean_merges( $merge_cells );
-        if ( ! empty( $merge_cells ) ) {
-            $xml .= '<mergeCells count="' . (int) count( $merge_cells ) . '">';
-            foreach ( $merge_cells as $merge_ref ) {
-                $xml .= '<mergeCell ref="' . self::esc_xml( $merge_ref ) . '"/>';
-            }
-            $xml .= '</mergeCells>';
-        }
 
         $xml .= '</worksheet>';
         return $xml;
