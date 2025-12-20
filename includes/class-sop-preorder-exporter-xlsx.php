@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.13
+ * File version: 1.0.14
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -15,6 +15,7 @@
  * - Use explicit default-centered style index (fix columns still top-aligned).
  * - Revert images to 1.6cm + force vertical middle align via row style.
  * - Set Image column to 80px width.
+ * - Center-align Brand column horizontally.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -160,7 +161,7 @@ class SOP_Preorder_XLSX_Exporter {
             $row_styles = array(
                 null, // Image placeholder.
                 3,    // SKU: wrap + text format preserved.
-                null, // Brand.
+                5,    // Brand center.
                 2,    // Product name wrap.
                 2,    // Categories wrap.
                 null, // MOQ.
@@ -419,12 +420,13 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<fills count="1"><fill/></fills>';
         $xml .= '<borders count="1"><border/></borders>';
         $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
-        $xml .= '<cellXfs count="5">';
+        $xml .= '<cellXfs count="6">';
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf>';
         $xml .= '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center"/></xf>'; // Text format.
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>';
         $xml .= '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>'; // Text + wrap.
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf>'; // Default centered (explicit).
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'; // Center horizontal + vertical.
         $xml .= '</cellXfs>';
         $xml .= '</styleSheet>';
         return $xml;
