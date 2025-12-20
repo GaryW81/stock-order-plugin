@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.19
+ * File version: 1.0.20
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -21,6 +21,7 @@
  * - Increase Image column width to target ~80px.
  * - Add Purchase Order (Order Summary) XLSX export mirroring HTML layout.
  * - Align PO XLSX layout to match legacy Order Summary (XLS) exactly.
+ * - Enforce PO XLSX row-by-row layout with expanded address lines.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -454,32 +455,37 @@ class SOP_Preorder_XLSX_Exporter {
             $pcs_total
         );
 
-        $buyer_lines  = array(
-            isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '',
-            isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '',
-            isset( $buyer_profile['email'] ) ? $buyer_profile['email'] : '',
-            isset( $buyer_profile['phone_landline'] ) ? $buyer_profile['phone_landline'] : '',
-        );
-        $seller_lines = array(
-            $supplier_pi['company_name'],
-            $supplier_pi['company_address'],
-            $supplier_pi['company_email'],
-            $supplier_pi['company_phone'],
-            $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : '',
-            $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : '',
-        );
-
-        $shipping_lines = array();
-        if ( isset( $buyer_profile['shipping_address'] ) && $buyer_profile['shipping_address'] ) {
-            $shipping_lines[] = __( 'Shipping address:', 'sop' );
-            $shipping_lines[] = $buyer_profile['shipping_address'];
-        } elseif ( isset( $buyer_profile['billing_address'] ) && $buyer_profile['billing_address'] ) {
-            $shipping_lines[] = __( 'Shipping address:', 'sop' );
-            $shipping_lines[] = $buyer_profile['billing_address'];
+        $buyer_lines = array();
+        $buyer_lines[] = isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '';
+        $buyer_lines   = array_merge( $buyer_lines, self::po_expand_lines( isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '' ) );
+        if ( ! empty( $buyer_profile['email'] ) ) {
+            $buyer_lines[] = $buyer_profile['email'];
         }
+        if ( ! empty( $buyer_profile['phone_landline'] ) ) {
+            $buyer_lines[] = $buyer_profile['phone_landline'];
+        }
+        $buyer_lines[] = __( 'Shipping address:', 'sop' );
+        $shipping_addr = '';
+        if ( ! empty( $buyer_profile['shipping_address'] ) ) {
+            $shipping_addr = $buyer_profile['shipping_address'];
+        } elseif ( ! empty( $buyer_profile['billing_address'] ) ) {
+            $shipping_addr = $buyer_profile['billing_address'];
+        }
+        $buyer_lines = array_merge( $buyer_lines, self::po_expand_lines( $shipping_addr ) );
 
-        $buyer_full_lines = array_merge( $buyer_lines, $shipping_lines );
-        $max_lines        = max( count( $buyer_full_lines ), count( $seller_lines ) );
+        $seller_lines   = array();
+        $seller_lines[] = $supplier_pi['company_name'];
+        $seller_lines   = array_merge( $seller_lines, self::po_expand_lines( $supplier_pi['company_address'] ) );
+        if ( ! empty( $supplier_pi['company_email'] ) ) {
+            $seller_lines[] = $supplier_pi['company_email'];
+        }
+        if ( ! empty( $supplier_pi['company_phone'] ) ) {
+            $seller_lines[] = $supplier_pi['company_phone'];
+        }
+        $seller_lines[] = $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : '';
+        $seller_lines[] = $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : '';
+
+        $max_lines = max( count( $buyer_lines ), count( $seller_lines ) );
 
         $rows_xml     = '';
         $merge_cells  = array();
@@ -518,19 +524,19 @@ class SOP_Preorder_XLSX_Exporter {
         );
 
         for ( $i = 0; $i < $max_lines; $i++ ) {
-            $buyer_line  = isset( $buyer_full_lines[ $i ] ) && '' !== $buyer_full_lines[ $i ] ? $buyer_full_lines[ $i ] : '';
-            $seller_line = isset( $seller_lines[ $i ] ) && '' !== $seller_lines[ $i ] ? $seller_lines[ $i ] : '';
+            $buyer_line  = isset( $buyer_lines[ $i ] ) ? $buyer_lines[ $i ] : '';
+            $seller_line = isset( $seller_lines[ $i ] ) ? $seller_lines[ $i ] : '';
             $rows_xml   .= self::build_po_row_xml(
                 $row_num++,
                 array(
                     array(
                         'v'       => $buyer_line,
-                        's'       => 9,
+                        's'       => 0,
                         'colspan' => 2,
                     ),
                     array(
                         'v'       => $seller_line,
-                        's'       => 9,
+                        's'       => 0,
                         'colspan' => 3,
                     ),
                 ),
@@ -861,6 +867,27 @@ class SOP_Preorder_XLSX_Exporter {
     private static function sanitize_po_text( $value ) {
         $value = html_entity_decode( (string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
         return self::sanitize_xml_text( $value );
+    }
+
+    private static function po_expand_lines( $text ) {
+        $text = (string) $text;
+        if ( '' === trim( $text ) ) {
+            return array();
+        }
+
+        // Normalise <br> to newlines.
+        $text = str_ireplace( array( '<br>', '<br/>', '<br />' ), "\n", $text );
+        $text = html_entity_decode( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+        $text = str_replace( array( "\r\n", "\r" ), "\n", $text );
+        $parts = explode( "\n", $text );
+        $lines = array();
+        foreach ( $parts as $part ) {
+            $line = trim( $part );
+            if ( '' !== $line ) {
+                $lines[] = $line;
+            }
+        }
+        return $lines;
     }
 
     private static function format_po_date_display( $value ) {
