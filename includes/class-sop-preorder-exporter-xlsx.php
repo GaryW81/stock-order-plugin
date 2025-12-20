@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.09
+ * File version: 1.0.10
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -11,6 +11,7 @@
  * - Fix sheet1.xml structure to stop Excel repair warnings.
  * - Show USD columns only for RMB suppliers; label supplier currency dynamically.
  * - Set XLSX cells vertical align to middle (center).
+ * - Force vertical middle-align for all cells + center images with 1px margin.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -47,8 +48,9 @@ class SOP_Preorder_XLSX_Exporter {
         $media_files        = array();
         $image_index        = 1;
         $row_index          = 2; // Data rows start at 2 (row 1 is header).
-        $img_cx             = 576000; // 1.6cm in EMUs.
-        $img_cy             = 576000; // 1.6cm in EMUs.
+        $img_cx             = 742950; // 78px in EMUs.
+        $img_cy             = 742950; // 78px in EMUs.
+        $img_margin_emu     = 9525; // 1px in EMUs.
         $supplier_currency  = 'GBP';
         if ( isset( $sheet_header['supplier_id'] ) && function_exists( 'sop_preorder_resolve_supplier_params' ) ) {
             $ctx = sop_preorder_resolve_supplier_params( (int) $sheet_header['supplier_id'] );
@@ -201,6 +203,8 @@ class SOP_Preorder_XLSX_Exporter {
                     'col'     => 0, // Image column A.
                     'cx'      => $img_cx,
                     'cy'      => $img_cy,
+                    'col_off' => $img_margin_emu,
+                    'row_off' => $img_margin_emu,
                     'ext'     => $ext,
                 );
                 $image_index++;
@@ -288,10 +292,16 @@ class SOP_Preorder_XLSX_Exporter {
             $col_letter = self::column_letter( $col_index ) . $row_num;
             $style_idx  = isset( $styles[ $col_index ] ) ? $styles[ $col_index ] : null;
 
-            if ( is_numeric( $cell_value ) ) {
-                $xml .= '<c r="' . $col_letter . '"' . ( null !== $style_idx ? ' s="' . (int) $style_idx . '"' : '' ) . '><v>' . $cell_value . '</v></c>';
+            if ( null === $style_idx ) {
+                $style_idx = 0;
             } else {
-                $xml .= '<c r="' . $col_letter . '" t="inlineStr"' . ( null !== $style_idx ? ' s="' . (int) $style_idx . '"' : '' ) . '><is><t xml:space="preserve">' . self::sanitize_xml_text( $cell_value ) . '</t></is></c>';
+                $style_idx = (int) $style_idx;
+            }
+
+            if ( is_numeric( $cell_value ) ) {
+                $xml .= '<c r="' . $col_letter . '" s="' . $style_idx . '"><v>' . $cell_value . '</v></c>';
+            } else {
+                $xml .= '<c r="' . $col_letter . '" t="inlineStr" s="' . $style_idx . '"><is><t xml:space="preserve">' . self::sanitize_xml_text( $cell_value ) . '</t></is></c>';
             }
 
             $col_index++;
@@ -443,6 +453,7 @@ class SOP_Preorder_XLSX_Exporter {
 
     private static function build_cols_xml( $show_usd_column = true ) {
         $xml  = '<cols>';
+        $xml .= '<col min="1" max="1" width="8.28" customWidth="1"/>'; // Image (A).
         $xml .= '<col min="2" max="2" width="10.34" customWidth="1"/>'; // SKU (B).
         $xml .= '<col min="4" max="4" width="32.60" customWidth="1"/>'; // Product name (D).
         $xml .= '<col min="5" max="5" width="32.60" customWidth="1"/>'; // Categories (E).
@@ -459,7 +470,9 @@ class SOP_Preorder_XLSX_Exporter {
         foreach ( $images as $img ) {
             $idx++;
             $xml .= '<xdr:oneCellAnchor>';
-            $xml .= '<xdr:from><xdr:col>' . (int) $img['col'] . '</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>' . (int) $img['row'] . '</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>';
+            $col_off = isset( $img['col_off'] ) ? (int) $img['col_off'] : 0;
+            $row_off = isset( $img['row_off'] ) ? (int) $img['row_off'] : 0;
+            $xml .= '<xdr:from><xdr:col>' . (int) $img['col'] . '</xdr:col><xdr:colOff>' . $col_off . '</xdr:colOff><xdr:row>' . (int) $img['row'] . '</xdr:row><xdr:rowOff>' . $row_off . '</xdr:rowOff></xdr:from>';
             $xml .= '<xdr:ext cx="' . (int) $img['cx'] . '" cy="' . (int) $img['cy'] . '"/>';
             $xml .= '<xdr:pic>';
             $xml .= '<xdr:nvPicPr><xdr:cNvPr id="' . (1000 + $idx) . '" name="Picture ' . $idx . '"/><xdr:cNvPicPr/></xdr:nvPicPr>';
