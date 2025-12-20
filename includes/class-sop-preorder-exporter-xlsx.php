@@ -1,13 +1,14 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.06
+ * File version: 1.0.07
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
  * - Increase XLSX row height to ~80px.
  * - Set XLSX data row height to 48pt (~80px).
  * - Harden XML + fix Excel repair + enforce 80px row height.
+ * - Fix sheet1.xml structure to stop Excel repair warnings.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -195,13 +196,18 @@ class SOP_Preorder_XLSX_Exporter {
         $workbook_rels = self::build_workbook_rels_xml();
         $styles        = self::build_styles_xml();
         $sheet_rels    = self::build_sheet_rels_xml( ! empty( $images ) );
-        $sheet_xml     = self::build_sheet_xml( $sheet_rows_xml, ! empty( $images ) );
+        $max_row       = $row_index - 1;
+        $sheet_xml     = self::build_sheet_xml( $sheet_rows_xml, ! empty( $images ), $max_row );
         $drawing_xml   = ! empty( $images ) ? self::build_drawing_xml( $images ) : '';
         $drawing_rels  = ! empty( $images ) ? self::build_drawing_rels_xml( $images ) : '';
         $app_xml       = self::build_app_xml();
         $core_xml      = self::build_core_xml();
 
         // Add files to ZIP.
+        if ( 0 !== strpos( $sheet_xml, '<?xml' ) ) {
+            return new WP_Error( 'sop_xlsx_sheet_invalid', __( 'Generated sheet XML invalid.', 'sop' ) );
+        }
+
         $zip->addFromString( '[Content_Types].xml', $content_types );
         $zip->addFromString( '_rels/.rels', $rels_root );
         $zip->addFromString( 'docProps/app.xml', $app_xml );
@@ -398,11 +404,13 @@ class SOP_Preorder_XLSX_Exporter {
         return $xml;
     }
 
-    private static function build_sheet_xml( $rows_xml, $has_drawing ) {
+    private static function build_sheet_xml( $rows_xml, $has_drawing, $max_row ) {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
-        $xml .= self::build_cols_xml();
+        $xml .= '<dimension ref="A1:O' . (int) $max_row . '"/>';
+        $xml .= '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
         $xml .= '<sheetFormatPr defaultRowHeight="48" customHeight="1"/>';
+        $xml .= self::build_cols_xml();
         $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
         if ( $has_drawing ) {
             $xml .= '<drawing r:id="rId1"/>';
