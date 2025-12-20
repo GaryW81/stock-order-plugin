@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.11
+ * File version: 1.0.12
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -13,6 +13,7 @@
  * - Set XLSX cells vertical align to middle (center).
  * - Force vertical middle-align for all cells + center images with 1px margin.
  * - Use explicit default-centered style index (fix columns still top-aligned).
+ * - Revert images to 1.6cm + force vertical middle align via row style.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -49,8 +50,8 @@ class SOP_Preorder_XLSX_Exporter {
         $media_files        = array();
         $image_index        = 1;
         $row_index          = 2; // Data rows start at 2 (row 1 is header).
-        $img_cx             = 742950; // 78px in EMUs.
-        $img_cy             = 742950; // 78px in EMUs.
+        $img_cx             = 576000; // 1.6cm in EMUs.
+        $img_cy             = 576000; // 1.6cm in EMUs.
         $img_margin_emu     = 9525; // 1px in EMUs.
         $supplier_currency  = 'GBP';
         if ( isset( $sheet_header['supplier_id'] ) && function_exists( 'sop_preorder_resolve_supplier_params' ) ) {
@@ -287,7 +288,9 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     private static function build_row_xml( $row_num, $cells, $is_header = false, $styles = array(), $row_offset_for_height = 0 ) {
-        $xml = '<row r="' . (int) $row_num . '"' . ( $is_header ? '' : ' ht="48" customHeight="1"' ) . '>';
+        $row_style_attr = ' s="4" customFormat="1"';
+        $row_height_attr = $is_header ? '' : ' ht="48" customHeight="1"';
+        $xml = '<row r="' . (int) $row_num . '"' . $row_style_attr . $row_height_attr . '>';
         $col_index = 0;
         foreach ( $cells as $cell_value ) {
             $col_letter = self::column_letter( $col_index ) . $row_num;
@@ -455,7 +458,7 @@ class SOP_Preorder_XLSX_Exporter {
 
     private static function build_cols_xml( $show_usd_column = true ) {
         $xml  = '<cols>';
-        $xml .= '<col min="1" max="1" width="8.28" customWidth="1"/>'; // Image (A).
+        $xml .= '<col min="1" max="1" width="6.46" customWidth="1"/>'; // Image (A).
         $xml .= '<col min="2" max="2" width="10.34" customWidth="1"/>'; // SKU (B).
         $xml .= '<col min="4" max="4" width="32.60" customWidth="1"/>'; // Product name (D).
         $xml .= '<col min="5" max="5" width="32.60" customWidth="1"/>'; // Categories (E).
