@@ -615,8 +615,7 @@ class SOP_Preorder_XLSX_Exporter {
                     's' => 8,
                 ),
             ),
-            $merge_cells,
-            16
+            $merge_cells
         );
 
         $rows_xml .= self::build_po_row_xml(
@@ -1100,14 +1099,14 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '</fills>';
         $xml .= '<borders count="2">';
         $xml .= '<border><left/><right/><top/><bottom/><diagonal/></border>';
-        $xml .= '<border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/><diagonal/></border>';
+        $xml .= '<border><left style="thin"><color rgb="FFCCCCCC"/></left><right style="thin"><color rgb="FFCCCCCC"/></right><top style="thin"><color rgb="FFCCCCCC"/></top><bottom style="thin"><color rgb="FFCCCCCC"/></bottom><diagonal/></border>';
         $xml .= '</borders>';
         $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
         $xml .= '<cellXfs count="12">';
-        // 0: normal left.
-        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
-        // 1: bold left.
-        $xml .= '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
+        // 0: normal left (top).
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="top"/></xf>';
+        // 1: bold left (top).
+        $xml .= '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="top"/></xf>';
         // 2: section header (fill1) bold left.
         $xml .= '<xf numFmtId="0" fontId="1" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
         // 3: subheader (fill2) bold left.
@@ -1122,8 +1121,8 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
         // 8: subheader right (fill2) bold.
         $xml .= '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>';
-        // 9: wrap left.
-        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>';
+        // 9: wrap left (top).
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="top" wrapText="1"/></xf>';
         //10: section header center (fill1) bold.
         $xml .= '<xf numFmtId="0" fontId="1" fillId="1" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';
         //11: right bold (text).
