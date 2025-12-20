@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.07
+ * File version: 1.0.08
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -9,6 +9,7 @@
  * - Set XLSX data row height to 48pt (~80px).
  * - Harden XML + fix Excel repair + enforce 80px row height.
  * - Fix sheet1.xml structure to stop Excel repair warnings.
+ * - Show USD columns only for RMB suppliers; label supplier currency dynamically.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -41,31 +42,41 @@ class SOP_Preorder_XLSX_Exporter {
             return new WP_Error( 'sop_export_zip_open_failed', __( 'Could not open XLSX archive for writing.', 'sop' ) );
         }
 
-        $images      = array();
-        $media_files = array();
-        $image_index = 1;
-        $row_index   = 2; // Data rows start at 2 (row 1 is header).
-        $img_cx      = 576000; // 1.6cm in EMUs.
-        $img_cy      = 576000; // 1.6cm in EMUs.
+        $images             = array();
+        $media_files        = array();
+        $image_index        = 1;
+        $row_index          = 2; // Data rows start at 2 (row 1 is header).
+        $img_cx             = 576000; // 1.6cm in EMUs.
+        $img_cy             = 576000; // 1.6cm in EMUs.
+        $supplier_currency  = 'GBP';
+        if ( isset( $sheet_header['supplier_id'] ) && function_exists( 'sop_preorder_resolve_supplier_params' ) ) {
+            $ctx = sop_preorder_resolve_supplier_params( (int) $sheet_header['supplier_id'] );
+            if ( ! empty( $ctx['currency_code'] ) ) {
+                $supplier_currency = strtoupper( trim( (string) $ctx['currency_code'] ) );
+            }
+        }
+        $show_usd_column = ( 'RMB' === $supplier_currency );
 
         // Determine sheet-level FX for USD display: Balance FX (payload) > supplier effective FX > converter helper.
         $sheet_fx_for_usd = 0.0;
-        $po_payload       = array();
-        if ( ! empty( $sheet_header['header_notes_owner'] ) && is_string( $sheet_header['header_notes_owner'] ) ) {
-            $decoded = json_decode( $sheet_header['header_notes_owner'], true );
-            if ( is_array( $decoded ) ) {
-                $po_payload = $decoded;
+        if ( $show_usd_column ) {
+            $po_payload = array();
+            if ( ! empty( $sheet_header['header_notes_owner'] ) && is_string( $sheet_header['header_notes_owner'] ) ) {
+                $decoded = json_decode( $sheet_header['header_notes_owner'], true );
+                if ( is_array( $decoded ) ) {
+                    $po_payload = $decoded;
+                }
             }
-        }
-        $sheet_balance_fx_rate = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
-        $sheet_supplier_effective_fx = 0.0;
-        if ( isset( $sheet_header['supplier_id'] ) && function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
-            $sheet_supplier_effective_fx = (float) sop_get_supplier_effective_usd_to_rmb_rate( (int) $sheet_header['supplier_id'] );
-        }
-        if ( $sheet_balance_fx_rate > 0 ) {
-            $sheet_fx_for_usd = $sheet_balance_fx_rate;
-        } elseif ( $sheet_supplier_effective_fx > 0 ) {
-            $sheet_fx_for_usd = $sheet_supplier_effective_fx;
+            $sheet_balance_fx_rate = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
+            $sheet_supplier_effective_fx = 0.0;
+            if ( isset( $sheet_header['supplier_id'] ) && function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
+                $sheet_supplier_effective_fx = (float) sop_get_supplier_effective_usd_to_rmb_rate( (int) $sheet_header['supplier_id'] );
+            }
+            if ( $sheet_balance_fx_rate > 0 ) {
+                $sheet_fx_for_usd = $sheet_balance_fx_rate;
+            } elseif ( $sheet_supplier_effective_fx > 0 ) {
+                $sheet_fx_for_usd = $sheet_supplier_effective_fx;
+            }
         }
 
         $sheet_rows_xml = '';
@@ -77,15 +88,17 @@ class SOP_Preorder_XLSX_Exporter {
             'Categories',
             'MOQ',
             'Qty',
-            'Unit price (RMB)',
-            'Unit price (USD)',
-            'Total (RMB)',
-            'Product notes',
-            'Order notes',
-            'Carton no.',
-            'cm3 per unit',
-            'Line CBM',
+            'Unit price (' . $supplier_currency . ')',
         );
+        if ( $show_usd_column ) {
+            $columns[] = 'Unit price (USD)';
+        }
+        $columns[] = 'Total (' . $supplier_currency . ')';
+        $columns[] = 'Product notes';
+        $columns[] = 'Order notes';
+        $columns[] = 'Carton no.';
+        $columns[] = 'cm3 per unit';
+        $columns[] = 'Line CBM';
 
         // Header row.
         $sheet_rows_xml .= self::build_row_xml( 1, array_map( 'esc_html', $columns ), true, array(), $row_index - 2 );
@@ -101,12 +114,14 @@ class SOP_Preorder_XLSX_Exporter {
             $qty         = isset( $line['qty'] ) ? (float) $line['qty'] : 0;
             $cost_rmb    = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : 0;
             $cost_usd    = '';
-            if ( $cost_rmb > 0 && $sheet_fx_for_usd > 0 ) {
-                $cost_usd = $cost_rmb / $sheet_fx_for_usd;
-            } elseif ( $cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
-                $converted = sop_convert_rmb_unit_cost_to_usd( $cost_rmb );
-                if ( $converted > 0 ) {
-                    $cost_usd = $converted;
+            if ( $show_usd_column ) {
+                if ( $cost_rmb > 0 && $sheet_fx_for_usd > 0 ) {
+                    $cost_usd = $cost_rmb / $sheet_fx_for_usd;
+                } elseif ( $cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
+                    $converted = sop_convert_rmb_unit_cost_to_usd( $cost_rmb );
+                    if ( $converted > 0 ) {
+                        $cost_usd = $converted;
+                    }
                 }
             }
             $line_total_rmb = $qty * $cost_rmb;
@@ -125,7 +140,6 @@ class SOP_Preorder_XLSX_Exporter {
                 self::format_number_cell( $moq ),
                 self::format_number_cell( $qty ),
                 self::format_number_cell( $cost_rmb, 4 ),
-                self::format_number_cell( $cost_usd, 4 ),
                 self::format_number_cell( $line_total_rmb, 4 ),
                 $product_notes,
                 $order_notes,
@@ -133,6 +147,9 @@ class SOP_Preorder_XLSX_Exporter {
                 self::format_number_cell( $cm3_per_unit, 4 ),
                 self::format_number_cell( $line_cbm, 6 ),
             );
+            if ( $show_usd_column ) {
+                array_splice( $row_cells, 8, 0, array( self::format_number_cell( $cost_usd, 4 ) ) );
+            }
 
             $row_styles = array(
                 null, // Image placeholder.
@@ -142,15 +159,17 @@ class SOP_Preorder_XLSX_Exporter {
                 2,    // Categories wrap.
                 null, // MOQ.
                 null, // Qty.
-                null, // Unit price RMB.
-                null, // Unit price USD.
-                null, // Total RMB.
+                null, // Unit price (supplier currency).
+                null, // Total (supplier currency).
                 2,    // Product notes wrap.
                 null, // Order notes.
                 null, // Carton no.
                 null, // cm3 per unit.
                 null, // Line CBM.
             );
+            if ( $show_usd_column ) {
+                array_splice( $row_styles, 8, 0, array( null ) ); // Unit price USD style.
+            }
 
             $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles );
 
@@ -197,7 +216,7 @@ class SOP_Preorder_XLSX_Exporter {
         $styles        = self::build_styles_xml();
         $sheet_rels    = self::build_sheet_rels_xml( ! empty( $images ) );
         $max_row       = $row_index - 1;
-        $sheet_xml     = self::build_sheet_xml( $sheet_rows_xml, ! empty( $images ), $max_row );
+        $sheet_xml     = self::build_sheet_xml( $sheet_rows_xml, ! empty( $images ), $max_row, $show_usd_column, count( $columns ) );
         $drawing_xml   = ! empty( $images ) ? self::build_drawing_xml( $images ) : '';
         $drawing_rels  = ! empty( $images ) ? self::build_drawing_rels_xml( $images ) : '';
         $app_xml       = self::build_app_xml();
@@ -404,13 +423,15 @@ class SOP_Preorder_XLSX_Exporter {
         return $xml;
     }
 
-    private static function build_sheet_xml( $rows_xml, $has_drawing, $max_row ) {
+    private static function build_sheet_xml( $rows_xml, $has_drawing, $max_row, $show_usd_column = true, $column_count = 0 ) {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
-        $xml .= '<dimension ref="A1:O' . (int) $max_row . '"/>';
+        $last_col_index  = $column_count > 0 ? ( $column_count - 1 ) : ( $show_usd_column ? 14 : 13 );
+        $last_col_letter = self::column_letter( $last_col_index );
+        $xml .= '<dimension ref="A1:' . $last_col_letter . (int) $max_row . '"/>';
         $xml .= '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
         $xml .= '<sheetFormatPr defaultRowHeight="48" customHeight="1"/>';
-        $xml .= self::build_cols_xml();
+        $xml .= self::build_cols_xml( $show_usd_column );
         $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
         if ( $has_drawing ) {
             $xml .= '<drawing r:id="rId1"/>';
@@ -419,12 +440,13 @@ class SOP_Preorder_XLSX_Exporter {
         return $xml;
     }
 
-    private static function build_cols_xml() {
+    private static function build_cols_xml( $show_usd_column = true ) {
         $xml  = '<cols>';
         $xml .= '<col min="2" max="2" width="10.34" customWidth="1"/>'; // SKU (B).
         $xml .= '<col min="4" max="4" width="32.60" customWidth="1"/>'; // Product name (D).
         $xml .= '<col min="5" max="5" width="32.60" customWidth="1"/>'; // Categories (E).
-        $xml .= '<col min="11" max="11" width="27.15" customWidth="1"/>'; // Product notes (K).
+        $product_notes_col = $show_usd_column ? 11 : 10;
+        $xml .= '<col min="' . (int) $product_notes_col . '" max="' . (int) $product_notes_col . '" width="27.15" customWidth="1"/>'; // Product notes.
         $xml .= '</cols>';
         return $xml;
     }

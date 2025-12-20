@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder Excel Exporter
- * File version: 1.1.27
+ * File version: 1.1.28
  * - Order sheet: prevent scientific SKU display using zero-width prefix + text format (no apostrophe).
  * - Order sheet export: set image display size to ~62px (~1.65cm) to match Excel scaling.
  * - Order sheet export: restore image sizing to 80px cell / 78px image.
@@ -15,6 +15,7 @@
  * - PO-only export uses full-width 5-column layout (order sheet export unchanged).
  * - Add PO-only HTML export (order sheet export unchanged).
  * - Use Balance FX or supplier-effective FX for USD values in export.
+ * - Order sheet export: hide USD column for non-RMB suppliers; label totals with supplier currency.
  *
  * Excel-compatible HTML export (with embedded images) for saved Pre-Order sheets.
  */
@@ -37,6 +38,15 @@ class SOP_Preorder_Excel_Exporter {
         $image_padding_px    = 1;  // Padding inside the image cell.
         $row_height_px       = 80; // Row height to match image cell.
         $image_display_size_px = 62; // Actual image size inside the cell (approx 1.65cm / 62% scale).
+
+        $supplier_currency = 'GBP';
+        if ( isset( $header['supplier_id'] ) && function_exists( 'sop_preorder_resolve_supplier_params' ) ) {
+            $ctx = sop_preorder_resolve_supplier_params( (int) $header['supplier_id'] );
+            if ( ! empty( $ctx['currency_code'] ) ) {
+                $supplier_currency = strtoupper( trim( (string) $ctx['currency_code'] ) );
+            }
+        }
+        $show_usd_column = ( 'RMB' === $supplier_currency );
 
         // Determine sheet-level FX for USD display: Balance FX (payload) > supplier effective FX.
         $sheet_fx_for_usd = 0.0;
@@ -61,17 +71,10 @@ class SOP_Preorder_Excel_Exporter {
         } elseif ( $sheet_supplier_effective_fx > 0 ) {
             $sheet_fx_for_usd = $sheet_supplier_effective_fx;
         }
-
-        $html  = '<html><head><meta charset="utf-8" /></head><body>';
-        $html .= '<table border="1" cellspacing="0" cellpadding="3">';
-        $html .= '<colgroup>';
-        $html .= '<col style="width:' . (int) $image_cell_size_px . 'px;" />';
-        for ( $i = 0; $i < 14; $i++ ) {
-            $html .= '<col />';
+        if ( ! $show_usd_column ) {
+            $sheet_fx_for_usd = 0.0;
         }
-        $html .= '</colgroup>';
 
-        $html .= '<tr>';
         $columns = array(
             __( 'Image', 'sop' ),
             __( 'SKU', 'sop' ),
@@ -80,15 +83,29 @@ class SOP_Preorder_Excel_Exporter {
             __( 'Categories', 'sop' ),
             __( 'MOQ', 'sop' ),
             __( 'Qty', 'sop' ),
-            __( 'Unit price (RMB)', 'sop' ),
-            __( 'Unit price (USD)', 'sop' ),
-            __( 'Total (RMB)', 'sop' ),
-            __( 'Product notes', 'sop' ),
-            __( 'Order notes', 'sop' ),
-            __( 'Carton no.', 'sop' ),
-            __( 'cm3 per unit', 'sop' ),
-            __( 'Line CBM', 'sop' ),
+            sprintf( __( 'Unit price (%s)', 'sop' ), $supplier_currency ),
         );
+        if ( $show_usd_column ) {
+            $columns[] = __( 'Unit price (USD)', 'sop' );
+        }
+        $columns[] = sprintf( __( 'Total (%s)', 'sop' ), $supplier_currency );
+        $columns[] = __( 'Product notes', 'sop' );
+        $columns[] = __( 'Order notes', 'sop' );
+        $columns[] = __( 'Carton no.', 'sop' );
+        $columns[] = __( 'cm3 per unit', 'sop' );
+        $columns[] = __( 'Line CBM', 'sop' );
+        $column_count = count( $columns );
+
+        $html  = '<html><head><meta charset="utf-8" /></head><body>';
+        $html .= '<table border="1" cellspacing="0" cellpadding="3">';
+        $html .= '<colgroup>';
+        $html .= '<col style="width:' . (int) $image_cell_size_px . 'px;" />';
+        for ( $i = 0; $i < ( $column_count - 1 ); $i++ ) {
+            $html .= '<col />';
+        }
+        $html .= '</colgroup>';
+
+        $html .= '<tr>';
         foreach ( $columns as $col ) {
             $html .= '<th>' . esc_html( $col ) . '</th>';
         }
@@ -110,12 +127,14 @@ class SOP_Preorder_Excel_Exporter {
             $qty         = isset( $line['qty'] ) ? (float) $line['qty'] : 0;
             $cost_rmb    = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : ( isset( $line['cost_per_unit'] ) ? (float) $line['cost_per_unit'] : 0 );
             $cost_usd    = '';
-            if ( $cost_rmb > 0 && $sheet_fx_for_usd > 0 ) {
-                $cost_usd = number_format_i18n( $cost_rmb / $sheet_fx_for_usd, 2 );
-            } elseif ( $cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
-                $converted = sop_convert_rmb_unit_cost_to_usd( $cost_rmb );
-                if ( $converted > 0 ) {
-                    $cost_usd = number_format_i18n( $converted, 2 );
+            if ( $show_usd_column ) {
+                if ( $cost_rmb > 0 && $sheet_fx_for_usd > 0 ) {
+                    $cost_usd = number_format_i18n( $cost_rmb / $sheet_fx_for_usd, 2 );
+                } elseif ( $cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
+                    $converted = sop_convert_rmb_unit_cost_to_usd( $cost_rmb );
+                    if ( $converted > 0 ) {
+                        $cost_usd = number_format_i18n( $converted, 2 );
+                    }
                 }
             }
             $line_total_rmb = isset( $line['line_total_rmb'] ) ? $line['line_total_rmb'] : ( isset( $line['line_total'] ) ? $line['line_total'] : ( $qty * $cost_rmb ) );
@@ -167,7 +186,9 @@ class SOP_Preorder_Excel_Exporter {
             $html .= '<td style="' . $td_style . '">' . esc_html( $moq ) . '</td>';
             $html .= '<td style="' . $td_style . '">' . esc_html( $qty ) . '</td>';
             $html .= '<td style="' . $td_style . '">' . esc_html( $cost_rmb ) . '</td>';
-            $html .= '<td style="' . $td_style . '">' . esc_html( $cost_usd ) . '</td>';
+            if ( $show_usd_column ) {
+                $html .= '<td style="' . $td_style . '">' . esc_html( $cost_usd ) . '</td>';
+            }
             $html .= '<td style="' . $td_style . '">' . esc_html( $line_total_rmb ) . '</td>';
             $html .= '<td style="' . $td_style . '">' . esc_html( $product_notes ) . '</td>';
             $html .= '<td style="' . $td_style . '">' . esc_html( $order_notes ) . '</td>';
