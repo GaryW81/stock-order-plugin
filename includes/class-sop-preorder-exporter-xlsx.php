@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.41
+ * File version: 1.0.42
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -654,16 +654,82 @@ class SOP_Preorder_XLSX_Exporter {
         $result = $set_number( 'E25', $total_with_extras );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
-        // Non-RMB template values: deposit and balance in supplier currency.
-        $deposit_simple = $deposit_usd;
-        $balance_simple = $total_with_extras - $deposit_simple;
-        if ( $balance_simple < 0 ) {
-            $balance_simple = 0.0;
+        if ( 'RMB' === $currency_label ) {
+            // Remove merges A27:D27 and A28:D28 so columns B/C/D can be written.
+            $merge_nodes = $xpath->query( '/s:worksheet/s:mergeCells/s:mergeCell' );
+            if ( $merge_nodes && $merge_nodes->length ) {
+                $to_remove = array( 'A27:D27', 'A28:D28' );
+                $removed   = 0;
+                foreach ( $merge_nodes as $merge_node ) {
+                    $ref = $merge_node->getAttribute( 'ref' );
+                    if ( in_array( $ref, $to_remove, true ) ) {
+                        $merge_node->parentNode->removeChild( $merge_node );
+                        $removed++;
+                    }
+                }
+                if ( $removed > 0 ) {
+                    $remaining = $xpath->query( '/s:worksheet/s:mergeCells/s:mergeCell' );
+                    $merge_root = $xpath->query( '/s:worksheet/s:mergeCells' )->item( 0 );
+                    if ( $merge_root ) {
+                        $merge_root->setAttribute( 'count', (string) ( $remaining ? $remaining->length : 0 ) );
+                    }
+                }
+            }
+
+            // Prepare USD display amounts.
+            $deposit_usd_display = $deposit_usd;
+            if ( $deposit_usd_display <= 0 && $deposit_rmb > 0 && $deposit_fx > 0 ) {
+                $deposit_usd_display = $deposit_rmb / $deposit_fx;
+            }
+
+            $effective_balance_fx = ( $balance_fx > 0 ) ? $balance_fx : $deposit_fx;
+            $balance_usd_display  = $balance_usd;
+            if ( $balance_usd_display <= 0 && $balance_rmb > 0 && $effective_balance_fx > 0 ) {
+                $balance_usd_display = $balance_rmb / $effective_balance_fx;
+            }
+
+            // Helpers for FX display.
+            $format_fx = function( $val ) {
+                if ( $val <= 0 ) {
+                    return '';
+                }
+                return number_format( (float) $val, 3, '.', '' );
+            };
+
+            // Deposit row (27).
+            $fx_display = ( $deposit_fx > 0 ) ? $format_fx( $deposit_fx ) : '';
+            $set_inline( 'A27', __( 'Deposit (USD)', 'sop' ), $style_a4 );
+            $set_number( 'B27', $deposit_usd_display );
+            $set_inline( 'C27', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', $style_a4 );
+            $set_number( 'D27', $deposit_fx > 0 ? $deposit_fx : '' );
+            $result = $set_number( 'E27', $deposit_rmb );
+            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+            // Balance row (28).
+            $balance_fx_display = ( $effective_balance_fx > 0 && abs( $effective_balance_fx - $deposit_fx ) > 0.0001 ) ? $format_fx( $effective_balance_fx ) : '';
+            $set_inline( 'A28', __( 'Balance (USD)', 'sop' ), $style_a4 );
+            $set_number( 'B28', $balance_usd_display );
+            if ( '' !== $balance_fx_display ) {
+                $set_inline( 'C28', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), $style_a4 );
+                $set_number( 'D28', $effective_balance_fx );
+            } else {
+                $set_inline( 'C28', '', $style_a4 );
+                $set_number( 'D28', '' );
+            }
+            $result = $set_number( 'E28', $balance_rmb );
+            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        } else {
+            // Non-RMB template values: deposit and balance in supplier currency.
+            $deposit_simple = $deposit_usd;
+            $balance_simple = $total_with_extras - $deposit_simple;
+            if ( $balance_simple < 0 ) {
+                $balance_simple = 0.0;
+            }
+            $result = $set_number( 'E27', $deposit_simple );
+            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+            $result = $set_number( 'E28', $balance_simple );
+            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         }
-        $result = $set_number( 'E27', $deposit_simple );
-        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $result = $set_number( 'E28', $balance_simple );
-        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
         $result = $set_inline( 'A30', $payment_terms, $style_terms_wrapped );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
@@ -701,14 +767,16 @@ class SOP_Preorder_XLSX_Exporter {
         if ( false !== $zip->locateName( $shared_path ) ) {
             $shared_strings = $zip->getFromName( $shared_path );
             if ( false !== $shared_strings ) {
-                $updated_shared = self::sop_po_replace_currency_labels_in_xml( $shared_strings, $cur_code );
+                $replace_dep_bal = ( 'RMB' !== $cur_code );
+                $updated_shared = self::sop_po_replace_currency_labels_in_xml( $shared_strings, $cur_code, $replace_dep_bal );
                 if ( null !== $updated_shared ) {
                     $zip->addFromString( $shared_path, $updated_shared );
                 }
             }
         }
 
-        $new_sheet_xml = self::sop_po_replace_currency_labels_in_xml( $new_sheet_xml, $cur_code );
+        $replace_dep_bal_sheet = ( 'RMB' !== $cur_code );
+        $new_sheet_xml = self::sop_po_replace_currency_labels_in_xml( $new_sheet_xml, $cur_code, $replace_dep_bal_sheet );
         if ( false === $new_sheet_xml || null === $new_sheet_xml ) {
             $zip->close();
             return new WP_Error( 'sop_po_xml_save_failed', __( 'Could not build PO sheet XML.', 'sop' ) );
@@ -1783,19 +1851,21 @@ class SOP_Preorder_XLSX_Exporter {
         return 'GBP';
     }
 
-    private static function sop_po_replace_currency_labels_in_xml( $xml, $cur ) {
+    private static function sop_po_replace_currency_labels_in_xml( $xml, $cur, $replace_deposit_balance = true ) {
         $patterns = array(
             '/Amount \\((GBP|USD|EUR|RMB)\\)/',
             '/Total \\((GBP|USD|EUR|RMB)\\)/',
-            '/Deposit \\((GBP|USD|EUR|RMB)\\)/',
-            '/Balance \\((GBP|USD|EUR|RMB)\\)/',
         );
         $replacements = array(
             'Amount (' . $cur . ')',
             'Total (' . $cur . ')',
-            'Deposit (' . $cur . ')',
-            'Balance (' . $cur . ')',
         );
+        if ( $replace_deposit_balance ) {
+            $patterns[]     = '/Deposit \\((GBP|USD|EUR|RMB)\\)/';
+            $patterns[]     = '/Balance \\((GBP|USD|EUR|RMB)\\)/';
+            $replacements[] = 'Deposit (' . $cur . ')';
+            $replacements[] = 'Balance (' . $cur . ')';
+        }
         return preg_replace( $patterns, $replacements, $xml );
     }
 
