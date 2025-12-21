@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.32
+ * File version: 1.0.33
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -26,6 +26,7 @@
  * - Hide PO gridlines and confine borders to table area.
  * - Ensure PO rows fill A–E with bordered cells (borders visible on blanks).
  * - Temporary: PO sheet outputs no merges; full A1:E30 bordered grid with uniform borders (buyer block outlines).
+ * - PO XML post-pass enforces borders on A1:E30 to prevent missed styles.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -483,7 +484,8 @@ class SOP_Preorder_XLSX_Exporter {
         $merge_cells  = array();
         $row_num      = 1;
 
-        $po_grid_style = 0;
+        // Dedicated bordered grid style index for PO sheet (see build_styles_xml_purchase_order cellXfs index 12).
+        $po_grid_style = 12;
 
         // Title.
         $rows_xml .= self::po_row_from_specs(
@@ -846,6 +848,12 @@ class SOP_Preorder_XLSX_Exporter {
         $styles        = self::build_styles_xml_purchase_order();
         $sheet_rels    = self::build_sheet_rels_xml( false );
         $sheet_xml     = self::build_purchase_order_sheet_xml( $rows_xml, $merge_cells, $max_row );
+
+        // Enforce bordered grid style across A1:E30 as a final safety pass.
+        $sheet_xml = self::po_force_cell_style_range( $sheet_xml, $po_grid_style, 'A', 'E', 1, 30 );
+        if ( is_wp_error( $sheet_xml ) ) {
+            wp_die( esc_html( $sheet_xml->get_error_message() ) );
+        }
         $app_xml       = self::build_app_xml_for_title( 'Purchase Order' );
         $core_xml      = self::build_core_xml();
 
@@ -1009,6 +1017,63 @@ class SOP_Preorder_XLSX_Exporter {
             self::po_merge_add( $clean, $ref );
         }
         return $clean;
+    }
+
+    /**
+     * Force a specific style index across a rectangular cell range in the PO worksheet XML.
+     *
+     * @param string $sheet_xml Sheet XML.
+     * @param int    $style_idx Style index to enforce.
+     * @param string $min_col   Starting column letter.
+     * @param string $max_col   Ending column letter.
+     * @param int    $min_row   Starting row number.
+     * @param int    $max_row   Ending row number.
+     * @return string|WP_Error  Modified XML or error.
+     */
+    private static function po_force_cell_style_range( $sheet_xml, $style_idx, $min_col, $max_col, $min_row, $max_row ) {
+        $style_idx   = (int) $style_idx;
+        $min_col_idx = ord( strtoupper( $min_col ) ) - 65;
+        $max_col_idx = ord( strtoupper( $max_col ) ) - 65;
+        if ( $min_col_idx < 0 || $max_col_idx < $min_col_idx ) {
+            return new WP_Error( 'sop_po_invalid_range', 'Invalid PO grid enforcement range.' );
+        }
+
+        for ( $row = (int) $min_row; $row <= (int) $max_row; $row++ ) {
+            for ( $col_idx = $min_col_idx; $col_idx <= $max_col_idx; $col_idx++ ) {
+                $col_letter = chr( 65 + $col_idx );
+                $coord      = $col_letter . $row;
+
+                $pattern     = '/<c([^>]*)\\br="' . preg_quote( $coord, '/' ) . '"([^>]*)>/';
+                $match_count = 0;
+                $sheet_xml   = preg_replace_callback(
+                    $pattern,
+                    function( $matches ) use ( $style_idx ) {
+                        $attr_string = trim( $matches[1] . $matches[2] );
+                        if ( preg_match( '/\\bs="[^"]*"/', $attr_string ) ) {
+                            $attr_string = preg_replace( '/\\bs="[^"]*"/', 's="' . $style_idx . '"', $attr_string, 1 );
+                        } else {
+                            $attr_string .= ' s="' . $style_idx . '"';
+                        }
+                        // Normalise spacing.
+                        $attr_string = preg_replace( '/\\s+/', ' ', trim( $attr_string ) );
+                        return '<c ' . $attr_string . '>';
+                    },
+                    $sheet_xml,
+                    1,
+                    $match_count
+                );
+
+                if ( 0 === $match_count ) {
+                    return new WP_Error( 'sop_po_missing_cell', 'SOP PO XLSX export failed sanity check: missing cell ' . $coord );
+                }
+
+                if ( ! preg_match( '/<c[^>]*\\br="' . preg_quote( $coord, '/' ) . '"[^>]*\\bs="' . $style_idx . '"[^>]*>/', $sheet_xml ) ) {
+                    return new WP_Error( 'sop_po_style_enforce_failed', 'SOP PO XLSX export failed sanity check: missing enforced border style on cell ' . $coord );
+                }
+            }
+        }
+
+        return $sheet_xml;
     }
 
     private static function po_fill_row_ae( array $specs, $default_style = 0 ) {
@@ -1313,7 +1378,7 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<border><left style="thin"><color rgb="FFCCCCCC"/></left><right style="thin"><color rgb="FFCCCCCC"/></right><top style="thin"><color rgb="FFCCCCCC"/></top><bottom style="thin"><color rgb="FFCCCCCC"/></bottom><diagonal/></border>';
         $xml .= '</borders>';
         $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
-        $xml .= '<cellXfs count="12">';
+        $xml .= '<cellXfs count="13">';
         // 0: normal left (top).
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1" applyBorder="1"><alignment horizontal="left" vertical="top"/></xf>';
         // 1: bold left (top).
@@ -1338,6 +1403,8 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<xf numFmtId="0" fontId="1" fillId="1" borderId="1" xfId="0" applyAlignment="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>';
         //11: right bold (text).
         $xml .= '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyAlignment="1" applyBorder="1"><alignment horizontal="right" vertical="center"/></xf>';
+        //12: PO grid enforced border style.
+        $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1" applyBorder="1"><alignment horizontal="left" vertical="top"/></xf>';
         $xml .= '</cellXfs>';
         $xml .= '</styleSheet>';
         return $xml;
