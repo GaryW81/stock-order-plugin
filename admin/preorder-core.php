@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.44
+ * File version: 11.45
  * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
  * - Cleanup: remove sop_debug_costs tooling; keep minimal COGS key list.
@@ -20,6 +20,7 @@
  * - 11.19 - Persist PO extras within header_notes_owner.
  * - 11.20 - Ensure PO extras are normalised and stored under header_notes_owner['po_extras'].
  * - 11.21 - Add PO extras debug count and JSON payload persistence tweaks.
+ * - 11.45 - PO XLSX uses committed template for Order Summary.
  * - Under Stock Order main menu.
  * - Supplier filter via _sop_supplier_id.
  * - Supplier currency-aware costs using plugin meta:
@@ -1059,7 +1060,7 @@ function sop_handle_export_purchase_order_xlsx() {
         wp_die( esc_html__( 'XLSX exporter is not available.', 'sop' ) );
     }
 
-    $xlsx_path = SOP_Preorder_XLSX_Exporter::build_purchase_order_xlsx_file( $sheet_header, $line_rows );
+    $xlsx_path = SOP_Preorder_XLSX_Exporter::build_purchase_order_xlsx_from_template( $sheet_header, $line_rows );
     if ( is_wp_error( $xlsx_path ) ) {
         wp_die( esc_html( $xlsx_path->get_error_message() ) );
     }

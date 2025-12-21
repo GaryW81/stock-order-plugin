@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.34
+ * File version: 1.0.35
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -28,6 +28,7 @@
  * - Temporary: PO sheet outputs no merges; full A1:E30 bordered grid with uniform borders (buyer block outlines).
  * - PO XML post-pass enforces borders on A1:E30 to prevent missed styles.
  * - PO border enforcement now uses DOM/XPath to fill/create cells and styles reliably.
+ * - PO Order Summary XLSX now filled from committed template (no layout generation).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -275,6 +276,332 @@ class SOP_Preorder_XLSX_Exporter {
                 @unlink( $media_file['path'] );
             }
         }
+
+        return $xlsx_path;
+    }
+
+    /**
+     * Build a Purchase Order / Order Summary XLSX from a committed template.
+     *
+     * @param array $sheet_header Sheet header data.
+     * @param array $line_rows    Line rows.
+     * @return string|WP_Error    Path to XLSX temp file or error.
+     */
+    public static function build_purchase_order_xlsx_from_template( array $sheet_header, array $line_rows ) {
+        if ( ! class_exists( 'ZipArchive' ) ) {
+            return new WP_Error( 'sop_export_zip_missing', __( 'XLSX export requires ZipArchive.', 'sop' ) );
+        }
+
+        $template_path = trailingslashit( SOP_PLUGIN_DIR ) . 'includes/templates/purchase-order-summary-template.xlsx';
+        if ( ! file_exists( $template_path ) || ! is_readable( $template_path ) ) {
+            return new WP_Error( 'sop_po_template_missing', __( 'Purchase Order XLSX template is missing or unreadable.', 'sop' ) );
+        }
+
+        $tmp_base = wp_tempnam( 'sop-po-template' );
+        if ( ! $tmp_base ) {
+            return new WP_Error( 'sop_export_tmp_failed', __( 'Could not create temp file for PO XLSX export.', 'sop' ) );
+        }
+        $xlsx_path = $tmp_base . '.xlsx';
+        @rename( $tmp_base, $xlsx_path );
+
+        if ( ! copy( $template_path, $xlsx_path ) ) {
+            return new WP_Error( 'sop_po_template_copy_failed', __( 'Could not copy PO XLSX template.', 'sop' ) );
+        }
+
+        $zip = new ZipArchive();
+        if ( true !== $zip->open( $xlsx_path ) ) {
+            return new WP_Error( 'sop_export_zip_open_failed', __( 'Could not open XLSX archive for writing.', 'sop' ) );
+        }
+
+        $sheet_xml = $zip->getFromName( 'xl/worksheets/sheet1.xml' );
+        if ( false === $sheet_xml ) {
+            $zip->close();
+            return new WP_Error( 'sop_po_template_sheet_missing', __( 'PO template worksheet is missing.', 'sop' ) );
+        }
+
+        $po_payload = array();
+        if ( ! empty( $sheet_header['header_notes_owner'] ) && is_string( $sheet_header['header_notes_owner'] ) ) {
+            $decoded = json_decode( $sheet_header['header_notes_owner'], true );
+            if ( is_array( $decoded ) ) {
+                $po_payload = $decoded;
+            }
+        }
+
+        $supplier_id   = isset( $sheet_header['supplier_id'] ) ? (int) $sheet_header['supplier_id'] : 0;
+        $supplier_name = isset( $sheet_header['supplier_name'] ) ? $sheet_header['supplier_name'] : '';
+
+        $supplier_params = function_exists( 'sop_preorder_resolve_supplier_params' )
+            ? sop_preorder_resolve_supplier_params( $supplier_id )
+            : array();
+
+        $supplier_currency = ! empty( $supplier_params['currency_code'] ) ? $supplier_params['currency_code'] : 'GBP';
+        $currency_label    = $supplier_currency;
+
+        $supplier_pi = array(
+            'company_name'    => $supplier_name,
+            'company_address' => '',
+            'company_phone'   => '',
+            'company_email'   => '',
+            'contact_name'    => '',
+            'bank_details'    => '',
+            'payment_terms'   => '',
+        );
+
+        if ( $supplier_id > 0 && function_exists( 'sop_supplier_get_by_id' ) ) {
+            $supplier_obj = sop_supplier_get_by_id( $supplier_id );
+            if ( $supplier_obj && ! empty( $supplier_obj->settings_json ) ) {
+                $settings_arr = json_decode( $supplier_obj->settings_json, true );
+                if ( is_array( $settings_arr ) ) {
+                    if ( ! empty( $settings_arr['pi_company_name'] ) ) {
+                        $supplier_pi['company_name'] = (string) $settings_arr['pi_company_name'];
+                    }
+                    if ( ! empty( $settings_arr['pi_company_address'] ) ) {
+                        $supplier_pi['company_address'] = (string) $settings_arr['pi_company_address'];
+                    }
+                    if ( ! empty( $settings_arr['pi_company_phone'] ) ) {
+                        $supplier_pi['company_phone'] = (string) $settings_arr['pi_company_phone'];
+                    }
+                    if ( ! empty( $settings_arr['pi_company_email'] ) ) {
+                        $supplier_pi['company_email'] = (string) $settings_arr['pi_company_email'];
+                    }
+                    if ( ! empty( $settings_arr['pi_contact_name'] ) ) {
+                        $supplier_pi['contact_name'] = (string) $settings_arr['pi_contact_name'];
+                    }
+                    if ( ! empty( $settings_arr['pi_bank_details'] ) ) {
+                        $supplier_pi['bank_details'] = (string) $settings_arr['pi_bank_details'];
+                    }
+                    if ( ! empty( $settings_arr['pi_payment_terms'] ) ) {
+                        $supplier_pi['payment_terms'] = (string) $settings_arr['pi_payment_terms'];
+                    }
+                }
+            }
+        }
+
+        $buyer_profile = function_exists( 'sop_get_company_profile' ) ? sop_get_company_profile() : array();
+
+        $order_date    = isset( $po_payload['order_date'] ) ? $po_payload['order_date'] : '';
+        $load_date     = isset( $po_payload['load_date'] ) ? $po_payload['load_date'] : '';
+        $arrival_date  = isset( $po_payload['arrival_date'] ) ? $po_payload['arrival_date'] : '';
+        $holiday_start = isset( $po_payload['holiday_start'] ) ? $po_payload['holiday_start'] : '';
+        $holiday_end   = isset( $po_payload['holiday_end'] ) ? $po_payload['holiday_end'] : '';
+
+        $payment_terms = '';
+        if ( ! empty( $sheet_header['header_payment_terms_owner'] ) ) {
+            $payment_terms = (string) $sheet_header['header_payment_terms_owner'];
+        } elseif ( ! empty( $supplier_pi['payment_terms'] ) ) {
+            $payment_terms = (string) $supplier_pi['payment_terms'];
+        }
+
+        $format_amount = function( $value, $allow_blank = false ) {
+            if ( '' === $value || null === $value ) {
+                return $allow_blank ? '' : number_format( 0, 2, '.', '' );
+            }
+            $num = (float) $value;
+            if ( $allow_blank && $num <= 0 ) {
+                return '';
+            }
+            return number_format( $num, 2, '.', '' );
+        };
+
+        $base_total = 0.0;
+        foreach ( $line_rows as $line ) {
+            $qty        = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : ( isset( $line['qty'] ) ? (float) $line['qty'] : 0 );
+            $cost_rmb   = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : ( isset( $line['cost'] ) ? (float) $line['cost'] : 0.0 );
+            $line_total = isset( $line['line_total_rmb'] ) ? (float) $line['line_total_rmb'] : ( isset( $line['line_total'] ) ? (float) $line['line_total'] : ( $qty * $cost_rmb ) );
+            $base_total += $line_total;
+        }
+
+        $extras_total = 0.0;
+        $extras_rows  = array();
+        if ( isset( $po_payload['po_extras'] ) && is_array( $po_payload['po_extras'] ) ) {
+            foreach ( $po_payload['po_extras'] as $extra ) {
+                $label  = isset( $extra['label'] ) ? $extra['label'] : '';
+                $amount = isset( $extra['amount_rmb'] ) ? (float) $extra['amount_rmb'] : 0.0;
+                if ( '' !== $label || 0.0 !== $amount ) {
+                    $extras_rows[] = array(
+                        'label'  => $label,
+                        'amount' => $amount,
+                    );
+                    $extras_total += $amount;
+                }
+            }
+        }
+
+        $total_with_extras = $base_total + $extras_total;
+
+        $sku_keys  = array();
+        $pcs_total = 0.0;
+        foreach ( $line_rows as $line ) {
+            $qty = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : ( isset( $line['qty'] ) ? (float) $line['qty'] : 0 );
+            if ( $qty <= 0 ) {
+                continue;
+            }
+            $pcs_total += $qty;
+            if ( isset( $line['sku'] ) && '' !== $line['sku'] ) {
+                $sku_keys[ $line['sku'] ] = true;
+            }
+        }
+        $sku_count = count( $sku_keys );
+
+        $deposit_usd    = isset( $po_payload['deposit_usd'] ) ? (float) $po_payload['deposit_usd'] : 0.0;
+        $deposit_rmb    = isset( $po_payload['deposit_rmb'] ) ? (float) $po_payload['deposit_rmb'] : 0.0;
+        $deposit_fx     = isset( $po_payload['deposit_fx_rate'] ) ? (float) $po_payload['deposit_fx_rate'] : 0.0;
+        $balance_usd    = isset( $po_payload['balance_usd'] ) ? (float) $po_payload['balance_usd'] : 0.0;
+        $balance_fx     = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
+
+        if ( $deposit_rmb <= 0 && $deposit_usd > 0 && $deposit_fx > 0 ) {
+            $deposit_rmb = $deposit_usd * $deposit_fx;
+        }
+        $balance_rmb = isset( $po_payload['balance_rmb'] ) ? (float) $po_payload['balance_rmb'] : 0.0;
+        if ( $balance_rmb <= 0 ) {
+            $balance_rmb = $total_with_extras - $deposit_rmb;
+            if ( $balance_rmb < 0 ) {
+                $balance_rmb = 0.0;
+            }
+        }
+        if ( $balance_usd <= 0 && $balance_rmb > 0 && $balance_fx > 0 ) {
+            $balance_usd = $balance_rmb / $balance_fx;
+        }
+
+        $summary_label = sprintf(
+            /* translators: 1: PO number, 2: SKU count, 3: total pieces */
+            __( 'Purchase order #%1$s - %2$d SKUs / %3$.0f pcs', 'sop' ),
+            isset( $sheet_header['id'] ) ? $sheet_header['id'] : '',
+            (int) $sku_count,
+            $pcs_total
+        );
+
+        $buyer_company     = isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '';
+        $billing_lines_arr = self::po_expand_block_lines( isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '' );
+        $billing_block     = implode( "\n", $billing_lines_arr );
+        $buyer_email       = isset( $buyer_profile['email'] ) ? $buyer_profile['email'] : '';
+        $buyer_phone       = isset( $buyer_profile['phone_landline'] ) ? $buyer_profile['phone_landline'] : '';
+
+        $shipping_addr = '';
+        if ( ! empty( $buyer_profile['shipping_address'] ) ) {
+            $shipping_addr = $buyer_profile['shipping_address'];
+        } elseif ( ! empty( $buyer_profile['billing_address'] ) ) {
+            $shipping_addr = $buyer_profile['billing_address'];
+        }
+        $shipping_block = implode( "\n", self::po_expand_block_lines( $shipping_addr ) );
+
+        $seller_company  = $supplier_pi['company_name'];
+        $seller_address  = isset( $supplier_pi['company_address'] ) ? $supplier_pi['company_address'] : '';
+        $seller_address_block = implode( "\n", self::po_expand_block_lines( $seller_address ) );
+        $seller_email    = ! empty( $supplier_pi['company_email'] ) ? $supplier_pi['company_email'] : __( 'TBC', 'sop' );
+        $seller_phone    = ! empty( $supplier_pi['company_phone'] ) ? $supplier_pi['company_phone'] : __( 'TBC', 'sop' );
+        $contact_line    = $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : __( 'Contact:', 'sop' );
+        $bank_line       = $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : __( 'Bank:', 'sop' );
+
+        $safe_order    = $order_date ? self::format_po_date_display( $order_date ) : '';
+        $safe_hol_from = $holiday_start ? self::format_po_date_display( $holiday_start ) : '';
+        $safe_hol_to   = $holiday_end ? self::format_po_date_display( $holiday_end ) : '';
+        $safe_load     = $load_date ? self::format_po_date_display( $load_date ) : '';
+        $safe_eta      = $arrival_date ? self::format_po_date_display( $arrival_date ) : '';
+
+        // Load sheet XML into DOM for reliable cell updates.
+        $doc                     = new DOMDocument();
+        $doc->preserveWhiteSpace = false;
+        $doc->formatOutput       = false;
+        if ( ! @$doc->loadXML( $sheet_xml, LIBXML_NOERROR | LIBXML_NOWARNING ) ) {
+            $zip->close();
+            return new WP_Error( 'sop_po_xml_load_failed', __( 'Failed to parse PO template sheet XML.', 'sop' ) );
+        }
+        $xpath = new DOMXPath( $doc );
+        $xpath->registerNamespace( 's', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main' );
+
+        // Ensure dimension covers A1:E30.
+        $dimension = $xpath->query( '/s:worksheet/s:dimension' )->item( 0 );
+        if ( $dimension ) {
+            $dimension->setAttribute( 'ref', 'A1:E30' );
+        }
+
+        // Ensure sheetData exists.
+        $sheet_data = $xpath->query( '/s:worksheet/s:sheetData' )->item( 0 );
+        if ( ! $sheet_data ) {
+            $worksheet = $xpath->query( '/s:worksheet' )->item( 0 );
+            $sheet_data = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'sheetData' );
+            $worksheet->appendChild( $sheet_data );
+        }
+
+        // Helper to set cells.
+        $set_inline = function( $cell_ref, $text ) use ( $doc, $xpath ) {
+            return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text );
+        };
+        $set_number = function( $cell_ref, $number ) use ( $doc, $xpath, $format_amount ) {
+            $formatted = $format_amount( $number );
+            return self::po_template_set_number_cell( $doc, $xpath, $cell_ref, $formatted );
+        };
+
+        $result = $set_inline( 'A3', $buyer_company );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'A4', $billing_block );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'A9', $buyer_email );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'A10', $buyer_phone );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'A12', $shipping_block );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+        $result = $set_inline( 'C3', $seller_company );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'C4', $seller_address_block );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'C9', $seller_email );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'C10', $seller_phone );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'C11', $contact_line );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'C12', $bank_line );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+        $result = $set_inline( 'B19', isset( $sheet_header['id'] ) ? $sheet_header['id'] : '' );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'E19', $safe_order );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'B20', $safe_hol_from );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'E20', $safe_hol_to );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'B21', $safe_load );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_inline( 'E21', $safe_eta );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+        $result = $set_inline( 'A24', $summary_label );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_number( 'E24', $base_total );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_number( 'E25', $total_with_extras );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+        // Non-RMB template values: deposit and balance in supplier currency.
+        $deposit_simple = $deposit_usd;
+        $balance_simple = $total_with_extras - $deposit_simple;
+        if ( $balance_simple < 0 ) {
+            $balance_simple = 0.0;
+        }
+        $result = $set_number( 'E27', $deposit_simple );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        $result = $set_number( 'E28', $balance_simple );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+        $result = $set_inline( 'A30', $payment_terms );
+        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+        $new_sheet_xml = $doc->saveXML();
+        if ( false === $new_sheet_xml ) {
+            $zip->close();
+            return new WP_Error( 'sop_po_xml_save_failed', __( 'Could not build PO sheet XML.', 'sop' ) );
+        }
+
+        // Ensure row 30 exists (set_inline above will create as needed).
+
+        // Write back and close.
+        $zip->addFromString( 'xl/worksheets/sheet1.xml', $new_sheet_xml );
+        $zip->close();
 
         return $xlsx_path;
     }
@@ -1166,6 +1493,130 @@ class SOP_Preorder_XLSX_Exporter {
         $doc->encoding       = 'UTF-8';
         $doc->xmlStandalone  = true;
         return $doc->saveXML();
+    }
+
+    private static function po_column_index_from_letter( $letters ) {
+        $letters = strtoupper( $letters );
+        $len     = strlen( $letters );
+        $num     = 0;
+        for ( $i = 0; $i < $len; $i++ ) {
+            $num = $num * 26 + ( ord( $letters[ $i ] ) - 64 );
+        }
+        return $num - 1;
+    }
+
+    private static function po_template_get_or_create_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $default_style = '' ) {
+        if ( ! preg_match( '/^([A-Z]+)([0-9]+)$/', strtoupper( $cell_ref ), $m ) ) {
+            return new WP_Error( 'sop_po_cell_ref_invalid', 'Invalid cell reference ' . $cell_ref );
+        }
+        $col_letters = $m[1];
+        $row_num     = (int) $m[2];
+        $col_index   = self::po_column_index_from_letter( $col_letters );
+
+        $worksheet = $xpath->query( '/s:worksheet' )->item( 0 );
+        if ( ! $worksheet ) {
+            return new WP_Error( 'sop_po_missing_worksheet', 'PO sheet XML missing worksheet node.' );
+        }
+
+        $sheet_data = $xpath->query( '/s:worksheet/s:sheetData' )->item( 0 );
+        if ( ! $sheet_data ) {
+            $sheet_data = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'sheetData' );
+            $worksheet->appendChild( $sheet_data );
+        }
+
+        $row_node = $xpath->query( 's:row[@r="' . $row_num . '"]', $sheet_data )->item( 0 );
+        if ( ! $row_node ) {
+            $row_node = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'row' );
+            $row_node->setAttribute( 'r', (string) $row_num );
+            // Insert in order.
+            $inserted = false;
+            foreach ( $xpath->query( 's:row', $sheet_data ) as $existing_row ) {
+                $existing_r = (int) $existing_row->getAttribute( 'r' );
+                if ( $existing_r > $row_num ) {
+                    $sheet_data->insertBefore( $row_node, $existing_row );
+                    $inserted = true;
+                    break;
+                }
+            }
+            if ( ! $inserted ) {
+                $sheet_data->appendChild( $row_node );
+            }
+        }
+
+        $cell_node = $xpath->query( 's:c[@r="' . $col_letters . $row_num . '"]', $row_node )->item( 0 );
+        if ( ! $cell_node ) {
+            $cell_node = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'c' );
+            $cell_node->setAttribute( 'r', $col_letters . $row_num );
+            if ( '' !== $default_style ) {
+                $cell_node->setAttribute( 's', (string) $default_style );
+            }
+            $row_node->appendChild( $cell_node );
+        } elseif ( '' === $cell_node->getAttribute( 's' ) && '' !== $default_style ) {
+            $cell_node->setAttribute( 's', (string) $default_style );
+        }
+
+        // Reorder cells in the row (A..).
+        $cells_in_row = iterator_to_array( $row_node->childNodes );
+        while ( $row_node->firstChild ) {
+            $row_node->removeChild( $row_node->firstChild );
+        }
+        usort(
+            $cells_in_row,
+            function( $a, $b ) {
+                $ra = $a->attributes->getNamedItem( 'r' ) ? $a->attributes->getNamedItem( 'r' )->nodeValue : '';
+                $rb = $b->attributes->getNamedItem( 'r' ) ? $b->attributes->getNamedItem( 'r' )->nodeValue : '';
+                if ( ! preg_match( '/^([A-Z]+)([0-9]+)$/', $ra, $ma ) || ! preg_match( '/^([A-Z]+)([0-9]+)$/', $rb, $mb ) ) {
+                    return 0;
+                }
+                $ia = self::po_column_index_from_letter( $ma[1] );
+                $ib = self::po_column_index_from_letter( $mb[1] );
+                return $ia - $ib;
+            }
+        );
+        foreach ( $cells_in_row as $c_node ) {
+            $row_node->appendChild( $c_node );
+        }
+
+        return $cell_node;
+    }
+
+    private static function po_template_set_inline_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $text ) {
+        $cell = self::po_template_get_or_create_cell( $doc, $xpath, $cell_ref, '1' );
+        if ( is_wp_error( $cell ) ) {
+            return $cell;
+        }
+        while ( $cell->firstChild ) {
+            $cell->removeChild( $cell->firstChild );
+        }
+        $cell->setAttribute( 't', 'inlineStr' );
+        if ( '' === $cell->getAttribute( 's' ) ) {
+            $cell->setAttribute( 's', '1' );
+        }
+        $is = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'is' );
+        $t  = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 't', self::sanitize_po_text( $text ) );
+        $t->setAttribute( 'xml:space', 'preserve' );
+        $is->appendChild( $t );
+        $cell->appendChild( $is );
+        return true;
+    }
+
+    private static function po_template_set_number_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $number ) {
+        $cell = self::po_template_get_or_create_cell( $doc, $xpath, $cell_ref, '1' );
+        if ( is_wp_error( $cell ) ) {
+            return $cell;
+        }
+        while ( $cell->firstChild ) {
+            $cell->removeChild( $cell->firstChild );
+        }
+        if ( $cell->hasAttribute( 't' ) ) {
+            $cell->removeAttribute( 't' );
+        }
+        if ( '' === $cell->getAttribute( 's' ) ) {
+            $cell->setAttribute( 's', '1' );
+        }
+        $v = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'v', self::esc_xml( $number ) );
+        $cell->appendChild( $v );
+        return true;
     }
 
     private static function po_fill_row_ae( array $specs, $default_style = 0 ) {
