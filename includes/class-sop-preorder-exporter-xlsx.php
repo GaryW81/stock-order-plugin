@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.55
+ * File version: 1.0.56
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -458,6 +458,7 @@ class SOP_Preorder_XLSX_Exporter {
         $deposit_fx     = isset( $po_payload['deposit_fx_rate'] ) ? (float) $po_payload['deposit_fx_rate'] : 0.0;
         $balance_usd    = isset( $po_payload['balance_usd'] ) ? (float) $po_payload['balance_usd'] : 0.0;
         $balance_fx     = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
+        $balance_fx_locked = isset( $po_payload['balance_fx_locked'] ) ? (int) $po_payload['balance_fx_locked'] : 0;
 
         if ( $deposit_rmb <= 0 && $deposit_usd > 0 && $deposit_fx > 0 ) {
             $deposit_rmb = $deposit_usd * $deposit_fx;
@@ -483,6 +484,9 @@ class SOP_Preorder_XLSX_Exporter {
         if ( $balance_usd_for_export <= 0 && $balance_rmb > 0 && $effective_deposit_fx > 0 ) {
             $balance_usd_for_export = $balance_rmb / $effective_deposit_fx;
         }
+
+        // Effective FX to display on balance row: locked balance FX if provided, otherwise deposit FX fallback.
+        $effective_balance_fx_for_export = ( $balance_fx_locked && $balance_fx > 0 ) ? $balance_fx : $effective_deposit_fx;
 
         $summary_label = sprintf(
             /* translators: 1: PO number, 2: SKU count, 3: total pieces */
@@ -635,14 +639,19 @@ class SOP_Preorder_XLSX_Exporter {
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
             // Balance row (template defines layout). Only show USD/FX when FX rate provided.
-            $balance_fx_display = ( $balance_fx > 0 ) ? $format_fx( $balance_fx ) : '';
+            $balance_fx_display = ( $effective_balance_fx_for_export > 0 ) ? $format_fx( $effective_balance_fx_for_export ) : '';
             if ( $balance_usd_for_export > 0 ) {
                 $set_number( 'B29', $balance_usd_for_export );
             } else {
                 $set_inline( 'B29', '', '' );
             }
-            $set_inline( 'C29', '', '' );
-            $set_inline( 'D29', '', '' );
+            if ( $effective_balance_fx_for_export > 0 ) {
+                $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), '' );
+                $set_number( 'D29', $effective_balance_fx_for_export );
+            } else {
+                $set_inline( 'C29', '', '' );
+                $set_inline( 'D29', '', '' );
+            }
             $result = $set_number( 'E29', $balance_rmb );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         } else {
