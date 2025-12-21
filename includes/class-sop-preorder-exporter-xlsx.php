@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.50
+ * File version: 1.0.51
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -691,6 +691,27 @@ class SOP_Preorder_XLSX_Exporter {
      * @param array $line_rows    Line rows.
      * @return string|WP_Error    Path to XLSX temp file or error.
      */
+    private static function po_template_get_style_index( DOMXPath $xpath, $cell_ref ) {
+        $cell_ref = strtoupper( trim( (string) $cell_ref ) );
+        if ( '' === $cell_ref ) {
+            return null;
+        }
+
+        // Use local-name() so it works even if namespace prefixes differ.
+        $nodes = $xpath->query( '//*[local-name()="c" and @r="' . $cell_ref . '"]' );
+        if ( ! $nodes || $nodes->length < 1 ) {
+            return null;
+        }
+
+        $cell = $nodes->item( 0 );
+        if ( ! $cell || ! $cell->hasAttribute( 's' ) ) {
+            return null;
+        }
+
+        $style = trim( (string) $cell->getAttribute( 's' ) );
+        return ( '' === $style ) ? null : $style;
+    }
+
     private static function po_template_set_inline_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $text, $style_override = '' ) {
         $cell = self::po_template_get_or_create_cell( $doc, $xpath, $cell_ref, '' === $style_override ? '1' : $style_override );
         if ( is_wp_error( $cell ) ) {
