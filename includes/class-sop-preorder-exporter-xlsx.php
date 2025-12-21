@@ -336,7 +336,7 @@ class SOP_Preorder_XLSX_Exporter {
             : array();
 
         $supplier_currency = ! empty( $supplier_params['currency_code'] ) ? $supplier_params['currency_code'] : 'GBP';
-        $currency_label    = $supplier_currency;
+        $currency_label    = self::sop_po_normalize_currency_code( $supplier_currency );
 
         $supplier_pi = array(
             'company_name'    => $supplier_name,
@@ -609,7 +609,25 @@ class SOP_Preorder_XLSX_Exporter {
             return new WP_Error( 'sop_po_xml_save_failed', __( 'Could not build PO sheet XML.', 'sop' ) );
         }
 
-        // Ensure row 30 exists (set_inline above will create as needed).
+        $cur_code = self::sop_po_normalize_currency_code( $supplier_currency );
+
+        // Update sharedStrings if present.
+        $shared_path = 'xl/sharedStrings.xml';
+        if ( false !== $zip->locateName( $shared_path ) ) {
+            $shared_strings = $zip->getFromName( $shared_path );
+            if ( false !== $shared_strings ) {
+                $updated_shared = self::sop_po_replace_currency_labels_in_xml( $shared_strings, $cur_code );
+                if ( null !== $updated_shared ) {
+                    $zip->addFromString( $shared_path, $updated_shared );
+                }
+            }
+        }
+
+        $new_sheet_xml = self::sop_po_replace_currency_labels_in_xml( $new_sheet_xml, $cur_code );
+        if ( false === $new_sheet_xml || null === $new_sheet_xml ) {
+            $zip->close();
+            return new WP_Error( 'sop_po_xml_save_failed', __( 'Could not build PO sheet XML.', 'sop' ) );
+        }
 
         // Write back and close.
         $zip->addFromString( 'xl/worksheets/sheet1.xml', $new_sheet_xml );
