@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.51
+ * File version: 1.0.52
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -710,6 +710,100 @@ class SOP_Preorder_XLSX_Exporter {
 
         $style = trim( (string) $cell->getAttribute( 's' ) );
         return ( '' === $style ) ? null : $style;
+    }
+
+    private static function po_column_index_from_letter( $letters ) {
+        $letters = strtoupper( $letters );
+        $len     = strlen( $letters );
+        $num     = 0;
+        for ( $i = 0; $i < $len; $i++ ) {
+            $num = $num * 26 + ( ord( $letters[ $i ] ) - 64 );
+        }
+        return $num - 1;
+    }
+
+    private static function po_template_get_or_create_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $default_style = '' ) {
+        $cell_ref = strtoupper( (string) $cell_ref );
+        if ( ! preg_match( '/^([A-Z]+)([0-9]+)$/', $cell_ref, $m ) ) {
+            return new WP_Error( 'sop_po_cell_ref_invalid', 'Invalid cell reference ' . $cell_ref );
+        }
+
+        $col_letters = $m[1];
+        $row_num     = (int) $m[2];
+        $coord       = $col_letters . $row_num;
+        $ns          = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+
+        $worksheet = $xpath->query( '/*[local-name()="worksheet"]' )->item( 0 );
+        if ( ! $worksheet ) {
+            return new WP_Error( 'sop_po_missing_worksheet', 'PO sheet XML missing worksheet node.' );
+        }
+
+        $sheet_data = $xpath->query( '/*[local-name()="worksheet"]/*[local-name()="sheetData"]' )->item( 0 );
+        if ( ! $sheet_data ) {
+            $sheet_data = $doc->createElementNS( $ns, 'sheetData' );
+            $worksheet->appendChild( $sheet_data );
+        }
+
+        $row_node = $xpath->query( '*[local-name()="row" and @r="' . $row_num . '"]', $sheet_data )->item( 0 );
+        if ( ! $row_node ) {
+            $row_node = $doc->createElementNS( $ns, 'row' );
+            $row_node->setAttribute( 'r', (string) $row_num );
+
+            $inserted = false;
+            foreach ( $xpath->query( '*[local-name()="row"]', $sheet_data ) as $existing_row ) {
+                $existing_r = (int) $existing_row->getAttribute( 'r' );
+                if ( $existing_r > $row_num ) {
+                    $sheet_data->insertBefore( $row_node, $existing_row );
+                    $inserted = true;
+                    break;
+                }
+            }
+            if ( ! $inserted ) {
+                $sheet_data->appendChild( $row_node );
+            }
+        }
+
+        $cell_node = $xpath->query( '*[local-name()="c" and @r="' . $coord . '"]', $row_node )->item( 0 );
+        if ( ! $cell_node ) {
+            $cell_node = $doc->createElementNS( $ns, 'c' );
+            $cell_node->setAttribute( 'r', $coord );
+            if ( '' !== $default_style ) {
+                $cell_node->setAttribute( 's', (string) $default_style );
+            }
+            $row_node->appendChild( $cell_node );
+        } elseif ( '' === $cell_node->getAttribute( 's' ) && '' !== $default_style ) {
+            $cell_node->setAttribute( 's', (string) $default_style );
+        }
+
+        $cells_in_row = array();
+        foreach ( $xpath->query( '*[local-name()="c"]', $row_node ) as $c_node ) {
+            $cells_in_row[] = $c_node;
+        }
+
+        usort(
+            $cells_in_row,
+            function ( $a, $b ) {
+                $ra = $a->getAttribute( 'r' );
+                $rb = $b->getAttribute( 'r' );
+                if ( ! preg_match( '/^([A-Z]+)([0-9]+)$/', $ra, $ma ) || ! preg_match( '/^([A-Z]+)([0-9]+)$/', $rb, $mb ) ) {
+                    return 0;
+                }
+                $ia = self::po_column_index_from_letter( $ma[1] );
+                $ib = self::po_column_index_from_letter( $mb[1] );
+                return $ia <=> $ib;
+            }
+        );
+
+        foreach ( $cells_in_row as $c_node ) {
+            if ( $c_node->parentNode === $row_node ) {
+                $row_node->removeChild( $c_node );
+            }
+        }
+        foreach ( $cells_in_row as $c_node ) {
+            $row_node->appendChild( $c_node );
+        }
+
+        return $cell_node;
     }
 
     private static function po_template_set_inline_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $text, $style_override = '' ) {
