@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.38
+ * File version: 1.0.39
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -392,6 +392,7 @@ class SOP_Preorder_XLSX_Exporter {
         } elseif ( ! empty( $supplier_pi['payment_terms'] ) ) {
             $payment_terms = (string) $supplier_pi['payment_terms'];
         }
+        $payment_terms = self::po_normalize_multiline_block( $payment_terms );
 
         $format_amount = function( $value, $allow_blank = false ) {
             if ( '' === $value || null === $value ) {
@@ -491,7 +492,8 @@ class SOP_Preorder_XLSX_Exporter {
         $seller_email    = ! empty( $supplier_pi['company_email'] ) ? $supplier_pi['company_email'] : __( 'TBC', 'sop' );
         $seller_phone    = ! empty( $supplier_pi['company_phone'] ) ? $supplier_pi['company_phone'] : __( 'TBC', 'sop' );
         $contact_line    = $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : __( 'Contact:', 'sop' );
-        $bank_line       = $supplier_pi['bank_details'] ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $supplier_pi['bank_details'] ) : __( 'Bank:', 'sop' );
+        $bank_block      = self::po_normalize_multiline_block( isset( $supplier_pi['bank_details'] ) ? $supplier_pi['bank_details'] : '' );
+        $bank_line       = $bank_block ? sprintf( '%s %s', __( 'Bank:', 'sop' ), $bank_block ) : __( 'Bank:', 'sop' );
 
         $safe_order    = $order_date ? self::format_po_date_display( $order_date ) : '';
         $safe_hol_from = $holiday_start ? self::format_po_date_display( $holiday_start ) : '';
@@ -566,7 +568,7 @@ class SOP_Preorder_XLSX_Exporter {
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         $result = $set_inline( 'C11', $contact_line );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $result = $set_inline( 'C12', $bank_line );
+        $result = $set_inline( 'C12', $bank_line, $style_a4 );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
         $result = $set_inline( 'B19', isset( $sheet_header['id'] ) ? $sheet_header['id'] : '' );
@@ -600,7 +602,7 @@ class SOP_Preorder_XLSX_Exporter {
         $result = $set_number( 'E28', $balance_simple );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
-        $result = $set_inline( 'A30', $payment_terms );
+        $result = $set_inline( 'A30', $payment_terms, $style_a4 );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
         $new_sheet_xml = $doc->saveXML();
