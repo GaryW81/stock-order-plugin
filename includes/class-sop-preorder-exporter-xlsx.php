@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.45
+ * File version: 1.0.46
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -33,6 +33,7 @@
  * - RMB deposit/balance table matches legacy (header row, USD/FX rows, Terms shifted).
  * - Fix PO template borders in RMB deposit/balance table; force font size 10.
  * - Default row height 15pt and align yellow(center)/green(right) cells in PO template.
+ * - Center-align RMB table B/C/D cells; right-align E27.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -644,6 +645,43 @@ class SOP_Preorder_XLSX_Exporter {
 
                     $cell_xfs = $sxp->query( '/s:styleSheet/s:cellXfs' )->item( 0 );
                     $xf_nodes = $sxp->query( '/s:styleSheet/s:cellXfs/s:xf' );
+                    $clone_cache = array();
+                    $clone_xf_with_horizontal = function( $base_idx, $horizontal ) use ( &$clone_cache, $xf_nodes, $cell_xfs, $styles_doc ) {
+                        if ( ! $cell_xfs || ! $xf_nodes || $xf_nodes->length === 0 ) {
+                            return $base_idx;
+                        }
+                        $key = $base_idx . '|' . $horizontal;
+                        if ( isset( $clone_cache[ $key ] ) ) {
+                            return $clone_cache[ $key ];
+                        }
+                        $base_idx = (int) $base_idx;
+                        if ( $base_idx < 0 || $base_idx >= $xf_nodes->length ) {
+                            $base_idx = 0;
+                        }
+                        $base_xf = $xf_nodes->item( $base_idx );
+                        if ( ! $base_xf ) {
+                            return $base_idx;
+                        }
+                        $new_xf = $base_xf->cloneNode( true );
+                        $new_xf->setAttribute( 'applyAlignment', '1' );
+                        $alignment = null;
+                        foreach ( $new_xf->childNodes as $child ) {
+                            if ( $child->nodeName === 'alignment' ) {
+                                $alignment = $child;
+                                break;
+                            }
+                        }
+                        if ( ! $alignment ) {
+                            $alignment = $styles_doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'alignment' );
+                            $new_xf->appendChild( $alignment );
+                        }
+                        $alignment->setAttribute( 'horizontal', $horizontal );
+                        $cell_xfs->appendChild( $new_xf );
+                        $new_count = $xf_nodes->length + 1;
+                        $cell_xfs->setAttribute( 'count', (string) $new_count );
+                        $clone_cache[ $key ] = $new_count - 1;
+                        return $clone_cache[ $key ];
+                    };
                     if ( $cell_xfs && $xf_nodes && $xf_nodes->length > 0 ) {
                         // Apply alignment tweaks for yellow/green fills.
                         if ( ! empty( $yellow_fill_ids ) || ! empty( $green_fill_ids ) ) {
@@ -801,7 +839,7 @@ class SOP_Preorder_XLSX_Exporter {
                 return number_format( (float) $val, 3, '.', '' );
             };
 
-            // Header row (27).
+            // Header row (27) and styles.
             $style_a27 = $get_style( 'A27' );
             $style_e27 = $get_style( 'E27' );
             $style_a28 = $get_style( 'A28' );
@@ -815,32 +853,36 @@ class SOP_Preorder_XLSX_Exporter {
             $style_a28 = $style_a28 ? $style_a28 : '1';
             $style_e28 = $style_e28 ? $style_e28 : '1';
 
-            // Header row (27).
+            $style_center_header = $clone_xf_with_horizontal( $style_a27, 'center' );
+            $style_center_label  = $clone_xf_with_horizontal( $style_a28, 'center' );
+            $style_center_value  = $clone_xf_with_horizontal( $style_e28, 'center' );
+            $style_right_e27     = $clone_xf_with_horizontal( $style_e27, 'right' );
+
             $set_inline( 'A27', __( 'Payment', 'sop' ), $style_a27 );
-            $set_inline( 'B27', __( 'Value', 'sop' ), $style_a27 );
-            $set_inline( 'C27', __( 'Deposit FX (RMB/USD)', 'sop' ), $style_a27 );
-            $set_inline( 'D27', __( 'Value', 'sop' ), $style_a27 );
-            $set_inline( 'E27', __( 'Deposit (RMB)', 'sop' ), $style_e27 );
+            $set_inline( 'B27', __( 'Value', 'sop' ), $style_center_header );
+            $set_inline( 'C27', __( 'Deposit FX (RMB/USD)', 'sop' ), $style_center_header );
+            $set_inline( 'D27', __( 'Value', 'sop' ), $style_center_header );
+            $set_inline( 'E27', __( 'Deposit (RMB)', 'sop' ), $style_right_e27 );
 
             // Deposit row (28).
             $fx_display = ( $deposit_fx > 0 ) ? $format_fx( $deposit_fx ) : '';
             $set_inline( 'A28', __( 'Deposit (USD)', 'sop' ), $style_a28 );
-            $set_number( 'B28', $deposit_usd, $style_e27 );
-            $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', $style_a28 );
-            $set_inline( 'D28', $fx_display, $style_e27 );
+            $set_number( 'B28', $deposit_usd, $style_center_value );
+            $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', $style_center_label );
+            $set_inline( 'D28', $fx_display, $style_center_value );
             $result = $set_number( 'E28', $deposit_rmb, $style_e27 );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
             // Balance row (29).
             $balance_fx_display = ( $balance_fx > 0 ) ? $format_fx( $balance_fx ) : '';
             $set_inline( 'A29', __( 'Balance (USD)', 'sop' ), $style_a28 );
-            $set_number( 'B29', $balance_usd > 0 ? $balance_usd : '', $style_e28 );
+            $set_number( 'B29', $balance_usd > 0 ? $balance_usd : '', $style_center_value );
             if ( $balance_fx > 0 ) {
-                $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), $style_a28 );
-                $set_inline( 'D29', $balance_fx_display, $style_e28 );
+                $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), $style_center_label );
+                $set_inline( 'D29', $balance_fx_display, $style_center_value );
             } else {
-                $set_inline( 'C29', '', $style_a28 );
-                $set_inline( 'D29', '', $style_e28 );
+                $set_inline( 'C29', '', $style_center_label );
+                $set_inline( 'D29', '', $style_center_value );
             }
             $result = $set_number( 'E29', $balance_rmb, $style_e28 );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
