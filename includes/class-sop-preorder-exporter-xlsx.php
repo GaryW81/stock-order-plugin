@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.46
+ * File version: 1.0.47
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -34,6 +34,7 @@
  * - Fix PO template borders in RMB deposit/balance table; force font size 10.
  * - Default row height 15pt and align yellow(center)/green(right) cells in PO template.
  * - Center-align RMB table B/C/D cells; right-align E27.
+ * - Use RMB-specific template; remove runtime styling/row enforcement (template defines layout).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -297,9 +298,22 @@ class SOP_Preorder_XLSX_Exporter {
             return new WP_Error( 'sop_export_zip_missing', __( 'XLSX export requires ZipArchive.', 'sop' ) );
         }
 
-        $template_path = trailingslashit( SOP_PLUGIN_DIR ) . 'includes/templates/purchase-order-summary-template.xlsx';
+        $supplier_id   = isset( $sheet_header['supplier_id'] ) ? (int) $sheet_header['supplier_id'] : 0;
+        $supplier_name = isset( $sheet_header['supplier_name'] ) ? $sheet_header['supplier_name'] : '';
+
+        $supplier_params = function_exists( 'sop_preorder_resolve_supplier_params' )
+            ? sop_preorder_resolve_supplier_params( $supplier_id )
+            : array();
+
+        $supplier_currency = ! empty( $supplier_params['currency_code'] ) ? $supplier_params['currency_code'] : 'GBP';
+        $currency_label    = self::sop_po_normalize_currency_code( $supplier_currency );
+
+        $template_filename = ( 'RMB' === $currency_label )
+            ? 'purchase-order-summary-rmb-template.xlsx'
+            : 'purchase-order-summary-template.xlsx';
+        $template_path     = trailingslashit( SOP_PLUGIN_DIR ) . 'includes/templates/' . $template_filename;
         if ( ! file_exists( $template_path ) || ! is_readable( $template_path ) ) {
-            return new WP_Error( 'sop_po_template_missing', __( 'Purchase Order XLSX template is missing or unreadable.', 'sop' ) );
+            return new WP_Error( 'sop_po_template_missing', sprintf( __( 'Purchase Order XLSX template %s is missing or unreadable.', 'sop' ), $template_filename ) );
         }
 
         $tmp_base = wp_tempnam( 'sop-po-template' );
@@ -331,16 +345,6 @@ class SOP_Preorder_XLSX_Exporter {
                 $po_payload = $decoded;
             }
         }
-
-        $supplier_id   = isset( $sheet_header['supplier_id'] ) ? (int) $sheet_header['supplier_id'] : 0;
-        $supplier_name = isset( $sheet_header['supplier_name'] ) ? $sheet_header['supplier_name'] : '';
-
-        $supplier_params = function_exists( 'sop_preorder_resolve_supplier_params' )
-            ? sop_preorder_resolve_supplier_params( $supplier_id )
-            : array();
-
-        $supplier_currency = ! empty( $supplier_params['currency_code'] ) ? $supplier_params['currency_code'] : 'GBP';
-        $currency_label    = self::sop_po_normalize_currency_code( $supplier_currency );
 
         $supplier_pi = array(
             'company_name'    => $supplier_name,
@@ -530,35 +534,6 @@ class SOP_Preorder_XLSX_Exporter {
             $worksheet->appendChild( $sheet_data );
         }
 
-        // Ensure default row height is 15 and raise any smaller custom heights to 15.
-        $sheet_format = $xpath->query( '/s:worksheet/s:sheetFormatPr' )->item( 0 );
-        if ( ! $sheet_format ) {
-            $sheet_format = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'sheetFormatPr' );
-            $worksheet    = $xpath->query( '/s:worksheet' )->item( 0 );
-            if ( $worksheet && $worksheet->firstChild ) {
-                $worksheet->insertBefore( $sheet_format, $worksheet->firstChild );
-            } elseif ( $worksheet ) {
-                $worksheet->appendChild( $sheet_format );
-            }
-        }
-        if ( $sheet_format ) {
-            $sheet_format->setAttribute( 'defaultRowHeight', '15' );
-            $sheet_format->setAttribute( 'customHeight', '1' );
-        }
-
-        $row_nodes = $xpath->query( '/s:worksheet/s:sheetData/s:row' );
-        if ( $row_nodes ) {
-            foreach ( $row_nodes as $row_node ) {
-                if ( $row_node->hasAttribute( 'ht' ) ) {
-                    $ht = (float) $row_node->getAttribute( 'ht' );
-                    if ( $ht > 0 && $ht < 15 ) {
-                        $row_node->setAttribute( 'ht', '15' );
-                        $row_node->setAttribute( 'customHeight', '1' );
-                    }
-                }
-            }
-        }
-
         // Helper to set cells.
         $get_style = function( $cell_ref ) use ( $xpath ) {
             return self::po_template_get_style_index( $xpath, $cell_ref );
@@ -572,184 +547,12 @@ class SOP_Preorder_XLSX_Exporter {
             $style_a4 = '1';
         }
 
-        // Derive Terms base style (A30) and prepare a wrapped clone with preserved borders.
+        // Derive Terms base style (A30).
         $style_a30 = $get_style( 'A30' );
         if ( null === $style_a30 ) {
             $style_a30 = '2';
         }
         $style_terms_wrapped = $style_a30;
-        $styles_path         = 'xl/styles.xml';
-        if ( false !== $zip->locateName( $styles_path ) ) {
-            $styles_xml = $zip->getFromName( $styles_path );
-            if ( false !== $styles_xml ) {
-                $styles_doc                     = new DOMDocument();
-                $styles_doc->preserveWhiteSpace = false;
-                $styles_doc->formatOutput       = false;
-                if ( @$styles_doc->loadXML( $styles_xml, LIBXML_NOERROR | LIBXML_NOWARNING ) ) {
-                    $sxp = new DOMXPath( $styles_doc );
-                    $sxp->registerNamespace( 's', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main' );
-
-                    // Force all font sizes to 10pt.
-                    $sz_nodes = $sxp->query( '/s:styleSheet/s:fonts/s:font/s:sz' );
-                    if ( $sz_nodes ) {
-                        foreach ( $sz_nodes as $sz ) {
-                            $sz->setAttribute( 'val', '10' );
-                        }
-                    }
-                    // Add missing sz nodes with 10 if absent.
-                    $font_nodes = $sxp->query( '/s:styleSheet/s:fonts/s:font' );
-                    if ( $font_nodes ) {
-                        foreach ( $font_nodes as $font_node ) {
-                            $has_sz = false;
-                            foreach ( $font_node->childNodes as $child ) {
-                                if ( 'sz' === $child->nodeName ) {
-                                    $has_sz = true;
-                                    break;
-                                }
-                            }
-                            if ( ! $has_sz ) {
-                                $new_sz = $styles_doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'sz' );
-                                $new_sz->setAttribute( 'val', '10' );
-                                $font_node->insertBefore( $new_sz, $font_node->firstChild );
-                            }
-                        }
-                    }
-
-                    // Detect yellow/green fills.
-                    $yellow_fill_ids = array();
-                    $green_fill_ids  = array();
-                    $fills           = $sxp->query( '/s:styleSheet/s:fills/s:fill' );
-                    if ( $fills && $fills->length ) {
-                        foreach ( $fills as $idx => $fill_node ) {
-                            $fg = $sxp->query( './/s:patternFill[@patternType="solid"]/s:fgColor[@rgb]', $fill_node )->item( 0 );
-                            if ( ! $fg || ! $fg->hasAttribute( 'rgb' ) ) {
-                                continue;
-                            }
-                            $rgb = strtoupper( $fg->getAttribute( 'rgb' ) );
-                            if ( strlen( $rgb ) === 8 ) {
-                                $rgb = substr( $rgb, 2 );
-                            }
-                            if ( strlen( $rgb ) !== 6 ) {
-                                continue;
-                            }
-                            $r = hexdec( substr( $rgb, 0, 2 ) );
-                            $g = hexdec( substr( $rgb, 2, 2 ) );
-                            $b = hexdec( substr( $rgb, 4, 2 ) );
-                            if ( ( $r > 200 && $g > 200 && $b < 140 ) || in_array( $rgb, array( 'FFFF00', 'FFEB9C', 'FFF2CC' ), true ) ) {
-                                $yellow_fill_ids[] = $idx;
-                            } elseif ( ( $g > 160 && $r < 170 && $b < 170 ) || in_array( $rgb, array( '92D050', 'A9D08E', 'C6EFCE' ), true ) ) {
-                                $green_fill_ids[] = $idx;
-                            }
-                        }
-                    }
-
-                    $cell_xfs = $sxp->query( '/s:styleSheet/s:cellXfs' )->item( 0 );
-                    $xf_nodes = $sxp->query( '/s:styleSheet/s:cellXfs/s:xf' );
-                    $clone_cache = array();
-                    $clone_xf_with_horizontal = function( $base_idx, $horizontal ) use ( &$clone_cache, $xf_nodes, $cell_xfs, $styles_doc ) {
-                        if ( ! $cell_xfs || ! $xf_nodes || $xf_nodes->length === 0 ) {
-                            return $base_idx;
-                        }
-                        $key = $base_idx . '|' . $horizontal;
-                        if ( isset( $clone_cache[ $key ] ) ) {
-                            return $clone_cache[ $key ];
-                        }
-                        $base_idx = (int) $base_idx;
-                        if ( $base_idx < 0 || $base_idx >= $xf_nodes->length ) {
-                            $base_idx = 0;
-                        }
-                        $base_xf = $xf_nodes->item( $base_idx );
-                        if ( ! $base_xf ) {
-                            return $base_idx;
-                        }
-                        $new_xf = $base_xf->cloneNode( true );
-                        $new_xf->setAttribute( 'applyAlignment', '1' );
-                        $alignment = null;
-                        foreach ( $new_xf->childNodes as $child ) {
-                            if ( $child->nodeName === 'alignment' ) {
-                                $alignment = $child;
-                                break;
-                            }
-                        }
-                        if ( ! $alignment ) {
-                            $alignment = $styles_doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'alignment' );
-                            $new_xf->appendChild( $alignment );
-                        }
-                        $alignment->setAttribute( 'horizontal', $horizontal );
-                        $cell_xfs->appendChild( $new_xf );
-                        $new_count = $xf_nodes->length + 1;
-                        $cell_xfs->setAttribute( 'count', (string) $new_count );
-                        $clone_cache[ $key ] = $new_count - 1;
-                        return $clone_cache[ $key ];
-                    };
-                    if ( $cell_xfs && $xf_nodes && $xf_nodes->length > 0 ) {
-                        // Apply alignment tweaks for yellow/green fills.
-                        if ( ! empty( $yellow_fill_ids ) || ! empty( $green_fill_ids ) ) {
-                            foreach ( $xf_nodes as $xf_node ) {
-                                $fill_id = (int) $xf_node->getAttribute( 'fillId' );
-                                $align   = null;
-                                foreach ( $xf_node->childNodes as $child ) {
-                                    if ( 'alignment' === $child->nodeName ) {
-                                        $align = $child;
-                                        break;
-                                    }
-                                }
-                                if ( ! $align ) {
-                                    $align = $styles_doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'alignment' );
-                                    $xf_node->appendChild( $align );
-                                }
-                                $xf_node->setAttribute( 'applyAlignment', '1' );
-                                if ( in_array( $fill_id, $yellow_fill_ids, true ) ) {
-                                    $align->setAttribute( 'horizontal', 'center' );
-                                } elseif ( in_array( $fill_id, $green_fill_ids, true ) ) {
-                                    $align->setAttribute( 'horizontal', 'right' );
-                                }
-                            }
-                        }
-
-                        $base_idx = (int) $style_a30;
-                        if ( $base_idx < 0 || $base_idx >= $xf_nodes->length ) {
-                            $base_idx = 0;
-                        }
-                        $base_xf = $xf_nodes->item( $base_idx );
-                        if ( $base_xf ) {
-                            $new_xf = $base_xf->cloneNode( true );
-                            $new_xf->setAttribute( 'applyAlignment', '1' );
-                            // Ensure alignment child exists and has wrapText/horizontal/vertical.
-                            $alignment = null;
-                            foreach ( $new_xf->childNodes as $child ) {
-                                if ( $child->nodeName === 'alignment' ) {
-                                    $alignment = $child;
-                                    break;
-                                }
-                            }
-                            if ( ! $alignment ) {
-                                $alignment = $styles_doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'alignment' );
-                                $new_xf->appendChild( $alignment );
-                            }
-                            $alignment->setAttribute( 'wrapText', '1' );
-                            if ( ! $alignment->hasAttribute( 'horizontal' ) ) {
-                                $alignment->setAttribute( 'horizontal', 'left' );
-                            }
-                            if ( ! $alignment->hasAttribute( 'vertical' ) ) {
-                                $alignment->setAttribute( 'vertical', 'top' );
-                            }
-
-                            $cell_xfs->appendChild( $new_xf );
-                            $new_count = $xf_nodes->length + 1;
-                            $cell_xfs->setAttribute( 'count', (string) $new_count );
-                            $new_styles_xml    = $styles_doc->saveXML();
-                            $style_terms_wrapped = (string) ( $new_count - 1 );
-                            if ( false !== $new_styles_xml ) {
-                                $zip->addFromString( $styles_path, $new_styles_xml );
-                            } else {
-                                $style_terms_wrapped = $style_a30;
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         $set_inline = function( $cell_ref, $text, $style_override = '' ) use ( $doc, $xpath ) {
             return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, $style_override );
@@ -804,34 +607,7 @@ class SOP_Preorder_XLSX_Exporter {
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
         if ( 'RMB' === $currency_label ) {
-            // Remove conflicting merges and adjust terms positioning.
-            $merge_nodes = $xpath->query( '/s:worksheet/s:mergeCells/s:mergeCell' );
-            $to_remove   = array( 'A27:D27', 'A28:D28', 'A29:E29' );
-            $removed     = 0;
-            if ( $merge_nodes && $merge_nodes->length ) {
-                foreach ( $merge_nodes as $merge_node ) {
-                    $ref = $merge_node->getAttribute( 'ref' );
-                    if ( in_array( $ref, $to_remove, true ) ) {
-                        $merge_node->parentNode->removeChild( $merge_node );
-                        $removed++;
-                    }
-                }
-            }
-
-            // Ensure merge A31:E31 exists.
-            $merge_root = $xpath->query( '/s:worksheet/s:mergeCells' )->item( 0 );
-            if ( $merge_root ) {
-                $existing_merges = $xpath->query( 's:mergeCell[@ref="A31:E31"]', $merge_root );
-                if ( 0 === $existing_merges->length ) {
-                    $new_merge = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'mergeCell' );
-                    $new_merge->setAttribute( 'ref', 'A31:E31' );
-                    $merge_root->appendChild( $new_merge );
-                }
-                $remaining = $xpath->query( 's:mergeCell', $merge_root );
-                $merge_root->setAttribute( 'count', (string) ( $remaining ? $remaining->length : 0 ) );
-            }
-
-            // Prepare FX display helpers.
+            // RMB template mapping (no structural changes).
             $format_fx = function( $val ) {
                 if ( $val <= 0 ) {
                     return '';
@@ -839,78 +615,36 @@ class SOP_Preorder_XLSX_Exporter {
                 return number_format( (float) $val, 3, '.', '' );
             };
 
-            // Header row (27) and styles.
-            $style_a27 = $get_style( 'A27' );
-            $style_e27 = $get_style( 'E27' );
-            $style_a28 = $get_style( 'A28' );
-            $style_e28 = $get_style( 'E28' );
-            if ( null === $style_a27 ) { $style_a27 = $style_a4; }
-            if ( null === $style_e27 ) { $style_e27 = $style_a4; }
-            if ( null === $style_a28 ) { $style_a28 = $style_a27; }
-            if ( null === $style_e28 ) { $style_e28 = $style_e27; }
-            $style_a27 = $style_a27 ? $style_a27 : '1';
-            $style_e27 = $style_e27 ? $style_e27 : '1';
-            $style_a28 = $style_a28 ? $style_a28 : '1';
-            $style_e28 = $style_e28 ? $style_e28 : '1';
-
-            $style_center_common = $clone_xf_with_horizontal( $style_a27, 'center' );
-            $style_center_header = $style_center_common;
-            $style_center_label  = $style_center_common;
-            $style_center_value  = $style_center_common;
-            $style_right_e27     = $clone_xf_with_horizontal( $style_e27, 'right' );
-
-            $set_inline( 'A27', __( 'Payment', 'sop' ), $style_a27 );
-            $set_inline( 'B27', __( 'Value', 'sop' ), $style_center_header );
-            $set_inline( 'C27', __( 'Deposit FX (RMB/USD)', 'sop' ), $style_center_header );
-            $set_inline( 'D27', __( 'Value', 'sop' ), $style_center_header );
-            $set_inline( 'E27', __( 'Deposit (RMB)', 'sop' ), $style_right_e27 );
-
-            // Deposit row (28).
+            // Deposit row (template defines layout).
             $fx_display = ( $deposit_fx > 0 ) ? $format_fx( $deposit_fx ) : '';
-            $set_inline( 'A28', __( 'Deposit (USD)', 'sop' ), $style_a28 );
-            $set_number( 'B28', $deposit_usd, $style_center_value );
-            $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', $style_center_label );
-            $set_inline( 'D28', $fx_display, $style_center_value );
-            $result = $set_number( 'E28', $deposit_rmb, $style_e27 );
+            $set_number( 'B28', $deposit_usd );
+            $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', '' );
+            $set_inline( 'D28', $fx_display, '' );
+            $result = $set_number( 'E28', $deposit_rmb );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
-            // Balance row (29).
+            // Balance row (template defines layout). Only show USD/FX when FX rate provided.
             $balance_fx_display = ( $balance_fx > 0 ) ? $format_fx( $balance_fx ) : '';
-            $set_inline( 'A29', __( 'Balance (USD)', 'sop' ), $style_a28 );
-            $set_number( 'B29', $balance_usd > 0 ? $balance_usd : '', $style_center_value );
-            if ( $balance_fx > 0 ) {
-                $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), $style_center_label );
-                $set_inline( 'D29', $balance_fx_display, $style_center_value );
-            } else {
-                $set_inline( 'C29', '', $style_center_label );
-                $set_inline( 'D29', '', $style_center_value );
-            }
-            $result = $set_number( 'E29', $balance_rmb, $style_e28 );
+            $set_number( 'B29', ( $balance_fx > 0 && $balance_usd > 0 ) ? $balance_usd : '' );
+            $set_inline( 'C29', $balance_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ) : '', '' );
+            $set_inline( 'D29', $balance_fx > 0 ? $balance_fx_display : '', '' );
+            $result = $set_number( 'E29', $balance_rmb );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
-            // Terms shift for RMB: row 30 header, row 31 content.
-            $set_inline( 'A30', __( 'Terms', 'sop' ), $style_a27 );
-            $result = $set_inline( 'A31', $payment_terms, $style_terms_wrapped );
-            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-
-            // Adjust row height for Terms content (row 31).
-            $terms_for_height = rtrim( (string) $payment_terms, "\r\n" );
-            $line_count       = '' === $terms_for_height ? 1 : ( substr_count( $terms_for_height, "\n" ) + 1 );
-            $per_line         = 15;
-            $height           = ( $line_count * $per_line ) + 2;
-            if ( $height < 15 ) {
-                $height = 15;
-            } elseif ( $height > 240 ) {
-                $height = 240;
+            // Terms: map up to 3 lines into A31, A32, A33 (if present); else fall back.
+            $terms_lines = explode( "\n", $payment_terms );
+            $terms_lines = array_values( array_map( 'trim', array_filter( $terms_lines, static function( $line ) { return $line !== ''; } ) ) );
+            $terms_targets = array( 'A31', 'A32', 'A33' );
+            $line_idx = 0;
+            foreach ( $terms_targets as $target ) {
+                $line_val = isset( $terms_lines[ $line_idx ] ) ? $terms_lines[ $line_idx ] : '';
+                $set_inline( $target, $line_val, $style_terms_wrapped );
+                $line_idx++;
             }
-            $row31 = $xpath->query( '/s:worksheet/s:sheetData/s:row[@r="31"]' )->item( 0 );
-            if ( ! $row31 ) {
-                self::po_template_get_or_create_cell( $doc, $xpath, 'A31', $style_terms_wrapped );
-                $row31 = $xpath->query( '/s:worksheet/s:sheetData/s:row[@r="31"]' )->item( 0 );
-            }
-            if ( $row31 ) {
-                $row31->setAttribute( 'ht', (string) $height );
-                $row31->setAttribute( 'customHeight', '1' );
+            // If more lines remain and A34 exists, append the rest into A34 separated by \n.
+            if ( $line_idx < count( $terms_lines ) ) {
+                $extra = implode( "\n", array_slice( $terms_lines, $line_idx ) );
+                $set_inline( 'A34', $extra, $style_terms_wrapped );
             }
         } else {
             // Non-RMB template values: deposit and balance in supplier currency.
@@ -923,6 +657,9 @@ class SOP_Preorder_XLSX_Exporter {
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             $result = $set_number( 'E28', $balance_simple );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+            // Terms default mapping: use A30 if template uses single-cell terms.
+            $set_inline( 'A30', $payment_terms, $style_terms_wrapped );
         }
 
         if ( 'RMB' !== $currency_label ) {
@@ -958,21 +695,21 @@ class SOP_Preorder_XLSX_Exporter {
 
         $cur_code = self::sop_po_normalize_currency_code( $supplier_currency );
 
-        // Update sharedStrings if present.
-        $shared_path = 'xl/sharedStrings.xml';
-        if ( false !== $zip->locateName( $shared_path ) ) {
-            $shared_strings = $zip->getFromName( $shared_path );
-            if ( false !== $shared_strings ) {
-                $replace_dep_bal = ( 'RMB' !== $cur_code );
-                $updated_shared = self::sop_po_replace_currency_labels_in_xml( $shared_strings, $cur_code, $replace_dep_bal );
-                if ( null !== $updated_shared ) {
-                    $zip->addFromString( $shared_path, $updated_shared );
+        if ( 'RMB' !== $cur_code ) {
+            // Update sharedStrings if present.
+            $shared_path = 'xl/sharedStrings.xml';
+            if ( false !== $zip->locateName( $shared_path ) ) {
+                $shared_strings = $zip->getFromName( $shared_path );
+                if ( false !== $shared_strings ) {
+                    $updated_shared = self::sop_po_replace_currency_labels_in_xml( $shared_strings, $cur_code, true );
+                    if ( null !== $updated_shared ) {
+                        $zip->addFromString( $shared_path, $updated_shared );
+                    }
                 }
             }
-        }
 
-        $replace_dep_bal_sheet = ( 'RMB' !== $cur_code );
-        $new_sheet_xml = self::sop_po_replace_currency_labels_in_xml( $new_sheet_xml, $cur_code, $replace_dep_bal_sheet );
+            $new_sheet_xml = self::sop_po_replace_currency_labels_in_xml( $new_sheet_xml, $cur_code, true );
+        }
         if ( false === $new_sheet_xml || null === $new_sheet_xml ) {
             $zip->close();
             return new WP_Error( 'sop_po_xml_save_failed', __( 'Could not build PO sheet XML.', 'sop' ) );
