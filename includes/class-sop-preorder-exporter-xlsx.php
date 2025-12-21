@@ -853,9 +853,10 @@ class SOP_Preorder_XLSX_Exporter {
             $style_a28 = $style_a28 ? $style_a28 : '1';
             $style_e28 = $style_e28 ? $style_e28 : '1';
 
-            $style_center_header = $clone_xf_with_horizontal( $style_a27, 'center' );
-            $style_center_label  = $clone_xf_with_horizontal( $style_a28, 'center' );
-            $style_center_value  = $clone_xf_with_horizontal( $style_e28, 'center' );
+            $style_center_common = $clone_xf_with_horizontal( $style_a27, 'center' );
+            $style_center_header = $style_center_common;
+            $style_center_label  = $style_center_common;
+            $style_center_value  = $style_center_common;
             $style_right_e27     = $clone_xf_with_horizontal( $style_e27, 'right' );
 
             $set_inline( 'A27', __( 'Payment', 'sop' ), $style_a27 );
