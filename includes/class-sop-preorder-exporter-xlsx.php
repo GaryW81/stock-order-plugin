@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.33
+ * File version: 1.0.34
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -27,6 +27,7 @@
  * - Ensure PO rows fill A–E with bordered cells (borders visible on blanks).
  * - Temporary: PO sheet outputs no merges; full A1:E30 bordered grid with uniform borders (buyer block outlines).
  * - PO XML post-pass enforces borders on A1:E30 to prevent missed styles.
+ * - PO border enforcement now uses DOM/XPath to fill/create cells and styles reliably.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -849,8 +850,8 @@ class SOP_Preorder_XLSX_Exporter {
         $sheet_rels    = self::build_sheet_rels_xml( false );
         $sheet_xml     = self::build_purchase_order_sheet_xml( $rows_xml, $merge_cells, $max_row );
 
-        // Enforce bordered grid style across A1:E30 as a final safety pass.
-        $sheet_xml = self::po_force_cell_style_range( $sheet_xml, $po_grid_style, 'A', 'E', 1, 30 );
+        // Enforce bordered grid style across A1:E30 as a final safety pass using DOM/XPath.
+        $sheet_xml = self::po_dom_force_borders_grid( $sheet_xml, $po_grid_style, 'A', 'E', 1, 30 );
         if ( is_wp_error( $sheet_xml ) ) {
             wp_die( esc_html( $sheet_xml->get_error_message() ) );
         }
@@ -1030,7 +1031,7 @@ class SOP_Preorder_XLSX_Exporter {
      * @param int    $max_row   Ending row number.
      * @return string|WP_Error  Modified XML or error.
      */
-    private static function po_force_cell_style_range( $sheet_xml, $style_idx, $min_col, $max_col, $min_row, $max_row ) {
+    private static function po_dom_force_borders_grid( $sheet_xml, $style_idx, $min_col, $max_col, $min_row, $max_row ) {
         $style_idx   = (int) $style_idx;
         $min_col_idx = ord( strtoupper( $min_col ) ) - 65;
         $max_col_idx = ord( strtoupper( $max_col ) ) - 65;
@@ -1038,42 +1039,133 @@ class SOP_Preorder_XLSX_Exporter {
             return new WP_Error( 'sop_po_invalid_range', 'Invalid PO grid enforcement range.' );
         }
 
+        $doc                     = new DOMDocument();
+        $doc->preserveWhiteSpace = false;
+        $doc->formatOutput       = false;
+        if ( ! @$doc->loadXML( $sheet_xml, LIBXML_NOERROR | LIBXML_NOWARNING ) ) {
+            return new WP_Error( 'sop_po_xml_load_failed', 'Failed to parse PO sheet XML for border enforcement.' );
+        }
+
+        $xpath = new DOMXPath( $doc );
+        $xpath->registerNamespace( 's', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main' );
+
+        $worksheet = $xpath->query( '/s:worksheet' )->item( 0 );
+        if ( ! $worksheet ) {
+            return new WP_Error( 'sop_po_missing_worksheet', 'PO sheet XML missing worksheet node.' );
+        }
+
+        $sheet_data = $xpath->query( '/s:worksheet/s:sheetData' )->item( 0 );
+        if ( ! $sheet_data ) {
+            $sheet_data = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'sheetData' );
+            // Insert sheetData before drawing or at end.
+            $inserted = false;
+            foreach ( array( 'mergeCells', 'pageMargins', 'drawing' ) as $tag ) {
+                $target = $xpath->query( '/s:worksheet/s:' . $tag )->item( 0 );
+                if ( $target && $target->parentNode === $worksheet ) {
+                    $worksheet->insertBefore( $sheet_data, $target );
+                    $inserted = true;
+                    break;
+                }
+            }
+            if ( ! $inserted ) {
+                $worksheet->appendChild( $sheet_data );
+            }
+        }
+
+        $row_nodes = array();
+        foreach ( $xpath->query( 's:row', $sheet_data ) as $row_node ) {
+            $r_attr = $row_node->getAttribute( 'r' );
+            if ( $r_attr !== '' ) {
+                $row_nodes[ (int) $r_attr ] = $row_node;
+            }
+        }
+
+        $col_letters = array( 'A', 'B', 'C', 'D', 'E' );
+        $col_index_map = array( 'A' => 0, 'B' => 1, 'C' => 2, 'D' => 3, 'E' => 4 );
+
         for ( $row = (int) $min_row; $row <= (int) $max_row; $row++ ) {
-            for ( $col_idx = $min_col_idx; $col_idx <= $max_col_idx; $col_idx++ ) {
-                $col_letter = chr( 65 + $col_idx );
-                $coord      = $col_letter . $row;
+            if ( isset( $row_nodes[ $row ] ) ) {
+                $row_node = $row_nodes[ $row ];
+            } else {
+                $row_node = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'row' );
+                $row_node->setAttribute( 'r', (string) $row );
+                // Insert in order.
+                $inserted = false;
+                foreach ( $row_nodes as $existing_r => $existing_node ) {
+                    if ( $existing_r > $row ) {
+                        $sheet_data->insertBefore( $row_node, $existing_node );
+                        $inserted = true;
+                        break;
+                    }
+                }
+                if ( ! $inserted ) {
+                    $sheet_data->appendChild( $row_node );
+                }
+                $row_nodes[ $row ] = $row_node;
+                ksort( $row_nodes );
+            }
 
-                $pattern     = '/<c([^>]*)\\br="' . preg_quote( $coord, '/' ) . '"([^>]*)>/';
-                $match_count = 0;
-                $sheet_xml   = preg_replace_callback(
-                    $pattern,
-                    function( $matches ) use ( $style_idx ) {
-                        $attr_string = trim( $matches[1] . $matches[2] );
-                        if ( preg_match( '/\\bs="[^"]*"/', $attr_string ) ) {
-                            $attr_string = preg_replace( '/\\bs="[^"]*"/', 's="' . $style_idx . '"', $attr_string, 1 );
-                        } else {
-                            $attr_string .= ' s="' . $style_idx . '"';
-                        }
-                        // Normalise spacing.
-                        $attr_string = preg_replace( '/\\s+/', ' ', trim( $attr_string ) );
-                        return '<c ' . $attr_string . '>';
-                    },
-                    $sheet_xml,
-                    1,
-                    $match_count
-                );
+            // Map existing cells by coordinate; assign r if missing based on position.
+            $cells_by_coord = array();
+            $cells          = $xpath->query( 's:c', $row_node );
+            $pos_counter    = 0;
+            foreach ( $cells as $cell_node ) {
+                $coord = $cell_node->getAttribute( 'r' );
+                if ( '' === $coord ) {
+                    if ( $pos_counter < count( $col_letters ) ) {
+                        $coord = $col_letters[ $pos_counter ] . $row;
+                        $cell_node->setAttribute( 'r', $coord );
+                    }
+                }
+                if ( $coord ) {
+                    $cells_by_coord[ $coord ] = $cell_node;
+                }
+                $pos_counter++;
+            }
 
-                if ( 0 === $match_count ) {
+            // Ensure required cells exist and set style.
+            foreach ( $col_letters as $col_letter ) {
+                $coord = $col_letter . $row;
+                if ( isset( $cells_by_coord[ $coord ] ) ) {
+                    $cell_node = $cells_by_coord[ $coord ];
+                } else {
+                    $cell_node = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'c' );
+                    $cell_node->setAttribute( 'r', $coord );
+                    $row_node->appendChild( $cell_node );
+                    $cells_by_coord[ $coord ] = $cell_node;
+                }
+                $cell_node->setAttribute( 's', (string) $style_idx );
+            }
+
+            // Reorder cells A->E within the row.
+            $children = iterator_to_array( $row_node->childNodes );
+            foreach ( $children as $child ) {
+                $row_node->removeChild( $child );
+            }
+            ksort( $cells_by_coord, SORT_NATURAL );
+            foreach ( $cells_by_coord as $cell_node ) {
+                $row_node->appendChild( $cell_node );
+            }
+        }
+
+        // Final sanity check via DOM.
+        for ( $row = (int) $min_row; $row <= (int) $max_row; $row++ ) {
+            foreach ( $col_letters as $col_letter ) {
+                $coord = $col_letter . $row;
+                $nodes = $xpath->query( '/s:worksheet/s:sheetData/s:row[@r="' . $row . '"]/s:c[@r="' . $coord . '"]' );
+                if ( 0 === $nodes->length ) {
                     return new WP_Error( 'sop_po_missing_cell', 'SOP PO XLSX export failed sanity check: missing cell ' . $coord );
                 }
-
-                if ( ! preg_match( '/<c[^>]*\\br="' . preg_quote( $coord, '/' ) . '"[^>]*\\bs="' . $style_idx . '"[^>]*>/', $sheet_xml ) ) {
+                $node = $nodes->item( 0 );
+                if ( $node->getAttribute( 's' ) !== (string) $style_idx ) {
                     return new WP_Error( 'sop_po_style_enforce_failed', 'SOP PO XLSX export failed sanity check: missing enforced border style on cell ' . $coord );
                 }
             }
         }
 
-        return $sheet_xml;
+        $doc->encoding       = 'UTF-8';
+        $doc->xmlStandalone  = true;
+        return $doc->saveXML();
     }
 
     private static function po_fill_row_ae( array $specs, $default_style = 0 ) {
