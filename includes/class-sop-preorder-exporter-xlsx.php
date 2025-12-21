@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.42
+ * File version: 1.0.43
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -30,6 +30,7 @@
  * - PO border enforcement now uses DOM/XPath to fill/create cells and styles reliably.
  * - PO Order Summary XLSX now filled from committed template (no layout generation).
  * - Dynamic PO currency labels (Amount/Total/Deposit/Balance) based on supplier currency.
+ * - RMB deposit/balance table matches legacy (header row, USD/FX rows, Terms shifted).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -512,10 +513,10 @@ class SOP_Preorder_XLSX_Exporter {
         $xpath = new DOMXPath( $doc );
         $xpath->registerNamespace( 's', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main' );
 
-        // Ensure dimension covers A1:E30.
+        // Ensure dimension covers A1:E31 (terms row may move for RMB).
         $dimension = $xpath->query( '/s:worksheet/s:dimension' )->item( 0 );
         if ( $dimension ) {
-            $dimension->setAttribute( 'ref', 'A1:E30' );
+            $dimension->setAttribute( 'ref', 'A1:E31' );
         }
 
         // Ensure sheetData exists.
@@ -655,11 +656,11 @@ class SOP_Preorder_XLSX_Exporter {
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
         if ( 'RMB' === $currency_label ) {
-            // Remove merges A27:D27 and A28:D28 so columns B/C/D can be written.
+            // Remove conflicting merges and adjust terms positioning.
             $merge_nodes = $xpath->query( '/s:worksheet/s:mergeCells/s:mergeCell' );
+            $to_remove   = array( 'A27:D27', 'A28:D28', 'A29:E29' );
+            $removed     = 0;
             if ( $merge_nodes && $merge_nodes->length ) {
-                $to_remove = array( 'A27:D27', 'A28:D28' );
-                $removed   = 0;
                 foreach ( $merge_nodes as $merge_node ) {
                     $ref = $merge_node->getAttribute( 'ref' );
                     if ( in_array( $ref, $to_remove, true ) ) {
@@ -667,28 +668,22 @@ class SOP_Preorder_XLSX_Exporter {
                         $removed++;
                     }
                 }
-                if ( $removed > 0 ) {
-                    $remaining = $xpath->query( '/s:worksheet/s:mergeCells/s:mergeCell' );
-                    $merge_root = $xpath->query( '/s:worksheet/s:mergeCells' )->item( 0 );
-                    if ( $merge_root ) {
-                        $merge_root->setAttribute( 'count', (string) ( $remaining ? $remaining->length : 0 ) );
-                    }
+            }
+
+            // Ensure merge A31:E31 exists.
+            $merge_root = $xpath->query( '/s:worksheet/s:mergeCells' )->item( 0 );
+            if ( $merge_root ) {
+                $existing_merges = $xpath->query( 's:mergeCell[@ref="A31:E31"]', $merge_root );
+                if ( 0 === $existing_merges->length ) {
+                    $new_merge = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'mergeCell' );
+                    $new_merge->setAttribute( 'ref', 'A31:E31' );
+                    $merge_root->appendChild( $new_merge );
                 }
+                $remaining = $xpath->query( 's:mergeCell', $merge_root );
+                $merge_root->setAttribute( 'count', (string) ( $remaining ? $remaining->length : 0 ) );
             }
 
-            // Prepare USD display amounts.
-            $deposit_usd_display = $deposit_usd;
-            if ( $deposit_usd_display <= 0 && $deposit_rmb > 0 && $deposit_fx > 0 ) {
-                $deposit_usd_display = $deposit_rmb / $deposit_fx;
-            }
-
-            $effective_balance_fx = ( $balance_fx > 0 ) ? $balance_fx : $deposit_fx;
-            $balance_usd_display  = $balance_usd;
-            if ( $balance_usd_display <= 0 && $balance_rmb > 0 && $effective_balance_fx > 0 ) {
-                $balance_usd_display = $balance_rmb / $effective_balance_fx;
-            }
-
-            // Helpers for FX display.
+            // Prepare FX display helpers.
             $format_fx = function( $val ) {
                 if ( $val <= 0 ) {
                     return '';
@@ -696,28 +691,61 @@ class SOP_Preorder_XLSX_Exporter {
                 return number_format( (float) $val, 3, '.', '' );
             };
 
-            // Deposit row (27).
+            // Header row (27).
+            $header_style = $style_a4;
+            $set_inline( 'A27', __( 'Payment', 'sop' ), $header_style );
+            $set_inline( 'B27', __( 'Value', 'sop' ), $header_style );
+            $set_inline( 'C27', __( 'Deposit FX (RMB/USD)', 'sop' ), $header_style );
+            $set_inline( 'D27', __( 'Value', 'sop' ), $header_style );
+            $set_inline( 'E27', __( 'Deposit (RMB)', 'sop' ), $header_style );
+
+            // Deposit row (28).
             $fx_display = ( $deposit_fx > 0 ) ? $format_fx( $deposit_fx ) : '';
-            $set_inline( 'A27', __( 'Deposit (USD)', 'sop' ), $style_a4 );
-            $set_number( 'B27', $deposit_usd_display );
-            $set_inline( 'C27', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', $style_a4 );
-            $set_number( 'D27', $deposit_fx > 0 ? $deposit_fx : '' );
-            $result = $set_number( 'E27', $deposit_rmb );
+            $set_inline( 'A28', __( 'Deposit (USD)', 'sop' ), $style_a4 );
+            $set_number( 'B28', $deposit_usd );
+            $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', $style_a4 );
+            $set_inline( 'D28', $fx_display, $style_a4 );
+            $result = $set_number( 'E28', $deposit_rmb );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
-            // Balance row (28).
-            $balance_fx_display = ( $effective_balance_fx > 0 && abs( $effective_balance_fx - $deposit_fx ) > 0.0001 ) ? $format_fx( $effective_balance_fx ) : '';
-            $set_inline( 'A28', __( 'Balance (USD)', 'sop' ), $style_a4 );
-            $set_number( 'B28', $balance_usd_display );
-            if ( '' !== $balance_fx_display ) {
-                $set_inline( 'C28', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), $style_a4 );
-                $set_number( 'D28', $effective_balance_fx );
+            // Balance row (29).
+            $balance_fx_display = ( $balance_fx > 0 ) ? $format_fx( $balance_fx ) : '';
+            $set_inline( 'A29', __( 'Balance (USD)', 'sop' ), $style_a4 );
+            $set_number( 'B29', $balance_usd > 0 ? $balance_usd : '' );
+            if ( $balance_fx > 0 ) {
+                $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), $style_a4 );
+                $set_inline( 'D29', $balance_fx_display, $style_a4 );
             } else {
-                $set_inline( 'C28', '', $style_a4 );
-                $set_number( 'D28', '' );
+                $set_inline( 'C29', '', $style_a4 );
+                $set_inline( 'D29', '', $style_a4 );
             }
-            $result = $set_number( 'E28', $balance_rmb );
+            $result = $set_number( 'E29', $balance_rmb );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+            // Terms shift for RMB: row 30 header, row 31 content.
+            $set_inline( 'A30', __( 'Terms', 'sop' ), $style_a4 );
+            $result = $set_inline( 'A31', $payment_terms, $style_terms_wrapped );
+            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+            // Adjust row height for Terms content (row 31).
+            $terms_for_height = rtrim( (string) $payment_terms, "\r\n" );
+            $line_count       = '' === $terms_for_height ? 1 : ( substr_count( $terms_for_height, "\n" ) + 1 );
+            $per_line         = 15;
+            $height           = ( $line_count * $per_line ) + 2;
+            if ( $height < 15 ) {
+                $height = 15;
+            } elseif ( $height > 240 ) {
+                $height = 240;
+            }
+            $row31 = $xpath->query( '/s:worksheet/s:sheetData/s:row[@r="31"]' )->item( 0 );
+            if ( ! $row31 ) {
+                self::po_template_get_or_create_cell( $doc, $xpath, 'A31', $style_terms_wrapped );
+                $row31 = $xpath->query( '/s:worksheet/s:sheetData/s:row[@r="31"]' )->item( 0 );
+            }
+            if ( $row31 ) {
+                $row31->setAttribute( 'ht', (string) $height );
+                $row31->setAttribute( 'customHeight', '1' );
+            }
         } else {
             // Non-RMB template values: deposit and balance in supplier currency.
             $deposit_simple = $deposit_usd;
@@ -731,27 +759,29 @@ class SOP_Preorder_XLSX_Exporter {
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         }
 
-        $result = $set_inline( 'A30', $payment_terms, $style_terms_wrapped );
-        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        if ( 'RMB' !== $currency_label ) {
+            $result = $set_inline( 'A30', $payment_terms, $style_terms_wrapped );
+            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
-        // Adjust row height for Terms (row 30) based on line count so all lines are visible.
-        $terms_for_height = rtrim( (string) $payment_terms, "\r\n" );
-        $line_count       = '' === $terms_for_height ? 1 : ( substr_count( $terms_for_height, "\n" ) + 1 );
-        $per_line         = 15;
-        $height           = ( $line_count * $per_line ) + 2;
-        if ( $height < 15 ) {
-            $height = 15;
-        } elseif ( $height > 240 ) {
-            $height = 240;
-        }
-        $row30 = $xpath->query( '/s:worksheet/s:sheetData/s:row[@r="30"]' )->item( 0 );
-        if ( ! $row30 ) {
-            self::po_template_get_or_create_cell( $doc, $xpath, 'A30', $style_a4 );
+            // Adjust row height for Terms (row 30) based on line count so all lines are visible.
+            $terms_for_height = rtrim( (string) $payment_terms, "\r\n" );
+            $line_count       = '' === $terms_for_height ? 1 : ( substr_count( $terms_for_height, "\n" ) + 1 );
+            $per_line         = 15;
+            $height           = ( $line_count * $per_line ) + 2;
+            if ( $height < 15 ) {
+                $height = 15;
+            } elseif ( $height > 240 ) {
+                $height = 240;
+            }
             $row30 = $xpath->query( '/s:worksheet/s:sheetData/s:row[@r="30"]' )->item( 0 );
-        }
-        if ( $row30 ) {
-            $row30->setAttribute( 'ht', (string) $height );
-            $row30->setAttribute( 'customHeight', '1' );
+            if ( ! $row30 ) {
+                self::po_template_get_or_create_cell( $doc, $xpath, 'A30', $style_a4 );
+                $row30 = $xpath->query( '/s:worksheet/s:sheetData/s:row[@r="30"]' )->item( 0 );
+            }
+            if ( $row30 ) {
+                $row30->setAttribute( 'ht', (string) $height );
+                $row30->setAttribute( 'customHeight', '1' );
+            }
         }
 
         $new_sheet_xml = $doc->saveXML();
