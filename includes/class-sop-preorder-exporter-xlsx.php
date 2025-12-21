@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.44
+ * File version: 1.0.45
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -32,6 +32,7 @@
  * - Dynamic PO currency labels (Amount/Total/Deposit/Balance) based on supplier currency.
  * - RMB deposit/balance table matches legacy (header row, USD/FX rows, Terms shifted).
  * - Fix PO template borders in RMB deposit/balance table; force font size 10.
+ * - Default row height 15pt and align yellow(center)/green(right) cells in PO template.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -528,6 +529,35 @@ class SOP_Preorder_XLSX_Exporter {
             $worksheet->appendChild( $sheet_data );
         }
 
+        // Ensure default row height is 15 and raise any smaller custom heights to 15.
+        $sheet_format = $xpath->query( '/s:worksheet/s:sheetFormatPr' )->item( 0 );
+        if ( ! $sheet_format ) {
+            $sheet_format = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'sheetFormatPr' );
+            $worksheet    = $xpath->query( '/s:worksheet' )->item( 0 );
+            if ( $worksheet && $worksheet->firstChild ) {
+                $worksheet->insertBefore( $sheet_format, $worksheet->firstChild );
+            } elseif ( $worksheet ) {
+                $worksheet->appendChild( $sheet_format );
+            }
+        }
+        if ( $sheet_format ) {
+            $sheet_format->setAttribute( 'defaultRowHeight', '15' );
+            $sheet_format->setAttribute( 'customHeight', '1' );
+        }
+
+        $row_nodes = $xpath->query( '/s:worksheet/s:sheetData/s:row' );
+        if ( $row_nodes ) {
+            foreach ( $row_nodes as $row_node ) {
+                if ( $row_node->hasAttribute( 'ht' ) ) {
+                    $ht = (float) $row_node->getAttribute( 'ht' );
+                    if ( $ht > 0 && $ht < 15 ) {
+                        $row_node->setAttribute( 'ht', '15' );
+                        $row_node->setAttribute( 'customHeight', '1' );
+                    }
+                }
+            }
+        }
+
         // Helper to set cells.
         $get_style = function( $cell_ref ) use ( $xpath ) {
             return self::po_template_get_style_index( $xpath, $cell_ref );
@@ -584,9 +614,61 @@ class SOP_Preorder_XLSX_Exporter {
                         }
                     }
 
+                    // Detect yellow/green fills.
+                    $yellow_fill_ids = array();
+                    $green_fill_ids  = array();
+                    $fills           = $sxp->query( '/s:styleSheet/s:fills/s:fill' );
+                    if ( $fills && $fills->length ) {
+                        foreach ( $fills as $idx => $fill_node ) {
+                            $fg = $sxp->query( './/s:patternFill[@patternType="solid"]/s:fgColor[@rgb]', $fill_node )->item( 0 );
+                            if ( ! $fg || ! $fg->hasAttribute( 'rgb' ) ) {
+                                continue;
+                            }
+                            $rgb = strtoupper( $fg->getAttribute( 'rgb' ) );
+                            if ( strlen( $rgb ) === 8 ) {
+                                $rgb = substr( $rgb, 2 );
+                            }
+                            if ( strlen( $rgb ) !== 6 ) {
+                                continue;
+                            }
+                            $r = hexdec( substr( $rgb, 0, 2 ) );
+                            $g = hexdec( substr( $rgb, 2, 2 ) );
+                            $b = hexdec( substr( $rgb, 4, 2 ) );
+                            if ( ( $r > 200 && $g > 200 && $b < 140 ) || in_array( $rgb, array( 'FFFF00', 'FFEB9C', 'FFF2CC' ), true ) ) {
+                                $yellow_fill_ids[] = $idx;
+                            } elseif ( ( $g > 160 && $r < 170 && $b < 170 ) || in_array( $rgb, array( '92D050', 'A9D08E', 'C6EFCE' ), true ) ) {
+                                $green_fill_ids[] = $idx;
+                            }
+                        }
+                    }
+
                     $cell_xfs = $sxp->query( '/s:styleSheet/s:cellXfs' )->item( 0 );
                     $xf_nodes = $sxp->query( '/s:styleSheet/s:cellXfs/s:xf' );
                     if ( $cell_xfs && $xf_nodes && $xf_nodes->length > 0 ) {
+                        // Apply alignment tweaks for yellow/green fills.
+                        if ( ! empty( $yellow_fill_ids ) || ! empty( $green_fill_ids ) ) {
+                            foreach ( $xf_nodes as $xf_node ) {
+                                $fill_id = (int) $xf_node->getAttribute( 'fillId' );
+                                $align   = null;
+                                foreach ( $xf_node->childNodes as $child ) {
+                                    if ( 'alignment' === $child->nodeName ) {
+                                        $align = $child;
+                                        break;
+                                    }
+                                }
+                                if ( ! $align ) {
+                                    $align = $styles_doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'alignment' );
+                                    $xf_node->appendChild( $align );
+                                }
+                                $xf_node->setAttribute( 'applyAlignment', '1' );
+                                if ( in_array( $fill_id, $yellow_fill_ids, true ) ) {
+                                    $align->setAttribute( 'horizontal', 'center' );
+                                } elseif ( in_array( $fill_id, $green_fill_ids, true ) ) {
+                                    $align->setAttribute( 'horizontal', 'right' );
+                                }
+                            }
+                        }
+
                         $base_idx = (int) $style_a30;
                         if ( $base_idx < 0 || $base_idx >= $xf_nodes->length ) {
                             $base_idx = 0;
