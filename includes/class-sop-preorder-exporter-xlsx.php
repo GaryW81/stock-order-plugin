@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.57
+ * File version: 1.0.58
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -939,6 +939,53 @@ class SOP_Preorder_XLSX_Exporter {
             $replacements[] = 'Balance (' . $cur . ')';
         }
         return preg_replace( $patterns, $replacements, $xml );
+    }
+
+    private static function sanitize_xml_text( $value ) {
+        $value = (string) $value;
+        $value = str_replace( array( "\r\n", "\r" ), "\n", $value );
+        $value = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $value );
+        $value = htmlspecialchars( $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
+        return str_replace( "\n", '&#10;', $value );
+    }
+
+    private static function column_letter( $index ) {
+        $index  = (int) $index;
+        $letter = '';
+        while ( $index >= 0 ) {
+            $letter = chr( $index % 26 + 65 ) . $letter;
+            $index  = floor( $index / 26 ) - 1;
+        }
+        return $letter;
+    }
+
+    private static function build_row_xml( $row_num, $cells, $is_header = false, $styles = array(), $row_offset_for_height = 0 ) {
+        $row_style_attr  = ' s="4" customFormat="1"';
+        $row_height_attr = $is_header ? '' : ' ht="48" customHeight="1"';
+        $xml             = '<row r="' . (int) $row_num . '"' . $row_style_attr . $row_height_attr . '>';
+        $col_index       = 0;
+
+        foreach ( $cells as $cell_value ) {
+            $col_letter = self::column_letter( $col_index ) . $row_num;
+            $style_idx  = isset( $styles[ $col_index ] ) ? $styles[ $col_index ] : null;
+
+            if ( null === $style_idx ) {
+                $style_idx = 4;
+            } else {
+                $style_idx = (int) $style_idx;
+            }
+
+            if ( is_numeric( $cell_value ) ) {
+                $xml .= '<c r="' . $col_letter . '" s="' . $style_idx . '"><v>' . $cell_value . '</v></c>';
+            } else {
+                $xml .= '<c r="' . $col_letter . '" t="inlineStr" s="' . $style_idx . '"><is><t xml:space="preserve">' . self::sanitize_xml_text( $cell_value ) . '</t></is></c>';
+            }
+
+            $col_index++;
+        }
+
+        $xml .= '</row>';
+        return $xml;
     }
 
     private static function format_number_cell( $val, $decimals = 2 ) {
