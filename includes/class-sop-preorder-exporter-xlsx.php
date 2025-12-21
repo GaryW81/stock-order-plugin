@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.53
+ * File version: 1.0.54
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -845,6 +845,24 @@ class SOP_Preorder_XLSX_Exporter {
         );
 
         return $text;
+    }
+
+    private static function esc_xml( $text ) {
+        $text = (string) $text;
+
+        // Remove invalid XML 1.0 characters (tab/newline retained).
+        $text = preg_replace(
+            '/[^\x09\x0A\x0D\x20-\x{D7FF}\x{E000}-\x{FFFD}\x{10000}-\x{10FFFF}]/u',
+            '',
+            $text
+        );
+
+        $flags = ENT_QUOTES;
+        if ( defined( 'ENT_XML1' ) ) {
+            $flags |= ENT_XML1;
+        }
+
+        return htmlspecialchars( $text, $flags, 'UTF-8' );
     }
 
     private static function po_template_set_number_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $number, $style_override = '' ) {
