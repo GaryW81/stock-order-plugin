@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.56
+ * File version: 1.0.57
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -647,10 +647,12 @@ class SOP_Preorder_XLSX_Exporter {
             }
             if ( $effective_balance_fx_for_export > 0 ) {
                 $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), '' );
-                $set_number( 'D29', $effective_balance_fx_for_export );
+                $style_d29 = $get_style( 'D29' );
+                $set_inline( 'D29', $balance_fx_display, $style_d29 );
             } else {
+                $style_d29 = $get_style( 'D29' );
                 $set_inline( 'C29', '', '' );
-                $set_inline( 'D29', '', '' );
+                $set_inline( 'D29', '', $style_d29 );
             }
             $result = $set_number( 'E29', $balance_rmb );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
