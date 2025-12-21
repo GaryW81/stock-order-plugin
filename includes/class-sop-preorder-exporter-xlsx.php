@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.36
+ * File version: 1.0.37
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -524,8 +524,20 @@ class SOP_Preorder_XLSX_Exporter {
         }
 
         // Helper to set cells.
-        $set_inline = function( $cell_ref, $text ) use ( $doc, $xpath ) {
-            return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text );
+        $get_style = function( $cell_ref ) use ( $xpath ) {
+            return self::po_template_get_style_index( $xpath, $cell_ref );
+        };
+
+        $style_a4 = $get_style( 'A4' );
+        if ( null === $style_a4 ) {
+            $style_a4 = $get_style( 'A3' );
+        }
+        if ( null === $style_a4 ) {
+            $style_a4 = '1';
+        }
+
+        $set_inline = function( $cell_ref, $text, $style_override = '' ) use ( $doc, $xpath ) {
+            return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, $style_override );
         };
         $set_number = function( $cell_ref, $number ) use ( $doc, $xpath, $format_amount ) {
             $formatted = $format_amount( $number );
@@ -540,12 +552,12 @@ class SOP_Preorder_XLSX_Exporter {
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         $result = $set_inline( 'A10', $buyer_phone );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $result = $set_inline( 'A12', $shipping_block );
+        $result = $set_inline( 'A12', $shipping_block, $style_a4 );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
         $result = $set_inline( 'C3', $seller_company );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $result = $set_inline( 'C4', $seller_address_block );
+        $result = $set_inline( 'C4', $seller_address_block, $style_a4 );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         $result = $set_inline( 'C9', $seller_email );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
@@ -1224,6 +1236,7 @@ class SOP_Preorder_XLSX_Exporter {
         $value = html_entity_decode( (string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
         $value = str_replace( array( "\r\n", "\r" ), "\n", $value );
         $value = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $value );
+        // Do not replace newlines with entities; keep literal newlines and escape XML.
         return htmlspecialchars( $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
     }
 
@@ -1605,8 +1618,16 @@ class SOP_Preorder_XLSX_Exporter {
         return $cell_node;
     }
 
-    private static function po_template_set_inline_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $text ) {
-        $cell = self::po_template_get_or_create_cell( $doc, $xpath, $cell_ref, '1' );
+    private static function po_template_get_style_index( DOMXPath $xpath, $cell_ref ) {
+        $node = $xpath->query( '/s:worksheet/s:sheetData/s:row/s:c[@r="' . $cell_ref . '"]' )->item( 0 );
+        if ( $node && $node->hasAttribute( 's' ) ) {
+            return $node->getAttribute( 's' );
+        }
+        return null;
+    }
+
+    private static function po_template_set_inline_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $text, $style_override = '' ) {
+        $cell = self::po_template_get_or_create_cell( $doc, $xpath, $cell_ref, '' === $style_override ? '1' : $style_override );
         if ( is_wp_error( $cell ) ) {
             return $cell;
         }
@@ -1614,12 +1635,13 @@ class SOP_Preorder_XLSX_Exporter {
             $cell->removeChild( $cell->firstChild );
         }
         $cell->setAttribute( 't', 'inlineStr' );
-        if ( '' === $cell->getAttribute( 's' ) ) {
+        if ( '' !== $style_override ) {
+            $cell->setAttribute( 's', (string) $style_override );
+        } elseif ( '' === $cell->getAttribute( 's' ) ) {
             $cell->setAttribute( 's', '1' );
         }
         $is = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'is' );
         $clean_text = self::sanitize_po_inline_text_preserve_newlines( $text );
-        $clean_text = str_replace( "\n", "&#10;", $clean_text );
         $t  = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 't', $clean_text );
         $t->setAttribute( 'xml:space', 'preserve' );
         $is->appendChild( $t );
