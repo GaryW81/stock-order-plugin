@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.31
+ * File version: 1.0.32
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -25,7 +25,7 @@
  * - Align PO Buyer/Seller rows to match legacy XLS block offsets.
  * - Hide PO gridlines and confine borders to table area.
  * - Ensure PO rows fill A–E with bordered cells (borders visible on blanks).
- * - Temporary: PO sheet outputs no merges; full A1:E30 bordered grid with uniform borders.
+ * - Temporary: PO sheet outputs no merges; full A1:E30 bordered grid with uniform borders (buyer block outlines).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -483,7 +483,7 @@ class SOP_Preorder_XLSX_Exporter {
         $merge_cells  = array();
         $row_num      = 1;
 
-        $po_grid_style = null;
+        $po_grid_style = 0;
 
         // Title.
         $rows_xml .= self::po_row_from_specs(
