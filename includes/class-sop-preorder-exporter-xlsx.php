@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.37
+ * File version: 1.0.38
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -29,6 +29,7 @@
  * - PO XML post-pass enforces borders on A1:E30 to prevent missed styles.
  * - PO border enforcement now uses DOM/XPath to fill/create cells and styles reliably.
  * - PO Order Summary XLSX now filled from committed template (no layout generation).
+ * - Dynamic PO currency labels (Amount/Total/Deposit/Balance) based on supplier currency.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1666,6 +1667,33 @@ class SOP_Preorder_XLSX_Exporter {
         $v = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'v', self::esc_xml( $number ) );
         $cell->appendChild( $v );
         return true;
+    }
+
+    private static function sop_po_normalize_currency_code( $currency ) {
+        $currency = strtoupper( trim( (string) $currency ) );
+        if ( in_array( $currency, array( 'CNY', 'CNH' ), true ) ) {
+            return 'RMB';
+        }
+        if ( in_array( $currency, array( 'RMB', 'GBP', 'USD', 'EUR' ), true ) ) {
+            return $currency;
+        }
+        return 'GBP';
+    }
+
+    private static function sop_po_replace_currency_labels_in_xml( $xml, $cur ) {
+        $patterns = array(
+            '/Amount \\((GBP|USD|EUR|RMB)\\)/',
+            '/Total \\((GBP|USD|EUR|RMB)\\)/',
+            '/Deposit \\((GBP|USD|EUR|RMB)\\)/',
+            '/Balance \\((GBP|USD|EUR|RMB)\\)/',
+        );
+        $replacements = array(
+            'Amount (' . $cur . ')',
+            'Total (' . $cur . ')',
+            'Deposit (' . $cur . ')',
+            'Balance (' . $cur . ')',
+        );
+        return preg_replace( $patterns, $replacements, $xml );
     }
 
     private static function po_fill_row_ae( array $specs, $default_style = 0 ) {
