@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.43
+ * File version: 1.0.44
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -31,6 +31,7 @@
  * - PO Order Summary XLSX now filled from committed template (no layout generation).
  * - Dynamic PO currency labels (Amount/Total/Deposit/Balance) based on supplier currency.
  * - RMB deposit/balance table matches legacy (header row, USD/FX rows, Terms shifted).
+ * - Fix PO template borders in RMB deposit/balance table; force font size 10.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -556,6 +557,33 @@ class SOP_Preorder_XLSX_Exporter {
                 if ( @$styles_doc->loadXML( $styles_xml, LIBXML_NOERROR | LIBXML_NOWARNING ) ) {
                     $sxp = new DOMXPath( $styles_doc );
                     $sxp->registerNamespace( 's', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main' );
+
+                    // Force all font sizes to 10pt.
+                    $sz_nodes = $sxp->query( '/s:styleSheet/s:fonts/s:font/s:sz' );
+                    if ( $sz_nodes ) {
+                        foreach ( $sz_nodes as $sz ) {
+                            $sz->setAttribute( 'val', '10' );
+                        }
+                    }
+                    // Add missing sz nodes with 10 if absent.
+                    $font_nodes = $sxp->query( '/s:styleSheet/s:fonts/s:font' );
+                    if ( $font_nodes ) {
+                        foreach ( $font_nodes as $font_node ) {
+                            $has_sz = false;
+                            foreach ( $font_node->childNodes as $child ) {
+                                if ( 'sz' === $child->nodeName ) {
+                                    $has_sz = true;
+                                    break;
+                                }
+                            }
+                            if ( ! $has_sz ) {
+                                $new_sz = $styles_doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'sz' );
+                                $new_sz->setAttribute( 'val', '10' );
+                                $font_node->insertBefore( $new_sz, $font_node->firstChild );
+                            }
+                        }
+                    }
+
                     $cell_xfs = $sxp->query( '/s:styleSheet/s:cellXfs' )->item( 0 );
                     $xf_nodes = $sxp->query( '/s:styleSheet/s:cellXfs/s:xf' );
                     if ( $cell_xfs && $xf_nodes && $xf_nodes->length > 0 ) {
@@ -606,9 +634,9 @@ class SOP_Preorder_XLSX_Exporter {
         $set_inline = function( $cell_ref, $text, $style_override = '' ) use ( $doc, $xpath ) {
             return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, $style_override );
         };
-        $set_number = function( $cell_ref, $number ) use ( $doc, $xpath, $format_amount ) {
+        $set_number = function( $cell_ref, $number, $style_override = '' ) use ( $doc, $xpath, $format_amount ) {
             $formatted = $format_amount( $number );
-            return self::po_template_set_number_cell( $doc, $xpath, $cell_ref, $formatted );
+            return self::po_template_set_number_cell( $doc, $xpath, $cell_ref, $formatted, $style_override );
         };
 
         $result = $set_inline( 'A3', $buyer_company );
@@ -692,38 +720,51 @@ class SOP_Preorder_XLSX_Exporter {
             };
 
             // Header row (27).
-            $header_style = $style_a4;
-            $set_inline( 'A27', __( 'Payment', 'sop' ), $header_style );
-            $set_inline( 'B27', __( 'Value', 'sop' ), $header_style );
-            $set_inline( 'C27', __( 'Deposit FX (RMB/USD)', 'sop' ), $header_style );
-            $set_inline( 'D27', __( 'Value', 'sop' ), $header_style );
-            $set_inline( 'E27', __( 'Deposit (RMB)', 'sop' ), $header_style );
+            $style_a27 = $get_style( 'A27' );
+            $style_e27 = $get_style( 'E27' );
+            $style_a28 = $get_style( 'A28' );
+            $style_e28 = $get_style( 'E28' );
+            if ( null === $style_a27 ) { $style_a27 = $style_a4; }
+            if ( null === $style_e27 ) { $style_e27 = $style_a4; }
+            if ( null === $style_a28 ) { $style_a28 = $style_a27; }
+            if ( null === $style_e28 ) { $style_e28 = $style_e27; }
+            $style_a27 = $style_a27 ? $style_a27 : '1';
+            $style_e27 = $style_e27 ? $style_e27 : '1';
+            $style_a28 = $style_a28 ? $style_a28 : '1';
+            $style_e28 = $style_e28 ? $style_e28 : '1';
+
+            // Header row (27).
+            $set_inline( 'A27', __( 'Payment', 'sop' ), $style_a27 );
+            $set_inline( 'B27', __( 'Value', 'sop' ), $style_a27 );
+            $set_inline( 'C27', __( 'Deposit FX (RMB/USD)', 'sop' ), $style_a27 );
+            $set_inline( 'D27', __( 'Value', 'sop' ), $style_a27 );
+            $set_inline( 'E27', __( 'Deposit (RMB)', 'sop' ), $style_e27 );
 
             // Deposit row (28).
             $fx_display = ( $deposit_fx > 0 ) ? $format_fx( $deposit_fx ) : '';
-            $set_inline( 'A28', __( 'Deposit (USD)', 'sop' ), $style_a4 );
-            $set_number( 'B28', $deposit_usd );
-            $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', $style_a4 );
-            $set_inline( 'D28', $fx_display, $style_a4 );
-            $result = $set_number( 'E28', $deposit_rmb );
+            $set_inline( 'A28', __( 'Deposit (USD)', 'sop' ), $style_a28 );
+            $set_number( 'B28', $deposit_usd, $style_e27 );
+            $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', $style_a28 );
+            $set_inline( 'D28', $fx_display, $style_e27 );
+            $result = $set_number( 'E28', $deposit_rmb, $style_e27 );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
             // Balance row (29).
             $balance_fx_display = ( $balance_fx > 0 ) ? $format_fx( $balance_fx ) : '';
-            $set_inline( 'A29', __( 'Balance (USD)', 'sop' ), $style_a4 );
-            $set_number( 'B29', $balance_usd > 0 ? $balance_usd : '' );
+            $set_inline( 'A29', __( 'Balance (USD)', 'sop' ), $style_a28 );
+            $set_number( 'B29', $balance_usd > 0 ? $balance_usd : '', $style_e28 );
             if ( $balance_fx > 0 ) {
-                $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), $style_a4 );
-                $set_inline( 'D29', $balance_fx_display, $style_a4 );
+                $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), $style_a28 );
+                $set_inline( 'D29', $balance_fx_display, $style_e28 );
             } else {
-                $set_inline( 'C29', '', $style_a4 );
-                $set_inline( 'D29', '', $style_a4 );
+                $set_inline( 'C29', '', $style_a28 );
+                $set_inline( 'D29', '', $style_e28 );
             }
-            $result = $set_number( 'E29', $balance_rmb );
+            $result = $set_number( 'E29', $balance_rmb, $style_e28 );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
             // Terms shift for RMB: row 30 header, row 31 content.
-            $set_inline( 'A30', __( 'Terms', 'sop' ), $style_a4 );
+            $set_inline( 'A30', __( 'Terms', 'sop' ), $style_a27 );
             $result = $set_inline( 'A31', $payment_terms, $style_terms_wrapped );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
@@ -1851,8 +1892,8 @@ class SOP_Preorder_XLSX_Exporter {
         return true;
     }
 
-    private static function po_template_set_number_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $number ) {
-        $cell = self::po_template_get_or_create_cell( $doc, $xpath, $cell_ref, '1' );
+    private static function po_template_set_number_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $number, $style_override = '' ) {
+        $cell = self::po_template_get_or_create_cell( $doc, $xpath, $cell_ref, '' === $style_override ? '1' : $style_override );
         if ( is_wp_error( $cell ) ) {
             return $cell;
         }
@@ -1862,7 +1903,9 @@ class SOP_Preorder_XLSX_Exporter {
         if ( $cell->hasAttribute( 't' ) ) {
             $cell->removeAttribute( 't' );
         }
-        if ( '' === $cell->getAttribute( 's' ) ) {
+        if ( '' !== $style_override ) {
+            $cell->setAttribute( 's', (string) $style_override );
+        } elseif ( '' === $cell->getAttribute( 's' ) ) {
             $cell->setAttribute( 's', '1' );
         }
         $v = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'v', self::esc_xml( $number ) );
