@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.35
+ * File version: 1.0.36
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -472,8 +472,7 @@ class SOP_Preorder_XLSX_Exporter {
         );
 
         $buyer_company     = isset( $buyer_profile['company_name'] ) ? $buyer_profile['company_name'] : '';
-        $billing_lines_arr = self::po_expand_block_lines( isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '' );
-        $billing_block     = implode( "\n", $billing_lines_arr );
+        $billing_block     = self::po_normalize_multiline_block( isset( $buyer_profile['billing_address'] ) ? $buyer_profile['billing_address'] : '' );
         $buyer_email       = isset( $buyer_profile['email'] ) ? $buyer_profile['email'] : '';
         $buyer_phone       = isset( $buyer_profile['phone_landline'] ) ? $buyer_profile['phone_landline'] : '';
 
@@ -483,11 +482,11 @@ class SOP_Preorder_XLSX_Exporter {
         } elseif ( ! empty( $buyer_profile['billing_address'] ) ) {
             $shipping_addr = $buyer_profile['billing_address'];
         }
-        $shipping_block = implode( "\n", self::po_expand_block_lines( $shipping_addr ) );
+        $shipping_block = self::po_normalize_multiline_block( $shipping_addr );
 
         $seller_company  = $supplier_pi['company_name'];
         $seller_address  = isset( $supplier_pi['company_address'] ) ? $supplier_pi['company_address'] : '';
-        $seller_address_block = implode( "\n", self::po_expand_block_lines( $seller_address ) );
+        $seller_address_block = self::po_normalize_multiline_block( $seller_address );
         $seller_email    = ! empty( $supplier_pi['company_email'] ) ? $supplier_pi['company_email'] : __( 'TBC', 'sop' );
         $seller_phone    = ! empty( $supplier_pi['company_phone'] ) ? $supplier_pi['company_phone'] : __( 'TBC', 'sop' );
         $contact_line    = $supplier_pi['contact_name'] ? sprintf( '%s %s', __( 'Contact:', 'sop' ), $supplier_pi['contact_name'] ) : __( 'Contact:', 'sop' );
@@ -1221,6 +1220,13 @@ class SOP_Preorder_XLSX_Exporter {
         return self::sanitize_xml_text( $value );
     }
 
+    private static function sanitize_po_inline_text_preserve_newlines( $value ) {
+        $value = html_entity_decode( (string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+        $value = str_replace( array( "\r\n", "\r" ), "\n", $value );
+        $value = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $value );
+        return htmlspecialchars( $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
+    }
+
     private static function po_expand_lines( $text ) {
         $text = (string) $text;
         if ( '' === trim( $text ) ) {
@@ -1248,6 +1254,25 @@ class SOP_Preorder_XLSX_Exporter {
             return array( '' );
         }
         return $lines;
+    }
+
+    private static function po_normalize_multiline_block( $text ) {
+        $text = (string) $text;
+        $text = str_ireplace( array( '<br>', '<br/>', '<br />' ), "\n", $text );
+        $text = html_entity_decode( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+        $text = str_replace( array( "\r\n", "\r" ), "\n", $text );
+        $parts = explode( "\n", $text );
+        $lines = array();
+        foreach ( $parts as $part ) {
+            $line = trim( $part );
+            if ( '' !== $line ) {
+                $lines[] = $line;
+            }
+        }
+        if ( empty( $lines ) ) {
+            return '';
+        }
+        return implode( "\n", $lines );
     }
 
     private static function po_merge_ref( $col_start, $row_start, $col_end, $row_end ) {
@@ -1593,7 +1618,9 @@ class SOP_Preorder_XLSX_Exporter {
             $cell->setAttribute( 's', '1' );
         }
         $is = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'is' );
-        $t  = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 't', self::sanitize_po_text( $text ) );
+        $clean_text = self::sanitize_po_inline_text_preserve_newlines( $text );
+        $clean_text = str_replace( "\n", "&#10;", $clean_text );
+        $t  = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 't', $clean_text );
         $t->setAttribute( 'xml:space', 'preserve' );
         $is->appendChild( $t );
         $cell->appendChild( $is );
