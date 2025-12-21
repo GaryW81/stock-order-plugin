@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.39
+ * File version: 1.0.40
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -604,6 +604,26 @@ class SOP_Preorder_XLSX_Exporter {
 
         $result = $set_inline( 'A30', $payment_terms, $style_a4 );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+
+        // Adjust row height for Terms (row 30) based on line count so all lines are visible.
+        $terms_for_height = rtrim( (string) $payment_terms, "\r\n" );
+        $line_count       = '' === $terms_for_height ? 1 : ( substr_count( $terms_for_height, "\n" ) + 1 );
+        $per_line         = 15;
+        $height           = ( $line_count * $per_line ) + 2;
+        if ( $height < 15 ) {
+            $height = 15;
+        } elseif ( $height > 240 ) {
+            $height = 240;
+        }
+        $row30 = $xpath->query( '/s:worksheet/s:sheetData/s:row[@r="30"]' )->item( 0 );
+        if ( ! $row30 ) {
+            self::po_template_get_or_create_cell( $doc, $xpath, 'A30', $style_a4 );
+            $row30 = $xpath->query( '/s:worksheet/s:sheetData/s:row[@r="30"]' )->item( 0 );
+        }
+        if ( $row30 ) {
+            $row30->setAttribute( 'ht', (string) $height );
+            $row30->setAttribute( 'customHeight', '1' );
+        }
 
         $new_sheet_xml = $doc->saveXML();
         if ( false === $new_sheet_xml ) {
