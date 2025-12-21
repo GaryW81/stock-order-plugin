@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.47
+ * File version: 1.0.48
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -630,22 +630,6 @@ class SOP_Preorder_XLSX_Exporter {
             $set_inline( 'D29', $balance_fx > 0 ? $balance_fx_display : '', '' );
             $result = $set_number( 'E29', $balance_rmb );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-
-            // Terms: map up to 3 lines into A31, A32, A33 (if present); else fall back.
-            $terms_lines = explode( "\n", $payment_terms );
-            $terms_lines = array_values( array_map( 'trim', array_filter( $terms_lines, static function( $line ) { return $line !== ''; } ) ) );
-            $terms_targets = array( 'A31', 'A32', 'A33' );
-            $line_idx = 0;
-            foreach ( $terms_targets as $target ) {
-                $line_val = isset( $terms_lines[ $line_idx ] ) ? $terms_lines[ $line_idx ] : '';
-                $set_inline( $target, $line_val, $style_terms_wrapped );
-                $line_idx++;
-            }
-            // If more lines remain and A34 exists, append the rest into A34 separated by \n.
-            if ( $line_idx < count( $terms_lines ) ) {
-                $extra = implode( "\n", array_slice( $terms_lines, $line_idx ) );
-                $set_inline( 'A34', $extra, $style_terms_wrapped );
-            }
         } else {
             // Non-RMB template values: deposit and balance in supplier currency.
             $deposit_simple = $deposit_usd;
@@ -657,10 +641,13 @@ class SOP_Preorder_XLSX_Exporter {
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             $result = $set_number( 'E28', $balance_simple );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-
-            // Terms default mapping: use A30 if template uses single-cell terms.
-            $set_inline( 'A30', $payment_terms, $style_terms_wrapped );
         }
+
+        // Terms: single multiline block into one cell (prefer A31 if present, else A30).
+        $terms_text  = trim( self::po_normalize_multiline_block( $payment_terms ) );
+        $terms_cell  = ( null !== $get_style( 'A31' ) ) ? 'A31' : 'A30';
+        $terms_style = $get_style( $terms_cell );
+        $set_inline( $terms_cell, $terms_text, $terms_style ? $terms_style : $style_terms_wrapped );
 
         if ( 'RMB' !== $currency_label ) {
             $result = $set_inline( 'A30', $payment_terms, $style_terms_wrapped );
