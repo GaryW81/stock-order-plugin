@@ -539,6 +539,69 @@ class SOP_Preorder_XLSX_Exporter {
             $style_a4 = '1';
         }
 
+        // Derive Terms base style (A30) and prepare a wrapped clone with preserved borders.
+        $style_a30 = $get_style( 'A30' );
+        if ( null === $style_a30 ) {
+            $style_a30 = '2';
+        }
+        $style_terms_wrapped = $style_a30;
+        $styles_path         = 'xl/styles.xml';
+        if ( false !== $zip->locateName( $styles_path ) ) {
+            $styles_xml = $zip->getFromName( $styles_path );
+            if ( false !== $styles_xml ) {
+                $styles_doc                     = new DOMDocument();
+                $styles_doc->preserveWhiteSpace = false;
+                $styles_doc->formatOutput       = false;
+                if ( @$styles_doc->loadXML( $styles_xml, LIBXML_NOERROR | LIBXML_NOWARNING ) ) {
+                    $sxp = new DOMXPath( $styles_doc );
+                    $sxp->registerNamespace( 's', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main' );
+                    $cell_xfs = $sxp->query( '/s:styleSheet/s:cellXfs' )->item( 0 );
+                    $xf_nodes = $sxp->query( '/s:styleSheet/s:cellXfs/s:xf' );
+                    if ( $cell_xfs && $xf_nodes && $xf_nodes->length > 0 ) {
+                        $base_idx = (int) $style_a30;
+                        if ( $base_idx < 0 || $base_idx >= $xf_nodes->length ) {
+                            $base_idx = 0;
+                        }
+                        $base_xf = $xf_nodes->item( $base_idx );
+                        if ( $base_xf ) {
+                            $new_xf = $base_xf->cloneNode( true );
+                            $new_xf->setAttribute( 'applyAlignment', '1' );
+                            // Ensure alignment child exists and has wrapText/horizontal/vertical.
+                            $alignment = null;
+                            foreach ( $new_xf->childNodes as $child ) {
+                                if ( $child->nodeName === 'alignment' ) {
+                                    $alignment = $child;
+                                    break;
+                                }
+                            }
+                            if ( ! $alignment ) {
+                                $alignment = $styles_doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'alignment' );
+                                $new_xf->appendChild( $alignment );
+                            }
+                            $alignment->setAttribute( 'wrapText', '1' );
+                            if ( ! $alignment->hasAttribute( 'horizontal' ) ) {
+                                $alignment->setAttribute( 'horizontal', 'left' );
+                            }
+                            if ( ! $alignment->hasAttribute( 'vertical' ) ) {
+                                $alignment->setAttribute( 'vertical', 'top' );
+                            }
+
+                            $cell_xfs->appendChild( $new_xf );
+                            $new_count = $xf_nodes->length + 1;
+                            $cell_xfs->setAttribute( 'count', (string) $new_count );
+                            $new_styles_xml    = $styles_doc->saveXML();
+                            $style_terms_wrapped = (string) ( $new_count - 1 );
+                            if ( false !== $new_styles_xml ) {
+                                $zip->addFromString( $styles_path, $new_styles_xml );
+                            } else {
+                                $style_terms_wrapped = $style_a30;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         $set_inline = function( $cell_ref, $text, $style_override = '' ) use ( $doc, $xpath ) {
             return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, $style_override );
         };
@@ -602,7 +665,7 @@ class SOP_Preorder_XLSX_Exporter {
         $result = $set_number( 'E28', $balance_simple );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
-        $result = $set_inline( 'A30', $payment_terms, $style_a4 );
+        $result = $set_inline( 'A30', $payment_terms, $style_terms_wrapped );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
         // Adjust row height for Terms (row 30) based on line count so all lines are visible.
