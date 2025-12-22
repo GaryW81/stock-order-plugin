@@ -1,13 +1,14 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.03
+ * File version: 1.0.04
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
  * - Uses JSON payload to avoid max_input_vars on large sheets.
  * - 1.0.02 - Add live display hydration helper for Goods-In lines (display only).
  * - 1.0.03 - Key Goods-In handlers by product_id (SKU fallback) and normalise POST maps.
+ * - 1.0.04 - Apply product_id normalisation across all Goods-In handlers (SKU fallback).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -110,6 +111,76 @@ function sop_goodsin_hydrate_lines_with_live_data( array $lines_map, $supplier_i
     }
 
     return $lines_map;
+}
+
+/**
+ * Normalise an input array keyed by product_id or SKU into product_id keys.
+ *
+ * @param array $raw
+ * @return array
+ */
+function sop_goodsin_normalize_pid_map( $raw ) {
+    $raw = is_array( $raw ) ? $raw : array();
+    $out = array();
+
+    foreach ( $raw as $key => $value ) {
+        $pid = is_numeric( $key ) ? (int) $key : 0;
+        if ( $pid <= 0 && is_string( $key ) && '' !== $key && function_exists( 'wc_get_product_id_by_sku' ) ) {
+            $pid = wc_get_product_id_by_sku( (string) $key );
+        }
+        if ( $pid <= 0 ) {
+            continue;
+        }
+        $out[ $pid ] = $value;
+    }
+
+    return $out;
+}
+
+/**
+ * Normalise payload lines to ensure product_id is set (fallback from SKU/db row).
+ *
+ * @param array $payload_lines
+ * @param array $lines_map Map of DB rows keyed by line ID.
+ * @return array
+ */
+function sop_goodsin_normalize_payload_lines( $payload_lines, $lines_map ) {
+    $payload_lines = is_array( $payload_lines ) ? $payload_lines : array();
+    $lines_map     = is_array( $lines_map ) ? $lines_map : array();
+
+    foreach ( $payload_lines as $idx => $line_in ) {
+        if ( ! is_array( $line_in ) ) {
+            unset( $payload_lines[ $idx ] );
+            continue;
+        }
+
+        $line_id    = isset( $line_in['line_id'] ) ? (int) $line_in['line_id'] : 0;
+        $product_id = isset( $line_in['product_id'] ) ? (int) $line_in['product_id'] : 0;
+        $sku        = isset( $line_in['sku'] ) ? (string) $line_in['sku'] : '';
+
+        if ( $product_id <= 0 && $line_id > 0 && isset( $lines_map[ $line_id ] ) ) {
+            $db_row = $lines_map[ $line_id ];
+            if ( isset( $db_row['product_id'] ) && (int) $db_row['product_id'] > 0 ) {
+                $product_id = (int) $db_row['product_id'];
+            } elseif ( '' === $sku && isset( $db_row['sku_owner'] ) ) {
+                $sku = (string) $db_row['sku_owner'];
+            }
+        }
+
+        if ( $product_id <= 0 && '' !== $sku && function_exists( 'wc_get_product_id_by_sku' ) ) {
+            $maybe_pid = wc_get_product_id_by_sku( $sku );
+            if ( $maybe_pid > 0 ) {
+                $product_id = (int) $maybe_pid;
+            }
+        }
+
+        $payload_lines[ $idx ]['product_id'] = $product_id;
+        if ( '' === $sku && isset( $lines_map[ $line_id ]['sku_owner'] ) ) {
+            $payload_lines[ $idx ]['sku'] = (string) $lines_map[ $line_id ]['sku_owner'];
+        }
+    }
+
+    return $payload_lines;
 }
 
 /**
@@ -223,6 +294,12 @@ function sop_handle_goodsin_save() {
         wp_safe_redirect( add_query_arg( 'sop_msg', 'no_lines', $redirect ) );
         exit;
     }
+    // Ensure product_id is present for each payload line (SKU fallback).
+    $payload['lines'] = sop_goodsin_normalize_payload_lines( $payload['lines'], $lines_map );
+    // Ensure product_id is present for each payload line (SKU fallback).
+    $payload['lines'] = sop_goodsin_normalize_payload_lines( $payload['lines'], $lines_map );
+    // Ensure product_id is present for each payload line (SKU fallback).
+    $payload['lines'] = sop_goodsin_normalize_payload_lines( $payload['lines'], $lines_map );
 
     global $wpdb;
     $tbl_lines = function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ? sop_get_preorder_sheet_lines_table_name() : '';
@@ -245,7 +322,9 @@ function sop_handle_goodsin_save() {
 
         $db_row = $lines_map[ $line_id ];
         $db_pid = isset( $db_row['product_id'] ) ? (int) $db_row['product_id'] : 0;
-        if ( $product_id > 0 && $db_pid > 0 && $db_pid !== $product_id ) {
+        if ( $product_id <= 0 && $db_pid > 0 ) {
+            $product_id = $db_pid;
+        } elseif ( $product_id > 0 && $db_pid > 0 && $db_pid !== $product_id ) {
             continue;
         }
 
@@ -362,7 +441,13 @@ function sop_handle_goodsin_apply_stock() {
 
         $db_row    = $lines_map[ $line_id ];
         $norm      = sop_goodsin_normalize_line_payload( $line_in, $db_row );
-        $product_id = isset( $db_row['product_id'] ) ? (int) $db_row['product_id'] : 0;
+        $product_id = isset( $line_in['product_id'] ) ? (int) $line_in['product_id'] : 0;
+        $db_pid     = isset( $db_row['product_id'] ) ? (int) $db_row['product_id'] : 0;
+        if ( $product_id <= 0 && $db_pid > 0 ) {
+            $product_id = $db_pid;
+        } elseif ( $product_id > 0 && $db_pid > 0 && $db_pid !== $product_id ) {
+            continue;
+        }
         $ordered_qty = $norm['ordered_qty'];
         $received_qty = $norm['received_qty'];
         $missing_qty  = $norm['missing_qty'];
