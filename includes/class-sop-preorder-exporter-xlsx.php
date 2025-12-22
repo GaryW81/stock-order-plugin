@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.60
+ * File version: 1.0.61
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -1135,6 +1135,35 @@ class SOP_Preorder_XLSX_Exporter {
             $xml .= '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>';
         }
         $xml .= '</Relationships>';
+        return $xml;
+    }
+
+    private static function build_cols_xml( $show_usd_column = true ) {
+        $xml  = '<cols>';
+        $xml .= '<col min="1" max="1" width="8.94" customWidth="1"/>';  // Image (A).
+        $xml .= '<col min="2" max="2" width="10.34" customWidth="1"/>'; // SKU (B).
+        $xml .= '<col min="4" max="4" width="32.60" customWidth="1"/>'; // Product name (D).
+        $xml .= '<col min="5" max="5" width="32.60" customWidth="1"/>'; // Categories (E).
+        $product_notes_col = $show_usd_column ? 11 : 10;
+        $xml .= '<col min="' . (int) $product_notes_col . '" max="' . (int) $product_notes_col . '" width="27.15" customWidth="1"/>'; // Product notes.
+        $xml .= '</cols>';
+        return $xml;
+    }
+
+    private static function build_sheet_xml( $rows_xml, $has_drawing, $max_row, $show_usd_column = true, $column_count = 0 ) {
+        $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+        $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
+        $last_col_index  = $column_count > 0 ? ( $column_count - 1 ) : ( $show_usd_column ? 14 : 13 );
+        $last_col_letter = self::column_letter( $last_col_index );
+        $xml .= '<dimension ref="A1:' . $last_col_letter . (int) $max_row . '"/>';
+        $xml .= '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
+        $xml .= '<sheetFormatPr defaultRowHeight="48" customHeight="1"/>';
+        $xml .= self::build_cols_xml( $show_usd_column );
+        $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
+        if ( $has_drawing ) {
+            $xml .= '<drawing r:id="rId1"/>';
+        }
+        $xml .= '</worksheet>';
         return $xml;
     }
 
