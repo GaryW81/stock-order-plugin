@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.48 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.49 *
+ * - V12.49 - Live preorder inputs keyed by product_id (SKU display-only; disable when missing pid).
  * - V12.48 - Hydrate saved sheet display rows with live WC data (preserve saved stock snapshot).
  * - V12.47 - Remove legacy XLS download options (XLSX only).
  * - V12.46 - Add Order Summary (XLSX) download option.
@@ -1556,12 +1557,12 @@ function sop_preorder_render_admin_page() {
 
                                 ?>
                                 <tr data-index="<?php echo esc_attr( $index ); ?>" class="<?php echo esc_attr( implode( ' ', $row_classes ) ); ?>">
-                                    <input type="hidden" name="sop_line_product_id[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $product_id ); ?>" />
-                                    <input type="hidden" name="sop_line_sku[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $sku ); ?>" />
-                                    <input type="hidden" name="sop_line_image_id[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $image_id ); ?>" />
-                                    <input type="hidden" name="sop_line_location[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $location ); ?>" />
-                                    <input type="hidden" name="sop_line_cbm_per_unit[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cbm_per_unit ); ?>" />
-                                    <input type="hidden" name="sop_line_cbm_total[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $line_cbm ); ?>" />
+                                    <input type="hidden" name="sop_line_product_id[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $display_product_id ); ?>" />
+                                    <input type="hidden" name="sop_line_sku[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $sku ); ?>" />
+                                    <input type="hidden" name="sop_line_image_id[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $image_id ); ?>" />
+                                    <input type="hidden" name="sop_line_location[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $location ); ?>" />
+                                    <input type="hidden" name="sop_line_cbm_per_unit[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $cbm_per_unit ); ?>" />
+                                    <input type="hidden" name="sop_line_cbm_total[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $line_cbm ); ?>" />
                                     <td class="sop-preorder-col-select">
                                         <input
                                             type="checkbox"
@@ -1626,7 +1627,7 @@ function sop_preorder_render_admin_page() {
                                         ?>
                                     </td>
                                     <td class="column-cost-supplier" data-column="cost_supplier">
-                                        <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $cost_supplier_display ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb" <?php echo $sop_disabled_attr; ?> />
+                                    <input type="number" name="sop_line_cost_rmb[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $cost_supplier_display ); ?>" step="0.01" min="0" class="sop-cost-supplier-input sop-preorder-cost-rmb" <?php echo $inputs_disabled_attr; ?> />
                                     </td>
                                     <?php if ( 'RMB' === $supplier_currency ) : ?>
                                         <?php

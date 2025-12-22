@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.47
+ * File version: 11.48
  * - Remove legacy XLS export endpoints (XLSX only).
  * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
  * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
@@ -59,6 +59,30 @@ function sop_preorder_get_stock_order_parent_slug() {
     }
 
     return $parent_slug;
+}
+
+/**
+ * Normalise an input array keyed by product_id or SKU into product_id keys.
+ *
+ * @param array $raw
+ * @return array
+ */
+function sop_preorder_normalize_pid_map( $raw ) {
+    $raw = is_array( $raw ) ? $raw : array();
+    $out = array();
+
+    foreach ( $raw as $key => $value ) {
+        $pid = is_numeric( $key ) ? (int) $key : 0;
+        if ( $pid <= 0 && is_string( $key ) && '' !== $key && function_exists( 'wc_get_product_id_by_sku' ) ) {
+            $pid = wc_get_product_id_by_sku( (string) $key );
+        }
+        if ( $pid <= 0 ) {
+            continue;
+        }
+        $out[ $pid ] = $value;
+    }
+
+    return $out;
 }
 
 add_action( 'admin_menu', 'sop_preorder_register_admin_menu', 99 );
@@ -703,33 +727,33 @@ function sop_handle_save_preorder_sheet() {
         $locations     = isset( $_POST['sop_line_location'] ) ? (array) $_POST['sop_line_location'] : array();
         $cbm_units     = isset( $_POST['sop_line_cbm_per_unit'] ) ? (array) $_POST['sop_line_cbm_per_unit'] : array();
         $cbm_totals    = isset( $_POST['sop_line_cbm_total'] ) ? (array) $_POST['sop_line_cbm_total'] : array();
+        $removed_flags = isset( $_POST['sop_removed'] ) ? (array) $_POST['sop_removed'] : array();
 
-        $all_keys = array_keys( $product_ids + $skus + $qtys + $moqs + $costs_rmb + $product_notes + $order_notes + $carton_nos + $image_ids + $locations + $cbm_units + $cbm_totals );
+        $all_keys = array_keys( $product_ids + $skus + $qtys + $moqs + $costs_rmb + $product_notes + $order_notes + $carton_nos + $image_ids + $locations + $cbm_units + $cbm_totals + $removed_flags );
+        $all_keys = sop_preorder_normalize_pid_map( array_fill_keys( $all_keys, 1 ) );
+        $all_keys = array_keys( $all_keys );
 
-        foreach ( $all_keys as $raw_key ) {
-            $product_id = is_numeric( $raw_key ) ? (int) $raw_key : 0;
-            if ( $product_id <= 0 && is_string( $raw_key ) && '' !== $raw_key && function_exists( 'wc_get_product_id_by_sku' ) ) {
-                $product_id = wc_get_product_id_by_sku( $raw_key );
-            }
+        foreach ( $all_keys as $pid ) {
+            $product_id = (int) $pid;
             if ( $product_id <= 0 ) {
                 continue;
             }
 
-            $sku       = isset( $skus[ $raw_key ] ) ? sanitize_text_field( wp_unslash( $skus[ $raw_key ] ) ) : '';
-            $qty       = isset( $qtys[ $raw_key ] ) ? floatval( wp_unslash( $qtys[ $raw_key ] ) ) : 0;
-            $moq       = isset( $moqs[ $raw_key ] ) ? floatval( wp_unslash( $moqs[ $raw_key ] ) ) : 0;
-            $cost_rmb  = isset( $costs_rmb[ $raw_key ] ) ? floatval( wp_unslash( $costs_rmb[ $raw_key ] ) ) : 0;
-            $p_notes   = isset( $product_notes[ $raw_key ] ) ? wp_kses_post( wp_unslash( $product_notes[ $raw_key ] ) ) : '';
-            $o_notes   = isset( $order_notes[ $raw_key ] ) ? sanitize_textarea_field( $order_notes[ $raw_key ] ) : '';
-            $carton_no = isset( $carton_nos[ $raw_key ] ) ? sanitize_text_field( $carton_nos[ $raw_key ] ) : '';
+            $sku       = isset( $skus[ $pid ] ) ? sanitize_text_field( wp_unslash( $skus[ $pid ] ) ) : '';
+            $qty       = isset( $qtys[ $pid ] ) ? floatval( wp_unslash( $qtys[ $pid ] ) ) : 0;
+            $moq       = isset( $moqs[ $pid ] ) ? floatval( wp_unslash( $moqs[ $pid ] ) ) : 0;
+            $cost_rmb  = isset( $costs_rmb[ $pid ] ) ? floatval( wp_unslash( $costs_rmb[ $pid ] ) ) : 0;
+            $p_notes   = isset( $product_notes[ $pid ] ) ? wp_kses_post( wp_unslash( $product_notes[ $pid ] ) ) : '';
+            $o_notes   = isset( $order_notes[ $pid ] ) ? sanitize_textarea_field( $order_notes[ $pid ] ) : '';
+            $carton_no = isset( $carton_nos[ $pid ] ) ? sanitize_text_field( $carton_nos[ $pid ] ) : '';
             if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
                 $carton_norm = sop_normalize_carton_numbers_for_display( $carton_no );
                 $carton_no   = isset( $carton_norm['value'] ) ? $carton_norm['value'] : $carton_no;
             }
-            $image_id  = isset( $image_ids[ $raw_key ] ) ? (int) $image_ids[ $raw_key ] : 0;
-            $location  = isset( $locations[ $raw_key ] ) ? sanitize_text_field( wp_unslash( $locations[ $raw_key ] ) ) : '';
-            $cbm_unit  = isset( $cbm_units[ $raw_key ] ) ? floatval( wp_unslash( $cbm_units[ $raw_key ] ) ) : 0;
-            $cbm_total = isset( $cbm_totals[ $raw_key ] ) ? floatval( wp_unslash( $cbm_totals[ $raw_key ] ) ) : 0;
+            $image_id  = isset( $image_ids[ $pid ] ) ? (int) $image_ids[ $pid ] : 0;
+            $location  = isset( $locations[ $pid ] ) ? sanitize_text_field( wp_unslash( $locations[ $pid ] ) ) : '';
+            $cbm_unit  = isset( $cbm_units[ $pid ] ) ? floatval( wp_unslash( $cbm_units[ $pid ] ) ) : 0;
+            $cbm_total = isset( $cbm_totals[ $pid ] ) ? floatval( wp_unslash( $cbm_totals[ $pid ] ) ) : 0;
 
             $lines[] = array(
                 'product_id'          => $product_id,
@@ -747,8 +771,8 @@ function sop_handle_save_preorder_sheet() {
                 'sort_index'          => $sort_index++,
             );
 
-            if ( isset( $_POST['sop_removed'] ) && is_array( $_POST['sop_removed'] ) && array_key_exists( $raw_key, $_POST['sop_removed'] ) ) {
-                $removed_meta_updates[ $product_id ] = ! empty( $_POST['sop_removed'][ $raw_key ] ) ? 1 : 0;
+            if ( isset( $removed_flags[ $pid ] ) ) {
+                $removed_meta_updates[ $product_id ] = ! empty( $removed_flags[ $pid ] ) ? 1 : 0;
             }
         }
     }
