@@ -1416,6 +1416,7 @@ function sop_preorder_render_admin_page() {
                             <?php $sop_row_index = 0; ?>
                             <?php foreach ( $rows as $index => $row ) :
                                 $product_id           = (int) $row['product_id'];
+                                $display_product_id   = $product_id;
                                 $name                 = $row['name'];
                                 $order_sku            = '';
                                 if ( isset( $row['order_sku'] ) && '' !== $row['order_sku'] ) {
@@ -1424,6 +1425,18 @@ function sop_preorder_render_admin_page() {
                                     $order_sku = $row['sku'];
                                 }
                                 $sku                  = isset( $row['sku'] ) ? $row['sku'] : '';
+                                if ( $display_product_id <= 0 && '' !== $sku && function_exists( 'wc_get_product_id_by_sku' ) ) {
+                                    $resolved_pid = wc_get_product_id_by_sku( (string) $sku );
+                                    if ( $resolved_pid > 0 ) {
+                                        $display_product_id = (int) $resolved_pid;
+                                    }
+                                }
+                                $inputs_disabled_attr = $sop_disabled_attr;
+                                $missing_pid_label    = '';
+                                if ( $display_product_id <= 0 ) {
+                                    $inputs_disabled_attr .= ' disabled="disabled"';
+                                    $missing_pid_label = ' ' . esc_html__( '(missing product ID)', 'sop' );
+                                }
                                 $notes                = $row['notes'];
                                 $min_order_qty        = (float) $row['min_order_qty'];
                                 $order_qty            = (float) $row['manual_order_qty'];
@@ -1578,14 +1591,17 @@ function sop_preorder_render_admin_page() {
                                         <?php echo esc_html( $location ); ?>
                                     </td>
                                     <td class="column-sku" data-column="sku" data-sort-key="sku" data-sort-value="<?php echo esc_attr( $sku_sort_value ); ?>" data-sort-text="<?php echo esc_attr( $sku_sort_value ); ?>">
-                                        <input type="hidden" name="sop_product_id[]" value="<?php echo esc_attr( $product_id ); ?>" />
+                                        <input type="hidden" name="sop_product_id[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $display_product_id ); ?>" />
                                         <textarea
-                                            name="sop_sku[]"
+                                            name="sop_sku[<?php echo esc_attr( $display_product_id ); ?>]"
                                             rows="2"
                                             class="sop-preorder-sku small-text"
                                             title="<?php echo esc_attr( $order_sku ); ?>"
-                                            <?php echo $sop_disabled_attr; ?>
+                                            <?php echo $inputs_disabled_attr; ?>
                                         ><?php echo esc_textarea( $order_sku ); ?></textarea>
+                                        <?php if ( '' !== $missing_pid_label ) : ?>
+                                            <div class="sop-preorder-missing-pid"><?php echo esc_html( $missing_pid_label ); ?></div>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="column-brand" data-column="brand">
                                         <?php echo esc_html( $brand ); ?>
@@ -1644,7 +1660,7 @@ function sop_preorder_render_admin_page() {
                                         <?php echo esc_html( number_format_i18n( $inbound_qty, 0 ) ); ?>
                                     </td>
                                     <td class="column-min-order" data-column="min_order">
-                                        <input type="number" name="sop_line_moq[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $min_order_qty ); ?>" step="1" min="0" class="sop-preorder-moq" <?php echo $sop_disabled_attr; ?> />
+                                        <input type="number" name="sop_line_moq[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $min_order_qty ); ?>" step="1" min="0" class="sop-preorder-moq" <?php echo $inputs_disabled_attr; ?> />
                                     </td>
                                     <td class="column-suggested" data-column="soq">
                                         <span class="sop-preorder-soq" data-soq="<?php echo esc_attr( $suggested_order_qty ); ?>">
@@ -1655,7 +1671,7 @@ function sop_preorder_render_admin_page() {
                                         </span>
                                     </td>
                                     <td class="column-order-qty" data-column="order_qty" data-sort="order_qty">
-                                        <input type="number" name="sop_line_qty[<?php echo esc_attr( $row_index ); ?>]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input sop-preorder-qty" <?php echo $sop_disabled_attr; ?> />
+                                        <input type="number" name="sop_line_qty[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input sop-preorder-qty" <?php echo $inputs_disabled_attr; ?> />
                                     </td>
                                     <td class="column-line-total-supplier" data-column="line_total">
                                         <span class="sop-line-total-gbp" data-cost-gbp="<?php echo esc_attr( $cost_gbp ); ?>" style="display:none;">
@@ -1682,14 +1698,14 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-notes" data-column="notes">
                                         <div class="sop-preorder-notes-wrapper">
                                             <textarea
-                                                name="sop_line_product_notes[<?php echo esc_attr( $row_index ); ?>]"
+                                                name="sop_line_product_notes[<?php echo esc_attr( $display_product_id ); ?>]"
                                                 rows="3"
                                                 class="sop-preorder-notes sop-preorder-notes-product"
                                                 style="width: 100%; resize: none;"
                                                 title="<?php echo esc_attr( $notes ); ?>"
                                                 data-row-index="<?php echo esc_attr( $row_index ); ?>"
                                                 data-notes-type="product"
-                                                <?php echo $sop_disabled_attr; ?>
+                                                <?php echo $inputs_disabled_attr; ?>
                                             ><?php echo esc_textarea( $notes ); ?></textarea>
 
                                             <button type="button"
@@ -1698,14 +1714,14 @@ function sop_preorder_render_admin_page() {
                                                     data-row-index="<?php echo esc_attr( $row_index ); ?>"
                                                     data-notes-type="product"
                                                     aria-label="<?php esc_attr_e( 'Edit product notes', 'sop' ); ?>"
-                                                    <?php echo $sop_disabled_attr; ?>>
+                                                    <?php echo $inputs_disabled_attr; ?>>
                                                 <span class="dashicons dashicons-edit"></span>
                                             </button>
                                         </div>
 
                                         <input
                                             type="hidden"
-                                            name="sop_removed[]"
+                                            name="sop_removed[<?php echo esc_attr( $display_product_id ); ?>]"
                                             value="<?php echo ! empty( $row['removed'] ) ? '1' : '0'; ?>"
                                             class="sop-preorder-removed-flag"
                                         />
@@ -1713,13 +1729,13 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-order-notes" data-column="order_notes">
                                         <div class="sop-preorder-notes-wrapper">
                                             <textarea
-                                                name="sop_line_order_notes[<?php echo esc_attr( $row_index ); ?>]"
+                                                name="sop_line_order_notes[<?php echo esc_attr( $display_product_id ); ?>]"
                                                 rows="3"
                                                 class="sop-preorder-notes sop-preorder-notes-order"
                                                 style="width: 100%; resize: none;"
                                                 data-row-index="<?php echo esc_attr( $row_index ); ?>"
                                                 data-notes-type="order"
-                                                <?php echo $sop_disabled_attr; ?>
+                                                <?php echo $inputs_disabled_attr; ?>
                                             ><?php echo isset( $row['order_notes'] ) ? esc_textarea( $row['order_notes'] ) : ''; ?></textarea>
 
                                             <button type="button"
@@ -1728,7 +1744,7 @@ function sop_preorder_render_admin_page() {
                                                     data-row-index="<?php echo esc_attr( $row_index ); ?>"
                                                     data-notes-type="order"
                                                     aria-label="<?php esc_attr_e( 'Edit order notes', 'sop' ); ?>"
-                                                    <?php echo $sop_disabled_attr; ?>>
+                                                    <?php echo $inputs_disabled_attr; ?>>
                                                 <span class="dashicons dashicons-edit"></span>
                                             </button>
                                         </div>
@@ -1736,12 +1752,12 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-carton-no" data-column="carton_no" data-sort-key="carton_no" data-sort-value="<?php echo esc_attr( $carton_sort_attr ); ?>">
                                         <input
                                             type="text"
-                                            name="sop_line_carton_no[<?php echo esc_attr( $row_index ); ?>]"
+                                            name="sop_line_carton_no[<?php echo esc_attr( $display_product_id ); ?>]"
                                             value="<?php echo esc_attr( $carton_value ); ?>"
                                             class="sop-preorder-carton-input"
                                             data-original-value="<?php echo esc_attr( $carton_value ); ?>"
                                             style="width: 80px;"
-                                            <?php echo $sop_disabled_attr; ?>
+                                            <?php echo $inputs_disabled_attr; ?>
                                         />
                                     </td>
                                 </tr>

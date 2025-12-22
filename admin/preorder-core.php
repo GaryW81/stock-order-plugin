@@ -704,27 +704,32 @@ function sop_handle_save_preorder_sheet() {
         $cbm_units     = isset( $_POST['sop_line_cbm_per_unit'] ) ? (array) $_POST['sop_line_cbm_per_unit'] : array();
         $cbm_totals    = isset( $_POST['sop_line_cbm_total'] ) ? (array) $_POST['sop_line_cbm_total'] : array();
 
-        foreach ( $product_ids as $key => $product_id_raw ) {
-            $product_id = (int) $product_id_raw;
+        $all_keys = array_keys( $product_ids + $skus + $qtys + $moqs + $costs_rmb + $product_notes + $order_notes + $carton_nos + $image_ids + $locations + $cbm_units + $cbm_totals );
+
+        foreach ( $all_keys as $raw_key ) {
+            $product_id = is_numeric( $raw_key ) ? (int) $raw_key : 0;
+            if ( $product_id <= 0 && is_string( $raw_key ) && '' !== $raw_key && function_exists( 'wc_get_product_id_by_sku' ) ) {
+                $product_id = wc_get_product_id_by_sku( $raw_key );
+            }
             if ( $product_id <= 0 ) {
                 continue;
             }
 
-            $sku       = isset( $skus[ $key ] ) ? sanitize_text_field( wp_unslash( $skus[ $key ] ) ) : '';
-            $qty       = isset( $qtys[ $key ] ) ? floatval( wp_unslash( $qtys[ $key ] ) ) : 0;
-            $moq       = isset( $moqs[ $key ] ) ? floatval( wp_unslash( $moqs[ $key ] ) ) : 0;
-            $cost_rmb  = isset( $costs_rmb[ $key ] ) ? floatval( wp_unslash( $costs_rmb[ $key ] ) ) : 0;
-            $p_notes   = isset( $product_notes[ $key ] ) ? wp_kses_post( wp_unslash( $product_notes[ $key ] ) ) : '';
-            $o_notes   = isset( $order_notes[ $key ] ) ? sanitize_textarea_field( $order_notes[ $key ] ) : '';
-            $carton_no = isset( $carton_nos[ $key ] ) ? sanitize_text_field( $carton_nos[ $key ] ) : '';
+            $sku       = isset( $skus[ $raw_key ] ) ? sanitize_text_field( wp_unslash( $skus[ $raw_key ] ) ) : '';
+            $qty       = isset( $qtys[ $raw_key ] ) ? floatval( wp_unslash( $qtys[ $raw_key ] ) ) : 0;
+            $moq       = isset( $moqs[ $raw_key ] ) ? floatval( wp_unslash( $moqs[ $raw_key ] ) ) : 0;
+            $cost_rmb  = isset( $costs_rmb[ $raw_key ] ) ? floatval( wp_unslash( $costs_rmb[ $raw_key ] ) ) : 0;
+            $p_notes   = isset( $product_notes[ $raw_key ] ) ? wp_kses_post( wp_unslash( $product_notes[ $raw_key ] ) ) : '';
+            $o_notes   = isset( $order_notes[ $raw_key ] ) ? sanitize_textarea_field( $order_notes[ $raw_key ] ) : '';
+            $carton_no = isset( $carton_nos[ $raw_key ] ) ? sanitize_text_field( $carton_nos[ $raw_key ] ) : '';
             if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
                 $carton_norm = sop_normalize_carton_numbers_for_display( $carton_no );
                 $carton_no   = isset( $carton_norm['value'] ) ? $carton_norm['value'] : $carton_no;
             }
-            $image_id  = isset( $image_ids[ $key ] ) ? (int) $image_ids[ $key ] : 0;
-            $location  = isset( $locations[ $key ] ) ? sanitize_text_field( wp_unslash( $locations[ $key ] ) ) : '';
-            $cbm_unit  = isset( $cbm_units[ $key ] ) ? floatval( wp_unslash( $cbm_units[ $key ] ) ) : 0;
-            $cbm_total = isset( $cbm_totals[ $key ] ) ? floatval( wp_unslash( $cbm_totals[ $key ] ) ) : 0;
+            $image_id  = isset( $image_ids[ $raw_key ] ) ? (int) $image_ids[ $raw_key ] : 0;
+            $location  = isset( $locations[ $raw_key ] ) ? sanitize_text_field( wp_unslash( $locations[ $raw_key ] ) ) : '';
+            $cbm_unit  = isset( $cbm_units[ $raw_key ] ) ? floatval( wp_unslash( $cbm_units[ $raw_key ] ) ) : 0;
+            $cbm_total = isset( $cbm_totals[ $raw_key ] ) ? floatval( wp_unslash( $cbm_totals[ $raw_key ] ) ) : 0;
 
             $lines[] = array(
                 'product_id'          => $product_id,
@@ -742,8 +747,8 @@ function sop_handle_save_preorder_sheet() {
                 'sort_index'          => $sort_index++,
             );
 
-            if ( isset( $_POST['sop_removed'] ) && is_array( $_POST['sop_removed'] ) && array_key_exists( $key, $_POST['sop_removed'] ) ) {
-                $removed_meta_updates[ $product_id ] = ! empty( $_POST['sop_removed'][ $key ] ) ? 1 : 0;
+            if ( isset( $_POST['sop_removed'] ) && is_array( $_POST['sop_removed'] ) && array_key_exists( $raw_key, $_POST['sop_removed'] ) ) {
+                $removed_meta_updates[ $product_id ] = ! empty( $_POST['sop_removed'][ $raw_key ] ) ? 1 : 0;
             }
         }
     }
@@ -793,6 +798,63 @@ function sop_handle_save_preorder_sheet() {
 
     if ( $sheet_id > 0 ) {
         sop_preorder_update_po_header_from_post( (int) $sheet_id );
+    }
+
+    // Preserve saved stock snapshots when updating existing lines.
+    if ( $is_update && function_exists( 'sop_get_preorder_sheet_lines' ) ) {
+        $existing_lines    = sop_get_preorder_sheet_lines( $sheet_id );
+        $existing_lines    = is_array( $existing_lines ) ? $existing_lines : array();
+        $existing_by_pid   = array();
+        $existing_by_sku   = array();
+        $protected_snapshots = array(
+            'stock_on_hand',
+            'current_stock',
+            'stock_qty',
+            'saved_stock',
+            'stock_at_save',
+            'stock_snapshot',
+            'stock_on_hand_saved',
+        );
+
+        foreach ( $existing_lines as $eline ) {
+            $epid = isset( $eline['product_id'] ) ? (int) $eline['product_id'] : 0;
+            $esku = isset( $eline['sku_owner'] ) ? (string) $eline['sku_owner'] : '';
+            if ( $epid > 0 ) {
+                $existing_by_pid[ $epid ] = $eline;
+            }
+            if ( '' !== $esku ) {
+                $existing_by_sku[ $esku ] = $eline;
+            }
+        }
+
+        foreach ( $lines as &$line_update ) {
+            $pid = isset( $line_update['product_id'] ) ? (int) $line_update['product_id'] : 0;
+            if ( $pid <= 0 && ! empty( $line_update['sku_owner'] ) && function_exists( 'wc_get_product_id_by_sku' ) ) {
+                $pid = wc_get_product_id_by_sku( (string) $line_update['sku_owner'] );
+                if ( $pid > 0 ) {
+                    $line_update['product_id'] = $pid;
+                }
+            }
+
+            $existing_line = null;
+            if ( $pid > 0 && isset( $existing_by_pid[ $pid ] ) ) {
+                $existing_line = $existing_by_pid[ $pid ];
+            } elseif ( ! empty( $line_update['sku_owner'] ) && isset( $existing_by_sku[ $line_update['sku_owner'] ] ) ) {
+                $existing_line = $existing_by_sku[ $line_update['sku_owner'] ];
+                if ( $pid <= 0 && isset( $existing_line['product_id'] ) ) {
+                    $line_update['product_id'] = (int) $existing_line['product_id'];
+                }
+            }
+
+            if ( $existing_line && is_array( $existing_line ) ) {
+                foreach ( $protected_snapshots as $snap_key ) {
+                    if ( isset( $existing_line[ $snap_key ] ) && ! isset( $line_update[ $snap_key ] ) ) {
+                        $line_update[ $snap_key ] = $existing_line[ $snap_key ];
+                    }
+                }
+            }
+        }
+        unset( $line_update );
     }
 
     $lines_result = function_exists( 'sop_replace_preorder_sheet_lines' )
