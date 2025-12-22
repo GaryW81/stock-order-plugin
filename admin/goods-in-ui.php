@@ -1,13 +1,14 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.04
+ * File version: 1.0.05
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
  * - Add unsaved changes warning for edited goods-in forms; column toggle dropdown; location column reposition/wrapping.
  * - Adjusted Location/SKU/Product widths and always-visible sort indicators.
  * - Confine horizontal scrolling to table container (prevent full-page scrollbar).
+ * - 1.0.05 - Hydrate Goods-In display fields with live WooCommerce data (preserve saved stock snapshot).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -128,7 +129,24 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
             ORDER BY l.sort_index ASC, l.id ASC";
 
     $rows = $wpdb->get_results( $wpdb->prepare( $sql, '_sop_preorder_removed', $sheet_id ), ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-    return is_array( $rows ) ? $rows : array();
+    $rows = is_array( $rows ) ? $rows : array();
+
+    // Hydrate display fields with live product data (do not alter saved stock snapshots).
+    $supplier_id = 0;
+    if ( function_exists( 'sop_goodsin_get_sheet' ) ) {
+        $sheet = sop_goodsin_get_sheet( $sheet_id );
+        if ( isset( $sheet['supplier_id'] ) ) {
+            $supplier_id = (int) $sheet['supplier_id'];
+        }
+    }
+
+    if ( function_exists( 'sop_hydrate_line_with_live_product_fields' ) ) {
+        foreach ( $rows as $idx => $row ) {
+            $rows[ $idx ] = sop_hydrate_line_with_live_product_fields( $row, $supplier_id );
+        }
+    }
+
+    return $rows;
 }
 
 function sop_render_goods_in_page() {

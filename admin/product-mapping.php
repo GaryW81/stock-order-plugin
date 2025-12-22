@@ -2,6 +2,7 @@
 /**
  * Stock Order Plugin – Phase 2
  * Supplier Product Mapping Screen (paginated + totals)
+ * File version: 1.0.01
  *
  * - Adds "Products by Supplier" submenu under Stock Order.
  * - Lets you select a supplier (or "Unassigned") and see products linked to it.
@@ -294,4 +295,178 @@ function sop_render_products_by_supplier_page() {
     }
 
     echo '</div>';
+}
+
+/**
+ * Get live product display fields for one product (cached per request).
+ *
+ * @param int $product_id Product ID.
+ * @param int $supplier_id Supplier ID for currency-specific fields.
+ * @return array
+ */
+function sop_get_live_product_display_fields( $product_id, $supplier_id = 0 ) {
+    static $cache = array();
+
+    $product_id  = (int) $product_id;
+    $supplier_id = (int) $supplier_id;
+
+    if ( $product_id <= 0 ) {
+        return array();
+    }
+
+    if ( isset( $cache[ $product_id ][ $supplier_id ] ) ) {
+        return $cache[ $product_id ][ $supplier_id ];
+    }
+
+    $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+    if ( ! $product ) {
+        $cache[ $product_id ][ $supplier_id ] = array();
+        return array();
+    }
+
+    $sku           = (string) $product->get_sku();
+    $product_name  = (string) $product->get_name();
+    $regular_price = (float) $product->get_regular_price();
+    if ( $regular_price < 0 ) {
+        $regular_price = 0.0;
+    }
+
+    // Location (SOP bin location with fallback).
+    $location = get_post_meta( $product_id, '_sop_bin_location', true );
+    if ( '' === $location ) {
+        $location = get_post_meta( $product_id, '_product_location', true );
+    }
+    $location = is_string( $location ) ? $location : '';
+
+    // Product notes.
+    $product_notes = get_post_meta( $product_id, '_sop_preorder_notes', true );
+    $product_notes = is_string( $product_notes ) ? $product_notes : '';
+
+    // Brand from taxonomy.
+    $brand       = '';
+    $brand_terms = wp_get_post_terms( $product_id, 'product_brand', array( 'fields' => 'names' ) );
+    if ( ! is_wp_error( $brand_terms ) && ! empty( $brand_terms ) ) {
+        $brand = is_array( $brand_terms ) ? implode( ', ', $brand_terms ) : (string) $brand_terms;
+    }
+
+    // Category path using existing helper when available.
+    $category = '';
+    if ( function_exists( 'sop_get_product_category_path_below_root' ) ) {
+        $category = (string) sop_get_product_category_path_below_root( $product_id );
+    }
+
+    // MOQ (min order qty).
+    $moq = get_post_meta( $product_id, '_sop_min_order_qty', true );
+    $moq = ( '' !== $moq ) ? (float) $moq : 0.0;
+    if ( $moq < 0 ) {
+        $moq = 0.0;
+    }
+
+    // Supplier currency cost (reuse preorder resolver when available).
+    $cost_supplier = '';
+    if ( function_exists( 'sop_preorder_resolve_supplier_params' ) && function_exists( 'sop_preorder_get_cost_for_supplier_currency' ) ) {
+        $ctx      = sop_preorder_resolve_supplier_params( $supplier_id );
+        $currency = isset( $ctx['supplier']['currency_code'] ) ? sop_preorder_normalise_currency( $ctx['supplier']['currency_code'] ) : 'GBP';
+        $settings = function_exists( 'sop_preorder_get_settings' ) ? sop_preorder_get_settings() : null;
+        $cost     = sop_preorder_get_cost_for_supplier_currency( $product_id, $currency, $settings );
+        if ( null !== $cost && '' !== $cost ) {
+            $cost_supplier = (float) $cost;
+        }
+    }
+
+    // cm3 per unit from product dimensions (CM).
+    $length = (float) $product->get_length();
+    $width  = (float) $product->get_width();
+    $height = (float) $product->get_height();
+    $cm3_per_unit = 0.0;
+    if ( $length > 0 && $width > 0 && $height > 0 ) {
+        $cm3_per_unit = $length * $width * $height;
+    }
+
+    $data = array(
+        'sku'                 => $sku,
+        'product_name'        => $product_name,
+        'regular_price'       => $regular_price,
+        'brand'               => $brand,
+        'category'            => $category,
+        'location'            => $location,
+        'product_notes'       => $product_notes,
+        'cm3_per_unit'        => $cm3_per_unit,
+        'moq'                 => $moq,
+        'cost_per_unit'       => $cost_supplier,
+    );
+
+    $cache[ $product_id ][ $supplier_id ] = $data;
+    return $data;
+}
+
+/**
+ * Hydrate a line array with live product display fields (non-destructive).
+ *
+ * @param array $line Saved line data.
+ * @param int   $supplier_id Supplier ID for currency lookups.
+ * @return array
+ */
+function sop_hydrate_line_with_live_product_fields( array $line, $supplier_id = 0 ) {
+    $supplier_id = (int) $supplier_id;
+
+    $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+    if ( $product_id <= 0 && ! empty( $line['sku_owner'] ) && function_exists( 'wc_get_product_id_by_sku' ) ) {
+        $maybe_pid = wc_get_product_id_by_sku( (string) $line['sku_owner'] );
+        if ( $maybe_pid > 0 ) {
+            $product_id = $maybe_pid;
+        }
+    }
+
+    if ( $product_id <= 0 ) {
+        return $line;
+    }
+
+    $live = sop_get_live_product_display_fields( $product_id, $supplier_id );
+    if ( empty( $live ) ) {
+        return $line;
+    }
+
+    // Keys that must never be overwritten (saved snapshots).
+    $protected_keys = array(
+        'current_stock',
+        'stock_qty',
+        'saved_stock',
+        'stock_at_save',
+        'stock_snapshot',
+        'stock_on_hand_saved',
+    );
+
+    $map = array(
+        'sku_owner'            => 'sku',
+        'sku'                  => 'sku',
+        'product_name'         => 'product_name',
+        'name'                 => 'product_name',
+        'brand'                => 'brand',
+        'category'             => 'category',
+        'category_path'        => 'category',
+        'location'             => 'location',
+        'product_notes_owner'  => 'product_notes',
+        'product_notes'        => 'product_notes',
+        'moq_owner'            => 'moq',
+        'moq'                  => 'moq',
+        'cost_rmb_owner'       => 'cost_per_unit',
+        'cost_owner'           => 'cost_per_unit',
+        'cost_unit_supplier'   => 'cost_per_unit',
+        'cbm_per_unit'         => 'cm3_per_unit',
+        'cm3_per_unit'         => 'cm3_per_unit',
+        'regular_unit_price'   => 'regular_price',
+        'price_ex'             => 'regular_price',
+    );
+
+    foreach ( $map as $line_key => $live_key ) {
+        if ( in_array( $line_key, $protected_keys, true ) ) {
+            continue;
+        }
+        if ( array_key_exists( $line_key, $line ) && isset( $live[ $live_key ] ) ) {
+            $line[ $line_key ] = $live[ $live_key ];
+        }
+    }
+
+    return $line;
 }

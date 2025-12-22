@@ -1,11 +1,12 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.01
+ * File version: 1.0.02
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
  * - Uses JSON payload to avoid max_input_vars on large sheets.
+ * - 1.0.02 - Add live display hydration helper for Goods-In lines (display only).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -88,6 +89,26 @@ function sop_goodsin_get_sheet_lines_map( $sheet_id ) {
     }
 
     return $map;
+}
+
+/**
+ * Hydrate saved goods-in lines with live product display data (non-destructive).
+ *
+ * @param array $lines_map Map of lines keyed by line ID.
+ * @param int   $supplier_id Supplier ID for currency-aware fields.
+ * @return array
+ */
+function sop_goodsin_hydrate_lines_with_live_data( array $lines_map, $supplier_id = 0 ) {
+    if ( empty( $lines_map ) || ! function_exists( 'sop_hydrate_line_with_live_product_fields' ) ) {
+        return $lines_map;
+    }
+
+    $supplier_id = (int) $supplier_id;
+    foreach ( $lines_map as $lid => $line ) {
+        $lines_map[ $lid ] = sop_hydrate_line_with_live_product_fields( $line, $supplier_id );
+    }
+
+    return $lines_map;
 }
 
 /**
