@@ -1,6 +1,7 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.46 *
-* - V12.46 - Add Order Summary (XLSX) download option.
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.47 *
+ * - V12.47 - Remove legacy XLS download options (XLSX only).
+ * - V12.46 - Add Order Summary (XLSX) download option.
 * - V12.45 - SOQ tooltip: restore custom tooltip + improve hover + fix scroll/hover dropouts.
  * - V12.44 - SOQ tooltip: suppress native title tooltip + improve hover hit area.
  * - V12.43 - Fix SOQ order advice tooltip hover.
@@ -1063,22 +1064,11 @@ function sop_preorder_render_admin_page() {
             </form>
 
             <?php if ( $current_sheet_id > 0 ) : ?>
-                <form id="sop-preorder-export-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:none;">
-                    <input type="hidden" name="action" value="sop_export_preorder_sheet_csv" />
-                    <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
-                    <input type="hidden" name="supplier_id" value="<?php echo esc_attr( $current_supplier_id ); ?>" />
-                    <?php wp_nonce_field( 'sop_export_preorder_sheet_csv' ); ?>
-                </form>
                 <form id="sop-preorder-export-xlsx-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:none;">
                     <input type="hidden" name="action" value="sop_export_preorder_sheet_xlsx" />
                     <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
                     <input type="hidden" name="supplier_id" value="<?php echo esc_attr( $current_supplier_id ); ?>" />
                     <?php wp_nonce_field( 'sop_export_preorder_sheet_xlsx' ); ?>
-                </form>
-                <form id="sop-preorder-export-po-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:none;">
-                    <input type="hidden" name="action" value="sop_export_purchase_order_xls" />
-                    <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
-                    <?php wp_nonce_field( 'sop_export_purchase_order_xls' ); ?>
                 </form>
                 <form id="sop-preorder-export-po-xlsx-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:none;">
                     <input type="hidden" name="action" value="sop_export_purchase_order_xlsx" />
@@ -1131,12 +1121,6 @@ function sop_preorder_render_admin_page() {
                                     <div class="sop-download-menu">
                                         <button type="submit" form="sop-preorder-export-xlsx-form">
                                             <?php esc_html_e( 'Order Sheet (XLSX)', 'sop' ); ?>
-                                        </button>
-                                        <button type="submit" form="sop-preorder-export-form">
-                                            <?php esc_html_e( 'Order Sheet (XLS)', 'sop' ); ?>
-                                        </button>
-                                        <button type="submit" form="sop-preorder-export-po-form">
-                                            <?php esc_html_e( 'Order Summary (XLS)', 'sop' ); ?>
                                         </button>
                                         <button type="submit" form="sop-preorder-export-po-xlsx-form">
                                             <?php esc_html_e( 'Order Summary (XLSX)', 'sop' ); ?>

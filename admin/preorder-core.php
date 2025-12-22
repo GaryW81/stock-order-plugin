@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.45
+ * File version: 11.46
+ * - Remove legacy XLS export endpoints (XLSX only).
  * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
  * - Cleanup: remove sop_debug_costs tooling; keep minimal COGS key list.
@@ -823,80 +824,6 @@ function sop_handle_save_preorder_sheet() {
     exit;
 }
 
-/**
- * Handle CSV export for a saved pre-order sheet.
- *
- * @return void
- */
-add_action( 'admin_post_sop_export_preorder_sheet_csv', 'sop_handle_export_preorder_sheet_csv' );
-function sop_handle_export_preorder_sheet_csv() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
-        wp_die( esc_html__( 'You are not allowed to export pre-order sheets.', 'sop' ) );
-    }
-
-    $nonce = isset( $_REQUEST['_wpnonce'] ) ? wp_unslash( $_REQUEST['_wpnonce'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-    if ( ! wp_verify_nonce( $nonce, 'sop_export_preorder_sheet_csv' ) ) {
-        wp_die( esc_html__( 'Invalid export request.', 'sop' ) );
-    }
-
-    $sheet_id    = isset( $_REQUEST['sop_sheet_id'] ) ? (int) $_REQUEST['sop_sheet_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-    $supplier_id = isset( $_REQUEST['supplier_id'] ) ? (int) $_REQUEST['supplier_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-
-    if ( $sheet_id <= 0 || ! function_exists( 'sop_get_preorder_sheet' ) || ! function_exists( 'sop_get_preorder_sheet_lines' ) ) {
-        wp_die( esc_html__( 'Pre-order sheet not found for export.', 'sop' ) );
-    }
-
-    $dataset = sop_preorder_build_export_dataset( $sheet_id, $supplier_id );
-    if ( is_wp_error( $dataset ) ) {
-        wp_die( esc_html( $dataset->get_error_message() ) );
-    }
-
-    list( $sheet, $lines ) = $dataset;
-
-    $supplier_slug = '';
-    if ( function_exists( 'sop_get_supplier_label' ) && ! empty( $sheet['supplier_id'] ) ) {
-        $supplier_label = sop_get_supplier_label( (int) $sheet['supplier_id'] );
-        $supplier_slug  = sanitize_title( $supplier_label );
-    } elseif ( ! empty( $sheet['title'] ) ) {
-        $supplier_slug = sanitize_title( $sheet['title'] );
-    } elseif ( ! empty( $sheet['supplier_id'] ) ) {
-        $supplier_slug = 'supplier-' . (int) $sheet['supplier_id'];
-    } else {
-        $supplier_slug = 'supplier';
-    }
-
-    $order_number = ! empty( $sheet['order_number_label'] ) ? preg_replace( '/[^0-9A-Za-z\-_]/', '', $sheet['order_number_label'] ) : (string) (int) $sheet_id;
-    $version      = ! empty( $sheet['edit_version'] ) ? (int) $sheet['edit_version'] : 1;
-    $order_date   = ! empty( $sheet['order_date_owner'] ) ? preg_replace( '/[^0-9\-]/', '', $sheet['order_date_owner'] ) : gmdate( 'Y-m-d' );
-
-    $filename = sprintf(
-        '%s-order-%s-v%d-%s.xls',
-        $supplier_slug,
-        $order_number,
-        $version,
-        $order_date
-    );
-
-    $html = class_exists( 'SOP_Preorder_Excel_Exporter' )
-        ? SOP_Preorder_Excel_Exporter::build_html_table( $sheet, $lines )
-        : new WP_Error( 'sop_export_no_exporter', __( 'Excel exporter is not available.', 'sop' ) );
-
-    if ( is_wp_error( $html ) ) {
-        $csv_filename = str_replace( '.xls', '.csv', $filename );
-        sop_preorder_stream_csv_export( $sheet, $lines, $csv_filename );
-        exit;
-    }
-
-    nocache_headers();
-    header( 'Content-Type: application/vnd.ms-excel; charset=utf-8' );
-    header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
-    header( 'Pragma: no-cache' );
-    header( 'Expires: 0' );
-
-    echo $html;
-    exit;
-}
-
 add_action( 'admin_post_sop_export_preorder_sheet_xlsx', 'sop_handle_export_preorder_sheet_xlsx' );
 function sop_handle_export_preorder_sheet_xlsx() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
@@ -966,62 +893,7 @@ function sop_handle_export_preorder_sheet_xlsx() {
     exit;
 }
 
-add_action( 'admin_post_sop_export_purchase_order_xls', 'sop_handle_export_purchase_order_xls' );
 add_action( 'admin_post_sop_export_purchase_order_xlsx', 'sop_handle_export_purchase_order_xlsx' );
-function sop_handle_export_purchase_order_xls() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
-        wp_die( esc_html__( 'You are not allowed to export purchase orders.', 'sop' ) );
-    }
-
-    $nonce = isset( $_REQUEST['_wpnonce'] ) ? wp_unslash( $_REQUEST['_wpnonce'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-    if ( ! wp_verify_nonce( $nonce, 'sop_export_purchase_order_xls' ) ) {
-        wp_die( esc_html__( 'Invalid PO export request.', 'sop' ) );
-    }
-
-    $sheet_id = isset( $_REQUEST['sop_sheet_id'] ) ? (int) $_REQUEST['sop_sheet_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-    if ( $sheet_id <= 0 ) {
-        wp_die( esc_html__( 'Purchase Order not found for export.', 'sop' ) );
-    }
-
-    $dataset = sop_preorder_build_export_dataset( $sheet_id );
-    if ( is_wp_error( $dataset ) ) {
-        wp_die( esc_html( $dataset->get_error_message() ) );
-    }
-
-    list( $sheet_header, $line_rows ) = $dataset;
-
-    $supplier_slug = '';
-    if ( function_exists( 'sop_get_supplier_label' ) && ! empty( $sheet_header['supplier_id'] ) ) {
-        $supplier_label = sop_get_supplier_label( (int) $sheet_header['supplier_id'] );
-        $supplier_slug  = sanitize_title( $supplier_label );
-    } elseif ( ! empty( $sheet_header['supplier_name'] ) ) {
-        $supplier_slug = sanitize_title( $sheet_header['supplier_name'] );
-    } elseif ( ! empty( $sheet_header['supplier_id'] ) ) {
-        $supplier_slug = 'supplier-' . (int) $sheet_header['supplier_id'];
-    } else {
-        $supplier_slug = 'supplier';
-    }
-
-    $filename = sanitize_file_name( sprintf( 'purchase-order-%s-%d.xls', $supplier_slug, (int) $sheet_id ) );
-
-    $html = class_exists( 'SOP_Preorder_Excel_Exporter' )
-        ? SOP_Preorder_Excel_Exporter::build_purchase_order_html( $sheet_header, $line_rows )
-        : new WP_Error( 'sop_export_no_exporter', __( 'PO Excel exporter is not available.', 'sop' ) );
-
-    if ( is_wp_error( $html ) ) {
-        wp_die( esc_html( $html->get_error_message() ) );
-    }
-
-    nocache_headers();
-    header( 'Content-Type: application/vnd.ms-excel; charset=utf-8' );
-    header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
-    header( 'Pragma: no-cache' );
-    header( 'Expires: 0' );
-
-    echo $html;
-    exit;
-}
-
 function sop_handle_export_purchase_order_xlsx() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You are not allowed to export purchase orders.', 'sop' ) );
@@ -1217,55 +1089,6 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
  * Fallback CSV export.
  *
  * @param array  $sheet_header Header data.
- * @param array  $lines        Line rows.
- * @param string $filename     Filename.
- * @return void
- */
-function sop_preorder_stream_csv_export( $sheet_header, $lines, $filename ) {
-    nocache_headers();
-    header( 'Content-Type: text/csv; charset=utf-8' );
-    header( 'Content-Disposition: attachment; filename=' . $filename );
-
-    $output = fopen( 'php://output', 'w' );
-
-    fputcsv(
-        $output,
-        array(
-            'Product ID',
-            'SKU',
-            'Product name',
-            'Location',
-            'MOQ',
-            'SOQ',
-            'Qty',
-            'Cost per unit',
-            'Line total',
-            'Notes',
-        )
-    );
-
-    foreach ( $lines as $line ) {
-        fputcsv(
-            $output,
-            array(
-                isset( $line['product_id'] ) ? $line['product_id'] : '',
-                isset( $line['sku'] ) ? $line['sku'] : '',
-                isset( $line['product_name'] ) ? $line['product_name'] : '',
-                isset( $line['location'] ) ? $line['location'] : '',
-                isset( $line['moq'] ) ? $line['moq'] : '',
-                isset( $line['soq'] ) ? $line['soq'] : '',
-                isset( $line['qty'] ) ? $line['qty'] : '',
-                isset( $line['cost_per_unit'] ) ? $line['cost_per_unit'] : '',
-                isset( $line['line_total'] ) ? $line['line_total'] : '',
-                isset( $line['notes'] ) ? $line['notes'] : '',
-            )
-        );
-    }
-
-    fclose( $output );
-}
-
-/**
  * Handle deletion of a draft preorder sheet.
  *
  * @return void
