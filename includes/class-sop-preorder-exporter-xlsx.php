@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.61
+ * File version: 1.0.62
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -132,6 +132,7 @@ class SOP_Preorder_XLSX_Exporter {
         foreach ( $lines as $line ) {
             $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
             $sku_to_output = isset( $line['sku'] ) ? (string) $line['sku'] : '';
+            $sku_to_output = self::sop_wrap_every_n_chars( $sku_to_output, 10 );
 
             $brand       = isset( $line['brand'] ) ? $line['brand'] : '';
             $name        = isset( $line['product_name'] ) ? $line['product_name'] : '';
@@ -197,7 +198,7 @@ class SOP_Preorder_XLSX_Exporter {
                 array_splice( $row_styles, 8, 0, array( 7 ) ); // Unit price USD right.
             }
 
-            $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles );
+            $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles, 0, array( 1 ) );
 
             // Handle image embedding.
             $image_id = 0;
@@ -949,6 +950,30 @@ class SOP_Preorder_XLSX_Exporter {
         return str_replace( "\n", '&#10;', $value );
     }
 
+    private static function sop_wrap_every_n_chars( $text, $width ) {
+        $text  = (string) $text;
+        $width = (int) $width;
+
+        if ( $width <= 0 || '' === $text ) {
+            return $text;
+        }
+
+        // Normalize and remove existing line breaks; we control wrapping explicitly.
+        $text = str_replace( array( "\r\n", "\r", "\n" ), '', $text );
+
+        $len = strlen( $text );
+        if ( $len <= $width ) {
+            return $text;
+        }
+
+        $out = '';
+        for ( $i = 0; $i < $len; $i += $width ) {
+            $out .= substr( $text, $i, $width ) . "\n";
+        }
+
+        return rtrim( $out, "\n" );
+    }
+
     private static function column_letter( $index ) {
         $index  = (int) $index;
         $letter = '';
@@ -959,7 +984,7 @@ class SOP_Preorder_XLSX_Exporter {
         return $letter;
     }
 
-    private static function build_row_xml( $row_num, $cells, $is_header = false, $styles = array(), $row_offset_for_height = 0 ) {
+    private static function build_row_xml( $row_num, $cells, $is_header = false, $styles = array(), $row_offset_for_height = 0, $force_inline_cols = array() ) {
         $row_style_attr  = ' s="4" customFormat="1"';
         $row_height_attr = $is_header ? '' : ' ht="48" customHeight="1"';
         $xml             = '<row r="' . (int) $row_num . '"' . $row_style_attr . $row_height_attr . '>';
@@ -975,7 +1000,9 @@ class SOP_Preorder_XLSX_Exporter {
                 $style_idx = (int) $style_idx;
             }
 
-            if ( is_numeric( $cell_value ) ) {
+            $force_inline = in_array( (int) $col_index, (array) $force_inline_cols, true );
+
+            if ( ! $force_inline && is_numeric( $cell_value ) ) {
                 $xml .= '<c r="' . $col_letter . '" s="' . $style_idx . '"><v>' . $cell_value . '</v></c>';
             } else {
                 $xml .= '<c r="' . $col_letter . '" t="inlineStr" s="' . $style_idx . '"><is><t xml:space="preserve">' . self::sanitize_xml_text( $cell_value ) . '</t></is></c>';
