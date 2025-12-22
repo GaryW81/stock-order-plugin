@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.05
+ * File version: 1.0.06
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -9,6 +9,7 @@
  * - Adjusted Location/SKU/Product widths and always-visible sort indicators.
  * - Confine horizontal scrolling to table container (prevent full-page scrollbar).
  * - 1.0.05 - Hydrate Goods-In display fields with live WooCommerce data (preserve saved stock snapshot).
+ * - 1.0.06 - Key Goods-In inputs by product_id (SKU display-only; disable inputs when product_id missing).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -382,6 +383,18 @@ function sop_render_goods_in_page() {
                 $line_id  = isset( $line['line_id'] ) ? (int) $line['line_id'] : 0;
                 $pid      = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
                 $sku      = isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '';
+                if ( $pid <= 0 && '' !== $sku && function_exists( 'wc_get_product_id_by_sku' ) ) {
+                    $resolved_pid = wc_get_product_id_by_sku( $sku );
+                    if ( $resolved_pid > 0 ) {
+                        $pid = (int) $resolved_pid;
+                    }
+                }
+                $inputs_disabled_attr = '';
+                $missing_pid_warning  = '';
+                if ( $pid <= 0 ) {
+                    $inputs_disabled_attr = ' disabled="disabled"';
+                    $missing_pid_warning  = ' (' . esc_html__( 'missing product_id', 'sop' ) . ')';
+                }
                 $name     = isset( $line['product_name'] ) ? (string) $line['product_name'] : '';
                 $location = isset( $line['location'] ) ? (string) $line['location'] : '';
                 $ordered  = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0.0;
@@ -435,14 +448,14 @@ function sop_render_goods_in_page() {
                     </td>
                     <td class="sop-goodsin-col-image" data-column="image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
                     <td class="sop-goodsin-col-location" data-column="location"><?php echo esc_html( $location ); ?></td>
-                    <td class="sop-goodsin-col-sku" data-column="sku"><?php echo esc_html( $sku ); ?></td>
+                    <td class="sop-goodsin-col-sku" data-column="sku"><?php echo esc_html( $sku . $missing_pid_warning ); ?></td>
                     <td class="sop-goodsin-col-product" data-column="product"><?php echo $product_link ? '<a href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>' : esc_html( $name ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
                     <td data-column="ordered"><?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?></td>
-                    <td data-column="received"><input type="number" class="sop-goodsin-received sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" name="received_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
-                    <td data-column="missing"><input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" name="missing_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
-                    <td data-column="reject"><input type="number" class="sop-goodsin-reject sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $reject ); ?>" name="reject_qty[<?php echo esc_attr( $line_id ); ?>]" /></td>
+                    <td data-column="received"><input type="number" class="sop-goodsin-received sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" name="received_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
+                    <td data-column="missing"><input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" name="missing_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
+                    <td data-column="reject"><input type="number" class="sop-goodsin-reject sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $reject ); ?>" name="reject_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
                     <td data-column="reason">
-                        <select class="sop-goodsin-reject-reason" name="reject_reason[<?php echo esc_attr( $line_id ); ?>]">
+                        <select class="sop-goodsin-reject-reason" name="reject_reason[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?>>
                             <option value=""><?php esc_html_e( '—', 'sop' ); ?></option>
                             <option value="wrong_spec" <?php selected( $reason, 'wrong_spec' ); ?>><?php esc_html_e( 'Wrong spec', 'sop' ); ?></option>
                             <option value="wrong_colour" <?php selected( $reason, 'wrong_colour' ); ?>><?php esc_html_e( 'Wrong colour', 'sop' ); ?></option>
@@ -453,7 +466,7 @@ function sop_render_goods_in_page() {
                     <td class="sop-goodsin-carton" data-column="carton"><?php echo esc_html( $carton ); ?></td>
                     <td class="sop-goodsin-text-col" data-column="product_notes"><?php echo esc_html( $product_notes ); ?></td>
                     <td class="sop-goodsin-text-col" data-column="order_notes"><?php echo esc_html( $order_notes ); ?></td>
-                    <td data-column="goodsin_notes"><input type="text" class="sop-goodsin-notes" value="<?php echo esc_attr( $notes ); ?>" name="goods_in_notes[<?php echo esc_attr( $line_id ); ?>]" /></td>
+                    <td data-column="goodsin_notes"><input type="text" class="sop-goodsin-notes" value="<?php echo esc_attr( $notes ); ?>" name="goods_in_notes[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
                     <td data-column="stocked"><?php echo esc_html( number_format_i18n( $stocked, 0 ) ); ?></td>
                     <td data-column="outstanding"><?php echo esc_html( number_format_i18n( $outstanding, 0 ) ); ?></td>
                 </tr>

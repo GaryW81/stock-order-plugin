@@ -1,12 +1,13 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.02
+ * File version: 1.0.03
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
  * - Uses JSON payload to avoid max_input_vars on large sheets.
  * - 1.0.02 - Add live display hydration helper for Goods-In lines (display only).
+ * - 1.0.03 - Key Goods-In handlers by product_id (SKU fallback) and normalise POST maps.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
