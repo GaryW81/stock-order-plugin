@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.46
+ * File version: 11.47
  * - Remove legacy XLS export endpoints (XLSX only).
+ * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
  * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
  * - Cleanup: remove sop_debug_costs tooling; keep minimal COGS key list.
@@ -993,6 +994,14 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
     }
 
     $lines = $filtered_lines;
+
+    // Hydrate display fields with live product data (display-only; preserve saved snapshots).
+    if ( function_exists( 'sop_hydrate_line_with_live_product_fields' ) ) {
+        $sheet_supplier_id = isset( $sheet['supplier_id'] ) ? (int) $sheet['supplier_id'] : 0;
+        foreach ( $lines as $lidx => $line ) {
+            $lines[ $lidx ] = sop_hydrate_line_with_live_product_fields( $line, $sheet_supplier_id );
+        }
+    }
 
     if ( empty( $lines ) ) {
         return new WP_Error( 'sop_export_no_orderable_lines', __( 'No orderable lines found (Qty > 0).', 'sop' ) );

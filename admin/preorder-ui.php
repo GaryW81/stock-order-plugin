@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.47 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.48 *
+ * - V12.48 - Hydrate saved sheet display rows with live WC data (preserve saved stock snapshot).
  * - V12.47 - Remove legacy XLS download options (XLSX only).
  * - V12.46 - Add Order Summary (XLSX) download option.
 * - V12.45 - SOQ tooltip: restore custom tooltip + improve hover + fix scroll/hover dropouts.
@@ -608,6 +609,14 @@ function sop_preorder_render_admin_page() {
             $current_lines = sop_get_preorder_sheet_lines( $current_sheet_id );
             if ( ! is_array( $current_lines ) ) {
                 $current_lines = array();
+            }
+
+            // Hydrate saved lines with live product display fields for viewing (do not alter saved snapshots).
+            if ( function_exists( 'sop_hydrate_line_with_live_product_fields' ) ) {
+                $sheet_supplier_id = isset( $current_sheet['supplier_id'] ) ? (int) $current_sheet['supplier_id'] : 0;
+                foreach ( $current_lines as $cidx => $cline ) {
+                    $current_lines[ $cidx ] = sop_hydrate_line_with_live_product_fields( $cline, $sheet_supplier_id );
+                }
             }
 
             if ( '' === $container_selection && ! empty( $current_sheet['container_type'] ) ) {

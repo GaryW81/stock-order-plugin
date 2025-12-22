@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin – Phase 2
  * Supplier Product Mapping Screen (paginated + totals)
- * File version: 1.0.01
+ * File version: 1.0.02
  *
  * - Adds "Products by Supplier" submenu under Stock Order.
  * - Lets you select a supplier (or "Unassigned") and see products linked to it.
@@ -435,6 +435,7 @@ function sop_hydrate_line_with_live_product_fields( array $line, $supplier_id = 
         'stock_at_save',
         'stock_snapshot',
         'stock_on_hand_saved',
+        'stock_on_hand',
     );
 
     $map = array(
