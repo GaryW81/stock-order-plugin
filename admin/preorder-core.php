@@ -62,30 +62,6 @@ function sop_preorder_get_stock_order_parent_slug() {
 }
 
 /**
- * Normalise an input array keyed by product_id or SKU into product_id keys.
- *
- * @param array $raw
- * @return array
- */
-function sop_preorder_normalize_pid_map( $raw ) {
-    $raw = is_array( $raw ) ? $raw : array();
-    $out = array();
-
-    foreach ( $raw as $key => $value ) {
-        $pid = is_numeric( $key ) ? (int) $key : 0;
-        if ( $pid <= 0 && is_string( $key ) && '' !== $key && function_exists( 'wc_get_product_id_by_sku' ) ) {
-            $pid = wc_get_product_id_by_sku( (string) $key );
-        }
-        if ( $pid <= 0 ) {
-            continue;
-        }
-        $out[ $pid ] = $value;
-    }
-
-    return $out;
-}
-
-/**
  * Migrate saved sheet lines to ensure product_id is present (lazy migration).
  *
  * @param array $sheet Sheet array with 'id' and 'supplier_id'.
