@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.04
+ * File version: 1.0.05
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -9,6 +9,7 @@
  * - 1.0.02 - Add live display hydration helper for Goods-In lines (display only).
  * - 1.0.03 - Key Goods-In handlers by product_id (SKU fallback) and normalise POST maps.
  * - 1.0.04 - Apply product_id normalisation across all Goods-In handlers (SKU fallback).
+ * - 1.0.05 - Lazy-migrate legacy lines/maps to product_id and warn on unresolved SKUs.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -91,6 +92,55 @@ function sop_goodsin_get_sheet_lines_map( $sheet_id ) {
     }
 
     return $map;
+}
+
+/**
+ * Migrate goods-in lines map to ensure product_id is set (lazy migration).
+ *
+ * @param array $lines_map
+ * @return array array( $lines_map, $unresolved_skus )
+ */
+function sop_goodsin_migrate_lines_map_to_pid( array $lines_map ) {
+    $unresolved = array();
+    $changed    = false;
+
+    foreach ( $lines_map as $lid => $row ) {
+        $pid = isset( $row['product_id'] ) ? (int) $row['product_id'] : 0;
+        $sku = isset( $row['sku_owner'] ) ? (string) $row['sku_owner'] : '';
+
+        if ( $pid <= 0 && '' !== $sku && function_exists( 'wc_get_product_id_by_sku' ) ) {
+            $resolved = wc_get_product_id_by_sku( $sku );
+            if ( $resolved > 0 ) {
+                $lines_map[ $lid ]['product_id'] = (int) $resolved;
+                $changed = true;
+            } else {
+                $unresolved[] = $sku;
+            }
+        }
+    }
+
+    // Persist the migration when changes occurred.
+    if ( $changed ) {
+        global $wpdb;
+        $tbl_lines = function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ? sop_get_preorder_sheet_lines_table_name() : '';
+        if ( '' === $tbl_lines ) {
+            $tbl_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
+        }
+        foreach ( $lines_map as $lid => $row ) {
+            $pid = isset( $row['product_id'] ) ? (int) $row['product_id'] : 0;
+            if ( $lid > 0 && $pid > 0 ) {
+                $wpdb->update(
+                    $tbl_lines,
+                    array( 'product_id' => $pid ),
+                    array( 'id' => $lid ),
+                    array( '%d' ),
+                    array( '%d' )
+                );
+            }
+        }
+    }
+
+    return array( $lines_map, $unresolved );
 }
 
 /**
@@ -290,6 +340,26 @@ function sop_handle_goodsin_save() {
     }
 
     $lines_map = sop_goodsin_get_sheet_lines_map( $sheet_id );
+    if ( ! empty( $lines_map ) && function_exists( 'sop_goodsin_migrate_lines_map_to_pid' ) ) {
+        list( $lines_map, $unresolved_skus ) = sop_goodsin_migrate_lines_map_to_pid( $lines_map );
+        if ( ! empty( $unresolved_skus ) && current_user_can( 'manage_woocommerce' ) ) {
+            add_action(
+                'admin_notices',
+                static function() use ( $unresolved_skus, $sheet_id ) {
+                    $limited = array_slice( $unresolved_skus, 0, 20 );
+                    $more    = max( 0, count( $unresolved_skus ) - count( $limited ) );
+                    $msg     = sprintf(
+                        /* translators: 1: sheet id, 2: skus, 3: more count */
+                        esc_html__( 'Goods-In sheet #%1$d: Could not resolve product IDs for SKUs: %2$s%3$s', 'sop' ),
+                        (int) $sheet_id,
+                        esc_html( implode( ', ', $limited ) ),
+                        $more > 0 ? esc_html( sprintf( ' (+%d more)', $more ) ) : ''
+                    );
+                    echo '<div class="notice notice-warning"><p>' . $msg . '</p></div>';
+                }
+            );
+        }
+    }
     if ( empty( $lines_map ) ) {
         wp_safe_redirect( add_query_arg( 'sop_msg', 'no_lines', $redirect ) );
         exit;
@@ -409,6 +479,26 @@ function sop_handle_goodsin_apply_stock() {
     }
 
     $lines_map = sop_goodsin_get_sheet_lines_map( $sheet_id );
+    if ( ! empty( $lines_map ) && function_exists( 'sop_goodsin_migrate_lines_map_to_pid' ) ) {
+        list( $lines_map, $unresolved_skus ) = sop_goodsin_migrate_lines_map_to_pid( $lines_map );
+        if ( ! empty( $unresolved_skus ) && current_user_can( 'manage_woocommerce' ) ) {
+            add_action(
+                'admin_notices',
+                static function() use ( $unresolved_skus, $sheet_id ) {
+                    $limited = array_slice( $unresolved_skus, 0, 20 );
+                    $more    = max( 0, count( $unresolved_skus ) - count( $limited ) );
+                    $msg     = sprintf(
+                        /* translators: 1: sheet id, 2: skus, 3: more count */
+                        esc_html__( 'Goods-In sheet #%1$d: Could not resolve product IDs for SKUs: %2$s%3$s', 'sop' ),
+                        (int) $sheet_id,
+                        esc_html( implode( ', ', $limited ) ),
+                        $more > 0 ? esc_html( sprintf( ' (+%d more)', $more ) ) : ''
+                    );
+                    echo '<div class="notice notice-warning"><p>' . $msg . '</p></div>';
+                }
+            );
+        }
+    }
     if ( empty( $lines_map ) ) {
         wp_safe_redirect( add_query_arg( 'sop_msg', 'no_lines', $redirect ) );
         exit;

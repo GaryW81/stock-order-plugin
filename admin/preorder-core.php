@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.48
+ * File version: 11.49
  * - Remove legacy XLS export endpoints (XLSX only).
  * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
  * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
@@ -59,6 +59,103 @@ function sop_preorder_get_stock_order_parent_slug() {
     }
 
     return $parent_slug;
+}
+
+/**
+ * Normalise an input array keyed by product_id or SKU into product_id keys.
+ *
+ * @param array $raw
+ * @return array
+ */
+function sop_preorder_normalize_pid_map( $raw ) {
+    $raw = is_array( $raw ) ? $raw : array();
+    $out = array();
+
+    foreach ( $raw as $key => $value ) {
+        $pid = is_numeric( $key ) ? (int) $key : 0;
+        if ( $pid <= 0 && is_string( $key ) && '' !== $key && function_exists( 'wc_get_product_id_by_sku' ) ) {
+            $pid = wc_get_product_id_by_sku( (string) $key );
+        }
+        if ( $pid <= 0 ) {
+            continue;
+        }
+        $out[ $pid ] = $value;
+    }
+
+    return $out;
+}
+
+/**
+ * Migrate saved sheet lines to ensure product_id is present (lazy migration).
+ *
+ * @param array $sheet Sheet array with 'id' and 'supplier_id'.
+ * @return array Two-item array: array( $sheet, $migration_meta ).
+ */
+function sop_preorder_migrate_saved_sheet_lines_to_pid( array $sheet ) {
+    $migration_meta = array(
+        'changed'         => false,
+        'unresolved_skus' => array(),
+    );
+
+    if ( empty( $sheet['id'] ) || ! function_exists( 'sop_get_preorder_sheet_lines' ) || ! function_exists( 'sop_replace_preorder_sheet_lines' ) ) {
+        return array( $sheet, $migration_meta );
+    }
+
+    $sheet_id = (int) $sheet['id'];
+    $lines    = sop_get_preorder_sheet_lines( $sheet_id );
+    $lines    = is_array( $lines ) ? $lines : array();
+
+    if ( empty( $lines ) ) {
+        return array( $sheet, $migration_meta );
+    }
+
+    $protected_keys = array(
+        'stock_on_hand',
+        'current_stock',
+        'stock_qty',
+        'saved_stock',
+        'stock_at_save',
+        'stock_snapshot',
+        'stock_on_hand_saved',
+    );
+
+    $unresolved = array();
+    $changed    = false;
+
+    foreach ( $lines as $idx => $line ) {
+        $pid = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+        $sku = isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '';
+
+        if ( $pid <= 0 && '' !== $sku && function_exists( 'wc_get_product_id_by_sku' ) ) {
+            $resolved = wc_get_product_id_by_sku( $sku );
+            if ( $resolved > 0 ) {
+                $lines[ $idx ]['product_id'] = (int) $resolved;
+                $changed = true;
+            } else {
+                $unresolved[] = $sku;
+            }
+        }
+
+        // Ensure protected snapshot keys remain untouched (no action needed here other than awareness).
+        foreach ( $protected_keys as $pkey ) {
+            if ( array_key_exists( $pkey, $line ) && ! array_key_exists( $pkey, $lines[ $idx ] ) ) {
+                $lines[ $idx ][ $pkey ] = $line[ $pkey ];
+            }
+        }
+    }
+
+    if ( $changed ) {
+        $result = sop_replace_preorder_sheet_lines( $sheet_id, $lines );
+        if ( ! is_wp_error( $result ) ) {
+            $migration_meta['changed'] = true;
+        }
+    }
+
+    if ( ! empty( $unresolved ) ) {
+        $migration_meta['unresolved_skus'] = $unresolved;
+    }
+
+    return array( $sheet, $migration_meta );
 }
 
 /**
@@ -1050,6 +1147,27 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
     }
 
     $sheet = sop_get_preorder_sheet( $sheet_id );
+    $migration_meta = array( 'changed' => false, 'unresolved_skus' => array() );
+    if ( is_array( $sheet ) && function_exists( 'sop_preorder_migrate_saved_sheet_lines_to_pid' ) ) {
+        list( $sheet, $migration_meta ) = sop_preorder_migrate_saved_sheet_lines_to_pid( $sheet );
+        if ( ! empty( $migration_meta['unresolved_skus'] ) && current_user_can( 'manage_woocommerce' ) ) {
+            add_action(
+                'admin_notices',
+                static function() use ( $migration_meta, $sheet_id ) {
+                    $unresolved = array_slice( $migration_meta['unresolved_skus'], 0, 20 );
+                    $more       = max( 0, count( $migration_meta['unresolved_skus'] ) - count( $unresolved ) );
+                    $msg        = sprintf(
+                        /* translators: 1: sheet id, 2: CSV list of SKUs, 3: remaining count */
+                        esc_html__( 'Preorder sheet #%1$d: Could not resolve product IDs for SKUs: %2$s%3$s', 'sop' ),
+                        (int) $sheet_id,
+                        esc_html( implode( ', ', $unresolved ) ),
+                        $more > 0 ? esc_html( sprintf( ' (+%d more)', $more ) ) : ''
+                    );
+                    echo '<div class="notice notice-warning"><p>' . $msg . '</p></div>';
+                }
+            );
+        }
+    }
     if ( empty( $sheet ) ) {
         return new WP_Error( 'sop_export_sheet_missing', __( 'Pre-order sheet not found.', 'sop' ) );
     }
