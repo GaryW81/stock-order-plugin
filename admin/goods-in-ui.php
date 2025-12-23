@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.20
+ * File version: 1.0.21
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -24,6 +24,7 @@
  * - 1.0.18 - Vertically center wrapped product link; clamp product/order notes to 4 lines with tooltips.
  * - 1.0.19 - Goods-In notes modal with 3-line preview; product link wrap stays centered.
  * - 1.0.20 - Goods-In notes preview styled as textbox (3-line clamp, modal click area).
+ * - 1.0.21 - Set Goods-In notes modal to 700x342 and widen Location column to 56px.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -525,7 +526,9 @@ function sop_render_goods_in_page() {
         <div class="sop-goodsin-notes-modal" id="sop-goodsin-notes-modal" role="dialog" aria-modal="true" aria-labelledby="sop-goodsin-notes-title" aria-hidden="true">
             <h2 id="sop-goodsin-notes-title"><?php esc_html_e( 'Goods-In notes', 'sop' ); ?></h2>
             <p id="sop-goodsin-notes-product"></p>
-            <textarea id="sop-goodsin-notes-editor"></textarea>
+            <div class="sop-goodsin-notes-modal-body">
+                <textarea id="sop-goodsin-notes-editor"></textarea>
+            </div>
             <div class="sop-goodsin-notes-modal-actions">
                 <button type="button" class="button button-secondary" id="sop-goodsin-notes-cancel"><?php esc_html_e( 'Cancel', 'sop' ); ?></button>
                 <button type="button" class="button button-primary" id="sop-goodsin-notes-save"><?php esc_html_e( 'Save notes', 'sop' ); ?></button>
@@ -805,17 +808,29 @@ function sop_render_goods_in_page() {
             border: 1px solid #ccd0d4;
             box-shadow: 0 4px 20px rgba(0,0,0,0.25);
             z-index: 100001;
-            width: 480px;
-            max-width: 90%;
+            width: 700px;
+            max-width: 700px;
+            height: 342px;
+            max-height: 342px;
+            box-sizing: border-box;
             display: none;
+            display: flex;
+            flex-direction: column;
         }
         .sop-goodsin-notes-modal h2 {
             margin-top: 0;
         }
+        .sop-goodsin-notes-modal-body {
+            flex: 1 1 auto;
+            overflow: auto;
+            margin-bottom: 10px;
+        }
         .sop-goodsin-notes-modal textarea {
             width: 100%;
+            height: 100%;
             min-height: 140px;
             resize: vertical;
+            box-sizing: border-box;
         }
         .sop-goodsin-notes-modal-actions {
             display: flex;
@@ -826,9 +841,9 @@ function sop_render_goods_in_page() {
         /* Location / SKU / Product widths + padding */
         .sop-goodsin-table th.sop-goodsin-col-location,
         .sop-goodsin-table td.sop-goodsin-col-location {
-            width: 54px;
-            min-width: 54px;
-            max-width: 54px;
+            width: 56px;
+            min-width: 56px;
+            max-width: 56px;
             padding-left: 10px !important;
             padding-right: 14px !important;
         }
