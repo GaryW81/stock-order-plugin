@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.11
+ * File version: 1.0.12
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -15,6 +15,7 @@
  * - 1.0.09 - Set qty columns to 80px and rows to 80px height in Goods-In tablecloth layout.
  * - 1.0.10 - Tighten Goods-In image and column widths (narrow/reason/stocked/outstanding).
  * - 1.0.11 - Set Location/SKU/Product column widths and padding for Goods-In table.
+ * - 1.0.12 - Enforce 80px rows; remove vertical padding; truncate long text cells with hover tooltips.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -454,7 +455,7 @@ function sop_render_goods_in_page() {
                     <td class="sop-goodsin-col-image" data-column="image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
                     <td class="sop-goodsin-col-location" data-column="location"><?php echo esc_html( $location ); ?></td>
                     <td class="sop-goodsin-col-sku" data-column="sku"><?php echo esc_html( $sku . $missing_pid_warning ); ?></td>
-                    <td class="sop-goodsin-col-product" data-column="product"><?php echo $product_link ? '<a href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>' : esc_html( $name ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
+                    <td class="sop-goodsin-col-product sop-goodsin-cell-truncate" data-column="product" title="<?php echo esc_attr( wp_strip_all_tags( $name ) ); ?>"><?php echo $product_link ? '<a href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>' : esc_html( $name ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></td>
                     <td data-column="ordered"><?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?></td>
                     <td data-column="received"><input type="number" class="sop-goodsin-received sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" name="received_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
                     <td data-column="missing"><input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" name="missing_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
@@ -468,9 +469,9 @@ function sop_render_goods_in_page() {
                             <option value="other" <?php selected( $reason, 'other' ); ?>><?php esc_html_e( 'Other', 'sop' ); ?></option>
                         </select>
                     </td>
-                    <td class="sop-goodsin-carton" data-column="carton"><?php echo esc_html( $carton ); ?></td>
-                    <td class="sop-goodsin-text-col" data-column="product_notes"><?php echo esc_html( $product_notes ); ?></td>
-                    <td class="sop-goodsin-text-col" data-column="order_notes"><?php echo esc_html( $order_notes ); ?></td>
+                    <td class="sop-goodsin-carton sop-goodsin-cell-truncate" data-column="carton" title="<?php echo esc_attr( $carton ); ?>"><?php echo esc_html( $carton ); ?></td>
+                    <td class="sop-goodsin-text-col sop-goodsin-cell-truncate" data-column="product_notes" title="<?php echo esc_attr( $product_notes ); ?>"><?php echo esc_html( $product_notes ); ?></td>
+                    <td class="sop-goodsin-text-col sop-goodsin-cell-truncate" data-column="order_notes" title="<?php echo esc_attr( $order_notes ); ?>"><?php echo esc_html( $order_notes ); ?></td>
                     <td data-column="goodsin_notes"><input type="text" class="sop-goodsin-notes" value="<?php echo esc_attr( $notes ); ?>" name="goods_in_notes[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
                     <td data-column="stocked"><?php echo esc_html( number_format_i18n( $stocked, 0 ) ); ?></td>
                     <td data-column="outstanding"><?php echo esc_html( number_format_i18n( $outstanding, 0 ) ); ?></td>
@@ -650,6 +651,8 @@ function sop_render_goods_in_page() {
         .sop-goodsin-table tbody td {
             height: 80px;
             vertical-align: middle;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
         }
         .sop-goodsin-table tbody td img {
             max-height: 78px;
@@ -658,6 +661,17 @@ function sop_render_goods_in_page() {
         .sop-goodsin-table textarea {
             height: 60px;
             resize: vertical;
+        }
+        .sop-goodsin-table .sop-goodsin-cell-truncate {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .sop-goodsin-table td.sop-goodsin-col-product a {
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         /* Location / SKU / Product widths + padding */
         .sop-goodsin-table th.sop-goodsin-col-location,
