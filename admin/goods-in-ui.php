@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.06
+ * File version: 1.0.07
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -10,6 +10,7 @@
  * - Confine horizontal scrolling to table container (prevent full-page scrollbar).
  * - 1.0.05 - Hydrate Goods-In display fields with live WooCommerce data (preserve saved stock snapshot).
  * - 1.0.06 - Key Goods-In inputs by product_id (SKU display-only; disable inputs when product_id missing).
+ * - 1.0.07 - Apply preorder-style tablecloth wrapper (sticky header + scroll container) to Goods-In list.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -356,8 +357,8 @@ function sop_render_goods_in_page() {
             </div>
         </div>
 
-        <div class="sop-goodsin-table-scroll" aria-label="Goods-In table scroll">
-        <table class="widefat striped" id="sop-goodsin-lines">
+        <div class="sop-preorder-table-wrapper" aria-label="Goods-In table scroll">
+        <table class="wp-list-table widefat fixed striped sop-preorder-table" id="sop-goodsin-lines">
             <thead>
             <tr>
                 <th class="check-column" data-sortable="false"><input type="checkbox" id="sop-goodsin-select-all" /></th>
@@ -567,6 +568,33 @@ function sop_render_goods_in_page() {
             object-fit: contain;
             display: block;
         }
+        .sop-preorder-table-wrapper {
+            max-height: 90vh;
+            overflow-x: auto;
+            overflow-y: auto;
+            border: 1px solid #ccd0d4;
+        }
+        .sop-preorder-table thead th {
+            position: sticky;
+            top: 0;
+            background: #f1f1f1;
+            z-index: 2;
+            cursor: pointer;
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
+            padding-right: 14px;
+        }
+        .sop-preorder-table thead th + th::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 6px;
+            bottom: 6px;
+            width: 1px;
+            background-color: #e3e3e3;
+            pointer-events: none;
+        }
         .sop-goodsin-col-narrow {
             white-space: nowrap;
         }
@@ -640,16 +668,6 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-columns-list li {
             margin: 0 0 6px 0;
-        }
-        .sop-goodsin-table-scroll {
-            display: block;
-            max-width: 100%;
-            overflow-x: auto;
-            overflow-y: visible;
-            box-sizing: border-box;
-        }
-        .sop-goodsin-table-scroll #sop-goodsin-lines {
-            min-width: 100%;
         }
     </style>
 
