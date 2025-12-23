@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.25
+ * File version: 1.0.26
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -29,6 +29,7 @@
  * - 1.0.23 - Match Pre-Order notes modal UX (overlay position, close/X, product line, resizable textarea).
  * - 1.0.24 - Match Location column sizing/padding to Pre-Order sheet.
  * - 1.0.25 - Add Outstanding-only filter (auto-hide completed lines, toggle + counter).
+ * - 1.0.26 - Add Goods-In search filter + Enter-to-jump (SKU/Product/Carton/Location).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -379,6 +380,10 @@ function sop_render_goods_in_page() {
             <label>
                 <input type="checkbox" id="sop-goodsin-show-completed" />
                 <?php esc_html_e( 'Show completed lines', 'sop' ); ?>
+            </label>
+            <label class="sop-goodsin-search-wrap">
+                <input type="text" id="sop-goodsin-search" placeholder="<?php esc_attr_e( 'Search SKU / Product / Carton / Location', 'sop' ); ?>" autocomplete="off" />
+                <button type="button" class="button-link" id="sop-goodsin-search-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
             </label>
             <span id="sop-goodsin-filter-summary" aria-live="polite"></span>
         </div>
@@ -908,6 +913,21 @@ function sop_render_goods_in_page() {
             gap: 12px;
             margin-bottom: 6px;
         }
+        .sop-goodsin-search-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .sop-goodsin-row-hidden {
+            display: none;
+        }
+        .sop-goodsin-row-search-hidden {
+            display: none;
+        }
+        .sop-goodsin-row-jump-highlight {
+            outline: 2px solid #2271b1;
+            outline-offset: -2px;
+        }
         .sop-goodsin-row-hidden {
             display: none;
         }
@@ -1021,6 +1041,8 @@ function sop_render_goods_in_page() {
             var $notesModalClose = $('#sop-goodsin-notes-close');
             var $showCompleted = $('#sop-goodsin-show-completed');
             var $filterSummary = $('#sop-goodsin-filter-summary');
+            var $searchInput = $('#sop-goodsin-search');
+            var $searchClear = $('#sop-goodsin-search-clear');
             var notesActiveRow = null;
             var sopGoodsinFilterTimer = null;
 
@@ -1031,6 +1053,25 @@ function sop_render_goods_in_page() {
             function sopGoodsinParseNumber(val) {
                 var n = parseFloat( (val || '').toString().replace(/,/g, '') );
                 return isNaN(n) ? 0 : n;
+            }
+
+            function sopGoodsinNormalizeQuery(str) {
+                return (str || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+            }
+
+            function sopGoodsinGetRowSearchText($tr) {
+                var cached = $tr.data('sopSearchText');
+                if ( cached ) {
+                    return cached;
+                }
+                var parts = [];
+                parts.push( ($tr.find('td.column-location').text() || '').toString() );
+                parts.push( ($tr.find('td[data-column="sku"]').text() || '').toString() );
+                parts.push( ($tr.find('.sop-goodsin-product-link').text() || '').toString() );
+                parts.push( ($tr.find('td[data-column="carton"]').text() || '').toString() );
+                var text = parts.join(' ').toLowerCase();
+                $tr.data('sopSearchText', text);
+                return text;
             }
 
             function sopGoodsinIsCompleteClean($tr) {
@@ -1044,24 +1085,54 @@ function sop_render_goods_in_page() {
 
             function sopGoodsinApplyFilterAll() {
                 var showCompleted = $showCompleted.is(':checked');
+                var query = sopGoodsinNormalizeQuery( $searchInput.val() || '' );
+                var terms = query ? query.split(' ') : [];
                 var total = 0;
                 var hidden = 0;
+                var hiddenSearch = 0;
 
                 $('#sop-goodsin-lines tbody tr').each(function(){
                     total++;
                     var $tr = $(this);
                     var complete = sopGoodsinIsCompleteClean($tr);
-                    if ( ! showCompleted && complete ) {
+                    var matchesSearch = true;
+                    if ( terms.length ) {
+                        var rowText = sopGoodsinGetRowSearchText($tr);
+                        for ( var i = 0; i < terms.length; i++ ) {
+                            if ( rowText.indexOf( terms[i] ) === -1 ) {
+                                matchesSearch = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    var hideCompleted = ( ! showCompleted && complete );
+                    var hideSearch    = ( terms.length && ! matchesSearch );
+
+                    if ( hideCompleted ) {
                         $tr.addClass('sop-goodsin-row-hidden');
                         hidden++;
                         $tr.find('input[type="checkbox"]').first().prop('checked', false);
                     } else {
                         $tr.removeClass('sop-goodsin-row-hidden');
                     }
+
+                    if ( hideSearch ) {
+                        $tr.addClass('sop-goodsin-row-search-hidden');
+                        hiddenSearch++;
+                        $tr.find('input[type="checkbox"]').first().prop('checked', false);
+                    } else {
+                        $tr.removeClass('sop-goodsin-row-search-hidden');
+                    }
                 });
 
-                var visible = total - hidden;
-                $filterSummary.text( 'Showing ' + visible + ' of ' + total + ' lines (' + hidden + ' completed hidden)' );
+                var visible = total - hidden - hiddenSearch;
+                var summary = 'Showing ' + visible + ' of ' + total + ' lines (' + hidden + ' completed hidden';
+                if ( hiddenSearch ) {
+                    summary += ', ' + hiddenSearch + ' filtered by search';
+                }
+                summary += ')';
+                $filterSummary.text( summary );
             }
 
             function sopGoodsinScheduleFilterRefresh() {
@@ -1159,6 +1230,11 @@ function sop_render_goods_in_page() {
                 markDirty();
                 sopGoodsinScheduleFilterRefresh();
             });
+            $('#sop-goodsin-lines').on('input change', '.sop-goodsin-carton input, .sop-goodsin-carton', function(){
+                var $tr = $(this).closest('tr');
+                $tr.removeData('sopSearchText');
+                sopGoodsinScheduleFilterRefresh();
+            });
 
             function openNotesModal($tr) {
                 notesActiveRow = $tr;
@@ -1221,6 +1297,21 @@ function sop_render_goods_in_page() {
                     e.preventDefault();
                     closeNotesModal();
                 }
+                if ( e.key === 'Enter' && $(e.target).is($searchInput) ) {
+                    e.preventDefault();
+                    var $firstMatch = $('#sop-goodsin-lines tbody tr').not('.sop-goodsin-row-hidden').not('.sop-goodsin-row-search-hidden').first();
+                    if ( $firstMatch.length ) {
+                        var wrapper = document.querySelector('.sop-preorder-table-wrapper');
+                        if ( wrapper && wrapper.scrollTop !== undefined ) {
+                            var rowTop = $firstMatch[0].offsetTop;
+                            wrapper.scrollTop = rowTop - 10;
+                        } else {
+                            $firstMatch[0].scrollIntoView({ block: 'nearest' });
+                        }
+                        $firstMatch.addClass('sop-goodsin-row-jump-highlight');
+                        setTimeout( function(){ $firstMatch.removeClass('sop-goodsin-row-jump-highlight'); }, 800 );
+                    }
+                }
             });
 
             // Filter toggle persistence + initial apply.
@@ -1240,6 +1331,35 @@ function sop_render_goods_in_page() {
                     window.localStorage.setItem('sop_goodsin_show_completed', $(this).is(':checked') ? '1' : '0');
                 } catch (e) {}
                 sopGoodsinApplyFilterAll();
+            });
+
+            // Search input persistence + behaviour.
+            (function(){
+                var stored = null;
+                try {
+                    stored = window.localStorage.getItem('sop_goodsin_search_query');
+                } catch (e) {}
+                if ( stored ) {
+                    $searchInput.val( stored );
+                }
+            })();
+
+            $searchInput.on('input', function(){
+                var val = $(this).val() || '';
+                try {
+                    window.localStorage.setItem('sop_goodsin_search_query', val);
+                } catch (e) {}
+                sopGoodsinScheduleFilterRefresh();
+            });
+
+            $searchClear.on('click', function(e){
+                e.preventDefault();
+                $searchInput.val('');
+                try {
+                    window.localStorage.removeItem('sop_goodsin_search_query');
+                } catch (e2) {}
+                sopGoodsinScheduleFilterRefresh();
+                $searchInput.focus();
             });
 
             function sortTable($th) {
