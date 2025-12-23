@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.19
+ * File version: 1.0.20
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -23,6 +23,7 @@
  * - 1.0.17 - Allow product link wrapping within fixed-height wrapper (rows remain 80px).
  * - 1.0.18 - Vertically center wrapped product link; clamp product/order notes to 4 lines with tooltips.
  * - 1.0.19 - Goods-In notes modal with 3-line preview; product link wrap stays centered.
+ * - 1.0.20 - Goods-In notes preview styled as textbox (3-line clamp, modal click area).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -499,14 +500,16 @@ function sop_render_goods_in_page() {
                     </td>
                     <td class="sop-goodsin-col-goodsin-notes" data-column="goodsin_notes">
                         <div class="sop-goodsin-notes-cell"<?php echo $inputs_disabled_attr ? ' aria-disabled="true"' : ''; ?>>
-                            <div class="sop-goodsin-notes-preview sop-goodsin-clamp-3" title="<?php echo esc_attr( $notes ); ?>">
-                                <?php echo esc_html( $notes ); ?>
+                            <div class="sop-goodsin-notes-preview-box" title="<?php echo esc_attr( $notes ); ?>">
+                                <div class="sop-goodsin-notes-preview sop-goodsin-clamp-3">
+                                    <?php echo esc_html( $notes ); ?>
+                                </div>
+                                <?php if ( '' === $inputs_disabled_attr ) : ?>
+                                    <button type="button" class="button-link sop-goodsin-notes-edit" aria-label="<?php esc_attr_e( 'Edit goods-in notes', 'sop' ); ?>">
+                                        <span class="dashicons dashicons-edit"></span>
+                                    </button>
+                                <?php endif; ?>
                             </div>
-                            <?php if ( '' === $inputs_disabled_attr ) : ?>
-                                <button type="button" class="button-link sop-goodsin-notes-edit" aria-label="<?php esc_attr_e( 'Edit goods-in notes', 'sop' ); ?>">
-                                    <span class="dashicons dashicons-edit"></span>
-                                </button>
-                            <?php endif; ?>
                             <textarea class="sop-goodsin-notes" name="goods_in_notes[<?php echo esc_attr( $pid ); ?>]" style="display:none;"<?php echo $inputs_disabled_attr; ?>><?php echo esc_textarea( $notes ); ?></textarea>
                         </div>
                     </td>
@@ -741,33 +744,46 @@ function sop_render_goods_in_page() {
             max-height: 4.8em;
             text-align: left;
         }
+        .sop-goodsin-table .sop-goodsin-notes-preview-box {
+            background: #fff;
+            border: 1px solid #8c8f94;
+            border-radius: 4px;
+            box-sizing: border-box;
+            width: 100%;
+            height: 66px;
+            padding: 6px 30px 6px 8px;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .sop-goodsin-table .sop-goodsin-notes-preview {
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.2;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 3;
+            overflow: hidden;
+            height: 100%;
+            text-align: left;
+        }
+        .sop-goodsin-table .sop-goodsin-notes-preview-box .sop-goodsin-notes-edit {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            padding: 0;
+            margin: 0;
+            width: 18px;
+            height: 18px;
+            line-height: 18px;
+        }
         .sop-goodsin-table .sop-goodsin-notes-cell {
             height: 80px;
             display: flex;
             align-items: center;
             gap: 6px;
             overflow: hidden;
-        }
-        .sop-goodsin-table .sop-goodsin-notes-preview {
-            cursor: pointer;
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 3;
-            overflow: hidden;
-            white-space: normal;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-            line-height: 1.2;
-            max-height: 3.6em;
-            text-align: left;
-        }
-        .sop-goodsin-table .sop-goodsin-notes-edit {
-            margin: 0;
-            padding: 0 4px;
-            height: 24px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
         }
         .sop-goodsin-notes-modal-backdrop {
             position: fixed;
@@ -1071,11 +1087,11 @@ function sop_render_goods_in_page() {
                 closeNotesModal();
             }
 
-            $('#sop-goodsin-lines').on('click', '.sop-goodsin-notes-preview, .sop-goodsin-notes-edit', function(e){
+            $('#sop-goodsin-lines').on('click', '.sop-goodsin-notes-preview, .sop-goodsin-notes-edit, .sop-goodsin-notes-preview-box', function(e){
                 e.preventDefault();
                 var $tr = $(this).closest('tr');
                 var $textarea = $tr.find('.sop-goodsin-notes');
-                if ( $textarea.is(':disabled') ) {
+                if ( $textarea.is(':disabled') || $tr.find('.sop-goodsin-notes-edit').length === 0 ) {
                     return;
                 }
                 openNotesModal($tr);
