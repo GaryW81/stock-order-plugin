@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.21
+ * File version: 1.0.22
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -25,6 +25,7 @@
  * - 1.0.19 - Goods-In notes modal with 3-line preview; product link wrap stays centered.
  * - 1.0.20 - Goods-In notes preview styled as textbox (3-line clamp, modal click area).
  * - 1.0.21 - Set Goods-In notes modal to 700x342 and widen Location column to 56px.
+ * - 1.0.22 - Align Goods-In notes modal to Pre-Order styling; auto-grow textarea (no modal scroll).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -810,8 +811,7 @@ function sop_render_goods_in_page() {
             z-index: 100001;
             width: 700px;
             max-width: 700px;
-            height: 342px;
-            max-height: 342px;
+            max-height: calc(100vh - 120px);
             box-sizing: border-box;
             display: none;
             display: flex;
@@ -821,16 +821,24 @@ function sop_render_goods_in_page() {
             margin-top: 0;
         }
         .sop-goodsin-notes-modal-body {
-            flex: 1 1 auto;
-            overflow: auto;
+            flex: 0 0 auto;
+            overflow: visible;
             margin-bottom: 10px;
         }
         .sop-goodsin-notes-modal textarea {
             width: 100%;
-            height: 100%;
             min-height: 140px;
-            resize: vertical;
+            max-height: 70vh;
+            resize: none;
+            overflow: hidden;
             box-sizing: border-box;
+            border: 1px solid #8c8f94;
+            box-shadow: none;
+            outline: 0;
+        }
+        .sop-goodsin-notes-modal textarea:focus {
+            border-color: #2271b1;
+            box-shadow: 0 0 0 1px #2271b1;
         }
         .sop-goodsin-notes-modal-actions {
             display: flex;
@@ -1078,6 +1086,7 @@ function sop_render_goods_in_page() {
                 var currentNotes = $tr.find('.sop-goodsin-notes').val() || '';
                 $notesModalProduct.text(productLabel);
                 $notesModalEditor.val(currentNotes);
+                sopAutoGrowTextarea($notesModalEditor[0]);
                 $notesModalBackdrop.show().attr('aria-hidden', 'false');
                 $notesModal.show().attr('aria-hidden', 'false');
                 $notesModalEditor.focus();
@@ -1126,6 +1135,22 @@ function sop_render_goods_in_page() {
                 e.preventDefault();
                 closeNotesModal();
             });
+
+            $notesModalEditor.on('input', function(){
+                sopAutoGrowTextarea(this);
+            });
+
+            function sopAutoGrowTextarea(el) {
+                if ( ! el ) { return; }
+                el.style.height = 'auto';
+                var maxH = (window.innerHeight * 0.7);
+                el.style.height = Math.min(el.scrollHeight, maxH) + 'px';
+                if ( el.scrollHeight > maxH ) {
+                    el.style.overflowY = 'auto';
+                } else {
+                    el.style.overflowY = 'hidden';
+                }
+            }
 
             $(document).on('keydown', function(e){
                 if ( 27 === e.which && $notesModal.is(':visible') ) {
