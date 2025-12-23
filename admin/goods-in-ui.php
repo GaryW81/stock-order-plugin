@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.28
+ * File version: 1.0.29
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -32,6 +32,7 @@
  * - 1.0.26 - Add Goods-In search filter + Enter-to-jump (SKU/Product/Carton/Location).
  * - 1.0.27 - Widen search box to 250px; add Scan SKU jump/focus input.
  * - 1.0.28 - Hotfix parse error: ensure JS stays inside script; maintain search/scan features.
+ * - 1.0.29 - Enter in qty inputs ticks row, updates, and returns focus to Scan.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1448,6 +1449,23 @@ function sop_render_goods_in_page() {
             $columnCheckboxes.on('change', function(){
                 sopGoodsinUpdateColumnsToggleLabel();
                 sopGoodsinApplyColumnVisibility();
+            });
+
+            $('#sop-goodsin-lines').on('keydown', '.sop-goodsin-received, .sop-goodsin-missing, .sop-goodsin-reject', function(e){
+                if ( e.key !== 'Enter' && e.which !== 13 ) {
+                    return;
+                }
+                e.preventDefault();
+                var $tr = $(this).closest('tr');
+                $tr.find('td.check-column input.sop-goodsin-select').first().prop('checked', true);
+                updateRowSortData($tr);
+                markDirty();
+                sopGoodsinScheduleFilterRefresh();
+                if ( $scanInput.length ) {
+                    $scanInput.focus().select();
+                } else {
+                    $searchInput.focus().select();
+                }
             });
 
             $(document).on('click', function(e){
