@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.08
+ * File version: 1.0.09
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -12,6 +12,7 @@
  * - 1.0.06 - Key Goods-In inputs by product_id (SKU display-only; disable inputs when product_id missing).
  * - 1.0.07 - Apply preorder-style tablecloth wrapper (sticky header + scroll container) to Goods-In list.
  * - 1.0.08 - Fix Goods-In right-side column widths (Ordered → Outstanding) in tablecloth layout.
+ * - 1.0.09 - Set qty columns to 80px and rows to 80px height in Goods-In tablecloth layout.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -606,11 +607,11 @@ function sop_render_goods_in_page() {
         .sop-goodsin-table th:nth-child(6),
         .sop-goodsin-table td:nth-child(6) { width: 80px; min-width: 80px; }
         .sop-goodsin-table th:nth-child(7),
-        .sop-goodsin-table td:nth-child(7) { width: 90px; min-width: 90px; }
+        .sop-goodsin-table td:nth-child(7) { width: 80px; min-width: 80px; }
         .sop-goodsin-table th:nth-child(8),
-        .sop-goodsin-table td:nth-child(8) { width: 90px; min-width: 90px; }
+        .sop-goodsin-table td:nth-child(8) { width: 80px; min-width: 80px; }
         .sop-goodsin-table th:nth-child(9),
-        .sop-goodsin-table td:nth-child(9) { width: 90px; min-width: 90px; }
+        .sop-goodsin-table td:nth-child(9) { width: 80px; min-width: 80px; }
         /* Reason + Carton no. */
         .sop-goodsin-table th:nth-child(10),
         .sop-goodsin-table td:nth-child(10) { width: 160px; min-width: 160px; }
@@ -635,6 +636,21 @@ function sop_render_goods_in_page() {
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;
+        }
+        .sop-goodsin-table tbody tr {
+            height: 80px;
+        }
+        .sop-goodsin-table tbody td {
+            height: 80px;
+            vertical-align: middle;
+        }
+        .sop-goodsin-table tbody td img {
+            max-height: 70px;
+            width: auto;
+        }
+        .sop-goodsin-table textarea {
+            height: 60px;
+            resize: vertical;
         }
         .sop-goodsin-col-narrow {
             white-space: nowrap;
