@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.10
+ * File version: 1.0.11
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -14,6 +14,7 @@
  * - 1.0.08 - Fix Goods-In right-side column widths (Ordered → Outstanding) in tablecloth layout.
  * - 1.0.09 - Set qty columns to 80px and rows to 80px height in Goods-In tablecloth layout.
  * - 1.0.10 - Tighten Goods-In image and column widths (narrow/reason/stocked/outstanding).
+ * - 1.0.11 - Set Location/SKU/Product column widths and padding for Goods-In table.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -657,6 +658,31 @@ function sop_render_goods_in_page() {
         .sop-goodsin-table textarea {
             height: 60px;
             resize: vertical;
+        }
+        /* Location / SKU / Product widths + padding */
+        .sop-goodsin-table th.sop-goodsin-col-location,
+        .sop-goodsin-table td.sop-goodsin-col-location {
+            width: 78px;
+            min-width: 78px;
+            max-width: 78px;
+            padding-left: 10px !important;
+            padding-right: 14px !important;
+        }
+        .sop-goodsin-table th.sop-goodsin-col-sku,
+        .sop-goodsin-table td.sop-goodsin-col-sku {
+            width: 80px;
+            min-width: 80px;
+            max-width: 80px;
+            padding-left: 10px !important;
+            padding-right: 14px !important;
+        }
+        .sop-goodsin-table th.sop-goodsin-col-product,
+        .sop-goodsin-table td.sop-goodsin-col-product {
+            width: 264px;
+            min-width: 264px;
+            max-width: 264px;
+            padding-left: 10px !important;
+            padding-right: 14px !important;
         }
         .sop-goodsin-col-narrow {
             white-space: nowrap;
