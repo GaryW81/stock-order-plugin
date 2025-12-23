@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.07
+ * File version: 1.0.08
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -11,6 +11,7 @@
  * - 1.0.05 - Hydrate Goods-In display fields with live WooCommerce data (preserve saved stock snapshot).
  * - 1.0.06 - Key Goods-In inputs by product_id (SKU display-only; disable inputs when product_id missing).
  * - 1.0.07 - Apply preorder-style tablecloth wrapper (sticky header + scroll container) to Goods-In list.
+ * - 1.0.08 - Fix Goods-In right-side column widths (Ordered → Outstanding) in tablecloth layout.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -358,7 +359,7 @@ function sop_render_goods_in_page() {
         </div>
 
         <div class="sop-preorder-table-wrapper" aria-label="Goods-In table scroll">
-        <table class="wp-list-table widefat fixed striped sop-preorder-table" id="sop-goodsin-lines">
+        <table class="wp-list-table widefat fixed striped sop-preorder-table sop-goodsin-table" id="sop-goodsin-lines">
             <thead>
             <tr>
                 <th class="check-column" data-sortable="false"><input type="checkbox" id="sop-goodsin-select-all" /></th>
@@ -594,6 +595,46 @@ function sop_render_goods_in_page() {
             width: 1px;
             background-color: #e3e3e3;
             pointer-events: none;
+        }
+        /* Goods-In specific table width + header behaviour */
+        .sop-goodsin-table thead th {
+            white-space: nowrap;
+            word-break: normal;
+            overflow-wrap: normal;
+        }
+        /* Ordered / Received / Missing / Reject */
+        .sop-goodsin-table th:nth-child(6),
+        .sop-goodsin-table td:nth-child(6) { width: 80px; min-width: 80px; }
+        .sop-goodsin-table th:nth-child(7),
+        .sop-goodsin-table td:nth-child(7) { width: 90px; min-width: 90px; }
+        .sop-goodsin-table th:nth-child(8),
+        .sop-goodsin-table td:nth-child(8) { width: 90px; min-width: 90px; }
+        .sop-goodsin-table th:nth-child(9),
+        .sop-goodsin-table td:nth-child(9) { width: 90px; min-width: 90px; }
+        /* Reason + Carton no. */
+        .sop-goodsin-table th:nth-child(10),
+        .sop-goodsin-table td:nth-child(10) { width: 160px; min-width: 160px; }
+        .sop-goodsin-table th:nth-child(11),
+        .sop-goodsin-table td:nth-child(11) { width: 120px; min-width: 120px; }
+        /* Notes columns */
+        .sop-goodsin-table th:nth-child(12),
+        .sop-goodsin-table td:nth-child(12) { width: 220px; min-width: 220px; }
+        .sop-goodsin-table th:nth-child(13),
+        .sop-goodsin-table td:nth-child(13) { width: 220px; min-width: 220px; }
+        .sop-goodsin-table th:nth-child(14),
+        .sop-goodsin-table td:nth-child(14) { width: 220px; min-width: 220px; }
+        /* Stocked / Outstanding */
+        .sop-goodsin-table th:nth-child(15),
+        .sop-goodsin-table td:nth-child(15) { width: 90px; min-width: 90px; }
+        .sop-goodsin-table th:nth-child(16),
+        .sop-goodsin-table td:nth-child(16) { width: 120px; min-width: 120px; }
+        .sop-goodsin-table td input[type="text"],
+        .sop-goodsin-table td input[type="number"],
+        .sop-goodsin-table td select,
+        .sop-goodsin-table td textarea {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
         }
         .sop-goodsin-col-narrow {
             white-space: nowrap;
