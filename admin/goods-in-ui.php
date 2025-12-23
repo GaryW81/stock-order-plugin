@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.18
+ * File version: 1.0.19
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -22,6 +22,7 @@
  * - 1.0.16 - Adjust Goods-In check column to 16px with 10px side padding.
  * - 1.0.17 - Allow product link wrapping within fixed-height wrapper (rows remain 80px).
  * - 1.0.18 - Vertically center wrapped product link; clamp product/order notes to 4 lines with tooltips.
+ * - 1.0.19 - Goods-In notes modal with 3-line preview; product link wrap stays centered.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -496,13 +497,36 @@ function sop_render_goods_in_page() {
                             <div class="sop-goodsin-notes-text"><?php echo esc_html( $order_notes ); ?></div>
                         </div>
                     </td>
-                    <td data-column="goodsin_notes"><input type="text" class="sop-goodsin-notes" value="<?php echo esc_attr( $notes ); ?>" name="goods_in_notes[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
+                    <td class="sop-goodsin-col-goodsin-notes" data-column="goodsin_notes">
+                        <div class="sop-goodsin-notes-cell"<?php echo $inputs_disabled_attr ? ' aria-disabled="true"' : ''; ?>>
+                            <div class="sop-goodsin-notes-preview sop-goodsin-clamp-3" title="<?php echo esc_attr( $notes ); ?>">
+                                <?php echo esc_html( $notes ); ?>
+                            </div>
+                            <?php if ( '' === $inputs_disabled_attr ) : ?>
+                                <button type="button" class="button-link sop-goodsin-notes-edit" aria-label="<?php esc_attr_e( 'Edit goods-in notes', 'sop' ); ?>">
+                                    <span class="dashicons dashicons-edit"></span>
+                                </button>
+                            <?php endif; ?>
+                            <textarea class="sop-goodsin-notes" name="goods_in_notes[<?php echo esc_attr( $pid ); ?>]" style="display:none;"<?php echo $inputs_disabled_attr; ?>><?php echo esc_textarea( $notes ); ?></textarea>
+                        </div>
+                    </td>
                     <td data-column="stocked"><?php echo esc_html( number_format_i18n( $stocked, 0 ) ); ?></td>
                     <td data-column="outstanding"><?php echo esc_html( number_format_i18n( $outstanding, 0 ) ); ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
+
+        <div class="sop-goodsin-notes-modal-backdrop" id="sop-goodsin-notes-modal-backdrop" aria-hidden="true"></div>
+        <div class="sop-goodsin-notes-modal" id="sop-goodsin-notes-modal" role="dialog" aria-modal="true" aria-labelledby="sop-goodsin-notes-title" aria-hidden="true">
+            <h2 id="sop-goodsin-notes-title"><?php esc_html_e( 'Goods-In notes', 'sop' ); ?></h2>
+            <p id="sop-goodsin-notes-product"></p>
+            <textarea id="sop-goodsin-notes-editor"></textarea>
+            <div class="sop-goodsin-notes-modal-actions">
+                <button type="button" class="button button-secondary" id="sop-goodsin-notes-cancel"><?php esc_html_e( 'Cancel', 'sop' ); ?></button>
+                <button type="button" class="button button-primary" id="sop-goodsin-notes-save"><?php esc_html_e( 'Save notes', 'sop' ); ?></button>
+            </div>
         </div>
 
         <?php if ( 'report' === $view || 'received' === $status ) : ?>
@@ -717,6 +741,72 @@ function sop_render_goods_in_page() {
             max-height: 4.8em;
             text-align: left;
         }
+        .sop-goodsin-table .sop-goodsin-notes-cell {
+            height: 80px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            overflow: hidden;
+        }
+        .sop-goodsin-table .sop-goodsin-notes-preview {
+            cursor: pointer;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 3;
+            overflow: hidden;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.2;
+            max-height: 3.6em;
+            text-align: left;
+        }
+        .sop-goodsin-table .sop-goodsin-notes-edit {
+            margin: 0;
+            padding: 0 4px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sop-goodsin-notes-modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 100000;
+            display: none;
+        }
+        .sop-goodsin-notes-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #ccd0d4;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+            z-index: 100001;
+            width: 480px;
+            max-width: 90%;
+            display: none;
+        }
+        .sop-goodsin-notes-modal h2 {
+            margin-top: 0;
+        }
+        .sop-goodsin-notes-modal textarea {
+            width: 100%;
+            min-height: 140px;
+            resize: vertical;
+        }
+        .sop-goodsin-notes-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 12px;
+        }
         /* Location / SKU / Product widths + padding */
         .sop-goodsin-table th.sop-goodsin-col-location,
         .sop-goodsin-table td.sop-goodsin-col-location {
@@ -851,6 +941,13 @@ function sop_render_goods_in_page() {
             var $columnsToggle = $('.sop-goodsin-columns-toggle');
             var $columnsWrapper = $('.sop-goodsin-columns');
             var $columnCheckboxes = $('.sop-goodsin-columns-list input[type="checkbox"]');
+            var $notesModal = $('#sop-goodsin-notes-modal');
+            var $notesModalBackdrop = $('#sop-goodsin-notes-modal-backdrop');
+            var $notesModalEditor = $('#sop-goodsin-notes-editor');
+            var $notesModalProduct = $('#sop-goodsin-notes-product');
+            var $notesModalSave = $('#sop-goodsin-notes-save');
+            var $notesModalCancel = $('#sop-goodsin-notes-cancel');
+            var notesActiveRow = null;
 
             function markDirty() {
                 dirty = true;
@@ -942,6 +1039,68 @@ function sop_render_goods_in_page() {
                 var $tr = $(this).closest('tr');
                 updateRowSortData($tr);
                 markDirty();
+            });
+
+            function openNotesModal($tr) {
+                notesActiveRow = $tr;
+                var productLabel = $tr.find('.sop-goodsin-col-product .sop-goodsin-product-link').text() || ($tr.data('sort-product') || '');
+                var currentNotes = $tr.find('.sop-goodsin-notes').val() || '';
+                $notesModalProduct.text(productLabel);
+                $notesModalEditor.val(currentNotes);
+                $notesModalBackdrop.show().attr('aria-hidden', 'false');
+                $notesModal.show().attr('aria-hidden', 'false');
+                $notesModalEditor.focus();
+            }
+
+            function closeNotesModal() {
+                notesActiveRow = null;
+                $notesModal.hide().attr('aria-hidden', 'true');
+                $notesModalBackdrop.hide().attr('aria-hidden', 'true');
+            }
+
+            function saveNotesModal() {
+                if ( ! notesActiveRow ) { return; }
+                var newNotes = $notesModalEditor.val() || '';
+                var $textarea = notesActiveRow.find('.sop-goodsin-notes');
+                var $preview = notesActiveRow.find('.sop-goodsin-notes-preview');
+                $textarea.val(newNotes);
+                $preview.text(newNotes);
+                $preview.attr('title', newNotes);
+                updateRowSortData(notesActiveRow);
+                markDirty();
+                closeNotesModal();
+            }
+
+            $('#sop-goodsin-lines').on('click', '.sop-goodsin-notes-preview, .sop-goodsin-notes-edit', function(e){
+                e.preventDefault();
+                var $tr = $(this).closest('tr');
+                var $textarea = $tr.find('.sop-goodsin-notes');
+                if ( $textarea.is(':disabled') ) {
+                    return;
+                }
+                openNotesModal($tr);
+            });
+
+            $notesModalSave.on('click', function(e){
+                e.preventDefault();
+                saveNotesModal();
+            });
+
+            $notesModalCancel.on('click', function(e){
+                e.preventDefault();
+                closeNotesModal();
+            });
+
+            $notesModalBackdrop.on('click', function(e){
+                e.preventDefault();
+                closeNotesModal();
+            });
+
+            $(document).on('keydown', function(e){
+                if ( 27 === e.which && $notesModal.is(':visible') ) {
+                    e.preventDefault();
+                    closeNotesModal();
+                }
             });
 
             function sortTable($th) {
