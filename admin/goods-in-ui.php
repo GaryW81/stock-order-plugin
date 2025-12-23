@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.17
+ * File version: 1.0.18
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -21,6 +21,7 @@
  * - 1.0.15 - Resize header select-all checkbox to 16px.
  * - 1.0.16 - Adjust Goods-In check column to 16px with 10px side padding.
  * - 1.0.17 - Allow product link wrapping within fixed-height wrapper (rows remain 80px).
+ * - 1.0.18 - Vertically center wrapped product link; clamp product/order notes to 4 lines with tooltips.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -462,7 +463,13 @@ function sop_render_goods_in_page() {
                     <td class="sop-goodsin-col-sku" data-column="sku"><?php echo esc_html( $sku . $missing_pid_warning ); ?></td>
                     <td class="sop-goodsin-col-product" data-column="product" title="<?php echo esc_attr( wp_strip_all_tags( $name ) ); ?>">
                         <div class="sop-goodsin-product-wrap">
-                            <?php echo $product_link ? '<a href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>' : esc_html( $name ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                            <?php
+                            if ( $product_link ) {
+                                echo '<a class="sop-goodsin-product-link" href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                            } else {
+                                echo '<span class="sop-goodsin-product-link">' . esc_html( $name ) . '</span>';
+                            }
+                            ?>
                         </div>
                     </td>
                     <td data-column="ordered"><?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?></td>
@@ -479,8 +486,16 @@ function sop_render_goods_in_page() {
                         </select>
                     </td>
                     <td class="sop-goodsin-carton sop-goodsin-cell-truncate" data-column="carton" title="<?php echo esc_attr( $carton ); ?>"><?php echo esc_html( $carton ); ?></td>
-                    <td class="sop-goodsin-text-col sop-goodsin-cell-truncate" data-column="product_notes" title="<?php echo esc_attr( $product_notes ); ?>"><?php echo esc_html( $product_notes ); ?></td>
-                    <td class="sop-goodsin-text-col sop-goodsin-cell-truncate" data-column="order_notes" title="<?php echo esc_attr( $order_notes ); ?>"><?php echo esc_html( $order_notes ); ?></td>
+                    <td class="sop-goodsin-text-col" data-column="product_notes" title="<?php echo esc_attr( $product_notes ); ?>">
+                        <div class="sop-goodsin-notes-wrap">
+                            <div class="sop-goodsin-notes-text"><?php echo esc_html( $product_notes ); ?></div>
+                        </div>
+                    </td>
+                    <td class="sop-goodsin-text-col" data-column="order_notes" title="<?php echo esc_attr( $order_notes ); ?>">
+                        <div class="sop-goodsin-notes-wrap">
+                            <div class="sop-goodsin-notes-text"><?php echo esc_html( $order_notes ); ?></div>
+                        </div>
+                    </td>
                     <td data-column="goodsin_notes"><input type="text" class="sop-goodsin-notes" value="<?php echo esc_attr( $notes ); ?>" name="goods_in_notes[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
                     <td data-column="stocked"><?php echo esc_html( number_format_i18n( $stocked, 0 ) ); ?></td>
                     <td data-column="outstanding"><?php echo esc_html( number_format_i18n( $outstanding, 0 ) ); ?></td>
@@ -722,21 +737,27 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-table .sop-goodsin-product-wrap {
             height: 80px;
+            display: flex;
+            align-items: center;
             overflow: hidden;
-            display: block;
+            text-align: left;
         }
         .sop-goodsin-table td.sop-goodsin-col-product {
             white-space: normal !important;
             overflow: hidden;
         }
-        .sop-goodsin-table td.sop-goodsin-col-product a {
-            display: block;
+        .sop-goodsin-table td.sop-goodsin-col-product a,
+        .sop-goodsin-table td.sop-goodsin-col-product .sop-goodsin-product-link {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 4;
+            overflow: hidden;
             white-space: normal !important;
-            overflow: visible;
-            text-overflow: clip;
             overflow-wrap: anywhere;
             word-break: break-word;
             line-height: 1.2;
+            max-height: 4.8em;
+            text-align: left;
         }
         .sop-goodsin-col-narrow {
             white-space: nowrap;
