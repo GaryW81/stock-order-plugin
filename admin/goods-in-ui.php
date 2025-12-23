@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.23
+ * File version: 1.0.24
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -27,6 +27,7 @@
  * - 1.0.21 - Set Goods-In notes modal to 700x342 and widen Location column to 56px.
  * - 1.0.22 - Align Goods-In notes modal to Pre-Order styling; auto-grow textarea (no modal scroll).
  * - 1.0.23 - Match Pre-Order notes modal UX (overlay position, close/X, product line, resizable textarea).
+ * - 1.0.24 - Match Location column sizing/padding to Pre-Order sheet.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -379,7 +380,7 @@ function sop_render_goods_in_page() {
             <tr>
                 <th class="check-column" data-sortable="false"><input type="checkbox" id="sop-goodsin-select-all" /></th>
                 <th class="sop-goodsin-col-image" data-sortable="false" data-column="image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort sop-goodsin-col-location" data-sort-key="location" data-sort-type="text" data-column="location"><?php esc_html_e( 'Location', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-location column-location" data-sort-key="location" data-sort-type="text" data-column="location"><?php esc_html_e( 'Location', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-sku" data-sort-key="sku" data-sort-type="text" data-column="sku"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-product" data-sort-key="product" data-sort-type="text" data-column="product"><?php esc_html_e( 'Product', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="ordered" data-sort-type="number" data-column="ordered"><?php esc_html_e( 'Ordered', 'sop' ); ?></th>
@@ -464,7 +465,7 @@ function sop_render_goods_in_page() {
                         <input type="checkbox" class="sop-goodsin-select" name="selected_lines[<?php echo esc_attr( $line_id ); ?>]" value="1" />
                     </td>
                     <td class="sop-goodsin-col-image" data-column="image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
-                    <td class="sop-goodsin-col-location" data-column="location"><?php echo esc_html( $location ); ?></td>
+                    <td class="sop-goodsin-col-location column-location" data-column="location"><?php echo esc_html( $location ); ?></td>
                     <td class="sop-goodsin-col-sku" data-column="sku"><?php echo esc_html( $sku . $missing_pid_warning ); ?></td>
                     <td class="sop-goodsin-col-product" data-column="product" title="<?php echo esc_attr( wp_strip_all_tags( $name ) ); ?>">
                         <div class="sop-goodsin-product-wrap">
@@ -855,13 +856,18 @@ function sop_render_goods_in_page() {
             line-height: 1;
         }
         /* Location / SKU / Product widths + padding */
-        .sop-goodsin-table th.sop-goodsin-col-location,
-        .sop-goodsin-table td.sop-goodsin-col-location {
-            width: 56px;
-            min-width: 56px;
-            max-width: 56px;
-            padding-left: 10px !important;
-            padding-right: 14px !important;
+        /* Location column — match Pre-Order sheet */
+        .sop-goodsin-table thead th.column-location {
+            width: 90px;
+            white-space: nowrap;
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+        .sop-goodsin-table tbody td.column-location {
+            width: 90px;
+            white-space: nowrap;
+            padding-left: 8px !important;
+            padding-right: 8px !important;
         }
         .sop-goodsin-table th.sop-goodsin-col-sku,
         .sop-goodsin-table td.sop-goodsin-col-sku {
