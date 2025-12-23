@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.12
+ * File version: 1.0.13
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -16,6 +16,7 @@
  * - 1.0.10 - Tighten Goods-In image and column widths (narrow/reason/stocked/outstanding).
  * - 1.0.11 - Set Location/SKU/Product column widths and padding for Goods-In table.
  * - 1.0.12 - Enforce 80px rows; remove vertical padding; truncate long text cells with hover tooltips.
+ * - 1.0.13 - Header checkbox padding + location/carton/notes column width updates.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
