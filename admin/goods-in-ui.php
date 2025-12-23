@@ -623,16 +623,16 @@ function sop_render_goods_in_page() {
         .sop-goodsin-table td:nth-child(9) { width: 80px; min-width: 80px; }
         /* Reason + Carton no. */
         .sop-goodsin-table th:nth-child(10),
-        .sop-goodsin-table td:nth-child(10) { width: 120px; min-width: 120px; }
+        .sop-goodsin-table td:nth-child(10) { width: 88px; min-width: 88px; max-width: 88px; }
         .sop-goodsin-table th:nth-child(11),
         .sop-goodsin-table td:nth-child(11) { width: 120px; min-width: 120px; }
         /* Notes columns */
         .sop-goodsin-table th:nth-child(12),
-        .sop-goodsin-table td:nth-child(12) { width: 220px; min-width: 220px; }
+        .sop-goodsin-table td:nth-child(12) { width: 300px; min-width: 300px; max-width: 300px; }
         .sop-goodsin-table th:nth-child(13),
-        .sop-goodsin-table td:nth-child(13) { width: 220px; min-width: 220px; }
+        .sop-goodsin-table td:nth-child(13) { width: 300px; min-width: 300px; max-width: 300px; }
         .sop-goodsin-table th:nth-child(14),
-        .sop-goodsin-table td:nth-child(14) { width: 220px; min-width: 220px; }
+        .sop-goodsin-table td:nth-child(14) { width: 300px; min-width: 300px; max-width: 300px; }
         /* Stocked / Outstanding */
         .sop-goodsin-table th:nth-child(15),
         .sop-goodsin-table td:nth-child(15) { width: 50px; min-width: 50px; }
@@ -663,6 +663,11 @@ function sop_render_goods_in_page() {
             height: 60px;
             resize: vertical;
         }
+        .sop-goodsin-table thead th.check-column {
+            padding: 0 !important;
+            padding-right: 0 !important;
+            padding-bottom: 0 !important;
+        }
         .sop-goodsin-table .sop-goodsin-cell-truncate {
             white-space: nowrap;
             overflow: hidden;
@@ -677,9 +682,9 @@ function sop_render_goods_in_page() {
         /* Location / SKU / Product widths + padding */
         .sop-goodsin-table th.sop-goodsin-col-location,
         .sop-goodsin-table td.sop-goodsin-col-location {
-            width: 78px;
-            min-width: 78px;
-            max-width: 78px;
+            width: 54px;
+            min-width: 54px;
+            max-width: 54px;
             padding-left: 10px !important;
             padding-right: 14px !important;
         }
