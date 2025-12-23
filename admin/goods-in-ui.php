@@ -704,11 +704,18 @@ function sop_render_goods_in_page() {
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .sop-goodsin-table td.sop-goodsin-col-product a {
-            display: block;
-            white-space: nowrap;
+        .sop-goodsin-table td.sop-goodsin-col-product a,
+        .sop-goodsin-table td.sop-goodsin-col-product .sop-goodsin-product-link {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 4;
             overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal !important;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.2;
+            max-height: 4.8em;
+            text-align: left;
         }
         /* Location / SKU / Product widths + padding */
         .sop-goodsin-table th.sop-goodsin-col-location,
