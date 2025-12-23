@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.27
+ * File version: 1.0.28
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -31,6 +31,7 @@
  * - 1.0.25 - Add Outstanding-only filter (auto-hide completed lines, toggle + counter).
  * - 1.0.26 - Add Goods-In search filter + Enter-to-jump (SKU/Product/Carton/Location).
  * - 1.0.27 - Widen search box to 250px; add Scan SKU jump/focus input.
+ * - 1.0.28 - Hotfix parse error: ensure JS stays inside script; maintain search/scan features.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1467,21 +1468,3 @@ function sop_render_goods_in_page() {
 
     echo '</div>';
 }
-            function sopGoodsinJumpToFirstVisible() {
-                var $firstMatch = $('#sop-goodsin-lines tbody tr').not('.sop-goodsin-row-hidden').not('.sop-goodsin-row-search-hidden').first();
-                if ( $firstMatch.length ) {
-                    var wrapper = document.querySelector('.sop-preorder-table-wrapper');
-                    if ( wrapper && wrapper.scrollTop !== undefined ) {
-                        var rowTop = $firstMatch[0].offsetTop;
-                        wrapper.scrollTop = rowTop - 10;
-                    } else {
-                        $firstMatch[0].scrollIntoView({ block: 'nearest' });
-                    }
-                    $firstMatch.addClass('sop-goodsin-row-jump-highlight');
-                    setTimeout( function(){ $firstMatch.removeClass('sop-goodsin-row-jump-highlight'); }, 800 );
-                    var $received = $firstMatch.find('.sop-goodsin-received').first();
-                    if ( $received.length ) {
-                        $received.focus().select();
-                    }
-                }
-            }
