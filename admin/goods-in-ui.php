@@ -536,8 +536,7 @@ function sop_render_goods_in_page() {
         }
         #sop-goodsin-lines .check-column {
             width: 36px;
-            padding-left: 6px;
-            padding-right: 6px;
+            padding: 8px 10px;
         }
         .sop-goodsin-img-wrap {
             width: 80px;
