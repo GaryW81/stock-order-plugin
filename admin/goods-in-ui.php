@@ -720,6 +720,24 @@ function sop_render_goods_in_page() {
             padding-left: 10px !important;
             padding-right: 14px !important;
         }
+        .sop-goodsin-table .sop-goodsin-product-wrap {
+            height: 80px;
+            overflow: hidden;
+            display: block;
+        }
+        .sop-goodsin-table td.sop-goodsin-col-product {
+            white-space: normal !important;
+            overflow: hidden;
+        }
+        .sop-goodsin-table td.sop-goodsin-col-product a {
+            display: block;
+            white-space: normal !important;
+            overflow: visible;
+            text-overflow: clip;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.2;
+        }
         .sop-goodsin-col-narrow {
             white-space: nowrap;
         }
