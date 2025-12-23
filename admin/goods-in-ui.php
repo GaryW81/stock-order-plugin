@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.26
+ * File version: 1.0.27
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -30,6 +30,7 @@
  * - 1.0.24 - Match Location column sizing/padding to Pre-Order sheet.
  * - 1.0.25 - Add Outstanding-only filter (auto-hide completed lines, toggle + counter).
  * - 1.0.26 - Add Goods-In search filter + Enter-to-jump (SKU/Product/Carton/Location).
+ * - 1.0.27 - Widen search box to 250px; add Scan SKU jump/focus input.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -382,6 +383,7 @@ function sop_render_goods_in_page() {
                 <?php esc_html_e( 'Show completed lines', 'sop' ); ?>
             </label>
             <label class="sop-goodsin-search-wrap">
+                <input type="text" id="sop-goodsin-scan" placeholder="<?php esc_attr_e( 'Scan SKU (Enter)', 'sop' ); ?>" autocomplete="off" />
                 <input type="text" id="sop-goodsin-search" placeholder="<?php esc_attr_e( 'Search SKU / Product / Carton / Location', 'sop' ); ?>" autocomplete="off" />
                 <button type="button" class="button-link" id="sop-goodsin-search-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
             </label>
@@ -918,6 +920,10 @@ function sop_render_goods_in_page() {
             align-items: center;
             gap: 6px;
         }
+        #sop-goodsin-search {
+            width: 250px;
+            box-sizing: border-box;
+        }
         .sop-goodsin-row-hidden {
             display: none;
         }
@@ -1043,6 +1049,7 @@ function sop_render_goods_in_page() {
             var $filterSummary = $('#sop-goodsin-filter-summary');
             var $searchInput = $('#sop-goodsin-search');
             var $searchClear = $('#sop-goodsin-search-clear');
+            var $scanInput = $('#sop-goodsin-scan');
             var notesActiveRow = null;
             var sopGoodsinFilterTimer = null;
 
@@ -1299,18 +1306,7 @@ function sop_render_goods_in_page() {
                 }
                 if ( e.key === 'Enter' && $(e.target).is($searchInput) ) {
                     e.preventDefault();
-                    var $firstMatch = $('#sop-goodsin-lines tbody tr').not('.sop-goodsin-row-hidden').not('.sop-goodsin-row-search-hidden').first();
-                    if ( $firstMatch.length ) {
-                        var wrapper = document.querySelector('.sop-preorder-table-wrapper');
-                        if ( wrapper && wrapper.scrollTop !== undefined ) {
-                            var rowTop = $firstMatch[0].offsetTop;
-                            wrapper.scrollTop = rowTop - 10;
-                        } else {
-                            $firstMatch[0].scrollIntoView({ block: 'nearest' });
-                        }
-                        $firstMatch.addClass('sop-goodsin-row-jump-highlight');
-                        setTimeout( function(){ $firstMatch.removeClass('sop-goodsin-row-jump-highlight'); }, 800 );
-                    }
+                    sopGoodsinJumpToFirstVisible();
                 }
             });
 
@@ -1360,6 +1356,24 @@ function sop_render_goods_in_page() {
                 } catch (e2) {}
                 sopGoodsinScheduleFilterRefresh();
                 $searchInput.focus();
+            });
+
+            $scanInput.on('keydown', function(e){
+                if ( e.key !== 'Enter' ) {
+                    return;
+                }
+                e.preventDefault();
+                var scanVal = ($scanInput.val() || '').toString().trim();
+                if ( ! scanVal ) {
+                    return;
+                }
+                $searchInput.val( scanVal );
+                try {
+                    window.localStorage.setItem('sop_goodsin_search_query', scanVal);
+                } catch (e2) {}
+                sopGoodsinApplyFilterAll();
+                sopGoodsinJumpToFirstVisible();
+                $scanInput.val('');
             });
 
             function sortTable($th) {
@@ -1453,3 +1467,21 @@ function sop_render_goods_in_page() {
 
     echo '</div>';
 }
+            function sopGoodsinJumpToFirstVisible() {
+                var $firstMatch = $('#sop-goodsin-lines tbody tr').not('.sop-goodsin-row-hidden').not('.sop-goodsin-row-search-hidden').first();
+                if ( $firstMatch.length ) {
+                    var wrapper = document.querySelector('.sop-preorder-table-wrapper');
+                    if ( wrapper && wrapper.scrollTop !== undefined ) {
+                        var rowTop = $firstMatch[0].offsetTop;
+                        wrapper.scrollTop = rowTop - 10;
+                    } else {
+                        $firstMatch[0].scrollIntoView({ block: 'nearest' });
+                    }
+                    $firstMatch.addClass('sop-goodsin-row-jump-highlight');
+                    setTimeout( function(){ $firstMatch.removeClass('sop-goodsin-row-jump-highlight'); }, 800 );
+                    var $received = $firstMatch.find('.sop-goodsin-received').first();
+                    if ( $received.length ) {
+                        $received.focus().select();
+                    }
+                }
+            }
