@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.24
+ * File version: 1.0.25
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -28,6 +28,7 @@
  * - 1.0.22 - Align Goods-In notes modal to Pre-Order styling; auto-grow textarea (no modal scroll).
  * - 1.0.23 - Match Pre-Order notes modal UX (overlay position, close/X, product line, resizable textarea).
  * - 1.0.24 - Match Location column sizing/padding to Pre-Order sheet.
+ * - 1.0.25 - Add Outstanding-only filter (auto-hide completed lines, toggle + counter).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -374,6 +375,14 @@ function sop_render_goods_in_page() {
             </div>
         </div>
 
+        <div class="sop-goodsin-filter">
+            <label>
+                <input type="checkbox" id="sop-goodsin-show-completed" />
+                <?php esc_html_e( 'Show completed lines', 'sop' ); ?>
+            </label>
+            <span id="sop-goodsin-filter-summary" aria-live="polite"></span>
+        </div>
+
         <div class="sop-preorder-table-wrapper" aria-label="Goods-In table scroll">
         <table class="wp-list-table widefat fixed striped sop-preorder-table sop-goodsin-table" id="sop-goodsin-lines">
             <thead>
@@ -451,6 +460,7 @@ function sop_render_goods_in_page() {
                     data-sort-product="<?php echo esc_attr( mb_strtolower( $name ) ); ?>"
                     data-sort-location="<?php echo esc_attr( mb_strtolower( $location ) ); ?>"
                     data-sort-ordered="<?php echo esc_attr( $ordered ); ?>"
+                    data-sop-ordered="<?php echo esc_attr( $ordered ); ?>"
                     data-sort-received="<?php echo esc_attr( $received ); ?>"
                     data-sort-missing="<?php echo esc_attr( $missing ); ?>"
                     data-sort-reject="<?php echo esc_attr( $reject ); ?>"
@@ -892,6 +902,15 @@ function sop_render_goods_in_page() {
             overflow: hidden;
             text-align: left;
         }
+        .sop-goodsin-filter {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+        .sop-goodsin-row-hidden {
+            display: none;
+        }
         .sop-goodsin-table td.sop-goodsin-col-product {
             white-space: normal !important;
             overflow: hidden;
@@ -1000,10 +1019,56 @@ function sop_render_goods_in_page() {
             var $notesModalProduct = $('#sop-goodsin-notes-product');
             var $notesModalSave = $('#sop-goodsin-notes-save');
             var $notesModalClose = $('#sop-goodsin-notes-close');
+            var $showCompleted = $('#sop-goodsin-show-completed');
+            var $filterSummary = $('#sop-goodsin-filter-summary');
             var notesActiveRow = null;
+            var sopGoodsinFilterTimer = null;
 
             function markDirty() {
                 dirty = true;
+            }
+
+            function sopGoodsinParseNumber(val) {
+                var n = parseFloat( (val || '').toString().replace(/,/g, '') );
+                return isNaN(n) ? 0 : n;
+            }
+
+            function sopGoodsinIsCompleteClean($tr) {
+                var ordered = sopGoodsinParseNumber( $tr.data('sop-ordered') );
+                var stocked = sopGoodsinParseNumber( $tr.find('td[data-column="stocked"]').text() );
+                var missing = sopGoodsinParseNumber( $tr.find('.sop-goodsin-missing').val() );
+                var reject  = sopGoodsinParseNumber( $tr.find('.sop-goodsin-reject').val() );
+
+                return ordered > 0 && stocked === ordered && missing === 0 && reject === 0;
+            }
+
+            function sopGoodsinApplyFilterAll() {
+                var showCompleted = $showCompleted.is(':checked');
+                var total = 0;
+                var hidden = 0;
+
+                $('#sop-goodsin-lines tbody tr').each(function(){
+                    total++;
+                    var $tr = $(this);
+                    var complete = sopGoodsinIsCompleteClean($tr);
+                    if ( ! showCompleted && complete ) {
+                        $tr.addClass('sop-goodsin-row-hidden');
+                        hidden++;
+                        $tr.find('input[type="checkbox"]').first().prop('checked', false);
+                    } else {
+                        $tr.removeClass('sop-goodsin-row-hidden');
+                    }
+                });
+
+                var visible = total - hidden;
+                $filterSummary.text( 'Showing ' + visible + ' of ' + total + ' lines (' + hidden + ' completed hidden)' );
+            }
+
+            function sopGoodsinScheduleFilterRefresh() {
+                if ( sopGoodsinFilterTimer ) {
+                    clearTimeout( sopGoodsinFilterTimer );
+                }
+                sopGoodsinFilterTimer = setTimeout( sopGoodsinApplyFilterAll, 50 );
             }
 
             function buildPayload(actionType) {
@@ -1092,6 +1157,7 @@ function sop_render_goods_in_page() {
                 var $tr = $(this).closest('tr');
                 updateRowSortData($tr);
                 markDirty();
+                sopGoodsinScheduleFilterRefresh();
             });
 
             function openNotesModal($tr) {
@@ -1121,6 +1187,7 @@ function sop_render_goods_in_page() {
                 $preview.attr('title', newNotes);
                 updateRowSortData(notesActiveRow);
                 markDirty();
+                sopGoodsinScheduleFilterRefresh();
                 closeNotesModal();
             }
 
@@ -1154,6 +1221,25 @@ function sop_render_goods_in_page() {
                     e.preventDefault();
                     closeNotesModal();
                 }
+            });
+
+            // Filter toggle persistence + initial apply.
+            (function(){
+                var stored = null;
+                try {
+                    stored = window.localStorage.getItem('sop_goodsin_show_completed');
+                } catch (e) {}
+                if ( stored === '1' ) {
+                    $showCompleted.prop('checked', true);
+                }
+                sopGoodsinApplyFilterAll();
+            })();
+
+            $showCompleted.on('change', function(){
+                try {
+                    window.localStorage.setItem('sop_goodsin_show_completed', $(this).is(':checked') ? '1' : '0');
+                } catch (e) {}
+                sopGoodsinApplyFilterAll();
             });
 
             function sortTable($th) {
@@ -1240,6 +1326,7 @@ function sop_render_goods_in_page() {
             sopGoodsinUpdateColumnsToggleLabel();
             sopGoodsinApplyColumnVisibility();
             $('#sop-goodsin-lines tbody tr').each(function(){ updateRowSortData($(this)); });
+            sopGoodsinApplyFilterAll();
         })(jQuery);
     </script>
     <?php
