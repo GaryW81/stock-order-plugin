@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.09
+ * File version: 1.0.10
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -13,6 +13,7 @@
  * - 1.0.07 - Apply preorder-style tablecloth wrapper (sticky header + scroll container) to Goods-In list.
  * - 1.0.08 - Fix Goods-In right-side column widths (Ordered → Outstanding) in tablecloth layout.
  * - 1.0.09 - Set qty columns to 80px and rows to 80px height in Goods-In tablecloth layout.
+ * - 1.0.10 - Tighten Goods-In image and column widths (narrow/reason/stocked/outstanding).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -533,27 +534,6 @@ function sop_render_goods_in_page() {
             padding-left: 6px;
             padding-right: 6px;
         }
-        .sop-goodsin-col-image {
-            width: 80px;
-            text-align: center;
-        }
-        .sop-goodsin-col-location {
-            width: 90px;
-            min-width: 90px;
-            white-space: normal;
-            overflow-wrap: anywhere;
-        }
-        .sop-goodsin-col-sku {
-            width: 104px;
-            min-width: 104px;
-            white-space: nowrap;
-        }
-        .sop-goodsin-col-product {
-            width: 288px;
-            min-width: 288px;
-            white-space: normal;
-            word-break: break-word;
-        }
         .sop-goodsin-img-wrap {
             width: 80px;
             height: 80px;
@@ -567,8 +547,17 @@ function sop_render_goods_in_page() {
         .sop-goodsin-img {
             width: 78px;
             height: 78px;
+            max-width: 78px;
+            max-height: 78px;
             object-fit: contain;
             display: block;
+            margin: 0 auto;
+        }
+        .sop-goodsin-col-narrow {
+            width: 60px;
+            min-width: 60px;
+            max-width: 60px;
+            white-space: nowrap;
         }
         .sop-preorder-table-wrapper {
             max-height: 90vh;
@@ -603,7 +592,24 @@ function sop_render_goods_in_page() {
             word-break: normal;
             overflow-wrap: normal;
         }
-        /* Ordered / Received / Missing / Reject */
+        .sop-goodsin-table .sop-goodsin-col-image {
+            width: 80px;
+            min-width: 80px;
+            max-width: 80px;
+            padding: 0 !important;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .sop-goodsin-img {
+            width: 78px;
+            height: 78px;
+            max-width: 78px;
+            max-height: 78px;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+        }
+        /* Ordered / Received / Missing / Reject (narrow numeric columns) */
         .sop-goodsin-table th:nth-child(6),
         .sop-goodsin-table td:nth-child(6) { width: 80px; min-width: 80px; }
         .sop-goodsin-table th:nth-child(7),
@@ -614,7 +620,7 @@ function sop_render_goods_in_page() {
         .sop-goodsin-table td:nth-child(9) { width: 80px; min-width: 80px; }
         /* Reason + Carton no. */
         .sop-goodsin-table th:nth-child(10),
-        .sop-goodsin-table td:nth-child(10) { width: 160px; min-width: 160px; }
+        .sop-goodsin-table td:nth-child(10) { width: 120px; min-width: 120px; }
         .sop-goodsin-table th:nth-child(11),
         .sop-goodsin-table td:nth-child(11) { width: 120px; min-width: 120px; }
         /* Notes columns */
@@ -626,9 +632,9 @@ function sop_render_goods_in_page() {
         .sop-goodsin-table td:nth-child(14) { width: 220px; min-width: 220px; }
         /* Stocked / Outstanding */
         .sop-goodsin-table th:nth-child(15),
-        .sop-goodsin-table td:nth-child(15) { width: 90px; min-width: 90px; }
+        .sop-goodsin-table td:nth-child(15) { width: 50px; min-width: 50px; }
         .sop-goodsin-table th:nth-child(16),
-        .sop-goodsin-table td:nth-child(16) { width: 120px; min-width: 120px; }
+        .sop-goodsin-table td:nth-child(16) { width: 80px; min-width: 80px; }
         .sop-goodsin-table td input[type="text"],
         .sop-goodsin-table td input[type="number"],
         .sop-goodsin-table td select,
@@ -645,7 +651,7 @@ function sop_render_goods_in_page() {
             vertical-align: middle;
         }
         .sop-goodsin-table tbody td img {
-            max-height: 70px;
+            max-height: 78px;
             width: auto;
         }
         .sop-goodsin-table textarea {
