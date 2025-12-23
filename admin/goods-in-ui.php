@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.15
+ * File version: 1.0.16
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -19,6 +19,7 @@
  * - 1.0.13 - Header checkbox padding + location/carton/notes column width updates.
  * - 1.0.14 - Header tick column sizing/padding adjustments.
  * - 1.0.15 - Resize header select-all checkbox to 16px.
+ * - 1.0.16 - Adjust Goods-In check column to 16px with 10px side padding.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -535,8 +536,8 @@ function sop_render_goods_in_page() {
             vertical-align: middle;
         }
         #sop-goodsin-lines .check-column {
-            width: 36px;
-            padding: 8px 10px;
+            width: 16px;
+            padding: 0 10px;
         }
         .sop-goodsin-img-wrap {
             width: 80px;
@@ -665,10 +666,10 @@ function sop_render_goods_in_page() {
             resize: vertical;
         }
         .sop-goodsin-table thead th.check-column {
-            width: 22px;
-            min-width: 22px;
-            max-width: 22px;
-            padding: 8px 10px !important;
+            width: 16px;
+            min-width: 16px;
+            max-width: 16px;
+            padding: 0 10px !important;
             text-align: center;
             vertical-align: middle;
         }
