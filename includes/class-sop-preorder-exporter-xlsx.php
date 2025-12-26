@@ -400,6 +400,12 @@ class SOP_Preorder_XLSX_Exporter {
         $sheet_rows_xml = '';
         $sheet_rows_xml .= self::build_row_xml( 1, array_map( 'esc_html', $columns ), true, array(), $row_index - 2 );
 
+        $total_missing         = 0.0;
+        $total_reject          = 0.0;
+        $total_credit_qty      = 0.0;
+        $total_credit_currency = 0.0;
+        $total_credit_usd      = 0.0;
+
         foreach ( $issue_lines as $line ) {
             $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
             $sku_to_output = isset( $line['sku'] ) ? (string) $line['sku'] : '';
@@ -519,10 +525,64 @@ class SOP_Preorder_XLSX_Exporter {
 
             $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles, 0, array( 1 ) );
             $row_index++;
+
+            $total_missing         += $missing;
+            $total_reject          += $reject;
+            $total_credit_qty      += $credit_qty;
+            $total_credit_currency += $credit_total;
+            if ( $show_usd_column ) {
+                $total_credit_usd += (float) $credit_total_usd;
+            }
+        }
+
+        // Totals row.
+        if ( $row_index > 2 ) {
+            $column_index = array();
+            foreach ( $columns as $idx => $label ) {
+                $column_index[ $label ] = $idx;
+            }
+
+            $totals_cells  = array_fill( 0, count( $columns ), '' );
+            $totals_styles = array_fill( 0, count( $columns ), null );
+
+            if ( isset( $column_index['Product name'] ) ) {
+                $totals_cells[ $column_index['Product name'] ]  = 'TOTALS';
+                $totals_styles[ $column_index['Product name'] ] = 6;
+            } elseif ( isset( $column_index['SKU'] ) ) {
+                $totals_cells[ $column_index['SKU'] ]  = 'TOTALS';
+                $totals_styles[ $column_index['SKU'] ] = 6;
+            }
+
+            if ( isset( $column_index['Goods-In Missing'] ) ) {
+                $totals_cells[ $column_index['Goods-In Missing'] ]  = self::format_number_cell( $total_missing, 2 );
+                $totals_styles[ $column_index['Goods-In Missing'] ] = 7;
+            }
+            if ( isset( $column_index['Goods-In Reject'] ) ) {
+                $totals_cells[ $column_index['Goods-In Reject'] ]  = self::format_number_cell( $total_reject, 2 );
+                $totals_styles[ $column_index['Goods-In Reject'] ] = 7;
+            }
+            if ( isset( $column_index['Credit Qty'] ) ) {
+                $totals_cells[ $column_index['Credit Qty'] ]  = self::format_number_cell( $total_credit_qty, 2 );
+                $totals_styles[ $column_index['Credit Qty'] ] = 7;
+            }
+
+            $credit_label = 'Credit total (' . $supplier_currency . ')';
+            if ( isset( $column_index[ $credit_label ] ) ) {
+                $totals_cells[ $column_index[ $credit_label ] ]  = self::format_number_cell( $total_credit_currency, 4 );
+                $totals_styles[ $column_index[ $credit_label ] ] = 7;
+            }
+
+            if ( $show_usd_column && isset( $column_index['Credit total (USD)'] ) ) {
+                $totals_cells[ $column_index['Credit total (USD)'] ]  = self::format_number_cell( $total_credit_usd, 4 );
+                $totals_styles[ $column_index['Credit total (USD)'] ] = 7;
+            }
+
+            $sheet_rows_xml .= self::build_row_xml( $row_index, $totals_cells, false, $totals_styles, 0, array( 1 ) );
+            $row_index++;
         }
 
         $has_images = ! empty( $images );
-        $sheet_xml  = self::build_sheet_xml( $sheet_rows_xml, $has_images, $row_index - 1, $show_usd_column );
+        $sheet_xml  = self::build_sheet_xml( $sheet_rows_xml, $has_images, $row_index - 1, $show_usd_column, count( $columns ) );
         $sheet_rels = self::build_sheet_rels_xml( $has_images );
         $drawing_xml = '';
         $drawing_rels = '';
