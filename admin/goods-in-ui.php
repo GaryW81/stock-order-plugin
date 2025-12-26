@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.33
+ * File version: 1.0.34
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -37,6 +37,7 @@
  * - 1.0.31 - Add completed-only Goods-In Issues XLSX export button.
  * - 1.0.32 - Harden Goods-In Issues button gating (completed + has issues).
  * - 1.0.33 - Finalise Goods-In Issues XLSX export gating and data plumbing.
+ * - 1.0.34 - Add Goods-In "Issues only" filter toggle (missing/reject > 0).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -413,6 +414,10 @@ function sop_render_goods_in_page() {
             <label>
                 <input type="checkbox" id="sop-goodsin-show-completed" />
                 <?php esc_html_e( 'Show completed lines', 'sop' ); ?>
+            </label>
+            <label>
+                <input type="checkbox" id="sop-goodsin-issues-only" />
+                <?php esc_html_e( 'Issues only', 'sop' ); ?>
             </label>
             <label class="sop-goodsin-search-wrap">
                 <input type="text" id="sop-goodsin-carton" placeholder="<?php esc_attr_e( 'Carton (Enter)', 'sop' ); ?>" autocomplete="off" />
@@ -966,6 +971,9 @@ function sop_render_goods_in_page() {
         .sop-goodsin-row-search-hidden {
             display: none;
         }
+        .sop-goodsin-row-issues-hidden {
+            display: none;
+        }
         .sop-goodsin-row-jump-highlight {
             outline: 2px solid #2271b1;
             outline-offset: -2px;
@@ -1093,6 +1101,7 @@ function sop_render_goods_in_page() {
             var $searchInput = $('#sop-goodsin-search');
             var $searchClear = $('#sop-goodsin-search-clear');
             var $scanInput = $('#sop-goodsin-scan');
+            var $issuesOnly = $('#sop-goodsin-issues-only');
             var notesActiveRow = null;
             var sopGoodsinFilterTimer = null;
 
@@ -1135,6 +1144,7 @@ function sop_render_goods_in_page() {
 
             function sopGoodsinApplyFilterAll() {
                 var showCompleted = $showCompleted.is(':checked');
+                var issuesOnly = $issuesOnly.is(':checked');
                 var query = sopGoodsinNormalizeQuery( $searchInput.val() || '' );
                 var terms = query ? query.split(' ') : [];
                 var cartonQuery = sopGoodsinNormalizeQuery( $cartonInput ? $cartonInput.val() : '' );
@@ -1142,6 +1152,7 @@ function sop_render_goods_in_page() {
                 var hidden = 0;
                 var hiddenSearch = 0;
                 var hiddenCarton = 0;
+                var hiddenIssues = 0;
 
                 $('#sop-goodsin-lines tbody tr').each(function(){
                     total++;
@@ -1163,10 +1174,14 @@ function sop_render_goods_in_page() {
                     if ( cartonQuery ) {
                         matchesCarton = ( rowCarton.indexOf( cartonQuery ) !== -1 );
                     }
+                    var rowMissing = sopGoodsinParseNumber( $tr.find('.sop-goodsin-missing').val() );
+                    var rowReject  = sopGoodsinParseNumber( $tr.find('.sop-goodsin-reject').val() );
+                    var isIssue    = ( rowMissing > 0 || rowReject > 0 );
 
                     var hideCompleted = ( ! showCompleted && complete );
                     var hideSearch    = ( terms.length && ! matchesSearch );
                     var hideCarton    = ( cartonQuery && ! matchesCarton );
+                    var hideIssues    = ( issuesOnly && ! isIssue );
 
                     if ( hideCompleted ) {
                         $tr.addClass('sop-goodsin-row-hidden');
@@ -1191,15 +1206,26 @@ function sop_render_goods_in_page() {
                     } else {
                         $tr.removeClass('sop-goodsin-row-carton-hidden');
                     }
+
+                    if ( hideIssues ) {
+                        $tr.addClass('sop-goodsin-row-issues-hidden');
+                        hiddenIssues++;
+                        $tr.find('input[type="checkbox"]').first().prop('checked', false);
+                    } else {
+                        $tr.removeClass('sop-goodsin-row-issues-hidden');
+                    }
                 });
 
-                var visible = total - hidden - hiddenSearch - hiddenCarton;
+                var visible = total - hidden - hiddenSearch - hiddenCarton - hiddenIssues;
                 var summary = 'Showing ' + visible + ' of ' + total + ' lines (' + hidden + ' completed hidden';
                 if ( hiddenSearch ) {
                     summary += ', ' + hiddenSearch + ' filtered by search';
                 }
                 if ( hiddenCarton ) {
                     summary += ', ' + hiddenCarton + ' filtered by carton';
+                }
+                if ( hiddenIssues ) {
+                    summary += ', ' + hiddenIssues + ' filtered by issues';
                 }
                 summary += ')';
                 $filterSummary.text( summary );
@@ -1423,6 +1449,24 @@ function sop_render_goods_in_page() {
                 sopGoodsinScheduleFilterRefresh();
             });
 
+            // Issues-only persistence.
+            (function(){
+                var storedIssues = null;
+                try {
+                    storedIssues = window.localStorage.getItem('sop_goodsin_issues_only');
+                } catch (e) {}
+                if ( storedIssues === '1' ) {
+                    $issuesOnly.prop('checked', true);
+                }
+            })();
+
+            $issuesOnly.on('change', function(){
+                try {
+                    window.localStorage.setItem('sop_goodsin_issues_only', $(this).is(':checked') ? '1' : '0');
+                } catch (e) {}
+                sopGoodsinScheduleFilterRefresh();
+            });
+
             $searchClear.on('click', function(e){
                 e.preventDefault();
                 $searchInput.val('');
@@ -1476,6 +1520,9 @@ function sop_render_goods_in_page() {
                     $searchInput.focus().select();
                 }
             });
+
+            // Initial filter apply after loading persisted states.
+            sopGoodsinApplyFilterAll();
 
             $cartonClear.on('click', function(e){
                 e.preventDefault();
