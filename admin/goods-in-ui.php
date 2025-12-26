@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.30
+ * File version: 1.0.31
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -34,6 +34,7 @@
  * - 1.0.28 - Hotfix parse error: ensure JS stays inside script; maintain search/scan features.
  * - 1.0.29 - Enter in qty inputs ticks row, updates, and returns focus to Scan.
  * - 1.0.30 - Add Carton filter (carton mode) stacking with search/completed filters.
+ * - 1.0.31 - Add completed-only Goods-In Issues XLSX export button.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -328,6 +329,15 @@ function sop_render_goods_in_page() {
     }
 
     $form_action = admin_url( 'admin-post.php' );
+    $has_issue_lines = false;
+    foreach ( $lines as $line_check ) {
+        $miss = isset( $line_check['goods_in_missing_qty'] ) ? (float) $line_check['goods_in_missing_qty'] : 0.0;
+        $rej  = isset( $line_check['goods_in_reject_qty'] ) ? (float) $line_check['goods_in_reject_qty'] : 0.0;
+        if ( $miss > 0 || $rej > 0 ) {
+            $has_issue_lines = true;
+            break;
+        }
+    }
     ?>
     <form id="sop-goodsin-form" method="post" action="<?php echo esc_url( $form_action ); ?>">
         <?php wp_nonce_field( 'sop_goodsin_action', 'sop_goodsin_nonce' ); ?>
@@ -339,6 +349,23 @@ function sop_render_goods_in_page() {
                 <button type="button" class="button button-primary sop-goodsin-submit" data-action="save"><?php esc_html_e( 'Save progress', 'sop' ); ?></button>
                 <button type="button" class="button sop-goodsin-submit" data-action="apply_selected"><?php esc_html_e( 'Add selected to stock', 'sop' ); ?></button>
                 <button type="button" class="button button-secondary sop-goodsin-submit" data-action="complete"><?php esc_html_e( 'Complete Goods-In', 'sop' ); ?></button>
+                <?php
+                $is_completed = ( isset( $sheet['status'] ) && 'received' === $sheet['status'] );
+                if ( $is_completed && $has_issue_lines ) {
+                    $issues_url = wp_nonce_url(
+                        add_query_arg(
+                            array(
+                                'action'       => 'sop_export_goodsin_issues_xlsx',
+                                'sop_sheet_id' => (int) $sheet_id,
+                            ),
+                            admin_url( 'admin-post.php' )
+                        ),
+                        'sop_export_goodsin_issues_xlsx',
+                        'sop_goodsin_export_nonce'
+                    );
+                    echo '<a class="button" href="' . esc_url( $issues_url ) . '">' . esc_html__( 'Export Issues (XLSX)', 'sop' ) . '</a>';
+                }
+                ?>
             </div>
             <div class="sop-goodsin-toolbar-columns">
                 <?php

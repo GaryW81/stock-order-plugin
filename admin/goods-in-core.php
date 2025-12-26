@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.05
+ * File version: 1.0.06
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -10,6 +10,7 @@
  * - 1.0.03 - Key Goods-In handlers by product_id (SKU fallback) and normalise POST maps.
  * - 1.0.04 - Apply product_id normalisation across all Goods-In handlers (SKU fallback).
  * - 1.0.05 - Lazy-migrate legacy lines/maps to product_id and warn on unresolved SKUs.
+ * - 1.0.06 - Add completed-only Goods-In Issues XLSX export (missing/reject only).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -748,3 +749,107 @@ function sop_handle_goodsin_complete() {
 add_action( 'admin_post_sop_goodsin_save', 'sop_handle_goodsin_save' );
 add_action( 'admin_post_sop_goodsin_apply_stock', 'sop_handle_goodsin_apply_stock' );
 add_action( 'admin_post_sop_goodsin_complete', 'sop_handle_goodsin_complete' );
+add_action( 'admin_post_sop_export_goodsin_issues_xlsx', 'sop_handle_export_goodsin_issues_xlsx' );
+function sop_handle_export_goodsin_issues_xlsx() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You are not allowed to export goods-in issues.', 'sop' ) );
+    }
+
+    $nonce = isset( $_REQUEST['sop_goodsin_export_nonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['sop_goodsin_export_nonce'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    if ( ! wp_verify_nonce( $nonce, 'sop_export_goodsin_issues_xlsx' ) ) {
+        wp_die( esc_html__( 'Invalid export request.', 'sop' ) );
+    }
+
+    $sheet_id = isset( $_REQUEST['sop_sheet_id'] ) ? (int) $_REQUEST['sop_sheet_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    if ( $sheet_id <= 0 ) {
+        wp_die( esc_html__( 'Missing sheet ID.', 'sop' ) );
+    }
+
+    if ( ! function_exists( 'sop_get_preorder_sheet' ) || ! function_exists( 'sop_get_preorder_sheet_lines' ) ) {
+        wp_die( esc_html__( 'Sheet helpers not available.', 'sop' ) );
+    }
+
+    $sheet = sop_get_preorder_sheet( $sheet_id );
+    if ( ! is_array( $sheet ) ) {
+        wp_die( esc_html__( 'Sheet not found.', 'sop' ) );
+    }
+
+    $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
+    if ( 'received' !== $status ) {
+        wp_die( esc_html__( 'Goods-In is not completed yet.', 'sop' ) );
+    }
+
+    $lines = sop_get_preorder_sheet_lines( $sheet_id, true );
+    $lines = is_array( $lines ) ? $lines : array();
+
+    $issue_lines = array();
+    foreach ( $lines as $line ) {
+        $missing = isset( $line['goods_in_missing_qty'] ) ? (float) $line['goods_in_missing_qty'] : 0.0;
+        $reject  = isset( $line['goods_in_reject_qty'] ) ? (float) $line['goods_in_reject_qty'] : 0.0;
+        if ( $missing <= 0 && $reject <= 0 ) {
+            continue;
+        }
+
+        $row                    = array();
+        $row['product_id']      = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+        $row['sku']             = isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '';
+        $row['brand']           = isset( $line['brand_owner'] ) ? (string) $line['brand_owner'] : '';
+        $row['product_name']    = isset( $line['product_name'] ) ? (string) $line['product_name'] : '';
+        $row['categories']      = isset( $line['categories'] ) ? (string) $line['categories'] : '';
+        $row['moq']             = isset( $line['moq_owner'] ) ? (float) $line['moq_owner'] : 0;
+        $row['ordered_qty']     = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0;
+        $row['received_qty']    = isset( $line['goods_in_received_qty'] ) ? (float) $line['goods_in_received_qty'] : 0;
+        $row['missing_qty']     = $missing;
+        $row['reject_qty']      = $reject;
+        $row['reject_reason']   = isset( $line['goods_in_reject_reason'] ) ? (string) $line['goods_in_reject_reason'] : '';
+        $row['cost_rmb']        = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : 0;
+        $row['product_notes']   = isset( $line['product_notes_owner'] ) ? (string) $line['product_notes_owner'] : '';
+        $row['order_notes']     = isset( $line['order_notes_owner'] ) ? (string) $line['order_notes_owner'] : '';
+        $row['carton_no']       = isset( $line['carton_number'] ) ? (string) $line['carton_number'] : '';
+        $row['cm3_per_unit']    = isset( $line['cm3_per_unit'] ) ? (float) $line['cm3_per_unit'] : 0;
+        $row['line_cbm']        = isset( $line['cbm_total_owner'] ) ? (float) $line['cbm_total_owner'] : 0;
+        $row['goods_in_notes']  = isset( $line['goods_in_notes'] ) ? (string) $line['goods_in_notes'] : '';
+        $row['image_id']        = isset( $line['image_id'] ) ? (int) $line['image_id'] : 0;
+        $issue_lines[]          = $row;
+    }
+
+    if ( empty( $issue_lines ) ) {
+        wp_die( esc_html__( 'No missing/rejected lines to export.', 'sop' ) );
+    }
+
+    if ( ! class_exists( 'SOP_Preorder_XLSX_Exporter' ) ) {
+        $exporter_path = trailingslashit( dirname( __DIR__ ) ) . 'includes/class-sop-preorder-exporter-xlsx.php';
+        if ( file_exists( $exporter_path ) ) {
+            require_once $exporter_path;
+        }
+    }
+
+    if ( ! class_exists( 'SOP_Preorder_XLSX_Exporter' ) ) {
+        wp_die( esc_html__( 'Exporter class missing.', 'sop' ) );
+    }
+
+    $xlsx_path = SOP_Preorder_XLSX_Exporter::build_goodsin_issues_xlsx_file( $sheet, $issue_lines );
+    if ( is_wp_error( $xlsx_path ) ) {
+        wp_die( esc_html( $xlsx_path->get_error_message() ) );
+    }
+
+    $supplier_slug = 'supplier';
+    if ( function_exists( 'sop_supplier_get_by_id' ) && isset( $sheet['supplier_id'] ) ) {
+        $s = sop_supplier_get_by_id( (int) $sheet['supplier_id'] );
+        if ( is_object( $s ) && isset( $s->slug ) ) {
+            $supplier_slug = sanitize_title( $s->slug );
+        } elseif ( is_array( $s ) && isset( $s['slug'] ) ) {
+            $supplier_slug = sanitize_title( $s['slug'] );
+        }
+    }
+
+    $filename = sprintf( 'goods-in-issues-%s-%d.xlsx', $supplier_slug, (int) $sheet_id );
+
+    header( 'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' );
+    header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+    header( 'Content-Length: ' . filesize( $xlsx_path ) );
+
+    readfile( $xlsx_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_readfile
+    @unlink( $xlsx_path );
+    exit;
+}
