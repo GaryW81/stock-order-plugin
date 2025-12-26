@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.06
+ * File version: 1.0.07
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -11,6 +11,7 @@
  * - 1.0.04 - Apply product_id normalisation across all Goods-In handlers (SKU fallback).
  * - 1.0.05 - Lazy-migrate legacy lines/maps to product_id and warn on unresolved SKUs.
  * - 1.0.06 - Add completed-only Goods-In Issues XLSX export (missing/reject only).
+ * - 1.0.07 - Harden Goods-In Issues export (completed gate, locked FX, issue data build).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -142,6 +143,22 @@ function sop_goodsin_migrate_lines_map_to_pid( array $lines_map ) {
     }
 
     return array( $lines_map, $unresolved );
+}
+
+/**
+ * Helper to fetch a numeric field from a goods-in line using a list of candidate keys.
+ *
+ * @param array $line
+ * @param array $keys
+ * @return float
+ */
+function sop_goodsin_get_number_from_line( array $line, array $keys ) {
+    foreach ( $keys as $key ) {
+        if ( isset( $line[ $key ] ) && '' !== $line[ $key ] ) {
+            return (float) $line[ $key ];
+        }
+    }
+    return 0.0;
 }
 
 /**
@@ -784,33 +801,33 @@ function sop_handle_export_goodsin_issues_xlsx() {
 
     $issue_lines = array();
     foreach ( $lines as $line ) {
-        $missing = isset( $line['goods_in_missing_qty'] ) ? (float) $line['goods_in_missing_qty'] : 0.0;
-        $reject  = isset( $line['goods_in_reject_qty'] ) ? (float) $line['goods_in_reject_qty'] : 0.0;
+        $missing = sop_goodsin_get_number_from_line( $line, array( 'goods_in_missing_qty_owner', 'goods_in_missing_qty' ) );
+        $reject  = sop_goodsin_get_number_from_line( $line, array( 'goods_in_reject_qty_owner', 'goods_in_reject_qty' ) );
         if ( $missing <= 0 && $reject <= 0 ) {
             continue;
         }
 
-        $row                    = array();
-        $row['product_id']      = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-        $row['sku']             = isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '';
-        $row['brand']           = isset( $line['brand_owner'] ) ? (string) $line['brand_owner'] : '';
-        $row['product_name']    = isset( $line['product_name'] ) ? (string) $line['product_name'] : '';
-        $row['categories']      = isset( $line['categories'] ) ? (string) $line['categories'] : '';
-        $row['moq']             = isset( $line['moq_owner'] ) ? (float) $line['moq_owner'] : 0;
-        $row['ordered_qty']     = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0;
-        $row['received_qty']    = isset( $line['goods_in_received_qty'] ) ? (float) $line['goods_in_received_qty'] : 0;
-        $row['missing_qty']     = $missing;
-        $row['reject_qty']      = $reject;
-        $row['reject_reason']   = isset( $line['goods_in_reject_reason'] ) ? (string) $line['goods_in_reject_reason'] : '';
-        $row['cost_rmb']        = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : 0;
-        $row['product_notes']   = isset( $line['product_notes_owner'] ) ? (string) $line['product_notes_owner'] : '';
-        $row['order_notes']     = isset( $line['order_notes_owner'] ) ? (string) $line['order_notes_owner'] : '';
-        $row['carton_no']       = isset( $line['carton_number'] ) ? (string) $line['carton_number'] : '';
-        $row['cm3_per_unit']    = isset( $line['cm3_per_unit'] ) ? (float) $line['cm3_per_unit'] : 0;
-        $row['line_cbm']        = isset( $line['cbm_total_owner'] ) ? (float) $line['cbm_total_owner'] : 0;
-        $row['goods_in_notes']  = isset( $line['goods_in_notes'] ) ? (string) $line['goods_in_notes'] : '';
-        $row['image_id']        = isset( $line['image_id'] ) ? (int) $line['image_id'] : 0;
-        $issue_lines[]          = $row;
+        $row               = array();
+        $row['product_id'] = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+        $row['sku']        = isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '';
+        $row['brand']      = isset( $line['brand_owner'] ) ? (string) $line['brand_owner'] : '';
+        $row['product_name'] = isset( $line['product_name'] ) ? (string) $line['product_name'] : ( isset( $line['product_name_owner'] ) ? (string) $line['product_name_owner'] : '' );
+        $row['categories']   = isset( $line['categories'] ) ? (string) $line['categories'] : ( isset( $line['categories_owner'] ) ? (string) $line['categories_owner'] : '' );
+        $row['moq']          = sop_goodsin_get_number_from_line( $line, array( 'moq_owner', 'moq' ) );
+        $row['ordered_qty']  = sop_goodsin_get_number_from_line( $line, array( 'qty_owner', 'qty' ) );
+        $row['received_qty'] = sop_goodsin_get_number_from_line( $line, array( 'goods_in_received_qty_owner', 'goods_in_received_qty' ) );
+        $row['missing_qty']  = $missing;
+        $row['reject_qty']   = $reject;
+        $row['reject_reason'] = isset( $line['goods_in_reject_reason'] ) ? (string) $line['goods_in_reject_reason'] : '';
+        $row['cost_rmb']     = sop_goodsin_get_number_from_line( $line, array( 'cost_rmb', 'cost', 'cost_owner', 'supplier_cost_owner' ) );
+        $row['product_notes'] = isset( $line['product_notes_owner'] ) ? (string) $line['product_notes_owner'] : '';
+        $row['order_notes']   = isset( $line['order_notes_owner'] ) ? (string) $line['order_notes_owner'] : '';
+        $row['carton_no']     = isset( $line['carton_number'] ) ? (string) $line['carton_number'] : ( isset( $line['carton_no'] ) ? (string) $line['carton_no'] : '' );
+        $row['cm3_per_unit']  = sop_goodsin_get_number_from_line( $line, array( 'cm3_per_unit', 'cubic_cm' ) );
+        $row['line_cbm']      = sop_goodsin_get_number_from_line( $line, array( 'cbm_total_owner', 'line_cbm' ) );
+        $row['goods_in_notes'] = isset( $line['goods_in_notes'] ) ? (string) $line['goods_in_notes'] : '';
+        $row['image_id']       = isset( $line['image_id'] ) ? (int) $line['image_id'] : 0;
+        $issue_lines[]         = $row;
     }
 
     if ( empty( $issue_lines ) ) {

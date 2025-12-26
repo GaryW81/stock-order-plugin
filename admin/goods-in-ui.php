@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.31
+ * File version: 1.0.33
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -35,6 +35,8 @@
  * - 1.0.29 - Enter in qty inputs ticks row, updates, and returns focus to Scan.
  * - 1.0.30 - Add Carton filter (carton mode) stacking with search/completed filters.
  * - 1.0.31 - Add completed-only Goods-In Issues XLSX export button.
+ * - 1.0.32 - Harden Goods-In Issues button gating (completed + has issues).
+ * - 1.0.33 - Finalise Goods-In Issues XLSX export gating and data plumbing.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -331,8 +333,8 @@ function sop_render_goods_in_page() {
     $form_action = admin_url( 'admin-post.php' );
     $has_issue_lines = false;
     foreach ( $lines as $line_check ) {
-        $miss = isset( $line_check['goods_in_missing_qty'] ) ? (float) $line_check['goods_in_missing_qty'] : 0.0;
-        $rej  = isset( $line_check['goods_in_reject_qty'] ) ? (float) $line_check['goods_in_reject_qty'] : 0.0;
+        $miss = isset( $line_check['goods_in_missing_qty_owner'] ) ? (float) $line_check['goods_in_missing_qty_owner'] : ( isset( $line_check['goods_in_missing_qty'] ) ? (float) $line_check['goods_in_missing_qty'] : 0.0 );
+        $rej  = isset( $line_check['goods_in_reject_qty_owner'] ) ? (float) $line_check['goods_in_reject_qty_owner'] : ( isset( $line_check['goods_in_reject_qty'] ) ? (float) $line_check['goods_in_reject_qty'] : 0.0 );
         if ( $miss > 0 || $rej > 0 ) {
             $has_issue_lines = true;
             break;
