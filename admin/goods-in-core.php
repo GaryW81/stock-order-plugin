@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.09
+ * File version: 1.0.10
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -14,6 +14,7 @@
  * - 1.0.07 - Harden Goods-In Issues export (completed gate, locked FX, issue data build).
  * - 1.0.08 - Add dispute summary helper for completed goods-in view.
  * - 1.0.09 - Persist missing/reject from payload (canonical keys) without dropping values.
+ * - 1.0.10 - Persist Reject even when Received is blank by enforcing received >= stock_added + reject (no snapshot changes).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -371,14 +372,20 @@ function sop_goodsin_normalize_line_payload( array $line_in, array $db_row ) {
     if ( $missing_qty > $ordered_qty ) {
         $missing_qty = $ordered_qty;
     }
-    if ( $reject_qty > $received_qty ) {
-        $reject_qty = $received_qty;
+    if ( $reject_qty > $ordered_qty ) {
+        $reject_qty = $ordered_qty;
     }
 
     $max_other = max( 0.0, $ordered_qty - $stock_added );
     if ( ( $missing_qty + $reject_qty ) > $max_other ) {
         $reject_qty  = min( $reject_qty, $max_other );
         $missing_qty = max( 0.0, $max_other - $reject_qty );
+    }
+
+    // Ensure received cannot be below the already applied + rejected amount.
+    $min_received = min( $ordered_qty, $stock_added + $reject_qty );
+    if ( $received_qty < $min_received ) {
+        $received_qty = $min_received;
     }
 
     return array(
