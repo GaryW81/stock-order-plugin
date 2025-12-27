@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.71
+ * File version: 1.0.72
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -101,6 +101,7 @@ class SOP_Preorder_XLSX_Exporter {
             'get_order_sheet_base_columns',
             'sop_sanitize_xlsx_sheet_name',
             'build_order_sheet_row_base_cells',
+            'get_line_float',
         );
     }
 
@@ -132,6 +133,7 @@ class SOP_Preorder_XLSX_Exporter {
             'esc_xml',
             'sop_sanitize_xlsx_sheet_name',
             'build_order_sheet_row_base_cells',
+            'get_line_float',
         );
     }
 
@@ -353,15 +355,34 @@ class SOP_Preorder_XLSX_Exporter {
      *     @type int    $product_id
      * }
      */
+    private static function get_line_float( $line, $keys, $default = 0.0 ) {
+        if ( ! is_array( $line ) ) {
+            return $default;
+        }
+        foreach ( (array) $keys as $key ) {
+            if ( isset( $line[ $key ] ) && '' !== $line[ $key ] ) {
+                $raw = (string) $line[ $key ];
+                $raw = str_replace( ',', '', $raw );
+                if ( is_numeric( $raw ) ) {
+                    return (float) $raw;
+                }
+            }
+        }
+        return $default;
+    }
+
     private static function build_order_sheet_row_base_cells( array $line, $supplier_currency, $sheet_fx_for_usd, $show_usd_column ) {
         $product_id    = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
         $sku_to_output = isset( $line['sku'] ) ? (string) $line['sku'] : '';
-        $brand         = isset( $line['brand'] ) ? $line['brand'] : '';
-        $name          = isset( $line['product_name'] ) ? $line['product_name'] : '';
-        $categories    = isset( $line['categories'] ) ? $line['categories'] : '';
-        $moq           = isset( $line['moq'] ) ? (float) $line['moq'] : 0;
-        $qty           = isset( $line['qty'] ) ? (float) $line['qty'] : 0;
-        $cost_rmb      = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : 0;
+        $brand         = isset( $line['brand'] ) ? $line['brand'] : ( isset( $line['brand_name'] ) ? $line['brand_name'] : '' );
+        $name          = isset( $line['product_name'] ) ? $line['product_name'] : ( isset( $line['name'] ) ? $line['name'] : ( isset( $line['title'] ) ? $line['title'] : ( isset( $line['product'] ) ? $line['product'] : '' ) ) );
+        $categories    = isset( $line['categories'] ) ? $line['categories'] : ( isset( $line['category'] ) ? $line['category'] : ( isset( $line['category_names'] ) ? $line['category_names'] : '' ) );
+        if ( is_array( $categories ) ) {
+            $categories = implode( ', ', $categories );
+        }
+        $moq           = self::get_line_float( $line, array( 'moq', 'moq_owner' ), 0.0 );
+        $qty           = self::get_line_float( $line, array( 'qty', 'qty_owner' ), 0.0 );
+        $unit_cost     = self::get_line_float( $line, array( 'cost_rmb', 'cost', 'unit_cost', 'cost_per_unit', 'supplier_cost' ), 0.0 );
         $product_notes = isset( $line['product_notes'] ) ? $line['product_notes'] : '';
         $order_notes   = isset( $line['order_notes'] ) ? $line['order_notes'] : '';
         $carton_number = isset( $line['carton_no'] ) ? $line['carton_no'] : '';
@@ -370,16 +391,17 @@ class SOP_Preorder_XLSX_Exporter {
 
         $cost_usd = '';
         if ( $show_usd_column ) {
-            if ( $cost_rmb > 0 && $sheet_fx_for_usd > 0 ) {
-                $cost_usd = $cost_rmb / $sheet_fx_for_usd;
-            } elseif ( $cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
-                $converted = sop_convert_rmb_unit_cost_to_usd( $cost_rmb );
+            $cost_usd = self::get_line_float( $line, array( 'unit_price_usd', 'regular_price', 'price_usd', 'price' ), 0.0 );
+            if ( $cost_usd <= 0 && $unit_cost > 0 && $sheet_fx_for_usd > 0 ) {
+                $cost_usd = $unit_cost / $sheet_fx_for_usd;
+            } elseif ( $cost_usd <= 0 && $unit_cost > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
+                $converted = sop_convert_rmb_unit_cost_to_usd( $unit_cost );
                 if ( $converted > 0 ) {
                     $cost_usd = $converted;
                 }
             }
         }
-        $line_total_rmb = $qty * $cost_rmb;
+        $line_total_rmb = $qty * $unit_cost;
 
         $row_cells = array(
             '', // Image placeholder.
@@ -389,7 +411,7 @@ class SOP_Preorder_XLSX_Exporter {
             $categories,
             self::format_number_cell( $moq ),
             self::format_number_cell( $qty ),
-            self::format_number_cell( $cost_rmb, 4 ),
+            self::format_number_cell( $unit_cost, 4 ),
         );
         if ( $show_usd_column ) {
             $row_cells[] = self::format_number_cell( $cost_usd, 4 );
@@ -513,12 +535,12 @@ class SOP_Preorder_XLSX_Exporter {
 
         $columns       = self::get_order_sheet_base_columns( $supplier_currency, $show_usd_column );
         $issue_columns = array(
-            'Goods-In Ordered',
-            'Goods-In Received',
-            'Goods-In Missing',
-            'Goods-In Reject',
-            'Goods-In Reason',
-            'Goods-In Notes',
+            'Ordered',
+            'Received',
+            'Missing',
+            'Reject',
+            'Reason',
+            'GI notes',
             'Credit Qty',
             'Credit total (' . $supplier_currency . ')',
         );
@@ -544,6 +566,7 @@ class SOP_Preorder_XLSX_Exporter {
             $reject         = isset( $line['goods_in_reject_qty'] ) ? (float) $line['goods_in_reject_qty'] : ( isset( $line['reject_qty'] ) ? (float) $line['reject_qty'] : 0.0 );
             $reason         = isset( $line['reject_reason'] ) ? $line['reject_reason'] : '';
             $goods_in_notes = isset( $line['goods_in_notes'] ) ? $line['goods_in_notes'] : '';
+            $unit_cost      = self::get_line_float( $line, array( 'cost_rmb', 'cost', 'unit_cost', 'cost_per_unit', 'supplier_cost' ), 0.0 );
 
             // Base columns reuse preorder mapping (ordered qty in base "Qty").
             $line_for_base         = $line;
@@ -586,8 +609,7 @@ class SOP_Preorder_XLSX_Exporter {
             $base                  = self::build_order_sheet_row_base_cells( $line_for_base, $supplier_currency, $sheet_fx_for_usd, $show_usd_column );
 
             $credit_qty       = max( 0, $missing + $reject );
-            $cost_rmb         = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : 0.0;
-            $credit_total     = $credit_qty * $cost_rmb;
+            $credit_total     = $credit_qty * $unit_cost;
             $credit_total_usd = '';
             if ( $show_usd_column && $sheet_fx_for_usd > 0 ) {
                 $credit_total_usd = ( $credit_total > 0 ) ? ( $credit_total / $sheet_fx_for_usd ) : '';
@@ -673,13 +695,13 @@ class SOP_Preorder_XLSX_Exporter {
                 $totals_styles[ $column_index['SKU'] ] = 6;
             }
 
-            if ( isset( $column_index['Goods-In Missing'] ) ) {
-                $totals_cells[ $column_index['Goods-In Missing'] ]  = self::format_number_cell( $total_missing, 2 );
-                $totals_styles[ $column_index['Goods-In Missing'] ] = 7;
+            if ( isset( $column_index['Missing'] ) ) {
+                $totals_cells[ $column_index['Missing'] ]  = self::format_number_cell( $total_missing, 2 );
+                $totals_styles[ $column_index['Missing'] ] = 7;
             }
-            if ( isset( $column_index['Goods-In Reject'] ) ) {
-                $totals_cells[ $column_index['Goods-In Reject'] ]  = self::format_number_cell( $total_reject, 2 );
-                $totals_styles[ $column_index['Goods-In Reject'] ] = 7;
+            if ( isset( $column_index['Reject'] ) ) {
+                $totals_cells[ $column_index['Reject'] ]  = self::format_number_cell( $total_reject, 2 );
+                $totals_styles[ $column_index['Reject'] ] = 7;
             }
             if ( isset( $column_index['Credit Qty'] ) ) {
                 $totals_cells[ $column_index['Credit Qty'] ]  = self::format_number_cell( $total_credit_qty, 2 );
@@ -1410,6 +1432,8 @@ class SOP_Preorder_XLSX_Exporter {
 
     private static function sanitize_xml_text( $value ) {
         $value = (string) $value;
+        // Decode entities so &amp; etc. render correctly before escaping.
+        $value = html_entity_decode( $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
         $value = str_replace( array( "\r\n", "\r" ), "\n", $value );
         $value = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $value );
         $value = htmlspecialchars( $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
