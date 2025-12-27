@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.12
+ * File version: 1.0.13
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -903,10 +903,10 @@ function sop_handle_export_goodsin_issues_xlsx() {
             continue;
         }
 
-        $row               = array();
-        $row['product_id'] = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-        $row['sku']        = isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '';
-        $row['brand']      = isset( $line['brand_owner'] ) ? (string) $line['brand_owner'] : '';
+        $row                 = array();
+        $row['product_id']   = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+        $row['sku']          = isset( $line['sku'] ) ? (string) $line['sku'] : ( isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '' );
+        $row['brand']        = isset( $line['brand'] ) ? (string) $line['brand'] : ( isset( $line['brand_owner'] ) ? (string) $line['brand_owner'] : '' );
         $row['product_name'] = isset( $line['product_name'] ) ? (string) $line['product_name'] : ( isset( $line['product_name_owner'] ) ? (string) $line['product_name_owner'] : '' );
         $row['categories']   = isset( $line['categories'] ) ? (string) $line['categories'] : ( isset( $line['categories_owner'] ) ? (string) $line['categories_owner'] : '' );
         $row['moq']          = sop_goodsin_get_number_from_line( $line, array( 'moq_owner', 'moq' ) );
@@ -923,7 +923,37 @@ function sop_handle_export_goodsin_issues_xlsx() {
         $row['line_cbm']      = sop_goodsin_get_number_from_line( $line, array( 'cbm_total_owner', 'line_cbm' ) );
         $row['goods_in_notes'] = isset( $line['goods_in_notes'] ) ? (string) $line['goods_in_notes'] : '';
         $row['image_id']       = isset( $line['image_id'] ) ? (int) $line['image_id'] : 0;
-        $issue_lines[]         = $row;
+        $row['qty']            = $row['ordered_qty'];
+
+        // Hydrate missing base display fields if needed.
+        if ( $row['product_id'] <= 0 && '' !== $row['sku'] ) {
+            $pid = function_exists( 'wc_get_product_id_by_sku' ) ? (int) wc_get_product_id_by_sku( $row['sku'] ) : 0;
+            if ( $pid > 0 ) {
+                $row['product_id'] = $pid;
+            }
+        }
+        if ( function_exists( 'sop_get_live_product_display_fields' ) && $row['product_id'] > 0 ) {
+            $live = sop_get_live_product_display_fields( $row['product_id'], $supplier_id );
+            if ( is_array( $live ) ) {
+                $row['sku']          = $row['sku'] ?: ( isset( $live['sku'] ) ? $live['sku'] : $row['sku'] );
+                $row['brand']        = $row['brand'] ?: ( isset( $live['brand'] ) ? $live['brand'] : $row['brand'] );
+                $row['product_name'] = $row['product_name'] ?: ( isset( $live['product_name'] ) ? $live['product_name'] : $row['product_name'] );
+                $row['categories']   = $row['categories'] ?: ( isset( $live['category'] ) ? $live['category'] : $row['categories'] );
+                $row['product_notes'] = $row['product_notes'] ?: ( isset( $live['product_notes'] ) ? $live['product_notes'] : $row['product_notes'] );
+                $row['carton_no']     = $row['carton_no'] ?: ( isset( $live['carton_no'] ) ? $live['carton_no'] : $row['carton_no'] );
+                if ( empty( $row['cm3_per_unit'] ) && isset( $live['cubic_cm'] ) ) {
+                    $row['cm3_per_unit'] = $live['cubic_cm'];
+                }
+                if ( empty( $row['line_cbm'] ) && isset( $live['cbm_total'] ) ) {
+                    $row['line_cbm'] = $live['cbm_total'];
+                }
+                if ( empty( $row['image_id'] ) && isset( $live['image_id'] ) ) {
+                    $row['image_id'] = (int) $live['image_id'];
+                }
+            }
+        }
+
+        $issue_lines[] = $row;
     }
 
     if ( empty( $issue_lines ) ) {

@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.69
+ * File version: 1.0.70
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -100,6 +100,7 @@ class SOP_Preorder_XLSX_Exporter {
             'esc_xml',
             'get_order_sheet_base_columns',
             'sop_sanitize_xlsx_sheet_name',
+            'build_order_sheet_row_base_cells',
         );
     }
 
@@ -130,6 +131,7 @@ class SOP_Preorder_XLSX_Exporter {
             'sanitize_xml_text',
             'esc_xml',
             'sop_sanitize_xlsx_sheet_name',
+            'build_order_sheet_row_base_cells',
         );
     }
 
@@ -227,93 +229,15 @@ class SOP_Preorder_XLSX_Exporter {
         $sheet_rows_xml .= self::build_row_xml( 1, array_map( 'esc_html', $columns ), true, array(), $row_index - 2 );
 
         foreach ( $lines as $line ) {
-            $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-            $sku_to_output = isset( $line['sku'] ) ? (string) $line['sku'] : '';
+            $base = self::build_order_sheet_row_base_cells( $line, $supplier_currency, $sheet_fx_for_usd, $show_usd_column );
+            $sheet_rows_xml .= self::build_row_xml( $row_index, $base['cells'], false, $base['styles'], 0, array( 1 ) );
 
-            $brand       = isset( $line['brand'] ) ? $line['brand'] : '';
-            $name        = isset( $line['product_name'] ) ? $line['product_name'] : '';
-            $categories  = isset( $line['categories'] ) ? $line['categories'] : '';
-            $moq         = isset( $line['moq'] ) ? (float) $line['moq'] : 0;
-            $qty         = isset( $line['qty'] ) ? (float) $line['qty'] : 0;
-            $cost_rmb    = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : 0;
-            $cost_usd    = '';
-            if ( $show_usd_column ) {
-                if ( $cost_rmb > 0 && $sheet_fx_for_usd > 0 ) {
-                    $cost_usd = $cost_rmb / $sheet_fx_for_usd;
-                } elseif ( $cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
-                    $converted = sop_convert_rmb_unit_cost_to_usd( $cost_rmb );
-                    if ( $converted > 0 ) {
-                        $cost_usd = $converted;
-                    }
-                }
-            }
-            $line_total_rmb = $qty * $cost_rmb;
-            $product_notes  = isset( $line['product_notes'] ) ? $line['product_notes'] : '';
-            $order_notes    = isset( $line['order_notes'] ) ? $line['order_notes'] : '';
-            $carton_number  = isset( $line['carton_no'] ) ? $line['carton_no'] : '';
-            $cm3_per_unit   = isset( $line['cm3_per_unit'] ) ? $line['cm3_per_unit'] : '';
-            $line_cbm       = isset( $line['line_cbm'] ) ? $line['line_cbm'] : '';
-
-            $row_cells = array(
-                '', // Image placeholder.
-                $sku_to_output,
-                $brand,
-                $name,
-                $categories,
-                self::format_number_cell( $moq ),
-                self::format_number_cell( $qty ),
-                self::format_number_cell( $cost_rmb, 4 ),
-                self::format_number_cell( $line_total_rmb, 4 ),
-                $product_notes,
-                $order_notes,
-                $carton_number,
-                self::format_number_cell( $cm3_per_unit, 4 ),
-                self::format_number_cell( $line_cbm, 6 ),
-            );
-            if ( $show_usd_column ) {
-                array_splice( $row_cells, 8, 0, array( self::format_number_cell( $cost_usd, 4 ) ) );
-            }
-
-            $row_styles = array(
-                null, // Image placeholder.
-                3,    // SKU text + wrap.
-                5,    // Brand center.
-                2,    // Product name wrap (centered vertically).
-                2,    // Categories wrap (centered vertically).
-                7,    // MOQ right.
-                7,    // Qty right.
-                7,    // Unit price (supplier currency) right.
-                7,    // Total (supplier currency) right.
-                6,    // Product notes left.
-                6,    // Order notes left.
-                6,    // Carton no. left.
-                7,    // cm3 per unit right.
-                7,    // Line CBM right.
-            );
-            if ( $show_usd_column ) {
-                array_splice( $row_styles, 8, 0, array( 7 ) ); // Unit price USD right.
-            }
-
-            $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles, 0, array( 1 ) );
-
-            // Handle image embedding.
-            $image_id = 0;
-            if ( isset( $line['image_id'] ) ) {
-                $image_id = (int) $line['image_id'];
-            } elseif ( $product_id ) {
-                $image_id = get_post_thumbnail_id( $product_id );
-            }
-
-            $image_path = self::resolve_image_path( $image_id );
-            if ( $image_path ) {
-                $media_name = 'image' . $image_index;
-                $ext        = strtolower( pathinfo( $image_path, PATHINFO_EXTENSION ) );
-                if ( ! in_array( $ext, array( 'png', 'jpg', 'jpeg' ), true ) ) {
-                    $ext = 'png';
-                }
+            if ( ! empty( $base['image_path'] ) ) {
+                $media_name     = 'image' . $image_index;
+                $ext            = $base['image_ext'];
                 $media_filename = $media_name . '.' . $ext;
                 $media_files[]  = array(
-                    'path'     => $image_path,
+                    'path'     => $base['image_path'],
                     'zip_path' => 'xl/media/' . $media_filename,
                     'ext'      => $ext,
                 );
@@ -415,6 +339,113 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     /**
+     * Build base row cells/styles for order sheet style exports.
+     *
+     * @param array  $line               Line data.
+     * @param string $supplier_currency  Supplier currency code.
+     * @param float  $sheet_fx_for_usd   FX rate RMB/USD if applicable.
+     * @param bool   $show_usd_column    Whether USD columns are shown.
+     * @return array {
+     *     @type array  $cells
+     *     @type array  $styles
+     *     @type string $image_path
+     *     @type string $image_ext
+     *     @type int    $product_id
+     * }
+     */
+    private static function build_order_sheet_row_base_cells( array $line, $supplier_currency, $sheet_fx_for_usd, $show_usd_column ) {
+        $product_id    = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+        $sku_to_output = isset( $line['sku'] ) ? (string) $line['sku'] : '';
+        $brand         = isset( $line['brand'] ) ? $line['brand'] : '';
+        $name          = isset( $line['product_name'] ) ? $line['product_name'] : '';
+        $categories    = isset( $line['categories'] ) ? $line['categories'] : '';
+        $moq           = isset( $line['moq'] ) ? (float) $line['moq'] : 0;
+        $qty           = isset( $line['qty'] ) ? (float) $line['qty'] : 0;
+        $cost_rmb      = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : 0;
+        $product_notes = isset( $line['product_notes'] ) ? $line['product_notes'] : '';
+        $order_notes   = isset( $line['order_notes'] ) ? $line['order_notes'] : '';
+        $carton_number = isset( $line['carton_no'] ) ? $line['carton_no'] : '';
+        $cm3_per_unit  = isset( $line['cm3_per_unit'] ) ? $line['cm3_per_unit'] : '';
+        $line_cbm      = isset( $line['line_cbm'] ) ? $line['line_cbm'] : '';
+
+        $cost_usd = '';
+        if ( $show_usd_column ) {
+            if ( $cost_rmb > 0 && $sheet_fx_for_usd > 0 ) {
+                $cost_usd = $cost_rmb / $sheet_fx_for_usd;
+            } elseif ( $cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
+                $converted = sop_convert_rmb_unit_cost_to_usd( $cost_rmb );
+                if ( $converted > 0 ) {
+                    $cost_usd = $converted;
+                }
+            }
+        }
+        $line_total_rmb = $qty * $cost_rmb;
+
+        $row_cells = array(
+            '', // Image placeholder.
+            $sku_to_output,
+            $brand,
+            $name,
+            $categories,
+            self::format_number_cell( $moq ),
+            self::format_number_cell( $qty ),
+            self::format_number_cell( $cost_rmb, 4 ),
+        );
+        if ( $show_usd_column ) {
+            $row_cells[] = self::format_number_cell( $cost_usd, 4 );
+        }
+        $row_cells[] = self::format_number_cell( $line_total_rmb, 4 );
+        $row_cells[] = $product_notes;
+        $row_cells[] = $order_notes;
+        $row_cells[] = $carton_number;
+        $row_cells[] = self::format_number_cell( $cm3_per_unit, 4 );
+        $row_cells[] = self::format_number_cell( $line_cbm, 6 );
+
+        $row_styles = array(
+            0,    // Image placeholder.
+            3,    // SKU text + wrap.
+            5,    // Brand center.
+            2,    // Product name wrap.
+            2,    // Categories wrap.
+            7,    // MOQ right.
+            7,    // Qty right.
+            7,    // Unit price (supplier currency) right.
+        );
+        if ( $show_usd_column ) {
+            $row_styles[] = 7; // Unit price USD right.
+        }
+        $row_styles[] = 7; // Total (supplier currency) right.
+        $row_styles[] = 6; // Product notes left.
+        $row_styles[] = 6; // Order notes left.
+        $row_styles[] = 6; // Carton left.
+        $row_styles[] = 7; // cm3 right.
+        $row_styles[] = 7; // cbm right.
+
+        // Resolve image path.
+        $image_id   = isset( $line['image_id'] ) ? (int) $line['image_id'] : 0;
+        $image_path = self::resolve_image_path( $image_id );
+        if ( ! $image_path && $product_id ) {
+            $thumb_id = function_exists( 'get_post_thumbnail_id' ) ? (int) get_post_thumbnail_id( $product_id ) : 0;
+            $image_path = self::resolve_image_path( $thumb_id );
+        }
+        $image_ext = '';
+        if ( $image_path ) {
+            $image_ext = strtolower( pathinfo( $image_path, PATHINFO_EXTENSION ) );
+            if ( '' === $image_ext ) {
+                $image_ext = 'png';
+            }
+        }
+
+        return array(
+            'cells'      => $row_cells,
+            'styles'     => $row_styles,
+            'image_path' => $image_path,
+            'image_ext'  => $image_ext,
+            'product_id' => $product_id,
+        );
+    }
+
+    /**
      * Build an XLSX file for Goods-In issues (missing/rejected lines only).
      *
      * @param array $sheet_header Sheet header data.
@@ -507,123 +538,77 @@ class SOP_Preorder_XLSX_Exporter {
         $total_credit_usd      = 0.0;
 
         foreach ( $issue_lines as $line ) {
-            $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-            $sku_to_output = isset( $line['sku'] ) ? (string) $line['sku'] : '';
-
-            $brand          = isset( $line['brand'] ) ? $line['brand'] : '';
-            $name           = isset( $line['product_name'] ) ? $line['product_name'] : '';
-            $categories     = isset( $line['categories'] ) ? $line['categories'] : '';
-            $moq            = isset( $line['moq'] ) ? (float) $line['moq'] : 0;
-            $ordered        = isset( $line['ordered_qty'] ) ? (float) $line['ordered_qty'] : 0;
-            $received       = isset( $line['received_qty'] ) ? (float) $line['received_qty'] : 0;
-            $missing        = isset( $line['missing_qty'] ) ? (float) $line['missing_qty'] : 0;
-            $reject         = isset( $line['reject_qty'] ) ? (float) $line['reject_qty'] : 0;
+            $ordered        = isset( $line['ordered_qty'] ) ? (float) $line['ordered_qty'] : 0.0;
+            $received       = isset( $line['received_qty'] ) ? (float) $line['received_qty'] : 0.0;
+            $missing        = isset( $line['goods_in_missing_qty'] ) ? (float) $line['goods_in_missing_qty'] : ( isset( $line['missing_qty'] ) ? (float) $line['missing_qty'] : 0.0 );
+            $reject         = isset( $line['goods_in_reject_qty'] ) ? (float) $line['goods_in_reject_qty'] : ( isset( $line['reject_qty'] ) ? (float) $line['reject_qty'] : 0.0 );
             $reason         = isset( $line['reject_reason'] ) ? $line['reject_reason'] : '';
-            $cost_rmb       = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : 0;
-            $product_notes  = isset( $line['product_notes'] ) ? $line['product_notes'] : '';
-            $order_notes    = isset( $line['order_notes'] ) ? $line['order_notes'] : '';
-            $carton         = isset( $line['carton_no'] ) ? $line['carton_no'] : '';
-            $cm3            = isset( $line['cm3_per_unit'] ) ? (float) $line['cm3_per_unit'] : 0;
-            $line_cbm       = isset( $line['line_cbm'] ) ? (float) $line['line_cbm'] : 0;
             $goods_in_notes = isset( $line['goods_in_notes'] ) ? $line['goods_in_notes'] : '';
 
-            $line_total_rmb   = $ordered * $cost_rmb;
+            // Base columns reuse preorder mapping (ordered qty in base "Qty").
+            $line_for_base         = $line;
+            $line_for_base['qty']  = $ordered;
+            $base                  = self::build_order_sheet_row_base_cells( $line_for_base, $supplier_currency, $sheet_fx_for_usd, $show_usd_column );
+
             $credit_qty       = max( 0, $missing + $reject );
+            $cost_rmb         = isset( $line['cost_rmb'] ) ? (float) $line['cost_rmb'] : 0.0;
             $credit_total     = $credit_qty * $cost_rmb;
-            $cost_usd         = '';
             $credit_total_usd = '';
             if ( $show_usd_column && $sheet_fx_for_usd > 0 ) {
-                $cost_usd         = ( $cost_rmb > 0 ) ? ( $cost_rmb / $sheet_fx_for_usd ) : '';
                 $credit_total_usd = ( $credit_total > 0 ) ? ( $credit_total / $sheet_fx_for_usd ) : '';
             }
 
-            // Prepare image embed if available.
-            if ( $product_id > 0 ) {
-                $img_id = isset( $line['image_id'] ) ? (int) $line['image_id'] : 0;
-                if ( ! $img_id && function_exists( 'get_post_thumbnail_id' ) ) {
-                    $img_id = (int) get_post_thumbnail_id( $product_id );
-                }
-                if ( $img_id ) {
-                    $img_path = get_attached_file( $img_id );
-                    if ( $img_path && file_exists( $img_path ) ) {
-                        $media_files[] = $img_path;
-                        $images[]      = array(
-                            'row'      => $row_index,
-                            'col'      => 0,
-                            'cx'       => $img_cx,
-                            'cy'       => $img_cy,
-                            'col_off'  => $img_margin_emu,
-                            'row_off'  => $img_margin_emu,
-                            'target'   => 'media/image' . $image_index . '.' . pathinfo( $img_path, PATHINFO_EXTENSION ),
-                        );
-                        $image_index++;
-                    }
-                }
-            }
+            $row_cells  = $base['cells'];
+            $row_styles = $base['styles'];
 
-            $row_cells = array(
-                '', // Image placeholder.
-                $sku_to_output,
-                $brand,
-                $name,
-                $categories,
-                self::format_number_cell( $moq ),
-                self::format_number_cell( $ordered ),
-                self::format_number_cell( $cost_rmb, 4 ),
-            );
+            // Append Goods-In issue columns.
+            $row_cells[]  = self::format_number_cell( $ordered );
+            $row_styles[] = 7;
+            $row_cells[]  = self::format_number_cell( $received );
+            $row_styles[] = 7;
+            $row_cells[]  = self::format_number_cell( $missing );
+            $row_styles[] = 7;
+            $row_cells[]  = self::format_number_cell( $reject );
+            $row_styles[] = 7;
+            $row_cells[]  = $reason;
+            $row_styles[] = 2;
+            $row_cells[]  = $goods_in_notes;
+            $row_styles[] = 2;
+            $row_cells[]  = self::format_number_cell( $credit_qty );
+            $row_styles[] = 7;
+            $row_cells[]  = self::format_number_cell( $credit_total, 4 );
+            $row_styles[] = 7;
             if ( $show_usd_column ) {
-                $row_cells[] = self::format_number_cell( $cost_usd, 4 );
-            }
-            $row_cells[] = self::format_number_cell( $line_total_rmb, 4 );
-            $row_cells[] = $product_notes;
-            $row_cells[] = $order_notes;
-            $row_cells[] = $carton;
-            $row_cells[] = self::format_number_cell( $cm3, 4 );
-            $row_cells[] = self::format_number_cell( $line_cbm, 6 );
-            // Appended Goods-In issue columns.
-            $row_cells[] = self::format_number_cell( $ordered );
-            $row_cells[] = self::format_number_cell( $received );
-            $row_cells[] = self::format_number_cell( $missing );
-            $row_cells[] = self::format_number_cell( $reject );
-            $row_cells[] = $reason;
-            $row_cells[] = $goods_in_notes;
-            $row_cells[] = self::format_number_cell( $credit_qty );
-            $row_cells[] = self::format_number_cell( $credit_total, 4 );
-            if ( $show_usd_column ) {
-                $row_cells[] = self::format_number_cell( $credit_total_usd, 4 );
-            }
-
-            $row_styles   = array();
-            $row_styles[] = 0; // Image
-            $row_styles[] = 3; // SKU wrap
-            $row_styles[] = 5; // Brand center
-            $row_styles[] = 2; // Product name wrap
-            $row_styles[] = 2; // Categories wrap
-            $row_styles[] = 7; // MOQ numeric
-            $row_styles[] = 7; // Qty
-            $row_styles[] = 7; // Unit price
-            if ( $show_usd_column ) {
-                $row_styles[] = 7; // Unit price USD
-            }
-            $row_styles[] = 7; // Total
-            $row_styles[] = 6; // Product notes
-            $row_styles[] = 6; // Order notes
-            $row_styles[] = 6; // Carton
-            $row_styles[] = 7; // cm3
-            $row_styles[] = 7; // CBM
-            $row_styles[] = 7; // Goods-In Ordered
-            $row_styles[] = 7; // Goods-In Received
-            $row_styles[] = 7; // Goods-In Missing
-            $row_styles[] = 7; // Goods-In Reject
-            $row_styles[] = 2; // Goods-In Reason wrap
-            $row_styles[] = 2; // Goods-In Notes wrap
-            $row_styles[] = 7; // Credit Qty
-            $row_styles[] = 7; // Credit Total
-            if ( $show_usd_column ) {
-                $row_styles[] = 7; // Credit Total USD
+                $row_cells[]  = self::format_number_cell( $credit_total_usd, 4 );
+                $row_styles[] = 7;
+                $row_cells[]  = ( $sheet_fx_for_usd > 0 ) ? number_format( (float) $sheet_fx_for_usd, 3, '.', '' ) : '';
+                $row_styles[] = 7;
             }
 
             $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles, 0, array( 1 ) );
+
+            if ( ! empty( $base['image_path'] ) ) {
+                $media_name     = 'image' . $image_index;
+                $ext            = $base['image_ext'];
+                $media_filename = $media_name . '.' . $ext;
+                $media_files[]  = array(
+                    'path'     => $base['image_path'],
+                    'zip_path' => 'xl/media/' . $media_filename,
+                    'ext'      => $ext,
+                );
+                $images[] = array(
+                    'rel_id'  => 'rId' . $image_index,
+                    'row'     => $row_index - 1, // zero-index for anchor.
+                    'col'     => 0, // Image column A.
+                    'cx'      => $img_cx,
+                    'cy'      => $img_cy,
+                    'col_off' => $img_margin_emu,
+                    'row_off' => $img_margin_emu,
+                    'ext'     => $ext,
+                );
+                $image_index++;
+            }
+
             $row_index++;
 
             $total_missing         += $missing;
@@ -675,6 +660,10 @@ class SOP_Preorder_XLSX_Exporter {
             if ( $show_usd_column && isset( $column_index['Credit total (USD)'] ) ) {
                 $totals_cells[ $column_index['Credit total (USD)'] ]  = self::format_number_cell( $total_credit_usd, 4 );
                 $totals_styles[ $column_index['Credit total (USD)'] ] = 7;
+            }
+            if ( $show_usd_column && isset( $column_index['FX used (RMB/USD)'] ) ) {
+                $totals_cells[ $column_index['FX used (RMB/USD)'] ]  = ( $sheet_fx_for_usd > 0 ) ? number_format( (float) $sheet_fx_for_usd, 3, '.', '' ) : '';
+                $totals_styles[ $column_index['FX used (RMB/USD)'] ] = 7;
             }
 
             $sheet_rows_xml .= self::build_row_xml( $row_index, $totals_cells, false, $totals_styles, 0, array( 1 ) );
