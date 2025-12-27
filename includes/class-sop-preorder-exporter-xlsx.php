@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.66
+ * File version: 1.0.67
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -46,6 +46,34 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SOP_Preorder_XLSX_Exporter {
 
     /**
+     * Ensure required methods exist before exporting.
+     *
+     * @param array  $methods       Method names to check.
+     * @param string $context_label Context for error messaging.
+     * @return true|WP_Error
+     */
+    private static function sop_require_methods( array $methods, $context_label ) {
+        $missing = array();
+        foreach ( $methods as $method ) {
+            if ( ! method_exists( __CLASS__, $method ) || ! is_callable( array( __CLASS__, $method ) ) ) {
+                $missing[] = $method;
+            }
+        }
+        if ( empty( $missing ) ) {
+            return true;
+        }
+        return new WP_Error(
+            'sop_xlsx_missing_method',
+            sprintf(
+                /* translators: 1: context label, 2: method list */
+                __( '%1$s XLSX export failed. Missing helpers: %2$s', 'sop' ),
+                $context_label,
+                implode( ', ', $missing )
+            )
+        );
+    }
+
+    /**
      * Build an XLSX file with embedded images.
      *
      * @param array $sheet_header Sheet header data.
@@ -53,6 +81,32 @@ class SOP_Preorder_XLSX_Exporter {
      * @return string|WP_Error    Path to XLSX temp file or error.
      */
     public static function build_xlsx_file( array $sheet_header, array $lines ) {
+        $preflight = self::sop_require_methods(
+            array(
+                'build_content_types_xml',
+                'build_root_rels_xml',
+                'build_workbook_xml',
+                'build_workbook_rels_xml',
+                'build_styles_xml',
+                'build_sheet_rels_xml',
+                'build_sheet_xml',
+                'build_drawing_xml',
+                'build_drawing_rels_xml',
+                'build_app_xml',
+                'build_core_xml',
+                'build_row_xml',
+                'format_number_cell',
+                'resolve_image_path',
+                'column_letter',
+                'sanitize_xml_text',
+                'esc_xml',
+                'get_order_sheet_base_columns',
+            ),
+            'Preorder Order Sheet'
+        );
+        if ( is_wp_error( $preflight ) ) {
+            return $preflight;
+        }
         if ( ! class_exists( 'ZipArchive' ) ) {
             return new WP_Error( 'sop_export_zip_missing', __( 'XLSX export requires ZipArchive.', 'sop' ) );
         }
@@ -309,6 +363,32 @@ class SOP_Preorder_XLSX_Exporter {
      * @return string|WP_Error    Path to XLSX temp file or error.
      */
     public static function build_goodsin_issues_xlsx_file( array $sheet_header, array $issue_lines ) {
+        $preflight = self::sop_require_methods(
+            array(
+                'get_order_sheet_base_columns',
+                'build_content_types_xml',
+                'build_root_rels_xml',
+                'build_workbook_xml',
+                'build_workbook_rels_xml',
+                'build_styles_xml',
+                'build_sheet_rels_xml',
+                'build_sheet_xml',
+                'build_drawing_xml',
+                'build_drawing_rels_xml',
+                'build_app_xml',
+                'build_core_xml',
+                'build_row_xml',
+                'format_number_cell',
+                'resolve_image_path',
+                'column_letter',
+                'sanitize_xml_text',
+                'esc_xml',
+            ),
+            'Goods-In Issues'
+        );
+        if ( is_wp_error( $preflight ) ) {
+            return $preflight;
+        }
         if ( ! class_exists( 'ZipArchive' ) ) {
             return new WP_Error( 'sop_export_zip_missing', __( 'XLSX export requires ZipArchive.', 'sop' ) );
         }
@@ -608,6 +688,21 @@ class SOP_Preorder_XLSX_Exporter {
      * @return string|WP_Error    Path to XLSX temp file or error.
      */
     public static function build_purchase_order_xlsx_from_template( array $sheet_header, array $line_rows ) {
+        $preflight = self::sop_require_methods(
+            array(
+                'po_template_get_style_index',
+                'po_template_get_or_create_cell',
+                'po_template_set_inline_cell',
+                'po_template_set_number_cell',
+                'po_normalize_multiline_block',
+                'sanitize_po_inline_text_preserve_newlines',
+                'esc_xml',
+            ),
+            'Order Summary (PO) template'
+        );
+        if ( is_wp_error( $preflight ) ) {
+            return $preflight;
+        }
         if ( ! class_exists( 'ZipArchive' ) ) {
             return new WP_Error( 'sop_export_zip_missing', __( 'XLSX export requires ZipArchive.', 'sop' ) );
         }

@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.49
+ * File version: 11.50
  * - Remove legacy XLS export endpoints (XLSX only).
  * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
  * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
@@ -1039,7 +1039,9 @@ function sop_handle_export_preorder_sheet_xlsx() {
 
     $xlsx_path = SOP_Preorder_XLSX_Exporter::build_xlsx_file( $sheet, $lines );
     if ( is_wp_error( $xlsx_path ) ) {
-        wp_die( esc_html( $xlsx_path->get_error_message() ) );
+        wp_die(
+            '<strong>' . esc_html__( 'XLSX Export Error', 'sop' ) . '</strong><br />' . esc_html( $xlsx_path->get_error_message() )
+        );
     }
 
     nocache_headers();
@@ -1094,7 +1096,9 @@ function sop_handle_export_purchase_order_xlsx() {
 
     $xlsx_path = SOP_Preorder_XLSX_Exporter::build_purchase_order_xlsx_from_template( $sheet_header, $line_rows );
     if ( is_wp_error( $xlsx_path ) ) {
-        wp_die( esc_html( $xlsx_path->get_error_message() ) );
+        wp_die(
+            '<strong>' . esc_html__( 'XLSX Export Error', 'sop' ) . '</strong><br />' . esc_html( $xlsx_path->get_error_message() )
+        );
     }
 
     $filename = sanitize_file_name( sprintf( 'purchase-order-%s-%d.xlsx', $supplier_slug, (int) $sheet_id ) );
