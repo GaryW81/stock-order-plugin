@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.67
+ * File version: 1.0.68
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -74,6 +74,84 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     /**
+     * Required methods for preorder order sheet export.
+     *
+     * @return array
+     */
+    private static function sop_get_required_methods_for_order_sheet_export() {
+        return array(
+            'build_content_types_xml',
+            'build_root_rels_xml',
+            'build_workbook_xml',
+            'build_workbook_rels_xml',
+            'build_styles_xml',
+            'build_sheet_rels_xml',
+            'build_sheet_xml',
+            'build_cols_xml',
+            'build_row_xml',
+            'build_drawing_xml',
+            'build_drawing_rels_xml',
+            'build_app_xml',
+            'build_core_xml',
+            'format_number_cell',
+            'resolve_image_path',
+            'column_letter',
+            'sanitize_xml_text',
+            'esc_xml',
+            'get_order_sheet_base_columns',
+        );
+    }
+
+    /**
+     * Required methods for Goods-In Issues export.
+     *
+     * @return array
+     */
+    private static function sop_get_required_methods_for_goodsin_issues_export() {
+        return array(
+            'get_order_sheet_base_columns',
+            'build_content_types_xml',
+            'build_root_rels_xml',
+            'build_workbook_xml',
+            'build_workbook_rels_xml',
+            'build_styles_xml',
+            'build_sheet_rels_xml',
+            'build_sheet_xml',
+            'build_cols_xml',
+            'build_row_xml',
+            'build_drawing_xml',
+            'build_drawing_rels_xml',
+            'build_app_xml',
+            'build_core_xml',
+            'format_number_cell',
+            'resolve_image_path',
+            'column_letter',
+            'sanitize_xml_text',
+            'esc_xml',
+        );
+    }
+
+    /**
+     * Required methods for PO template export.
+     *
+     * @return array
+     */
+    private static function sop_get_required_methods_for_po_template_export() {
+        return array(
+            'po_template_get_style_index',
+            'po_template_get_or_create_cell',
+            'po_template_set_inline_cell',
+            'po_template_set_number_cell',
+            'po_normalize_multiline_block',
+            'sanitize_po_inline_text_preserve_newlines',
+            'esc_xml',
+            'po_column_index_from_letter',
+            'po_template_get_style_index', // already listed, but harmless to ensure presence.
+            'sop_po_replace_currency_labels_in_xml',
+        );
+    }
+
+    /**
      * Build an XLSX file with embedded images.
      *
      * @param array $sheet_header Sheet header data.
@@ -81,29 +159,7 @@ class SOP_Preorder_XLSX_Exporter {
      * @return string|WP_Error    Path to XLSX temp file or error.
      */
     public static function build_xlsx_file( array $sheet_header, array $lines ) {
-        $preflight = self::sop_require_methods(
-            array(
-                'build_content_types_xml',
-                'build_root_rels_xml',
-                'build_workbook_xml',
-                'build_workbook_rels_xml',
-                'build_styles_xml',
-                'build_sheet_rels_xml',
-                'build_sheet_xml',
-                'build_drawing_xml',
-                'build_drawing_rels_xml',
-                'build_app_xml',
-                'build_core_xml',
-                'build_row_xml',
-                'format_number_cell',
-                'resolve_image_path',
-                'column_letter',
-                'sanitize_xml_text',
-                'esc_xml',
-                'get_order_sheet_base_columns',
-            ),
-            'Preorder Order Sheet'
-        );
+        $preflight = self::sop_require_methods( self::sop_get_required_methods_for_order_sheet_export(), 'Preorder Order Sheet' );
         if ( is_wp_error( $preflight ) ) {
             return $preflight;
         }
@@ -363,29 +419,7 @@ class SOP_Preorder_XLSX_Exporter {
      * @return string|WP_Error    Path to XLSX temp file or error.
      */
     public static function build_goodsin_issues_xlsx_file( array $sheet_header, array $issue_lines ) {
-        $preflight = self::sop_require_methods(
-            array(
-                'get_order_sheet_base_columns',
-                'build_content_types_xml',
-                'build_root_rels_xml',
-                'build_workbook_xml',
-                'build_workbook_rels_xml',
-                'build_styles_xml',
-                'build_sheet_rels_xml',
-                'build_sheet_xml',
-                'build_drawing_xml',
-                'build_drawing_rels_xml',
-                'build_app_xml',
-                'build_core_xml',
-                'build_row_xml',
-                'format_number_cell',
-                'resolve_image_path',
-                'column_letter',
-                'sanitize_xml_text',
-                'esc_xml',
-            ),
-            'Goods-In Issues'
-        );
+        $preflight = self::sop_require_methods( self::sop_get_required_methods_for_goodsin_issues_export(), 'Goods-In Issues' );
         if ( is_wp_error( $preflight ) ) {
             return $preflight;
         }
@@ -688,18 +722,7 @@ class SOP_Preorder_XLSX_Exporter {
      * @return string|WP_Error    Path to XLSX temp file or error.
      */
     public static function build_purchase_order_xlsx_from_template( array $sheet_header, array $line_rows ) {
-        $preflight = self::sop_require_methods(
-            array(
-                'po_template_get_style_index',
-                'po_template_get_or_create_cell',
-                'po_template_set_inline_cell',
-                'po_template_set_number_cell',
-                'po_normalize_multiline_block',
-                'sanitize_po_inline_text_preserve_newlines',
-                'esc_xml',
-            ),
-            'Order Summary (PO) template'
-        );
+        $preflight = self::sop_require_methods( self::sop_get_required_methods_for_po_template_export(), 'Order Summary (PO) template' );
         if ( is_wp_error( $preflight ) ) {
             return $preflight;
         }
