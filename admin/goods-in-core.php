@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.10
+ * File version: 1.0.11
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -15,6 +15,7 @@
  * - 1.0.08 - Add dispute summary helper for completed goods-in view.
  * - 1.0.09 - Persist missing/reject from payload (canonical keys) without dropping values.
  * - 1.0.10 - Persist Reject even when Received is blank by enforcing received >= stock_added + reject (no snapshot changes).
+ * - 1.0.11 - Hydrate issue export lines with live product fields; keep locked FX and base columns alignment.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -886,6 +887,12 @@ function sop_handle_export_goodsin_issues_xlsx() {
 
     $lines = sop_get_preorder_sheet_lines( $sheet_id, true );
     $lines = is_array( $lines ) ? $lines : array();
+    $supplier_id = isset( $sheet['supplier_id'] ) ? (int) $sheet['supplier_id'] : 0;
+    if ( ! empty( $lines ) && function_exists( 'sop_hydrate_line_with_live_product_fields' ) ) {
+        foreach ( $lines as $idx => $line ) {
+            $lines[ $idx ] = sop_hydrate_line_with_live_product_fields( $line, $supplier_id );
+        }
+    }
 
     $issue_lines = array();
     foreach ( $lines as $line ) {

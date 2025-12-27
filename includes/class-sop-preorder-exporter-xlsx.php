@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.65
+ * File version: 1.0.66
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -108,25 +108,7 @@ class SOP_Preorder_XLSX_Exporter {
         }
 
         $sheet_rows_xml = '';
-        $columns = array(
-            'Image',
-            'SKU',
-            'Brand',
-            'Product name',
-            'Categories',
-            'MOQ',
-            'Qty',
-            'Unit price (' . $supplier_currency . ')',
-        );
-        if ( $show_usd_column ) {
-            $columns[] = 'Unit price (USD)';
-        }
-        $columns[] = 'Total (' . $supplier_currency . ')';
-        $columns[] = 'Product notes';
-        $columns[] = 'Order notes';
-        $columns[] = 'Carton no.';
-        $columns[] = 'cm3 per unit';
-        $columns[] = 'Line CBM';
+        $columns = self::get_order_sheet_base_columns( $supplier_currency, $show_usd_column );
 
         // Header row.
         $sheet_rows_xml .= self::build_row_xml( 1, array_map( 'esc_html', $columns ), true, array(), $row_index - 2 );
