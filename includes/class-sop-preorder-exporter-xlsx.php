@@ -569,7 +569,7 @@ class SOP_Preorder_XLSX_Exporter {
             $reject         = isset( $line['goods_in_reject_qty'] ) ? (float) $line['goods_in_reject_qty'] : ( isset( $line['reject_qty'] ) ? (float) $line['reject_qty'] : 0.0 );
             $reason         = isset( $line['reject_reason'] ) ? $line['reject_reason'] : '';
             $goods_in_notes = isset( $line['goods_in_notes'] ) ? $line['goods_in_notes'] : '';
-            $unit_cost      = self::get_line_float( $line, array( 'cost_rmb', 'cost', 'unit_cost', 'cost_per_unit', 'supplier_cost' ), 0.0 );
+            $unit_cost      = self::get_line_float( $line, array( 'cost_rmb_owner', 'cost_rmb', 'cost_supplier_owner', 'cost_supplier', 'supplier_cost_owner', 'supplier_cost', 'unit_cost', 'cost_per_unit', 'cost_owner', 'cost' ), 0.0 );
 
             // Base columns reuse preorder mapping (ordered qty in base "Qty").
             $line_for_base         = $line;

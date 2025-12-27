@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.13
+ * File version: 1.0.14
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -903,44 +903,36 @@ function sop_handle_export_goodsin_issues_xlsx() {
             continue;
         }
 
-        $row                 = array();
-        $row['product_id']   = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-        $row['sku']          = isset( $line['sku'] ) ? (string) $line['sku'] : ( isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '' );
-        $row['brand']        = isset( $line['brand'] ) ? (string) $line['brand'] : ( isset( $line['brand_owner'] ) ? (string) $line['brand_owner'] : '' );
-        $row['product_name'] = isset( $line['product_name'] ) ? (string) $line['product_name'] : ( isset( $line['product_name_owner'] ) ? (string) $line['product_name_owner'] : '' );
-        $row['categories']   = isset( $line['categories'] ) ? (string) $line['categories'] : ( isset( $line['categories_owner'] ) ? (string) $line['categories_owner'] : '' );
-        $row['moq']          = sop_goodsin_get_number_from_line( $line, array( 'moq_owner', 'moq' ) );
-        $row['ordered_qty']  = sop_goodsin_get_number_from_line( $line, array( 'qty_owner', 'qty' ) );
-        $row['received_qty'] = sop_goodsin_get_number_from_line( $line, array( 'goods_in_received_qty_owner', 'goods_in_received_qty' ) );
-        $row['missing_qty']  = $missing;
-        $row['reject_qty']   = $reject;
-        $row['reject_reason'] = isset( $line['goods_in_reject_reason'] ) ? (string) $line['goods_in_reject_reason'] : '';
-        $row['cost_rmb']     = sop_goodsin_get_number_from_line( $line, array( 'cost_rmb', 'cost', 'cost_owner', 'supplier_cost_owner' ) );
-        $row['product_notes'] = isset( $line['product_notes_owner'] ) ? (string) $line['product_notes_owner'] : '';
-        $row['order_notes']   = isset( $line['order_notes_owner'] ) ? (string) $line['order_notes_owner'] : '';
-        $row['carton_no']     = isset( $line['carton_number'] ) ? (string) $line['carton_number'] : ( isset( $line['carton_no'] ) ? (string) $line['carton_no'] : '' );
-        $row['cm3_per_unit']  = sop_goodsin_get_number_from_line( $line, array( 'cm3_per_unit', 'cubic_cm' ) );
-        $row['line_cbm']      = sop_goodsin_get_number_from_line( $line, array( 'cbm_total_owner', 'line_cbm' ) );
-        $row['goods_in_notes'] = isset( $line['goods_in_notes'] ) ? (string) $line['goods_in_notes'] : '';
-        $row['image_id']       = isset( $line['image_id'] ) ? (int) $line['image_id'] : 0;
-        $row['qty']            = $row['ordered_qty'];
+        // Start from full line to preserve preorder/base fields.
+        $row = $line;
+        $row['ordered_qty']          = sop_goodsin_get_number_from_line( $line, array( 'qty_owner', 'qty', 'ordered_qty' ) );
+        $row['received_qty']         = sop_goodsin_get_number_from_line( $line, array( 'goods_in_received_qty_owner', 'goods_in_received_qty' ) );
+        $row['goods_in_missing_qty'] = $missing;
+        $row['goods_in_reject_qty']  = $reject;
+        $row['missing_qty']          = $missing;
+        $row['reject_qty']           = $reject;
+        $row['reject_reason']        = isset( $line['goods_in_reject_reason'] ) ? (string) $line['goods_in_reject_reason'] : ( isset( $line['reject_reason'] ) ? (string) $line['reject_reason'] : '' );
+        $row['goods_in_notes']       = isset( $line['goods_in_notes'] ) ? (string) $line['goods_in_notes'] : ( isset( $line['goods_in_notes_owner'] ) ? (string) $line['goods_in_notes_owner'] : '' );
+        if ( empty( $row['carton_no'] ) && ! empty( $line['carton_number'] ) ) {
+            $row['carton_no'] = (string) $line['carton_number'];
+        }
+        $row['qty'] = $row['ordered_qty'];
 
-        // Hydrate missing base display fields if needed.
-        if ( $row['product_id'] <= 0 && '' !== $row['sku'] ) {
-            $pid = function_exists( 'wc_get_product_id_by_sku' ) ? (int) wc_get_product_id_by_sku( $row['sku'] ) : 0;
+        // Hydrate missing display fields from live product if available.
+        if ( empty( $row['product_id'] ) && ! empty( $row['sku'] ) && function_exists( 'wc_get_product_id_by_sku' ) ) {
+            $pid = (int) wc_get_product_id_by_sku( (string) $row['sku'] );
             if ( $pid > 0 ) {
                 $row['product_id'] = $pid;
             }
         }
-        if ( function_exists( 'sop_get_live_product_display_fields' ) && $row['product_id'] > 0 ) {
-            $live = sop_get_live_product_display_fields( $row['product_id'], $supplier_id );
+        if ( function_exists( 'sop_get_live_product_display_fields' ) && ! empty( $row['product_id'] ) ) {
+            $live = sop_get_live_product_display_fields( (int) $row['product_id'], $supplier_id );
             if ( is_array( $live ) ) {
-                $row['sku']          = $row['sku'] ?: ( isset( $live['sku'] ) ? $live['sku'] : $row['sku'] );
-                $row['brand']        = $row['brand'] ?: ( isset( $live['brand'] ) ? $live['brand'] : $row['brand'] );
-                $row['product_name'] = $row['product_name'] ?: ( isset( $live['product_name'] ) ? $live['product_name'] : $row['product_name'] );
-                $row['categories']   = $row['categories'] ?: ( isset( $live['category'] ) ? $live['category'] : $row['categories'] );
-                $row['product_notes'] = $row['product_notes'] ?: ( isset( $live['product_notes'] ) ? $live['product_notes'] : $row['product_notes'] );
-                $row['carton_no']     = $row['carton_no'] ?: ( isset( $live['carton_no'] ) ? $live['carton_no'] : $row['carton_no'] );
+                $row['sku']          = ! empty( $row['sku'] ) ? $row['sku'] : ( isset( $live['sku'] ) ? $live['sku'] : '' );
+                $row['brand']        = ! empty( $row['brand'] ) ? $row['brand'] : ( isset( $live['brand'] ) ? $live['brand'] : '' );
+                $row['product_name'] = ! empty( $row['product_name'] ) ? $row['product_name'] : ( isset( $live['product_name'] ) ? $live['product_name'] : '' );
+                $row['categories']   = ! empty( $row['categories'] ) ? $row['categories'] : ( isset( $live['category'] ) ? $live['category'] : '' );
+                $row['product_notes'] = ! empty( $row['product_notes'] ) ? $row['product_notes'] : ( isset( $live['product_notes'] ) ? $live['product_notes'] : '' );
                 if ( empty( $row['cm3_per_unit'] ) && isset( $live['cubic_cm'] ) ) {
                     $row['cm3_per_unit'] = $live['cubic_cm'];
                 }
