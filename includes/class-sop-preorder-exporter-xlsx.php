@@ -361,7 +361,7 @@ class SOP_Preorder_XLSX_Exporter {
         }
         foreach ( (array) $keys as $key ) {
             if ( isset( $line[ $key ] ) && '' !== $line[ $key ] ) {
-                $raw = (string) $line[ $key ];
+                $raw = trim( (string) $line[ $key ] );
                 $raw = str_replace( ',', '', $raw );
                 if ( is_numeric( $raw ) ) {
                     return (float) $raw;
@@ -380,14 +380,17 @@ class SOP_Preorder_XLSX_Exporter {
         if ( is_array( $categories ) ) {
             $categories = implode( ', ', $categories );
         }
-        $moq           = self::get_line_float( $line, array( 'moq', 'moq_owner' ), 0.0 );
-        $qty           = self::get_line_float( $line, array( 'qty', 'qty_owner' ), 0.0 );
-        $unit_cost     = self::get_line_float( $line, array( 'cost_rmb', 'cost', 'unit_cost', 'cost_per_unit', 'supplier_cost' ), 0.0 );
-        $product_notes = isset( $line['product_notes'] ) ? $line['product_notes'] : '';
-        $order_notes   = isset( $line['order_notes'] ) ? $line['order_notes'] : '';
+        $moq           = self::get_line_float( $line, array( 'moq_owner', 'moq', 'min_order_qty', 'supplier_moq' ), 0.0 );
+        $qty           = self::get_line_float( $line, array( 'qty_owner', 'qty', 'manual_order_qty', 'ordered_qty' ), 0.0 );
+        $unit_cost     = self::get_line_float( $line, array( 'cost_rmb_owner', 'cost_rmb', 'cost_supplier_owner', 'cost_supplier', 'supplier_cost', 'unit_cost', 'cost_per_unit', 'cost' ), 0.0 );
+        $product_notes = isset( $line['product_notes'] ) ? $line['product_notes'] : ( isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : ( isset( $line['notes'] ) ? $line['notes'] : '' ) );
+        $order_notes   = isset( $line['order_notes'] ) ? $line['order_notes'] : ( isset( $line['order_notes_owner'] ) ? $line['order_notes_owner'] : '' );
         $carton_number = isset( $line['carton_no'] ) ? $line['carton_no'] : '';
-        $cm3_per_unit  = isset( $line['cm3_per_unit'] ) ? $line['cm3_per_unit'] : '';
-        $line_cbm      = isset( $line['line_cbm'] ) ? $line['line_cbm'] : '';
+        $cm3_per_unit  = self::get_line_float( $line, array( 'cbm_per_unit', 'cm3_per_unit', 'cubic_cm' ), 0.0 );
+        $line_cbm      = self::get_line_float( $line, array( 'cbm_total_owner', 'line_cbm', 'cbm_total' ), 0.0 );
+        if ( $line_cbm <= 0 && $cm3_per_unit > 0 && $qty > 0 ) {
+            $line_cbm = ( $cm3_per_unit * $qty ) / 1000000;
+        }
 
         $cost_usd = '';
         if ( $show_usd_column ) {
