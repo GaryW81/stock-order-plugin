@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.34
+ * File version: 1.0.35
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -38,6 +38,7 @@
  * - 1.0.32 - Harden Goods-In Issues button gating (completed + has issues).
  * - 1.0.33 - Finalise Goods-In Issues XLSX export gating and data plumbing.
  * - 1.0.34 - Add Goods-In "Issues only" filter toggle (missing/reject > 0).
+ * - 1.0.35 - Show dispute summary (missing/reject/credit totals with RMB FX) on completed goods-in.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -341,6 +342,16 @@ function sop_render_goods_in_page() {
             break;
         }
     }
+    $issue_summary = null;
+    if ( function_exists( 'sop_goodsin_get_issues_summary_for_sheet' ) && function_exists( 'sop_get_preorder_sheet_lines' ) ) {
+        $summary_lines = sop_get_preorder_sheet_lines( $sheet_id, true );
+        if ( is_array( $summary_lines ) ) {
+            $issue_summary = sop_goodsin_get_issues_summary_for_sheet( $sheet, $summary_lines );
+            if ( isset( $issue_summary['issue_line_count'] ) && $issue_summary['issue_line_count'] > 0 ) {
+                $has_issue_lines = true;
+            }
+        }
+    }
     ?>
     <form id="sop-goodsin-form" method="post" action="<?php echo esc_url( $form_action ); ?>">
         <?php wp_nonce_field( 'sop_goodsin_action', 'sop_goodsin_nonce' ); ?>
@@ -409,6 +420,22 @@ function sop_render_goods_in_page() {
                 </div>
             </div>
         </div>
+        <?php if ( $is_completed && $has_issue_lines && is_array( $issue_summary ) && isset( $issue_summary['issue_line_count'] ) && $issue_summary['issue_line_count'] > 0 ) : ?>
+            <div class="notice notice-info sop-goodsin-dispute-summary">
+                <p><strong><?php esc_html_e( 'Dispute summary', 'sop' ); ?></strong></p>
+                <ul>
+                    <li><?php printf( esc_html__( 'Issue lines: %d', 'sop' ), (int) $issue_summary['issue_line_count'] ); ?></li>
+                    <li><?php printf( esc_html__( 'Missing units: %s', 'sop' ), esc_html( number_format_i18n( $issue_summary['total_missing'], 0 ) ) ); ?></li>
+                    <li><?php printf( esc_html__( 'Reject units: %s', 'sop' ), esc_html( number_format_i18n( $issue_summary['total_reject'], 0 ) ) ); ?></li>
+                    <li><?php printf( esc_html__( 'Credit qty: %s', 'sop' ), esc_html( number_format_i18n( $issue_summary['total_credit_qty'], 0 ) ) ); ?></li>
+                    <li><?php printf( esc_html__( 'Credit total (%s): %s', 'sop' ), esc_html( $issue_summary['supplier_currency'] ), esc_html( number_format_i18n( $issue_summary['total_credit_total_supplier'], 2 ) ) ); ?></li>
+                    <?php if ( ! empty( $issue_summary['is_rmb'] ) && $issue_summary['fx_rmb_per_usd'] > 0 ) : ?>
+                        <li><?php printf( esc_html__( 'Credit total (USD): %s', 'sop' ), esc_html( number_format_i18n( $issue_summary['total_credit_total_usd'], 2 ) ) ); ?></li>
+                        <li><?php printf( esc_html__( 'FX used (RMB/USD): %s', 'sop' ), esc_html( number_format_i18n( $issue_summary['fx_rmb_per_usd'], 3 ) ) ); ?></li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
 
         <div class="sop-goodsin-filter">
             <label>
@@ -973,6 +1000,12 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-row-issues-hidden {
             display: none;
+        }
+        .sop-goodsin-dispute-summary {
+            margin-top: 10px;
+        }
+        .sop-goodsin-dispute-summary ul {
+            margin: 0 0 0 18px;
         }
         .sop-goodsin-row-jump-highlight {
             outline: 2px solid #2271b1;

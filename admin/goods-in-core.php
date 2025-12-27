@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.07
+ * File version: 1.0.08
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -12,6 +12,7 @@
  * - 1.0.05 - Lazy-migrate legacy lines/maps to product_id and warn on unresolved SKUs.
  * - 1.0.06 - Add completed-only Goods-In Issues XLSX export (missing/reject only).
  * - 1.0.07 - Harden Goods-In Issues export (completed gate, locked FX, issue data build).
+ * - 1.0.08 - Add dispute summary helper for completed goods-in view.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -159,6 +160,85 @@ function sop_goodsin_get_number_from_line( array $line, array $keys ) {
         }
     }
     return 0.0;
+}
+
+/**
+ * Compute Goods-In issues summary (missing/reject + credit totals).
+ *
+ * @param array $sheet      Sheet header.
+ * @param array $lines_map  Lines array (e.g. from sop_get_preorder_sheet_lines()).
+ * @return array
+ */
+function sop_goodsin_get_issues_summary_for_sheet( array $sheet, array $lines_map ) {
+    $supplier_currency = 'GBP';
+    if ( isset( $sheet['supplier_id'] ) && function_exists( 'sop_preorder_resolve_supplier_params' ) ) {
+        $ctx = sop_preorder_resolve_supplier_params( (int) $sheet['supplier_id'] );
+        if ( ! empty( $ctx['currency_code'] ) ) {
+            $supplier_currency = strtoupper( trim( (string) $ctx['currency_code'] ) );
+        }
+    }
+
+    $is_rmb = ( 'RMB' === $supplier_currency );
+    $fx_rmb_per_usd = 0.0;
+    if ( $is_rmb ) {
+        $po_payload = array();
+        if ( ! empty( $sheet['header_notes_owner'] ) && is_string( $sheet['header_notes_owner'] ) ) {
+            $decoded = json_decode( $sheet['header_notes_owner'], true );
+            if ( is_array( $decoded ) ) {
+                $po_payload = $decoded;
+            }
+        }
+        $sheet_balance_fx_rate = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
+        $sheet_supplier_effective_fx = 0.0;
+        if ( isset( $sheet['supplier_id'] ) && function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
+            $sheet_supplier_effective_fx = (float) sop_get_supplier_effective_usd_to_rmb_rate( (int) $sheet['supplier_id'] );
+        }
+        if ( $sheet_balance_fx_rate > 0 ) {
+            $fx_rmb_per_usd = $sheet_balance_fx_rate;
+        } elseif ( $sheet_supplier_effective_fx > 0 ) {
+            $fx_rmb_per_usd = $sheet_supplier_effective_fx;
+        }
+    }
+
+    $summary = array(
+        'issue_line_count'           => 0,
+        'total_missing'              => 0.0,
+        'total_reject'               => 0.0,
+        'total_credit_qty'           => 0.0,
+        'total_credit_total_supplier'=> 0.0,
+        'total_credit_total_usd'     => 0.0,
+        'supplier_currency'          => $supplier_currency,
+        'is_rmb'                     => $is_rmb,
+        'fx_rmb_per_usd'             => $fx_rmb_per_usd,
+    );
+
+    if ( empty( $lines_map ) ) {
+        return $summary;
+    }
+
+    foreach ( $lines_map as $line ) {
+        $missing = sop_goodsin_get_number_from_line( $line, array( 'goods_in_missing_qty_owner', 'goods_in_missing_qty' ) );
+        $reject  = sop_goodsin_get_number_from_line( $line, array( 'goods_in_reject_qty_owner', 'goods_in_reject_qty' ) );
+        if ( $missing <= 0 && $reject <= 0 ) {
+            continue;
+        }
+
+        $summary['issue_line_count']++;
+        $credit_qty = max( 0.0, $missing + $reject );
+        $unit_cost  = sop_goodsin_get_number_from_line( $line, array( 'cost_rmb', 'cost', 'cost_owner', 'supplier_cost_owner' ) );
+        $credit_total = $credit_qty * $unit_cost;
+
+        $summary['total_missing']  += $missing;
+        $summary['total_reject']   += $reject;
+        $summary['total_credit_qty'] += $credit_qty;
+        $summary['total_credit_total_supplier'] += $credit_total;
+
+        if ( $summary['is_rmb'] && $summary['fx_rmb_per_usd'] > 0 && $credit_total > 0 ) {
+            $summary['total_credit_total_usd'] += $credit_total / $summary['fx_rmb_per_usd'];
+        }
+    }
+
+    return $summary;
 }
 
 /**
