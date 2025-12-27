@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.35
+ * File version: 1.0.36
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -39,6 +39,7 @@
  * - 1.0.33 - Finalise Goods-In Issues XLSX export gating and data plumbing.
  * - 1.0.34 - Add Goods-In "Issues only" filter toggle (missing/reject > 0).
  * - 1.0.35 - Show dispute summary (missing/reject/credit totals with RMB FX) on completed goods-in.
+ * - 1.0.36 - Fix Missing/Reject persistence (prefill + payload + handler key alignment).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -335,8 +336,8 @@ function sop_render_goods_in_page() {
     $form_action = admin_url( 'admin-post.php' );
     $has_issue_lines = false;
     foreach ( $lines as $line_check ) {
-        $miss = isset( $line_check['goods_in_missing_qty_owner'] ) ? (float) $line_check['goods_in_missing_qty_owner'] : ( isset( $line_check['goods_in_missing_qty'] ) ? (float) $line_check['goods_in_missing_qty'] : 0.0 );
-        $rej  = isset( $line_check['goods_in_reject_qty_owner'] ) ? (float) $line_check['goods_in_reject_qty_owner'] : ( isset( $line_check['goods_in_reject_qty'] ) ? (float) $line_check['goods_in_reject_qty'] : 0.0 );
+        $miss = isset( $line_check['goods_in_missing_qty_owner'] ) ? (float) $line_check['goods_in_missing_qty_owner'] : ( isset( $line_check['goods_in_missing_qty'] ) ? (float) $line_check['goods_in_missing_qty'] : ( isset( $line_check['missing_qty'] ) ? (float) $line_check['missing_qty'] : 0.0 ) );
+        $rej  = isset( $line_check['goods_in_reject_qty_owner'] ) ? (float) $line_check['goods_in_reject_qty_owner'] : ( isset( $line_check['goods_in_reject_qty'] ) ? (float) $line_check['goods_in_reject_qty'] : ( isset( $line_check['reject_qty'] ) ? (float) $line_check['reject_qty'] : 0.0 ) );
         if ( $miss > 0 || $rej > 0 ) {
             $has_issue_lines = true;
             break;
@@ -499,8 +500,8 @@ function sop_render_goods_in_page() {
                 $location = isset( $line['location'] ) ? (string) $line['location'] : '';
                 $ordered  = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0.0;
                 $received = isset( $line['goods_in_received_qty'] ) ? (float) $line['goods_in_received_qty'] : 0.0;
-                $missing  = isset( $line['goods_in_missing_qty'] ) ? (float) $line['goods_in_missing_qty'] : 0.0;
-                $reject   = isset( $line['goods_in_reject_qty'] ) ? (float) $line['goods_in_reject_qty'] : 0.0;
+                $missing  = isset( $line['goods_in_missing_qty'] ) ? (float) $line['goods_in_missing_qty'] : ( isset( $line['missing_qty'] ) ? (float) $line['missing_qty'] : 0.0 );
+                $reject   = isset( $line['goods_in_reject_qty'] ) ? (float) $line['goods_in_reject_qty'] : ( isset( $line['reject_qty'] ) ? (float) $line['reject_qty'] : 0.0 );
                 $reason   = isset( $line['goods_in_reject_reason'] ) ? (string) $line['goods_in_reject_reason'] : '';
                 $notes    = isset( $line['goods_in_notes'] ) ? (string) $line['goods_in_notes'] : '';
                 $stocked  = isset( $line['goods_in_stock_added_qty'] ) ? (float) $line['goods_in_stock_added_qty'] : 0.0;
@@ -1283,8 +1284,8 @@ function sop_render_goods_in_page() {
                         line_id: lineId,
                         product_id: productId,
                         received_qty: $tr.find('.sop-goodsin-received').val(),
-                        missing_qty: $tr.find('.sop-goodsin-missing').val(),
-                        reject_qty: $tr.find('.sop-goodsin-reject').val(),
+                        goods_in_missing_qty: $tr.find('.sop-goodsin-missing').val(),
+                        goods_in_reject_qty: $tr.find('.sop-goodsin-reject').val(),
                         reject_reason: $tr.find('.sop-goodsin-reject-reason').val() || '',
                         notes: $tr.find('.sop-goodsin-notes').val() || '',
                         selected: $tr.find('.sop-goodsin-select').is(':checked')

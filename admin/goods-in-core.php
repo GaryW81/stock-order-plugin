@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.08
+ * File version: 1.0.09
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -13,6 +13,7 @@
  * - 1.0.06 - Add completed-only Goods-In Issues XLSX export (missing/reject only).
  * - 1.0.07 - Harden Goods-In Issues export (completed gate, locked FX, issue data build).
  * - 1.0.08 - Add dispute summary helper for completed goods-in view.
+ * - 1.0.09 - Persist missing/reject from payload (canonical keys) without dropping values.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -348,9 +349,9 @@ function sop_goodsin_normalize_line_payload( array $line_in, array $db_row ) {
         $stock_added = 0.0;
     }
 
-    $received_qty = isset( $line_in['received_qty'] ) ? (float) $line_in['received_qty'] : 0.0;
-    $missing_qty  = isset( $line_in['missing_qty'] ) ? (float) $line_in['missing_qty'] : 0.0;
-    $reject_qty   = isset( $line_in['reject_qty'] ) ? (float) $line_in['reject_qty'] : 0.0;
+    $received_qty = isset( $line_in['received_qty'] ) ? (float) $line_in['received_qty'] : ( isset( $db_row['goods_in_received_qty'] ) ? (float) $db_row['goods_in_received_qty'] : 0.0 );
+    $missing_qty  = isset( $line_in['goods_in_missing_qty'] ) ? (float) $line_in['goods_in_missing_qty'] : ( isset( $line_in['missing_qty'] ) ? (float) $line_in['missing_qty'] : ( isset( $db_row['goods_in_missing_qty'] ) ? (float) $db_row['goods_in_missing_qty'] : 0.0 ) );
+    $reject_qty   = isset( $line_in['goods_in_reject_qty'] ) ? (float) $line_in['goods_in_reject_qty'] : ( isset( $line_in['reject_qty'] ) ? (float) $line_in['reject_qty'] : ( isset( $db_row['goods_in_reject_qty'] ) ? (float) $db_row['goods_in_reject_qty'] : 0.0 ) );
     $reject_reason = isset( $line_in['reject_reason'] ) ? sanitize_text_field( (string) $line_in['reject_reason'] ) : '';
     $notes         = isset( $line_in['notes'] ) ? wp_kses_post( (string) $line_in['notes'] ) : '';
 
