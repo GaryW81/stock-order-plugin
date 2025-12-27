@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.70
+ * File version: 1.0.71
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -547,6 +547,41 @@ class SOP_Preorder_XLSX_Exporter {
 
             // Base columns reuse preorder mapping (ordered qty in base "Qty").
             $line_for_base         = $line;
+            // Backfill product context from WC if missing.
+            $product_id_for_base = isset( $line_for_base['product_id'] ) ? (int) $line_for_base['product_id'] : 0;
+            $sku_candidate        = '';
+            if ( empty( $product_id_for_base ) ) {
+                if ( isset( $line_for_base['sku'] ) && '' !== $line_for_base['sku'] ) {
+                    $sku_candidate = (string) $line_for_base['sku'];
+                } elseif ( isset( $line_for_base['sku_owner'] ) && '' !== $line_for_base['sku_owner'] ) {
+                    $sku_candidate = (string) $line_for_base['sku_owner'];
+                }
+                if ( '' !== $sku_candidate && function_exists( 'wc_get_product_id_by_sku' ) ) {
+                    $pid = (int) wc_get_product_id_by_sku( $sku_candidate );
+                    if ( $pid > 0 ) {
+                        $product_id_for_base            = $pid;
+                        $line_for_base['product_id']    = $pid;
+                        $line_for_base['sku']           = $sku_candidate;
+                    }
+                }
+            }
+            if ( $product_id_for_base > 0 && function_exists( 'wc_get_product' ) ) {
+                $product_obj = wc_get_product( $product_id_for_base );
+                if ( $product_obj ) {
+                    if ( empty( $line_for_base['product_name'] ) ) {
+                        $line_for_base['product_name'] = $product_obj->get_name();
+                    }
+                    if ( empty( $line_for_base['categories'] ) && function_exists( 'sop_get_product_category_path_below_root' ) ) {
+                        $line_for_base['categories'] = sop_get_product_category_path_below_root( $product_id_for_base );
+                    }
+                    if ( empty( $line_for_base['brand'] ) && function_exists( 'wc_get_product_terms' ) ) {
+                        $brands = wc_get_product_terms( $product_id_for_base, 'product_brand', array( 'fields' => 'names' ) );
+                        if ( is_array( $brands ) && ! empty( $brands ) ) {
+                            $line_for_base['brand'] = implode( ', ', $brands );
+                        }
+                    }
+                }
+            }
             $line_for_base['qty']  = $ordered;
             $base                  = self::build_order_sheet_row_base_cells( $line_for_base, $supplier_currency, $sheet_fx_for_usd, $show_usd_column );
 
@@ -696,10 +731,17 @@ class SOP_Preorder_XLSX_Exporter {
         $zip->addFromString( 'docProps/core.xml', self::build_core_xml() );
 
         // Add images to zip.
-        foreach ( $images as $idx => $img ) {
-            if ( isset( $media_files[ $idx ] ) && file_exists( $media_files[ $idx ] ) ) {
-                $zip->addFile( $media_files[ $idx ], 'xl/' . $img['target'] );
+        foreach ( $media_files as $media_file ) {
+            if ( empty( $media_file['path'] ) || empty( $media_file['zip_path'] ) ) {
+                continue;
             }
+            if ( ! is_string( $media_file['path'] ) || ! is_string( $media_file['zip_path'] ) ) {
+                continue;
+            }
+            if ( ! file_exists( $media_file['path'] ) ) {
+                continue;
+            }
+            $zip->addFile( $media_file['path'], $media_file['zip_path'] );
         }
 
         $zip->close();
