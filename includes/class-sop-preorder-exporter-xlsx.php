@@ -1567,12 +1567,14 @@ class SOP_Preorder_XLSX_Exporter {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
         $last_col_index  = $column_count > 0 ? ( $column_count - 1 ) : ( $show_usd_column ? 14 : 13 );
-        $last_col_letter = self::column_letter( $last_col_index );
-        $xml .= '<dimension ref="A1:' . $last_col_letter . (int) $max_row . '"/>';
-        $xml .= '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
+        $last_col_letter = self::column_letter( max( 0, $last_col_index ) );
+        $max_row         = max( 1, (int) $max_row );
+        $xml .= '<dimension ref="A1:' . $last_col_letter . $max_row . '"/>';
+        $xml .= '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews>';
         $xml .= '<sheetFormatPr defaultRowHeight="48" customHeight="1"/>';
         $xml .= self::build_cols_xml( $show_usd_column );
         $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
+        $xml .= '<autoFilter ref="A1:' . $last_col_letter . $max_row . '"/>';
         if ( $has_drawing ) {
             $xml .= '<drawing r:id="rId1"/>';
         }
