@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.68
+ * File version: 1.0.69
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -99,6 +99,7 @@ class SOP_Preorder_XLSX_Exporter {
             'sanitize_xml_text',
             'esc_xml',
             'get_order_sheet_base_columns',
+            'sop_sanitize_xlsx_sheet_name',
         );
     }
 
@@ -128,6 +129,7 @@ class SOP_Preorder_XLSX_Exporter {
             'column_letter',
             'sanitize_xml_text',
             'esc_xml',
+            'sop_sanitize_xlsx_sheet_name',
         );
     }
 
@@ -148,6 +150,7 @@ class SOP_Preorder_XLSX_Exporter {
             'po_column_index_from_letter',
             'po_template_get_style_index', // already listed, but harmless to ensure presence.
             'sop_po_replace_currency_labels_in_xml',
+            'sop_sanitize_xlsx_sheet_name',
         );
     }
 
@@ -333,7 +336,7 @@ class SOP_Preorder_XLSX_Exporter {
         // Build XML parts.
         $content_types = self::build_content_types_xml( ! empty( $images ) );
         $rels_root     = self::build_root_rels_xml();
-        $workbook      = self::build_workbook_xml();
+        $workbook      = self::build_workbook_xml( 'Order Sheet' );
         $workbook_rels = self::build_workbook_rels_xml();
         $styles        = self::build_styles_xml();
         $sheet_rels    = self::build_sheet_rels_xml( ! empty( $images ) );
@@ -490,6 +493,7 @@ class SOP_Preorder_XLSX_Exporter {
         );
         if ( $show_usd_column ) {
             $issue_columns[] = 'Credit total (USD)';
+            $issue_columns[] = 'FX used (RMB/USD)';
         }
         $columns = array_merge( $columns, $issue_columns );
 
@@ -690,7 +694,7 @@ class SOP_Preorder_XLSX_Exporter {
 
         $zip->addFromString( '[Content_Types].xml', self::build_content_types_xml( $has_images ) );
         $zip->addFromString( '_rels/.rels', self::build_root_rels_xml() );
-        $zip->addFromString( 'xl/workbook.xml', self::build_workbook_xml() );
+        $zip->addFromString( 'xl/workbook.xml', self::build_workbook_xml( 'Issues' ) );
         $zip->addFromString( 'xl/_rels/workbook.xml.rels', self::build_workbook_rels_xml() );
         $zip->addFromString( 'xl/styles.xml', self::build_styles_xml() );
         $zip->addFromString( 'xl/worksheets/_rels/sheet1.xml.rels', $sheet_rels );
@@ -1544,11 +1548,27 @@ class SOP_Preorder_XLSX_Exporter {
         return $xml;
     }
 
-    private static function build_workbook_xml() {
+    private static function sop_sanitize_xlsx_sheet_name( $name ) {
+        $name = (string) $name;
+        $name = trim( $name );
+        $name = str_replace( array( ':', '\\', '/', '?', '*', '[', ']' ), '', $name );
+        if ( '' === $name ) {
+            $name = 'Sheet1';
+        }
+        if ( function_exists( 'mb_substr' ) ) {
+            $name = mb_substr( $name, 0, 31 );
+        } else {
+            $name = substr( $name, 0, 31 );
+        }
+        return $name;
+    }
+
+    private static function build_workbook_xml( $sheet_name = 'Sheet1' ) {
+        $sheet_name = self::sop_sanitize_xlsx_sheet_name( $sheet_name );
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
         $xml .= '<sheets>';
-        $xml .= '<sheet name="Order Sheet" sheetId="1" r:id="rId1"/>';
+        $xml .= '<sheet name="' . esc_attr( $sheet_name ) . '" sheetId="1" r:id="rId1"/>';
         $xml .= '</sheets>';
         $xml .= '</workbook>';
         return $xml;
