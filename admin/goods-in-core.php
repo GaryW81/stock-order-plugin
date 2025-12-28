@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.15
+ * File version: 1.0.16
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -18,6 +18,7 @@
  * - 1.0.11 - Hydrate issue export lines with live product fields; keep locked FX and base columns alignment.
  * - 1.0.12 - Add XLSX export preflight handling for Goods-In Issues.
  * - 1.0.15 - Derive non-RMB credit totals from RMB using balance FX + SOP rates.
+ * - 1.0.16 - Align dispute summary FX/cost resolution with Issues XLSX (non-RMB from RMB via FX).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
