@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.14
+ * File version: 1.0.15
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -17,6 +17,7 @@
  * - 1.0.10 - Persist Reject even when Received is blank by enforcing received >= stock_added + reject (no snapshot changes).
  * - 1.0.11 - Hydrate issue export lines with live product fields; keep locked FX and base columns alignment.
  * - 1.0.12 - Add XLSX export preflight handling for Goods-In Issues.
+ * - 1.0.15 - Derive non-RMB credit totals from RMB using balance FX + SOP rates.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -158,12 +159,179 @@ function sop_goodsin_migrate_lines_map_to_pid( array $lines_map ) {
  * @return float
  */
 function sop_goodsin_get_number_from_line( array $line, array $keys ) {
-    foreach ( $keys as $key ) {
-        if ( isset( $line[ $key ] ) && '' !== $line[ $key ] ) {
-            return (float) $line[ $key ];
-        }
-    }
-    return 0.0;
+	foreach ( $keys as $key ) {
+		if ( isset( $line[ $key ] ) && '' !== $line[ $key ] ) {
+			return (float) $line[ $key ];
+		}
+	}
+	return 0.0;
+}
+
+/**
+ * Get first positive numeric value from a line for the given keys.
+ *
+ * @param array $line Line data.
+ * @param array $keys Keys to inspect.
+ * @return float
+ */
+function sop_goodsin_get_positive_number_from_line( array $line, array $keys ) {
+	foreach ( $keys as $key ) {
+		if ( isset( $line[ $key ] ) && '' !== $line[ $key ] ) {
+			$val = (float) $line[ $key ];
+			if ( $val > 0 ) {
+				return $val;
+			}
+		}
+	}
+	return 0.0;
+}
+
+/**
+ * Read SOP FX settings (with legacy key fallback).
+ *
+ * @return array
+ */
+function sop_goodsin_get_sop_settings_fx_rates() {
+	$opt = get_option( 'sop_settings', array() );
+	$opt = is_array( $opt ) ? $opt : array();
+	$read = function ( $keys ) use ( $opt ) {
+		foreach ( (array) $keys as $key ) {
+			if ( isset( $opt[ $key ] ) && '' !== $opt[ $key ] ) {
+				return (float) $opt[ $key ];
+			}
+		}
+		return 0.0;
+	};
+
+	return array(
+		'rmb_to_gbp' => $read( array( 'rmb_to_gbp_rate', 'rmb to gbp rate' ) ),
+		'eur_to_gbp' => $read( array( 'eur_to_gbp_rate', 'eur to gbp rate' ) ),
+		'usd_to_gbp' => $read( array( 'usd_to_gbp_rate', 'usd to gbp rate' ) ),
+		'usd_to_rmb' => $read( array( 'usd_to_rmb_rate', 'usd to rmb rate' ) ),
+	);
+}
+
+/**
+ * Get balance FX (USD->RMB) from sheet header notes.
+ *
+ * @param array $sheet Sheet header.
+ * @return float
+ */
+function sop_goodsin_get_balance_fx_rate_from_sheet( array $sheet ) {
+	$rate = 0.0;
+	if ( ! empty( $sheet['header_notes_owner'] ) && is_string( $sheet['header_notes_owner'] ) ) {
+		$decoded = json_decode( $sheet['header_notes_owner'], true );
+		if ( is_array( $decoded ) && isset( $decoded['balance_fx_rate'] ) && (float) $decoded['balance_fx_rate'] > 0 ) {
+			$rate = (float) $decoded['balance_fx_rate'];
+		}
+	}
+	return $rate;
+}
+
+/**
+ * Convert RMB to target currency using sheet + SOP rates.
+ *
+ * @param float  $rmb              RMB amount.
+ * @param string $target_currency  Currency code.
+ * @param float  $sheet_usd_to_rmb Sheet FX (RMB per USD).
+ * @param array  $rates            SOP settings rates.
+ * @return float
+ */
+function sop_goodsin_convert_rmb_to_currency( $rmb, $target_currency, $sheet_usd_to_rmb, $rates ) {
+	$rmb             = (float) $rmb;
+	$target_currency = strtoupper( trim( (string) $target_currency ) );
+	if ( $rmb <= 0 ) {
+		return 0.0;
+	}
+	$usd_to_rmb = ( $sheet_usd_to_rmb > 0 ) ? $sheet_usd_to_rmb : ( isset( $rates['usd_to_rmb'] ) ? (float) $rates['usd_to_rmb'] : 0.0 );
+	$rmb_to_gbp = isset( $rates['rmb_to_gbp'] ) ? (float) $rates['rmb_to_gbp'] : 0.0;
+	$usd_to_gbp = isset( $rates['usd_to_gbp'] ) ? (float) $rates['usd_to_gbp'] : 0.0;
+	$eur_to_gbp = isset( $rates['eur_to_gbp'] ) ? (float) $rates['eur_to_gbp'] : 0.0;
+
+	if ( 'USD' === $target_currency ) {
+		if ( $usd_to_rmb > 0 ) {
+			return $rmb / $usd_to_rmb;
+		}
+		if ( $rmb_to_gbp > 0 && $usd_to_gbp > 0 ) {
+			$gbp = $rmb * $rmb_to_gbp;
+			return $gbp / $usd_to_gbp;
+		}
+		return 0.0;
+	}
+
+	if ( 'GBP' === $target_currency ) {
+		if ( $usd_to_rmb > 0 && $usd_to_gbp > 0 ) {
+			return ( $rmb / $usd_to_rmb ) * $usd_to_gbp;
+		}
+		if ( $rmb_to_gbp > 0 ) {
+			return $rmb * $rmb_to_gbp;
+		}
+		return 0.0;
+	}
+
+	if ( 'EUR' === $target_currency ) {
+		$gbp = 0.0;
+		if ( $usd_to_rmb > 0 && $usd_to_gbp > 0 ) {
+			$gbp = ( $rmb / $usd_to_rmb ) * $usd_to_gbp;
+		} elseif ( $rmb_to_gbp > 0 ) {
+			$gbp = $rmb * $rmb_to_gbp;
+		}
+		if ( $gbp > 0 && $eur_to_gbp > 0 ) {
+			return $gbp / $eur_to_gbp;
+		}
+		return 0.0;
+	}
+
+	return 0.0;
+}
+
+/**
+ * Resolve supplier-currency and RMB unit costs for summary/credit calculations.
+ *
+ * @param array  $line             Line data.
+ * @param string $supplier_currency Supplier currency.
+ * @param float  $balance_fx_rate  Sheet balance FX (RMB per USD).
+ * @param array  $rates            SOP FX settings.
+ * @return array
+ */
+function sop_goodsin_resolve_unit_cost_for_summary( array $line, $supplier_currency, $balance_fx_rate, $rates ) {
+	$currency_upper     = strtoupper( trim( (string) $supplier_currency ) );
+	$rmb_cost           = sop_goodsin_get_positive_number_from_line( $line, array( 'cost_rmb_owner', 'cost_rmb', 'cost_per_unit_rmb', 'cost_rmb_per_unit' ) );
+	$supplier_cost_keys = array(
+		'cost_supplier_owner',
+		'cost_supplier',
+		'supplier_cost_owner',
+		'supplier_cost',
+		'unit_cost',
+		'cost_per_unit',
+		'cost_owner',
+		'cost',
+		'cost_' . strtolower( $currency_upper ) . '_owner',
+		'cost_' . strtolower( $currency_upper ),
+	);
+	$supplier_cost      = sop_goodsin_get_positive_number_from_line( $line, $supplier_cost_keys );
+
+	if ( 'RMB' === $currency_upper ) {
+		if ( $supplier_cost <= 0 && $rmb_cost > 0 ) {
+			$supplier_cost = $rmb_cost;
+		}
+		return array(
+			'supplier' => $supplier_cost,
+			'rmb'      => $rmb_cost,
+		);
+	}
+
+	if ( $supplier_cost <= 0 && $rmb_cost > 0 ) {
+		$converted = sop_goodsin_convert_rmb_to_currency( $rmb_cost, $currency_upper, $balance_fx_rate, $rates );
+		if ( $converted > 0 ) {
+			$supplier_cost = $converted;
+		}
+	}
+
+	return array(
+		'supplier' => $supplier_cost,
+		'rmb'      => $rmb_cost,
+	);
 }
 
 /**
@@ -182,26 +350,18 @@ function sop_goodsin_get_issues_summary_for_sheet( array $sheet, array $lines_ma
         }
     }
 
-    $is_rmb = ( 'RMB' === $supplier_currency );
-    $fx_rmb_per_usd = 0.0;
-    if ( $is_rmb ) {
-        $po_payload = array();
-        if ( ! empty( $sheet['header_notes_owner'] ) && is_string( $sheet['header_notes_owner'] ) ) {
-            $decoded = json_decode( $sheet['header_notes_owner'], true );
-            if ( is_array( $decoded ) ) {
-                $po_payload = $decoded;
-            }
-        }
-        $sheet_balance_fx_rate = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
-        $sheet_supplier_effective_fx = 0.0;
-        if ( isset( $sheet['supplier_id'] ) && function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
-            $sheet_supplier_effective_fx = (float) sop_get_supplier_effective_usd_to_rmb_rate( (int) $sheet['supplier_id'] );
-        }
-        if ( $sheet_balance_fx_rate > 0 ) {
-            $fx_rmb_per_usd = $sheet_balance_fx_rate;
-        } elseif ( $sheet_supplier_effective_fx > 0 ) {
-            $fx_rmb_per_usd = $sheet_supplier_effective_fx;
-        }
+    $is_rmb            = ( 'RMB' === $supplier_currency );
+    $fx_rmb_per_usd    = 0.0;
+    $sheet_balance_fx  = sop_goodsin_get_balance_fx_rate_from_sheet( $sheet );
+    $sop_fx_settings   = sop_goodsin_get_sop_settings_fx_rates();
+    $supplier_effective_fx = 0.0;
+    if ( isset( $sheet['supplier_id'] ) && function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
+        $supplier_effective_fx = (float) sop_get_supplier_effective_usd_to_rmb_rate( (int) $sheet['supplier_id'] );
+    }
+    if ( $sheet_balance_fx > 0 ) {
+        $fx_rmb_per_usd = $sheet_balance_fx;
+    } elseif ( $is_rmb && $supplier_effective_fx > 0 ) {
+        $fx_rmb_per_usd = $supplier_effective_fx;
     }
 
     $summary = array(
@@ -228,8 +388,9 @@ function sop_goodsin_get_issues_summary_for_sheet( array $sheet, array $lines_ma
         }
 
         $summary['issue_line_count']++;
-        $credit_qty = max( 0.0, $missing + $reject );
-        $unit_cost  = sop_goodsin_get_number_from_line( $line, array( 'cost_rmb', 'cost', 'cost_owner', 'supplier_cost_owner' ) );
+        $credit_qty  = max( 0.0, $missing + $reject );
+        $costs       = sop_goodsin_resolve_unit_cost_for_summary( $line, $supplier_currency, $sheet_balance_fx, $sop_fx_settings );
+        $unit_cost   = $costs['supplier'];
         $credit_total = $credit_qty * $unit_cost;
 
         $summary['total_missing']  += $missing;
@@ -238,7 +399,9 @@ function sop_goodsin_get_issues_summary_for_sheet( array $sheet, array $lines_ma
         $summary['total_credit_total_supplier'] += $credit_total;
 
         if ( $summary['is_rmb'] && $summary['fx_rmb_per_usd'] > 0 && $credit_total > 0 ) {
-            $summary['total_credit_total_usd'] += $credit_total / $summary['fx_rmb_per_usd'];
+            $summary['total_credit_total_usd'] += ( $credit_qty > 0 && $costs['rmb'] > 0 )
+                ? ( ( $credit_qty * $costs['rmb'] ) / $summary['fx_rmb_per_usd'] )
+                : 0;
         }
     }
 

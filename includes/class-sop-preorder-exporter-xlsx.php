@@ -477,11 +477,21 @@ class SOP_Preorder_XLSX_Exporter {
     private static function sop_get_sop_settings_fx_rates() {
         $opt = get_option( 'sop_settings', array() );
         $opt = is_array( $opt ) ? $opt : array();
+
+        $read_rate = function ( $keys ) use ( $opt ) {
+            foreach ( (array) $keys as $key ) {
+                if ( isset( $opt[ $key ] ) && '' !== $opt[ $key ] ) {
+                    return (float) $opt[ $key ];
+                }
+            }
+            return 0.0;
+        };
+
         return array(
-            'rmb_to_gbp' => isset( $opt['rmb_to_gbp_rate'] ) ? (float) $opt['rmb_to_gbp_rate'] : 0.0,
-            'eur_to_gbp' => isset( $opt['eur_to_gbp_rate'] ) ? (float) $opt['eur_to_gbp_rate'] : 0.0,
-            'usd_to_gbp' => isset( $opt['usd_to_gbp_rate'] ) ? (float) $opt['usd_to_gbp_rate'] : 0.0,
-            'usd_to_rmb' => isset( $opt['usd_to_rmb_rate'] ) ? (float) $opt['usd_to_rmb_rate'] : 0.0,
+            'rmb_to_gbp' => $read_rate( array( 'rmb_to_gbp_rate', 'rmb to gbp rate' ) ),
+            'eur_to_gbp' => $read_rate( array( 'eur_to_gbp_rate', 'eur to gbp rate' ) ),
+            'usd_to_gbp' => $read_rate( array( 'usd_to_gbp_rate', 'usd to gbp rate' ) ),
+            'usd_to_rmb' => $read_rate( array( 'usd_to_rmb_rate', 'usd to rmb rate' ) ),
         );
     }
 
