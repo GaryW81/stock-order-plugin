@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.16
+ * File version: 1.0.17
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -19,6 +19,7 @@
  * - 1.0.12 - Add XLSX export preflight handling for Goods-In Issues.
  * - 1.0.15 - Derive non-RMB credit totals from RMB using balance FX + SOP rates.
  * - 1.0.16 - Align dispute summary FX/cost resolution with Issues XLSX (non-RMB from RMB via FX).
+ * - 1.0.17 - Hydrate Issues export lines with supplier currency cost (GBP/EUR/USD) from RMB via balance FX/SOP rates.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1053,6 +1054,17 @@ function sop_handle_export_goodsin_issues_xlsx() {
     $lines = sop_get_preorder_sheet_lines( $sheet_id, true );
     $lines = is_array( $lines ) ? $lines : array();
     $supplier_id = isset( $sheet['supplier_id'] ) ? (int) $sheet['supplier_id'] : 0;
+    $supplier_currency = 'GBP';
+    if ( $supplier_id > 0 && function_exists( 'sop_preorder_resolve_supplier_params' ) ) {
+        $ctx = sop_preorder_resolve_supplier_params( $supplier_id );
+        if ( ! empty( $ctx['currency_code'] ) ) {
+            $supplier_currency = strtoupper( trim( (string) $ctx['currency_code'] ) );
+        }
+    }
+
+    $sheet_balance_fx = sop_goodsin_get_balance_fx_rate_from_sheet( $sheet );
+    $sop_fx_settings  = sop_goodsin_get_sop_settings_fx_rates();
+
     if ( ! empty( $lines ) && function_exists( 'sop_hydrate_line_with_live_product_fields' ) ) {
         foreach ( $lines as $idx => $line ) {
             $lines[ $idx ] = sop_hydrate_line_with_live_product_fields( $line, $supplier_id );
@@ -1107,6 +1119,77 @@ function sop_handle_export_goodsin_issues_xlsx() {
                     $row['image_id'] = (int) $live['image_id'];
                 }
             }
+        }
+
+        // Resolve supplier-currency unit cost for non-RMB suppliers so XLSX unit price/total are populated.
+        $unit_cost_supplier = 0.0;
+        $unit_cost_rmb      = sop_goodsin_get_positive_number_from_line(
+            $row,
+            array(
+                'cost_rmb_owner',
+                'cost_rmb',
+                'cost_per_unit_rmb',
+                'cost_rmb_per_unit',
+                '_sop_cost_rmb',
+            )
+        );
+
+        // Supplier-currency costs already on the line.
+        $unit_cost_supplier = sop_goodsin_get_positive_number_from_line(
+            $row,
+            array(
+                'cost_supplier_owner',
+                'cost_supplier',
+                'supplier_cost_owner',
+                'supplier_cost',
+                'unit_cost',
+                'cost_per_unit',
+                'cost_owner',
+                'cost',
+                'cost_' . strtolower( $supplier_currency ) . '_owner',
+                'cost_' . strtolower( $supplier_currency ),
+                'supplier_cost_' . strtolower( $supplier_currency ) . '_owner',
+                'supplier_cost_' . strtolower( $supplier_currency ),
+                'unit_cost_' . strtolower( $supplier_currency ),
+            )
+        );
+
+        // If still missing, try product meta (COGS).
+        if ( $unit_cost_supplier <= 0 && ! empty( $row['product_id'] ) && function_exists( 'get_post_meta' ) ) {
+            $cog_meta_keys = array( '_cogs_value', '_cost_of_goods', '_cogs_total_value' );
+            foreach ( $cog_meta_keys as $meta_key ) {
+                $meta_val = get_post_meta( (int) $row['product_id'], $meta_key, true );
+                if ( '' !== $meta_val ) {
+                    $parsed = (float) $meta_val;
+                    if ( $parsed > 0 ) {
+                        $unit_cost_supplier = $parsed;
+                        break;
+                    }
+                }
+            }
+            // Also try RMB product meta if supplier cost still missing.
+            if ( $unit_cost_supplier <= 0 ) {
+                $meta_rmb = get_post_meta( (int) $row['product_id'], '_sop_cost_rmb', true );
+                if ( '' !== $meta_rmb && $unit_cost_rmb <= 0 ) {
+                    $parsed_rmb = (float) $meta_rmb;
+                    if ( $parsed_rmb > 0 ) {
+                        $unit_cost_rmb = $parsed_rmb;
+                    }
+                }
+            }
+        }
+
+        // Convert RMB to supplier currency if needed (GBP/EUR/USD).
+        if ( 'RMB' !== $supplier_currency && $unit_cost_supplier <= 0 && $unit_cost_rmb > 0 ) {
+            $unit_cost_supplier = sop_goodsin_convert_rmb_to_currency( $unit_cost_rmb, $supplier_currency, $sheet_balance_fx, $sop_fx_settings );
+        }
+
+        // Persist costs back onto the row for the exporter.
+        if ( $unit_cost_supplier > 0 ) {
+            $row['cost_supplier_owner'] = $unit_cost_supplier;
+        }
+        if ( $unit_cost_rmb > 0 ) {
+            $row['cost_rmb_owner'] = $unit_cost_rmb;
         }
 
         $issue_lines[] = $row;
