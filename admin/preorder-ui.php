@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.49 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.50 *
+ * - V12.50 - Add optional Supplier SKUs column when enabled per supplier.
  * - V12.49 - Live preorder inputs keyed by product_id (SKU display-only; disable when missing pid).
  * - V12.48 - Hydrate saved sheet display rows with live WC data (preserve saved stock snapshot).
  * - V12.47 - Remove legacy XLS download options (XLSX only).
@@ -160,6 +161,11 @@ function sop_preorder_render_admin_page() {
     if ( ! $supplier && ! empty( $suppliers ) ) {
         $supplier            = $suppliers[0];
         $current_supplier_id = (int) $supplier['id'];
+    }
+
+    $show_supplier_skus_column = false;
+    if ( function_exists( 'sop_supplier_show_supplier_skus_column' ) ) {
+        $show_supplier_skus_column = sop_supplier_show_supplier_skus_column( $current_supplier_id );
     }
 
     $supplier_currency = 'GBP';
@@ -1278,30 +1284,35 @@ function sop_preorder_render_admin_page() {
                                 <div class="sop-preorder-columns-popover" aria-hidden="true">
                                     <div class="sop-preorder-columns-panel">
                                         <ul class="sop-preorder-columns-list">
-                                            <?php
-                                            $sop_column_labels = array(
-                                                'image'         => __( 'Image', 'sop' ),
-                                                'location'      => __( 'Location', 'sop' ),
-                                                'sku'           => __( 'SKU', 'sop' ),
-                                                'brand'         => __( 'Brand', 'sop' ),
-                                                'category'      => __( 'Category', 'sop' ),
-                                                'product'       => __( 'Product', 'sop' ),
-                                                'cost_supplier' => __( 'Cost per unit', 'sop' ),
-                                                'cost_usd'      => __( 'Unit price (USD)', 'sop' ),
-                                                'stock'         => __( 'Stock', 'sop' ),
-                                                'inbound'       => __( 'Inbound', 'sop' ),
-                                                'min_order'     => __( 'MOQ', 'sop' ),
-                                                'soq'           => __( 'SOQ', 'sop' ),
-                                                'order_qty'     => __( 'Qty', 'sop' ),
-                                                'line_total'    => __( 'Line total', 'sop' ),
-                                                'cubic'         => __( 'cm3 per unit', 'sop' ),
-                                                'line_cbm'      => __( 'Line CBM', 'sop' ),
-                                                'regular_unit'  => __( 'Price excl.', 'sop' ),
-                                                'regular_line'  => __( 'Line excl.', 'sop' ),
-                                                'notes'         => __( 'Product notes', 'sop' ),
-                                                'order_notes'   => __( 'Order notes', 'sop' ),
-                                                'carton_no'     => __( 'Carton no.', 'sop' ),
-                                            );
+        <?php
+        $sop_column_labels = array(
+            'image'         => __( 'Image', 'sop' ),
+            'location'      => __( 'Location', 'sop' ),
+            'sku'           => __( 'SKU', 'sop' ),
+            'brand'         => __( 'Brand', 'sop' ),
+            'category'      => __( 'Category', 'sop' ),
+            'product'       => __( 'Product', 'sop' ),
+            'cost_supplier' => __( 'Cost per unit', 'sop' ),
+            'cost_usd'      => __( 'Unit price (USD)', 'sop' ),
+            'stock'         => __( 'Stock', 'sop' ),
+            'inbound'       => __( 'Inbound', 'sop' ),
+            'min_order'     => __( 'MOQ', 'sop' ),
+            'soq'           => __( 'SOQ', 'sop' ),
+            'order_qty'     => __( 'Qty', 'sop' ),
+            'line_total'    => __( 'Line total', 'sop' ),
+            'cubic'         => __( 'cm3 per unit', 'sop' ),
+            'line_cbm'      => __( 'Line CBM', 'sop' ),
+            'regular_unit'  => __( 'Price excl.', 'sop' ),
+            'regular_line'  => __( 'Line excl.', 'sop' ),
+            'notes'         => __( 'Product notes', 'sop' ),
+            'order_notes'   => __( 'Order notes', 'sop' ),
+            'carton_no'     => __( 'Carton no.', 'sop' ),
+        );
+        if ( $show_supplier_skus_column ) {
+            $before_brand = array_slice( $sop_column_labels, 0, 3, true );
+            $after_brand  = array_slice( $sop_column_labels, 3, null, true );
+            $sop_column_labels = $before_brand + array( 'supplier_skus' => __( 'Supplier SKUs', 'sop' ) ) + $after_brand;
+        }
 
                                             foreach ( $sop_column_labels as $column_key => $column_label ) :
                                                 ?>
@@ -1351,6 +1362,9 @@ function sop_preorder_render_admin_page() {
                             <th class="column-image" data-column="image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
                             <th class="column-location" data-column="location" data-sort="location" title="<?php esc_attr_e( 'Warehouse location / bin', 'sop' ); ?>"><?php esc_html_e( 'Location', 'sop' ); ?></th>
                             <th class="column-sku" data-column="sku" data-sort="sku" data-sort-key="sku" title="<?php esc_attr_e( 'SKU (stock-keeping unit)', 'sop' ); ?>"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                            <?php if ( $show_supplier_skus_column ) : ?>
+                                <th class="column-supplier-skus" data-column="supplier_skus" data-sort="supplier_skus" data-sort-key="supplier_skus" title="<?php esc_attr_e( 'Supplier SKUs', 'sop' ); ?>"><?php esc_html_e( 'Supplier SKUs', 'sop' ); ?></th>
+                            <?php endif; ?>
                             <th class="column-brand" data-column="brand" data-sort="brand" title="<?php esc_attr_e( 'Brand / manufacturer', 'sop' ); ?>"><?php esc_html_e( 'Brand', 'sop' ); ?></th>
                             <th class="column-category" data-column="category" data-sort="category" data-sort-key="category" title="<?php esc_attr_e( 'Product categories', 'sop' ); ?>"><?php esc_html_e( 'Category', 'sop' ); ?></th>
                             <th class="column-name" data-column="product" data-sort="name" title="<?php esc_attr_e( 'Product name', 'sop' ); ?>"><?php esc_html_e( 'Product', 'sop' ); ?></th>
@@ -1604,6 +1618,20 @@ function sop_preorder_render_admin_page() {
                                             <div class="sop-preorder-missing-pid"><?php echo esc_html( $missing_pid_label ); ?></div>
                                         <?php endif; ?>
                                     </td>
+                                    <?php if ( $show_supplier_skus_column ) : ?>
+                                        <?php
+                                        $supplier_skus_val   = get_post_meta( $display_product_id, '_sop_supplier_skus', true );
+                                        $supplier_skus_val   = is_string( $supplier_skus_val ) ? $supplier_skus_val : '';
+                                        $supplier_skus_sort  = trim( str_replace( array( "\r\n", "\r", "\n" ), ' ', $supplier_skus_val ) );
+                                        ?>
+                                        <td class="column-supplier-skus" data-column="supplier_skus" data-sort-key="supplier_skus" data-sort-value="<?php echo esc_attr( $supplier_skus_sort ); ?>" data-sort-text="<?php echo esc_attr( $supplier_skus_sort ); ?>">
+                                            <?php
+                                            if ( '' !== $supplier_skus_val ) {
+                                                echo wp_kses_post( nl2br( esc_html( $supplier_skus_val ) ) );
+                                            }
+                                            ?>
+                                        </td>
+                                    <?php endif; ?>
                                     <td class="column-brand" data-column="brand">
                                         <?php echo esc_html( $brand ); ?>
                                     </td>

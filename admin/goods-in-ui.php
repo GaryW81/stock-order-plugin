@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.36
+ * File version: 1.0.37
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -40,6 +40,7 @@
  * - 1.0.34 - Add Goods-In "Issues only" filter toggle (missing/reject > 0).
  * - 1.0.35 - Show dispute summary (missing/reject/credit totals with RMB FX) on completed goods-in.
  * - 1.0.36 - Fix Missing/Reject persistence (prefill + payload + handler key alignment).
+ * - 1.0.37 - Optional Supplier SKUs column (per-supplier toggle).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -169,6 +170,10 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
         if ( isset( $sheet['supplier_id'] ) ) {
             $supplier_id = (int) $sheet['supplier_id'];
         }
+    }
+    $show_supplier_skus_column = false;
+    if ( function_exists( 'sop_supplier_show_supplier_skus_column' ) && $supplier_id > 0 ) {
+        $show_supplier_skus_column = sop_supplier_show_supplier_skus_column( $supplier_id );
     }
 
     if ( function_exists( 'sop_hydrate_line_with_live_product_fields' ) ) {
@@ -401,6 +406,16 @@ function sop_render_goods_in_page() {
                     'stocked'        => __( 'Stocked', 'sop' ),
                     'outstanding'    => __( 'Outstanding', 'sop' ),
                 );
+                if ( $show_supplier_skus_column ) {
+                    $before = array(
+                        'image'    => $columns_config['image'],
+                        'location' => $columns_config['location'],
+                        'sku'      => $columns_config['sku'],
+                    );
+                    $after = $columns_config;
+                    unset( $after['image'], $after['location'], $after['sku'] );
+                    $columns_config = $before + array( 'supplier_skus' => __( 'Supplier SKUs', 'sop' ) ) + $after;
+                }
                 ?>
                 <div class="sop-goodsin-columns">
                     <button type="button" class="button sop-goodsin-columns-toggle" aria-expanded="false"><?php esc_html_e( 'Columns', 'sop' ); ?></button>
@@ -465,6 +480,9 @@ function sop_render_goods_in_page() {
                 <th class="sop-goodsin-col-image" data-sortable="false" data-column="image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-location column-location" data-sort-key="location" data-sort-type="text" data-column="location"><?php esc_html_e( 'Location', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-sku" data-sort-key="sku" data-sort-type="text" data-column="sku"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
+                <?php if ( $show_supplier_skus_column ) : ?>
+                    <th class="sop-goodsin-sort sop-goodsin-col-supplier-skus" data-sort-key="supplier_skus" data-sort-type="text" data-column="supplier_skus"><?php esc_html_e( 'Supplier SKUs', 'sop' ); ?></th>
+                <?php endif; ?>
                 <th class="sop-goodsin-sort sop-goodsin-col-product" data-sort-key="product" data-sort-type="text" data-column="product"><?php esc_html_e( 'Product', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="ordered" data-sort-type="number" data-column="ordered"><?php esc_html_e( 'Ordered', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="received" data-sort-type="number" data-column="received"><?php esc_html_e( 'Received', 'sop' ); ?></th>
@@ -508,6 +526,11 @@ function sop_render_goods_in_page() {
                 $product_notes = isset( $line['product_notes_owner'] ) ? (string) $line['product_notes_owner'] : '';
                 $order_notes   = isset( $line['order_notes_owner'] ) ? (string) $line['order_notes_owner'] : '';
                 $outstanding = max( 0.0, $ordered - $stocked - $missing - $reject );
+                $supplier_skus_val = '';
+                if ( $pid > 0 ) {
+                    $supplier_skus_val = get_post_meta( $pid, '_sop_supplier_skus', true );
+                    $supplier_skus_val = is_string( $supplier_skus_val ) ? $supplier_skus_val : '';
+                }
 
                 $product      = function_exists( 'wc_get_product' ) ? wc_get_product( $pid ) : null;
                 $image_html   = '';
@@ -551,6 +574,18 @@ function sop_render_goods_in_page() {
                     <td class="sop-goodsin-col-image" data-column="image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
                     <td class="sop-goodsin-col-location column-location" data-column="location"><?php echo esc_html( $location ); ?></td>
                     <td class="sop-goodsin-col-sku" data-column="sku"><?php echo esc_html( $sku . $missing_pid_warning ); ?></td>
+                    <?php if ( $show_supplier_skus_column ) : ?>
+                        <?php $supplier_skus_sort = trim( str_replace( array( "\r\n", "\r", "\n" ), ' ', $supplier_skus_val ) ); ?>
+                        <td class="sop-goodsin-col-supplier-skus" data-column="supplier_skus" data-sort-key="supplier_skus" data-sort-value="<?php echo esc_attr( $supplier_skus_sort ); ?>" data-sort-text="<?php echo esc_attr( $supplier_skus_sort ); ?>">
+                            <?php
+                            if ( '' !== $supplier_skus_val ) {
+                                echo wp_kses_post( nl2br( esc_html( $supplier_skus_val ) ) );
+                            } else {
+                                echo '&ndash;';
+                            }
+                            ?>
+                        </td>
+                    <?php endif; ?>
                     <td class="sop-goodsin-col-product" data-column="product" title="<?php echo esc_attr( wp_strip_all_tags( $name ) ); ?>">
                         <div class="sop-goodsin-product-wrap">
                             <?php
