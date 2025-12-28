@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.74
+ * File version: 1.0.75
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -418,7 +418,8 @@ class SOP_Preorder_XLSX_Exporter {
      * @return array
      */
     private static function resolve_unit_costs_for_export( array $line, $supplier_currency, $balance_fx_rate ) {
-        $unit_cost_rmb = self::get_line_float( $line, array( 'cost_rmb_owner', 'cost_rmb' ), 0.0 );
+        $currency_upper = strtoupper( trim( (string) $supplier_currency ) );
+        $unit_cost_rmb  = self::get_line_positive_float( $line, array( 'cost_rmb_owner', 'cost_rmb', 'cost_per_unit_rmb', 'cost_rmb_per_unit' ) );
 
         // Supplier currency specific keys.
         $supplier_keys = array(
@@ -444,16 +445,21 @@ class SOP_Preorder_XLSX_Exporter {
             $supplier_keys
         );
 
-        $unit_cost_supplier_raw = self::get_line_float( $line, $supplier_keys, 0.0 );
+        $unit_cost_supplier_raw = self::get_line_positive_float( $line, $supplier_keys );
         $unit_cost_supplier     = 0.0;
 
-        if ( 'RMB' === $supplier_currency ) {
+        $rates = self::sop_get_sop_settings_fx_rates();
+
+        if ( 'RMB' === $currency_upper ) {
             $unit_cost_supplier = ( $unit_cost_rmb > 0 ) ? $unit_cost_rmb : $unit_cost_supplier_raw;
         } else {
             if ( $unit_cost_supplier_raw > 0 ) {
                 $unit_cost_supplier = $unit_cost_supplier_raw;
-            } elseif ( $unit_cost_rmb > 0 && $balance_fx_rate > 0 ) {
-                $unit_cost_supplier = $unit_cost_rmb / $balance_fx_rate;
+            } elseif ( $unit_cost_rmb > 0 ) {
+                $converted = self::sop_convert_rmb_to_currency( $unit_cost_rmb, $currency_upper, $balance_fx_rate, $rates );
+                if ( $converted > 0 ) {
+                    $unit_cost_supplier = $converted;
+                }
             }
         }
 
@@ -472,10 +478,10 @@ class SOP_Preorder_XLSX_Exporter {
         $opt = get_option( 'sop_settings', array() );
         $opt = is_array( $opt ) ? $opt : array();
         return array(
-            'rmb_to_gbp'  = isset( $opt['rmb_to_gbp_rate'] ) ? (float) $opt['rmb_to_gbp_rate'] : 0.0,
-            'eur_to_gbp'  = isset( $opt['eur_to_gbp_rate'] ) ? (float) $opt['eur_to_gbp_rate'] : 0.0,
-            'usd_to_gbp'  = isset( $opt['usd_to_gbp_rate'] ) ? (float) $opt['usd_to_gbp_rate'] : 0.0,
-            'usd_to_rmb'  = isset( $opt['usd_to_rmb_rate'] ) ? (float) $opt['usd_to_rmb_rate'] : 0.0,
+            'rmb_to_gbp' => isset( $opt['rmb_to_gbp_rate'] ) ? (float) $opt['rmb_to_gbp_rate'] : 0.0,
+            'eur_to_gbp' => isset( $opt['eur_to_gbp_rate'] ) ? (float) $opt['eur_to_gbp_rate'] : 0.0,
+            'usd_to_gbp' => isset( $opt['usd_to_gbp_rate'] ) ? (float) $opt['usd_to_gbp_rate'] : 0.0,
+            'usd_to_rmb' => isset( $opt['usd_to_rmb_rate'] ) ? (float) $opt['usd_to_rmb_rate'] : 0.0,
         );
     }
 
@@ -511,21 +517,21 @@ class SOP_Preorder_XLSX_Exporter {
         }
 
         if ( 'GBP' === $target_currency ) {
-            if ( $rmb_to_gbp > 0 ) {
-                return $rmb * $rmb_to_gbp;
-            }
             if ( $usd_to_rmb > 0 && $usd_to_gbp > 0 ) {
                 return ( $rmb / $usd_to_rmb ) * $usd_to_gbp;
+            }
+            if ( $rmb_to_gbp > 0 ) {
+                return $rmb * $rmb_to_gbp;
             }
             return 0.0;
         }
 
         if ( 'EUR' === $target_currency ) {
             $gbp = 0.0;
-            if ( $rmb_to_gbp > 0 ) {
-                $gbp = $rmb * $rmb_to_gbp;
-            } elseif ( $usd_to_rmb > 0 && $usd_to_gbp > 0 ) {
+            if ( $usd_to_rmb > 0 && $usd_to_gbp > 0 ) {
                 $gbp = ( $rmb / $usd_to_rmb ) * $usd_to_gbp;
+            } elseif ( $rmb_to_gbp > 0 ) {
+                $gbp = $rmb * $rmb_to_gbp;
             }
             if ( $gbp > 0 && $eur_to_gbp > 0 ) {
                 return $gbp / $eur_to_gbp;
