@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.73
+ * File version: 1.0.74
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -104,6 +104,9 @@ class SOP_Preorder_XLSX_Exporter {
             'get_line_float',
             'get_sheet_balance_fx_rate_from_header',
             'resolve_unit_costs_for_export',
+            'sop_get_sop_settings_fx_rates',
+            'get_line_positive_float',
+            'sop_convert_rmb_to_currency',
         );
     }
 
@@ -138,6 +141,9 @@ class SOP_Preorder_XLSX_Exporter {
             'get_line_float',
             'get_sheet_balance_fx_rate_from_header',
             'resolve_unit_costs_for_export',
+            'sop_get_sop_settings_fx_rates',
+            'get_line_positive_float',
+            'sop_convert_rmb_to_currency',
         );
     }
 
@@ -370,6 +376,18 @@ class SOP_Preorder_XLSX_Exporter {
     }
 
     /**
+     * Get first positive float from a list of keys.
+     *
+     * @param array $line Line data.
+     * @param array $keys Keys to inspect.
+     * @return float
+     */
+    private static function get_line_positive_float( $line, $keys ) {
+        $val = self::get_line_float( $line, $keys, 0.0 );
+        return ( $val > 0 ) ? $val : 0.0;
+    }
+
+    /**
      * Resolve balance FX rate from sheet header (RMB per currency unit).
      *
      * @param array $sheet_header Sheet header.
@@ -443,6 +461,79 @@ class SOP_Preorder_XLSX_Exporter {
             'unit_cost_supplier' => $unit_cost_supplier,
             'unit_cost_rmb'      => $unit_cost_rmb,
         );
+    }
+
+    /**
+     * Get SOP FX rates from settings.
+     *
+     * @return array
+     */
+    private static function sop_get_sop_settings_fx_rates() {
+        $opt = get_option( 'sop_settings', array() );
+        $opt = is_array( $opt ) ? $opt : array();
+        return array(
+            'rmb_to_gbp'  = isset( $opt['rmb_to_gbp_rate'] ) ? (float) $opt['rmb_to_gbp_rate'] : 0.0,
+            'eur_to_gbp'  = isset( $opt['eur_to_gbp_rate'] ) ? (float) $opt['eur_to_gbp_rate'] : 0.0,
+            'usd_to_gbp'  = isset( $opt['usd_to_gbp_rate'] ) ? (float) $opt['usd_to_gbp_rate'] : 0.0,
+            'usd_to_rmb'  = isset( $opt['usd_to_rmb_rate'] ) ? (float) $opt['usd_to_rmb_rate'] : 0.0,
+        );
+    }
+
+    /**
+     * Convert RMB to target currency using sheet + SOP rates.
+     *
+     * @param float  $rmb             RMB amount.
+     * @param string $target_currency Target currency.
+     * @param float  $sheet_usd_to_rmb Sheet FX (RMB per USD) if available.
+     * @param array  $rates           SOP rates array.
+     * @return float
+     */
+    private static function sop_convert_rmb_to_currency( $rmb, $target_currency, $sheet_usd_to_rmb, $rates ) {
+        $rmb             = (float) $rmb;
+        $target_currency = strtoupper( trim( (string) $target_currency ) );
+        if ( $rmb <= 0 ) {
+            return 0.0;
+        }
+        $usd_to_rmb = ( $sheet_usd_to_rmb > 0 ) ? $sheet_usd_to_rmb : ( isset( $rates['usd_to_rmb'] ) ? (float) $rates['usd_to_rmb'] : 0.0 );
+        $rmb_to_gbp = isset( $rates['rmb_to_gbp'] ) ? (float) $rates['rmb_to_gbp'] : 0.0;
+        $usd_to_gbp = isset( $rates['usd_to_gbp'] ) ? (float) $rates['usd_to_gbp'] : 0.0;
+        $eur_to_gbp = isset( $rates['eur_to_gbp'] ) ? (float) $rates['eur_to_gbp'] : 0.0;
+
+        if ( 'USD' === $target_currency ) {
+            if ( $usd_to_rmb > 0 ) {
+                return $rmb / $usd_to_rmb;
+            }
+            if ( $rmb_to_gbp > 0 && $usd_to_gbp > 0 ) {
+                $gbp = $rmb * $rmb_to_gbp;
+                return $gbp / $usd_to_gbp;
+            }
+            return 0.0;
+        }
+
+        if ( 'GBP' === $target_currency ) {
+            if ( $rmb_to_gbp > 0 ) {
+                return $rmb * $rmb_to_gbp;
+            }
+            if ( $usd_to_rmb > 0 && $usd_to_gbp > 0 ) {
+                return ( $rmb / $usd_to_rmb ) * $usd_to_gbp;
+            }
+            return 0.0;
+        }
+
+        if ( 'EUR' === $target_currency ) {
+            $gbp = 0.0;
+            if ( $rmb_to_gbp > 0 ) {
+                $gbp = $rmb * $rmb_to_gbp;
+            } elseif ( $usd_to_rmb > 0 && $usd_to_gbp > 0 ) {
+                $gbp = ( $rmb / $usd_to_rmb ) * $usd_to_gbp;
+            }
+            if ( $gbp > 0 && $eur_to_gbp > 0 ) {
+                return $gbp / $eur_to_gbp;
+            }
+            return 0.0;
+        }
+
+        return 0.0;
     }
 
     private static function build_order_sheet_row_base_cells( array $line, $supplier_currency, $balance_fx_rate, $show_usd_column ) {
