@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.72
+ * File version: 1.0.73
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -102,6 +102,8 @@ class SOP_Preorder_XLSX_Exporter {
             'sop_sanitize_xlsx_sheet_name',
             'build_order_sheet_row_base_cells',
             'get_line_float',
+            'get_sheet_balance_fx_rate_from_header',
+            'resolve_unit_costs_for_export',
         );
     }
 
@@ -134,6 +136,8 @@ class SOP_Preorder_XLSX_Exporter {
             'sop_sanitize_xlsx_sheet_name',
             'build_order_sheet_row_base_cells',
             'get_line_float',
+            'get_sheet_balance_fx_rate_from_header',
+            'resolve_unit_costs_for_export',
         );
     }
 
@@ -202,17 +206,10 @@ class SOP_Preorder_XLSX_Exporter {
         }
         $show_usd_column = ( 'RMB' === $supplier_currency );
 
+        $sheet_balance_fx_rate = self::get_sheet_balance_fx_rate_from_header( $sheet_header );
         // Determine sheet-level FX for USD display: Balance FX (payload) > supplier effective FX > converter helper.
         $sheet_fx_for_usd = 0.0;
         if ( $show_usd_column ) {
-            $po_payload = array();
-            if ( ! empty( $sheet_header['header_notes_owner'] ) && is_string( $sheet_header['header_notes_owner'] ) ) {
-                $decoded = json_decode( $sheet_header['header_notes_owner'], true );
-                if ( is_array( $decoded ) ) {
-                    $po_payload = $decoded;
-                }
-            }
-            $sheet_balance_fx_rate = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
             $sheet_supplier_effective_fx = 0.0;
             if ( isset( $sheet_header['supplier_id'] ) && function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
                 $sheet_supplier_effective_fx = (float) sop_get_supplier_effective_usd_to_rmb_rate( (int) $sheet_header['supplier_id'] );
@@ -231,7 +228,8 @@ class SOP_Preorder_XLSX_Exporter {
         $sheet_rows_xml .= self::build_row_xml( 1, array_map( 'esc_html', $columns ), true, array(), $row_index - 2 );
 
         foreach ( $lines as $line ) {
-            $base = self::build_order_sheet_row_base_cells( $line, $supplier_currency, $sheet_fx_for_usd, $show_usd_column );
+            $balance_rate_for_row = $show_usd_column ? $sheet_fx_for_usd : $sheet_balance_fx_rate;
+            $base = self::build_order_sheet_row_base_cells( $line, $supplier_currency, $balance_rate_for_row, $show_usd_column );
             $sheet_rows_xml .= self::build_row_xml( $row_index, $base['cells'], false, $base['styles'], 0, array( 1 ) );
 
             if ( ! empty( $base['image_path'] ) ) {
@@ -371,7 +369,83 @@ class SOP_Preorder_XLSX_Exporter {
         return $default;
     }
 
-    private static function build_order_sheet_row_base_cells( array $line, $supplier_currency, $sheet_fx_for_usd, $show_usd_column ) {
+    /**
+     * Resolve balance FX rate from sheet header (RMB per currency unit).
+     *
+     * @param array $sheet_header Sheet header.
+     * @return float
+     */
+    private static function get_sheet_balance_fx_rate_from_header( $sheet_header ) {
+        $rate        = 0.0;
+        $po_payload  = array();
+        $notes_field = isset( $sheet_header['header_notes_owner'] ) ? $sheet_header['header_notes_owner'] : '';
+        if ( is_string( $notes_field ) && '' !== $notes_field ) {
+            $decoded = json_decode( $notes_field, true );
+            if ( is_array( $decoded ) ) {
+                $po_payload = $decoded;
+            }
+        }
+        if ( isset( $po_payload['balance_fx_rate'] ) && (float) $po_payload['balance_fx_rate'] > 0 ) {
+            $rate = (float) $po_payload['balance_fx_rate'];
+        }
+        return $rate;
+    }
+
+    /**
+     * Resolve unit costs for export (supplier + RMB with fallbacks).
+     *
+     * @param array  $line              Line data.
+     * @param string $supplier_currency Supplier currency code.
+     * @param float  $balance_fx_rate   Balance FX (RMB per supplier currency or RMB per USD).
+     * @return array
+     */
+    private static function resolve_unit_costs_for_export( array $line, $supplier_currency, $balance_fx_rate ) {
+        $unit_cost_rmb = self::get_line_float( $line, array( 'cost_rmb_owner', 'cost_rmb' ), 0.0 );
+
+        // Supplier currency specific keys.
+        $supplier_keys = array(
+            'cost_supplier_owner',
+            'cost_supplier',
+            'supplier_cost_owner',
+            'supplier_cost',
+            'unit_cost',
+            'cost_per_unit',
+            'cost_owner',
+            'cost',
+        );
+
+        $currency_lower = strtolower( $supplier_currency );
+        $supplier_keys  = array_merge(
+            array(
+                'cost_' . $currency_lower . '_owner',
+                'cost_' . $currency_lower,
+                'supplier_cost_' . $currency_lower . '_owner',
+                'supplier_cost_' . $currency_lower,
+                'unit_cost_' . $currency_lower,
+            ),
+            $supplier_keys
+        );
+
+        $unit_cost_supplier_raw = self::get_line_float( $line, $supplier_keys, 0.0 );
+        $unit_cost_supplier     = 0.0;
+
+        if ( 'RMB' === $supplier_currency ) {
+            $unit_cost_supplier = ( $unit_cost_rmb > 0 ) ? $unit_cost_rmb : $unit_cost_supplier_raw;
+        } else {
+            if ( $unit_cost_supplier_raw > 0 ) {
+                $unit_cost_supplier = $unit_cost_supplier_raw;
+            } elseif ( $unit_cost_rmb > 0 && $balance_fx_rate > 0 ) {
+                $unit_cost_supplier = $unit_cost_rmb / $balance_fx_rate;
+            }
+        }
+
+        return array(
+            'unit_cost_supplier' => $unit_cost_supplier,
+            'unit_cost_rmb'      => $unit_cost_rmb,
+        );
+    }
+
+    private static function build_order_sheet_row_base_cells( array $line, $supplier_currency, $balance_fx_rate, $show_usd_column ) {
         $product_id    = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
         $sku_to_output = isset( $line['sku'] ) ? (string) $line['sku'] : '';
         $brand         = isset( $line['brand'] ) ? $line['brand'] : ( isset( $line['brand_name'] ) ? $line['brand_name'] : '' );
@@ -382,7 +456,9 @@ class SOP_Preorder_XLSX_Exporter {
         }
         $moq           = self::get_line_float( $line, array( 'moq_owner', 'moq', 'min_order_qty', 'supplier_moq' ), 0.0 );
         $qty           = self::get_line_float( $line, array( 'qty_owner', 'qty', 'manual_order_qty', 'ordered_qty' ), 0.0 );
-        $unit_cost     = self::get_line_float( $line, array( 'cost_rmb_owner', 'cost_rmb', 'cost_supplier_owner', 'cost_supplier', 'supplier_cost', 'unit_cost', 'cost_per_unit', 'cost' ), 0.0 );
+        $costs         = self::resolve_unit_costs_for_export( $line, $supplier_currency, $balance_fx_rate );
+        $unit_cost     = $costs['unit_cost_supplier'];
+        $unit_cost_rmb = $costs['unit_cost_rmb'];
         $product_notes = isset( $line['product_notes'] ) ? $line['product_notes'] : ( isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : ( isset( $line['notes'] ) ? $line['notes'] : '' ) );
         $order_notes   = isset( $line['order_notes'] ) ? $line['order_notes'] : ( isset( $line['order_notes_owner'] ) ? $line['order_notes_owner'] : '' );
         $carton_number = isset( $line['carton_no'] ) ? $line['carton_no'] : '';
@@ -395,16 +471,16 @@ class SOP_Preorder_XLSX_Exporter {
         $cost_usd = '';
         if ( $show_usd_column ) {
             $cost_usd = self::get_line_float( $line, array( 'unit_price_usd', 'regular_price', 'price_usd', 'price' ), 0.0 );
-            if ( $cost_usd <= 0 && $unit_cost > 0 && $sheet_fx_for_usd > 0 ) {
-                $cost_usd = $unit_cost / $sheet_fx_for_usd;
-            } elseif ( $cost_usd <= 0 && $unit_cost > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
-                $converted = sop_convert_rmb_unit_cost_to_usd( $unit_cost );
+            if ( $cost_usd <= 0 && $unit_cost_rmb > 0 && $balance_fx_rate > 0 ) {
+                $cost_usd = $unit_cost_rmb / $balance_fx_rate;
+            } elseif ( $cost_usd <= 0 && $unit_cost_rmb > 0 && function_exists( 'sop_convert_rmb_unit_cost_to_usd' ) ) {
+                $converted = sop_convert_rmb_unit_cost_to_usd( $unit_cost_rmb );
                 if ( $converted > 0 ) {
                     $cost_usd = $converted;
                 }
             }
         }
-        $line_total_rmb = $qty * $unit_cost;
+        $line_total_supplier = $qty * $unit_cost;
 
         $row_cells = array(
             '', // Image placeholder.
@@ -419,7 +495,7 @@ class SOP_Preorder_XLSX_Exporter {
         if ( $show_usd_column ) {
             $row_cells[] = self::format_number_cell( $cost_usd, 4 );
         }
-        $row_cells[] = self::format_number_cell( $line_total_rmb, 4 );
+        $row_cells[] = self::format_number_cell( $line_total_supplier, 4 );
         $row_cells[] = $product_notes;
         $row_cells[] = $order_notes;
         $row_cells[] = $carton_number;
@@ -514,17 +590,10 @@ class SOP_Preorder_XLSX_Exporter {
         }
         $show_usd_column = ( 'RMB' === $supplier_currency );
 
+        $sheet_balance_fx_rate = self::get_sheet_balance_fx_rate_from_header( $sheet_header );
         // Determine sheet-level FX for USD display: Balance FX (payload) > supplier effective FX > converter helper.
         $sheet_fx_for_usd = 0.0;
         if ( $show_usd_column ) {
-            $po_payload = array();
-            if ( ! empty( $sheet_header['header_notes_owner'] ) && is_string( $sheet_header['header_notes_owner'] ) ) {
-                $decoded = json_decode( $sheet_header['header_notes_owner'], true );
-                if ( is_array( $decoded ) ) {
-                    $po_payload = $decoded;
-                }
-            }
-            $sheet_balance_fx_rate = isset( $po_payload['balance_fx_rate'] ) ? (float) $po_payload['balance_fx_rate'] : 0.0;
             $sheet_supplier_effective_fx = 0.0;
             if ( isset( $sheet_header['supplier_id'] ) && function_exists( 'sop_get_supplier_effective_usd_to_rmb_rate' ) ) {
                 $sheet_supplier_effective_fx = (float) sop_get_supplier_effective_usd_to_rmb_rate( (int) $sheet_header['supplier_id'] );
@@ -609,13 +678,17 @@ class SOP_Preorder_XLSX_Exporter {
                 }
             }
             $line_for_base['qty']  = $ordered;
-            $base                  = self::build_order_sheet_row_base_cells( $line_for_base, $supplier_currency, $sheet_fx_for_usd, $show_usd_column );
+            $balance_rate_for_row  = $show_usd_column ? $sheet_fx_for_usd : $sheet_balance_fx_rate;
+            $base                  = self::build_order_sheet_row_base_cells( $line_for_base, $supplier_currency, $balance_rate_for_row, $show_usd_column );
 
-            $credit_qty       = max( 0, $missing + $reject );
-            $credit_total     = $credit_qty * $unit_cost;
+            $credit_qty    = max( 0, $missing + $reject );
+            $costs         = self::resolve_unit_costs_for_export( $line, $supplier_currency, $balance_rate_for_row );
+            $unit_cost     = $costs['unit_cost_supplier'];
+            $unit_cost_rmb = $costs['unit_cost_rmb'];
+            $credit_total  = $credit_qty * $unit_cost;
             $credit_total_usd = '';
             if ( $show_usd_column && $sheet_fx_for_usd > 0 ) {
-                $credit_total_usd = ( $credit_total > 0 ) ? ( $credit_total / $sheet_fx_for_usd ) : '';
+                $credit_total_usd = ( $credit_qty > 0 && $unit_cost_rmb > 0 ) ? ( ( $credit_qty * $unit_cost_rmb ) / $sheet_fx_for_usd ) : '';
             }
 
             $row_cells  = $base['cells'];
