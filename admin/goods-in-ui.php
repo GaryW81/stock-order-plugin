@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.38
+ * File version: 1.0.39
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -42,6 +42,7 @@
  * - 1.0.36 - Fix Missing/Reject persistence (prefill + payload + handler key alignment).
  * - 1.0.37 - Optional Supplier SKUs column (per-supplier toggle).
  * - 1.0.38 - Fix Supplier SKUs column toggle scope in Goods-In UI.
+ * - 1.0.39 - Fix Goods-In column widths when Supplier SKUs column is enabled (data-column width rules).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -794,31 +795,59 @@ function sop_render_goods_in_page() {
             margin: 0 auto;
         }
         /* Ordered / Received / Missing / Reject (narrow numeric columns) */
-        .sop-goodsin-table th:nth-child(6),
-        .sop-goodsin-table td:nth-child(6) { width: 80px; min-width: 80px; }
-        .sop-goodsin-table th:nth-child(7),
-        .sop-goodsin-table td:nth-child(7) { width: 80px; min-width: 80px; }
-        .sop-goodsin-table th:nth-child(8),
-        .sop-goodsin-table td:nth-child(8) { width: 80px; min-width: 80px; }
-        .sop-goodsin-table th:nth-child(9),
-        .sop-goodsin-table td:nth-child(9) { width: 80px; min-width: 80px; }
+        .sop-goodsin-table th[data-column="ordered"],
+        .sop-goodsin-table td[data-column="ordered"],
+        .sop-goodsin-table th[data-column="received"],
+        .sop-goodsin-table td[data-column="received"],
+        .sop-goodsin-table th[data-column="missing"],
+        .sop-goodsin-table td[data-column="missing"],
+        .sop-goodsin-table th[data-column="reject"],
+        .sop-goodsin-table td[data-column="reject"] {
+            width: 80px;
+            min-width: 80px;
+        }
         /* Reason + Carton no. */
-        .sop-goodsin-table th:nth-child(10),
-        .sop-goodsin-table td:nth-child(10) { width: 88px; min-width: 88px; max-width: 88px; }
-        .sop-goodsin-table th:nth-child(11),
-        .sop-goodsin-table td:nth-child(11) { width: 120px; min-width: 120px; }
+        .sop-goodsin-table th[data-column="reason"],
+        .sop-goodsin-table td[data-column="reason"] {
+            width: 88px;
+            min-width: 88px;
+            max-width: 88px;
+        }
+        .sop-goodsin-table th[data-column="carton"],
+        .sop-goodsin-table td[data-column="carton"] {
+            width: 120px;
+            min-width: 120px;
+        }
         /* Notes columns */
-        .sop-goodsin-table th:nth-child(12),
-        .sop-goodsin-table td:nth-child(12) { width: 300px; min-width: 300px; max-width: 300px; }
-        .sop-goodsin-table th:nth-child(13),
-        .sop-goodsin-table td:nth-child(13) { width: 300px; min-width: 300px; max-width: 300px; }
-        .sop-goodsin-table th:nth-child(14),
-        .sop-goodsin-table td:nth-child(14) { width: 300px; min-width: 300px; max-width: 300px; }
+        .sop-goodsin-table th[data-column="product_notes"],
+        .sop-goodsin-table td[data-column="product_notes"],
+        .sop-goodsin-table th[data-column="order_notes"],
+        .sop-goodsin-table td[data-column="order_notes"],
+        .sop-goodsin-table th[data-column="goodsin_notes"],
+        .sop-goodsin-table td[data-column="goodsin_notes"] {
+            width: 300px;
+            min-width: 300px;
+            max-width: 300px;
+        }
         /* Stocked / Outstanding */
-        .sop-goodsin-table th:nth-child(15),
-        .sop-goodsin-table td:nth-child(15) { width: 50px; min-width: 50px; }
-        .sop-goodsin-table th:nth-child(16),
-        .sop-goodsin-table td:nth-child(16) { width: 80px; min-width: 80px; }
+        .sop-goodsin-table th[data-column="stocked"],
+        .sop-goodsin-table td[data-column="stocked"] {
+            width: 50px;
+            min-width: 50px;
+        }
+        .sop-goodsin-table th[data-column="outstanding"],
+        .sop-goodsin-table td[data-column="outstanding"] {
+            width: 80px;
+            min-width: 80px;
+        }
+        /* Supplier SKUs (optional column) */
+        .sop-goodsin-table th[data-column="supplier_skus"],
+        .sop-goodsin-table td[data-column="supplier_skus"] {
+            width: 140px;
+            min-width: 140px;
+            max-width: 180px;
+            white-space: pre-line;
+        }
         .sop-goodsin-table td input[type="text"],
         .sop-goodsin-table td input[type="number"],
         .sop-goodsin-table td select,
