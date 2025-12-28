@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.37
+ * File version: 1.0.38
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -41,6 +41,7 @@
  * - 1.0.35 - Show dispute summary (missing/reject/credit totals with RMB FX) on completed goods-in.
  * - 1.0.36 - Fix Missing/Reject persistence (prefill + payload + handler key alignment).
  * - 1.0.37 - Optional Supplier SKUs column (per-supplier toggle).
+ * - 1.0.38 - Fix Supplier SKUs column toggle scope in Goods-In UI.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -171,11 +172,6 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
             $supplier_id = (int) $sheet['supplier_id'];
         }
     }
-    $show_supplier_skus_column = false;
-    if ( function_exists( 'sop_supplier_show_supplier_skus_column' ) && $supplier_id > 0 ) {
-        $show_supplier_skus_column = sop_supplier_show_supplier_skus_column( $supplier_id );
-    }
-
     if ( function_exists( 'sop_hydrate_line_with_live_product_fields' ) ) {
         foreach ( $rows as $idx => $row ) {
             $rows[ $idx ] = sop_hydrate_line_with_live_product_fields( $row, $supplier_id );
@@ -339,6 +335,10 @@ function sop_render_goods_in_page() {
     }
 
     $form_action = admin_url( 'admin-post.php' );
+    $show_supplier_skus_column = false;
+    if ( $supplier_id > 0 && function_exists( 'sop_supplier_show_supplier_skus_column' ) ) {
+        $show_supplier_skus_column = sop_supplier_show_supplier_skus_column( $supplier_id );
+    }
     $has_issue_lines = false;
     foreach ( $lines as $line_check ) {
         $miss = isset( $line_check['goods_in_missing_qty_owner'] ) ? (float) $line_check['goods_in_missing_qty_owner'] : ( isset( $line_check['goods_in_missing_qty'] ) ? (float) $line_check['goods_in_missing_qty'] : ( isset( $line_check['missing_qty'] ) ? (float) $line_check['missing_qty'] : 0.0 ) );
