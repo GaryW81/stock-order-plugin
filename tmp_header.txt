@@ -1,4 +1,0 @@
-<?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.38 *
- * - V12.37 - PO modal holiday overrides recalc load/ETA; add YMD⇄MD helper.
- * - V12.36 - Product title links to product edit screen.
