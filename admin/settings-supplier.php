@@ -2,10 +2,11 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.34
+ * File version: 1.5.35
  * - Add direct USD→RMB base FX and swap FX/lead time rows.
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
+ * - Add per-supplier toggle to show Supplier SKUs column.
  * - Adds supplier holiday/shipping settings (multiple periods + units) for PO date suggestions.
  *
  * - Adds "Stock Order" top-level admin menu.
@@ -1724,6 +1725,13 @@ class sop_Admin_Settings {
             $settings_array['preorder_default_container_allowance'] = $allowance_val;
         }
 
+        $show_supplier_skus_column = ! empty( $_POST['sop_show_supplier_skus_column'] ) ? 1 : 0;
+        if ( $show_supplier_skus_column ) {
+            $settings_array['show_supplier_skus_column'] = 1;
+        } else {
+            unset( $settings_array['show_supplier_skus_column'] );
+        }
+
         // Supplier PI / Rates & Dates defaults.
         $pi_company_name   = isset( $_POST['sop_supplier_pi_company_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_pi_company_name'] ) ) : '';
         $pi_company_address = isset( $_POST['sop_supplier_pi_company_address'] ) ? sanitize_textarea_field( wp_unslash( $_POST['sop_supplier_pi_company_address'] ) ) : '';
@@ -2069,6 +2077,7 @@ class sop_Admin_Settings {
             $shipping_value_val = 0;
             $shipping_unit_val  = 'days';
             $fx_adjust_percent_val = 0.0;
+            $show_supplier_skus_column_val = 0;
 
             if ( $editing ) {
                 $editing_id_val    = (int) $editing->id;
@@ -2174,6 +2183,9 @@ class sop_Admin_Settings {
                 if ( is_array( $settings_arr ) && isset( $settings_arr['fx_adjust_percent'] ) ) {
                     $fx_adjust_percent_val = (float) $settings_arr['fx_adjust_percent'];
                 }
+                if ( is_array( $settings_arr ) && ! empty( $settings_arr['show_supplier_skus_column'] ) ) {
+                    $show_supplier_skus_column_val = 1;
+                }
             }
             ?>
 
@@ -2260,6 +2272,24 @@ class sop_Admin_Settings {
                                 </p>
                             </td>
                         </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_show_supplier_skus_column">
+                                    <?php esc_html_e( 'Show Supplier SKUs column', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <label>
+                                    <input type="checkbox"
+                                           id="sop_show_supplier_skus_column"
+                                           name="sop_show_supplier_skus_column"
+                                           value="1" <?php checked( $show_supplier_skus_column_val, 1 ); ?> />
+                                    <?php esc_html_e( 'Display Supplier SKUs column on Pre-Order / Goods-In and exports for this supplier.', 'sop' ); ?>
+                                </label>
+                            </td>
+                        </tr>
+
 
                         <tr>
                             <th scope="row">

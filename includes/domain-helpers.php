@@ -2,10 +2,11 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.24
+ * File version: 1.0.25
  * - Align handling-day helper with PO modal: order date is day 0, handling starts next day.
  * - Add holiday-aware handling days helper for forecast/PO parity.
  * - Prefer direct USDη'RMB base FX if provided in settings.
+ * - Add helper to check Supplier SKUs column toggle.
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -149,6 +150,45 @@ if ( ! function_exists( 'sop_get_supplier_shipping_days' ) ) {
         }
 
         return (int) $shipping_days;
+    }
+}
+
+/**
+ * Check whether Supplier SKUs column is enabled for a supplier.
+ *
+ * @param int $supplier_id Supplier ID.
+ * @return bool
+ */
+if ( ! function_exists( 'sop_supplier_show_supplier_skus_column' ) ) {
+    function sop_supplier_show_supplier_skus_column( $supplier_id ) {
+        static $cache = array();
+
+        $supplier_id = (int) $supplier_id;
+        if ( $supplier_id <= 0 ) {
+            return false;
+        }
+
+        if ( array_key_exists( $supplier_id, $cache ) ) {
+            return (bool) $cache[ $supplier_id ];
+        }
+
+        if ( ! function_exists( 'sop_supplier_get_by_id' ) ) {
+            $cache[ $supplier_id ] = false;
+            return false;
+        }
+
+        $supplier = sop_supplier_get_by_id( $supplier_id );
+        if ( ! $supplier || empty( $supplier->settings_json ) ) {
+            $cache[ $supplier_id ] = false;
+            return false;
+        }
+
+        $decoded = json_decode( $supplier->settings_json, true );
+        $enabled = ( is_array( $decoded ) && ! empty( $decoded['show_supplier_skus_column'] ) );
+
+        $cache[ $supplier_id ] = $enabled;
+
+        return $enabled;
     }
 }
 

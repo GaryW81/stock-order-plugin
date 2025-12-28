@@ -2,8 +2,9 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.17
+ * File version: 1.0.18
  * - Allow max_order_qty_per_month to save decimals (2dp), accept comma, and never block product save.
+ * - Add Supplier SKUs meta (multi-line) for optional Supplier SKUs column.
  *
  * - Adds a "Stock Order" meta box to WooCommerce products.
  * - Uses sop_suppliers table via sop_supplier_get_all().
@@ -119,6 +120,8 @@ function sop_render_product_supplier_metabox( $post ) {
     $preorder_notes = get_post_meta( $post->ID, '_sop_preorder_notes', true );
     $preorder_notes = is_string( $preorder_notes ) ? $preorder_notes : '';
 
+    $supplier_skus = get_post_meta( $post->ID, '_sop_supplier_skus', true );
+    $supplier_skus = is_string( $supplier_skus ) ? $supplier_skus : '';
     // Get active suppliers.
     $suppliers = sop_supplier_get_all(
         array(
@@ -210,6 +213,19 @@ function sop_render_product_supplier_metabox( $post ) {
                class="small-text" />
         <span class="description" style="display:block;margin-top:2px;">
             <?php esc_html_e( 'Optional ceiling for this SKU. Used for Max / Month and Max / Cycle in Forecast (Debug). Leave blank for no cap.', 'sop' ); ?>
+        </span>
+    </p>
+
+    <p>
+        <label for="sop_supplier_skus">
+            <?php esc_html_e( 'Supplier SKUs (one per line)', 'sop' ); ?>
+        </label>
+        <textarea name="sop_supplier_skus"
+                  id="sop_supplier_skus"
+                  rows="4"
+                  class="widefat"><?php echo esc_textarea( $supplier_skus ); ?></textarea>
+        <span class="description" style="display:block;margin-top:2px;">
+            <?php esc_html_e( 'Optional list of supplier/ERP codes for this product. One per line.', 'sop' ); ?>
         </span>
     </p>
 
@@ -376,6 +392,15 @@ function sop_save_product_supplier_meta( $post_id ) {
             delete_post_meta( $post_id, '_sop_preorder_notes' );
         } else {
             update_post_meta( $post_id, '_sop_preorder_notes', $notes );
+        }
+    }
+
+    if ( isset( $_POST['sop_supplier_skus'] ) ) {
+        $skus_raw = sanitize_textarea_field( wp_unslash( (string) $_POST['sop_supplier_skus'] ) );
+        if ( '' === $skus_raw ) {
+            delete_post_meta( $post_id, '_sop_supplier_skus' );
+        } else {
+            update_post_meta( $post_id, '_sop_supplier_skus', $skus_raw );
         }
     }
 }
