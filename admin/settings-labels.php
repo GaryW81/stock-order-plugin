@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes settings tab
- * File version: 1.0.1
+ * File version: 1.0.2
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -31,7 +31,7 @@ if ( ! function_exists( 'sop_labels_render_settings_tab' ) ) {
         ?>
         <div class="wrap">
             <h2><?php esc_html_e( 'Labels & Barcodes', 'sop' ); ?></h2>
-            <p><?php esc_html_e( 'Set global defaults for label sizes and content. Supplier-specific overrides can be set in Supplier settings and are used for supplier label packs.', 'sop' ); ?></p>
+            <p><?php esc_html_e( 'Set global defaults for in-house label sizes and content.', 'sop' ); ?></p>
 
             <form method="post" action="options.php">
                 <?php

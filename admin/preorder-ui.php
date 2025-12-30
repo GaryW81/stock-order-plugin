@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.51 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.52 *
+ * - V12.52 - Remove Labels (CSV) download for saved sheets.
  * - V12.51 - Add Labels (CSV) download for saved sheets.
  * - V12.50 - Add optional Supplier SKUs column when enabled per supplier.
  * - V12.49 - Live preorder inputs keyed by product_id (SKU display-only; disable when missing pid).
@@ -1092,12 +1093,6 @@ function sop_preorder_render_admin_page() {
                     <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
                     <?php wp_nonce_field( 'sop_export_purchase_order_xlsx' ); ?>
                 </form>
-                <form id="sop-preorder-export-labels-csv-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:none;">
-                    <input type="hidden" name="action" value="sop_export_preorder_labels_csv" />
-                    <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
-                    <input type="hidden" name="supplier_id" value="<?php echo esc_attr( $current_supplier_id ); ?>" />
-                    <?php wp_nonce_field( 'sop_export_preorder_labels_csv' ); ?>
-                </form>
             <?php endif; ?>
 
             <div class="sop-preorder-card sop-preorder-card--top">
@@ -1147,9 +1142,6 @@ function sop_preorder_render_admin_page() {
                                         </button>
                                         <button type="submit" form="sop-preorder-export-po-xlsx-form">
                                             <?php esc_html_e( 'Order Summary (XLSX)', 'sop' ); ?>
-                                        </button>
-                                        <button type="submit" form="sop-preorder-export-labels-csv-form">
-                                            <?php esc_html_e( 'Labels (CSV)', 'sop' ); ?>
                                         </button>
                                     </div>
                                 </details>
