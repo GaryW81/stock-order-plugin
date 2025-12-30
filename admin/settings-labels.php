@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes settings tab
- * File version: 1.0.0
+ * File version: 1.0.1
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -23,7 +23,11 @@ if ( ! function_exists( 'sop_labels_render_settings_tab' ) ) {
         $width  = isset( $settings['default_label_width_mm'] ) ? (float) $settings['default_label_width_mm'] : 50;
         $height = isset( $settings['default_label_height_mm'] ) ? (float) $settings['default_label_height_mm'] : 25;
         $include_qty = ! empty( $settings['include_qty'] ) ? 1 : 0;
-        $include_sheet_number = ! empty( $settings['include_sheet_number'] ) ? 1 : 0;
+        $include_order_number = ! empty( $settings['include_order_number'] ) ? 1 : 0;
+        // Back-compat: if legacy key present, treat as enabled.
+        if ( ! $include_order_number && ! empty( $settings['include_sheet_number'] ) ) {
+            $include_order_number = 1;
+        }
         ?>
         <div class="wrap">
             <h2><?php esc_html_e( 'Labels & Barcodes', 'sop' ); ?></h2>
@@ -57,11 +61,11 @@ if ( ! function_exists( 'sop_labels_render_settings_tab' ) ) {
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><?php esc_html_e( 'Include sheet number on label', 'sop' ); ?></th>
+                            <th scope="row"><?php esc_html_e( 'Include order number on label', 'sop' ); ?></th>
                             <td>
                                 <label>
-                                    <input type="checkbox" name="sop_labels_settings[include_sheet_number]" value="1" <?php checked( $include_sheet_number, 1 ); ?> />
-                                    <?php esc_html_e( 'Show the preorder sheet number on labels', 'sop' ); ?>
+                                    <input type="checkbox" name="sop_labels_settings[include_order_number]" value="1" <?php checked( $include_order_number, 1 ); ?> />
+                                    <?php esc_html_e( 'Show the Order # on labels', 'sop' ); ?>
                                 </label>
                             </td>
                         </tr>
@@ -73,4 +77,3 @@ if ( ! function_exists( 'sop_labels_render_settings_tab' ) ) {
         <?php
     }
 }
-
