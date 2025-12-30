@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Stock Order Plugin (SOP)
  * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control.
- * Version: 5.9.52
+ * Version: 5.9.53
  * Author: Wilson Organisation Ltd
  */
 
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.52' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.53' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -30,6 +30,7 @@ require_once SOP_PLUGIN_DIR . 'includes/helper-buffer.php';
 require_once SOP_PLUGIN_DIR . 'includes/forecast-core.php';
 require_once SOP_PLUGIN_DIR . 'includes/class-sop-legacy-history.php';
 require_once SOP_PLUGIN_DIR . 'includes/supplier-meta-box.php';
+require_once SOP_PLUGIN_DIR . 'includes/barcode-code128.php';
 require_once SOP_PLUGIN_DIR . 'includes/labels-core.php';
 require_once SOP_PLUGIN_DIR . 'includes/class-sop-preorder-exporter-xlsx.php';
 

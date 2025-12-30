@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes settings tab
- * File version: 1.0.3
+ * File version: 1.0.4
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -63,6 +63,14 @@ if ( ! function_exists( 'sop_labels_render_settings_tab' ) ) {
                 </table>
                 <?php submit_button(); ?>
             </form>
+
+            <h3><?php esc_html_e( 'Divi Button Link URL', 'sop' ); ?></h3>
+            <p><?php esc_html_e( 'Add a Divi Button module on product pages and set Button Link URL to:', 'sop' ); ?></p>
+            <p>
+                <input type="text" readonly class="regular-text" value="?sop_print_label=1" onclick="this.select();" />
+                <br />
+                <span class="description"><?php esc_html_e( 'Set it to open in a new tab for easier printing.', 'sop' ); ?></span>
+            </p>
         </div>
         <?php
     }
