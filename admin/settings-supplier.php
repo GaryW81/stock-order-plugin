@@ -2,11 +2,12 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.35
+ * File version: 1.5.36
  * - Add direct USD→RMB base FX and swap FX/lead time rows.
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
  * - Add per-supplier toggle to show Supplier SKUs column.
+ * - Add Labels & Barcodes settings tab + supplier label size override.
  * - Adds supplier holiday/shipping settings (multiple periods + units) for PO date suggestions.
  *
  * - Adds "Stock Order" top-level admin menu.
@@ -107,6 +108,17 @@ class sop_Admin_Settings {
             self::OPTION_KEY,
             array( $this, 'sanitize_settings' )
         );
+
+        // Labels & Barcodes settings (separate option).
+        if ( function_exists( 'sop_labels_sanitize_settings' ) ) {
+            register_setting(
+                'sop_labels_settings_group',
+                'sop_labels_settings',
+                array(
+                    'sanitize_callback' => 'sop_labels_sanitize_settings',
+                )
+            );
+        }
     }
 
     /**
@@ -206,7 +218,7 @@ class sop_Admin_Settings {
         }
 
         $active_tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'general';
-        if ( ! in_array( $active_tab, array( 'general', 'suppliers' ), true ) ) {
+        if ( ! in_array( $active_tab, array( 'general', 'suppliers', 'labels' ), true ) ) {
             $active_tab = 'general';
         }
 
@@ -227,12 +239,22 @@ class sop_Admin_Settings {
             ( 'suppliers' === $active_tab ? 'nav-tab-active' : '' ),
             esc_html__( 'Suppliers', 'sop' )
         );
+        if ( function_exists( 'sop_labels_render_settings_tab' ) ) {
+            printf(
+                '<a href="%s" class="nav-tab %s">%s</a>',
+                esc_url( admin_url( 'admin.php?page=sop_stock_order&tab=labels' ) ),
+                ( 'labels' === $active_tab ? 'nav-tab-active' : '' ),
+                esc_html__( 'Labels & Barcodes', 'sop' )
+            );
+        }
         echo '</h2>';
 
         // Tab content.
         if ( 'suppliers' === $active_tab ) {
             $this->handle_supplier_actions();
             $this->render_suppliers_tab();
+        } elseif ( 'labels' === $active_tab && function_exists( 'sop_labels_render_settings_tab' ) ) {
+            sop_labels_render_settings_tab();
         } else {
             $this->render_general_tab();
         }
@@ -1659,6 +1681,9 @@ class sop_Admin_Settings {
             $buffer_override = 0;
         }
 
+        $label_width_mm_raw  = isset( $_POST['sop_supplier_label_width_mm'] ) ? trim( wp_unslash( $_POST['sop_supplier_label_width_mm'] ) ) : '';
+        $label_height_mm_raw = isset( $_POST['sop_supplier_label_height_mm'] ) ? trim( wp_unslash( $_POST['sop_supplier_label_height_mm'] ) ) : '';
+
         // Preserve existing settings_json if editing.
         $settings_array = array();
 
@@ -1677,6 +1702,34 @@ class sop_Admin_Settings {
             unset( $settings_array['buffer_months_override'] );
         } else {
             $settings_array['buffer_months_override'] = (float) $buffer_override;
+        }
+
+        // Supplier label size override (mm).
+        $label_min_mm = 10;
+        $label_max_mm = 150;
+
+        if ( '' === $label_width_mm_raw ) {
+            unset( $settings_array['label_width_mm'] );
+        } else {
+            $width_val = (float) $label_width_mm_raw;
+            if ( $width_val < $label_min_mm ) {
+                $width_val = $label_min_mm;
+            } elseif ( $width_val > $label_max_mm ) {
+                $width_val = $label_max_mm;
+            }
+            $settings_array['label_width_mm'] = $width_val;
+        }
+
+        if ( '' === $label_height_mm_raw ) {
+            unset( $settings_array['label_height_mm'] );
+        } else {
+            $height_val = (float) $label_height_mm_raw;
+            if ( $height_val < $label_min_mm ) {
+                $height_val = $label_min_mm;
+            } elseif ( $height_val > $label_max_mm ) {
+                $height_val = $label_max_mm;
+            }
+            $settings_array['label_height_mm'] = $height_val;
         }
 
         // Lead time value/unit for supplier (stored in settings_json; lead_time_weeks saved separately).
@@ -2078,6 +2131,8 @@ class sop_Admin_Settings {
             $shipping_unit_val  = 'days';
             $fx_adjust_percent_val = 0.0;
             $show_supplier_skus_column_val = 0;
+            $label_width_mm_val  = '';
+            $label_height_mm_val = '';
 
             if ( $editing ) {
                 $editing_id_val    = (int) $editing->id;
@@ -2186,6 +2241,12 @@ class sop_Admin_Settings {
                 if ( is_array( $settings_arr ) && ! empty( $settings_arr['show_supplier_skus_column'] ) ) {
                     $show_supplier_skus_column_val = 1;
                 }
+                if ( is_array( $settings_arr ) && array_key_exists( 'label_width_mm', $settings_arr ) ) {
+                    $label_width_mm_val = (string) $settings_arr['label_width_mm'];
+                }
+                if ( is_array( $settings_arr ) && array_key_exists( 'label_height_mm', $settings_arr ) ) {
+                    $label_height_mm_val = (string) $settings_arr['label_height_mm'];
+                }
             }
             ?>
 
@@ -2211,6 +2272,42 @@ class sop_Admin_Settings {
                                        required />
                                 <p class="description">
                                     <?php esc_html_e( 'Internal supplier name (e.g. "Shiny International").', 'sop' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_label_width_mm">
+                                    <?php esc_html_e( 'Supplier label size override (mm)', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <label>
+                                    <?php esc_html_e( 'Width', 'sop' ); ?>
+                                    <input type="number"
+                                           id="sop_supplier_label_width_mm"
+                                           name="sop_supplier_label_width_mm"
+                                           class="small-text"
+                                           step="0.1"
+                                           min="10"
+                                           max="150"
+                                           value="<?php echo esc_attr( $label_width_mm_val ); ?>" />
+                                </label>
+                                &nbsp;&times;&nbsp;
+                                <label>
+                                    <?php esc_html_e( 'Height', 'sop' ); ?>
+                                    <input type="number"
+                                           id="sop_supplier_label_height_mm"
+                                           name="sop_supplier_label_height_mm"
+                                           class="small-text"
+                                           step="0.1"
+                                           min="10"
+                                           max="150"
+                                           value="<?php echo esc_attr( $label_height_mm_val ); ?>" />
+                                </label>
+                                <p class="description">
+                                    <?php esc_html_e( 'Optional. Leave blank to use the global Labels & Barcodes default size.', 'sop' ); ?>
                                 </p>
                             </td>
                         </tr>
