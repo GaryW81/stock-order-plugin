@@ -1,9 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.5
+ * File version: 1.0.6
  *
- * Provides defaults, sanitization, and helper accessors for label settings.
+ * Provides defaults, sanitization, helper accessors, and in-house print label view.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -211,71 +211,111 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
     <meta charset="<?php bloginfo( 'charset' ); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        @page { size: <?php echo esc_html( $w_mm ); ?>mm <?php echo esc_html( $h_mm ); ?>mm; margin: 0; }
-        body {
+        :root {
+            --label-w: <?php echo esc_html( $w_mm ); ?>mm;
+            --label-h: <?php echo esc_html( $h_mm ); ?>mm;
+            --pad: 0.5mm;
+            --toprow-h: 5mm;
+            --title-h: 6mm;
+            --barcode-h: 10mm;
+            --sku-h: 3mm;
+        }
+        @page {
+            size: var(--label-w) var(--label-h);
             margin: 0;
-            background: #f7f7f7;
+        }
+        html, body {
+            width: var(--label-w);
+            height: var(--label-h);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #fff;
             font-family: "Helvetica Neue", Arial, sans-serif;
         }
+        .sop-print-toolbar {
+            padding: 6px 10px;
+            background: #f0f0f0;
+            border-bottom: 1px solid #ddd;
+        }
+        .sop-print-toolbar button {
+            padding: 6px 10px;
+            font-size: 14px;
+            cursor: pointer;
+        }
         .sop-label-page {
+            width: var(--label-w);
+            height: var(--label-h);
             display: flex;
             align-items: flex-start;
             justify-content: center;
-            padding: 12px;
+            padding: 0;
+            box-sizing: border-box;
         }
         .sop-label {
+            width: var(--label-w);
+            height: var(--label-h);
             box-sizing: border-box;
-            width: <?php echo esc_html( $w_mm ); ?>mm;
-            height: <?php echo esc_html( $h_mm ); ?>mm;
-            border: 1px solid #000;
-            border-radius: 2mm;
-            background: #fffef4;
-            padding: 1.5mm 2mm 2mm;
-            position: relative;
+            display: grid;
+            grid-template-rows: var(--toprow-h) var(--title-h) var(--barcode-h) var(--sku-h);
+            padding: var(--pad);
+            background: #fff;
+            overflow: hidden;
+        }
+        @media screen {
+            .sop-label {
+                outline: 1px solid rgba(0,0,0,0.15);
+            }
+        }
+        @media print {
+            .sop-print-toolbar { display: none !important; }
+            .sop-label { outline: none !important; }
+            body { background: #fff; }
         }
         .sop-label-top {
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
-            min-height: 8mm;
+            overflow: hidden;
         }
         .sop-label-logo img {
-            max-height: 7mm;
+            max-height: 4.6mm;
             width: auto;
             display: block;
             margin: 0 auto;
         }
         .sop-label-brand-text {
             font-weight: 700;
-            letter-spacing: 0.05em;
-            font-size: 12px;
+            letter-spacing: 0.04em;
+            font-size: 3mm;
         }
         .sop-label-date {
             position: absolute;
             right: 0;
             top: 0;
             font-weight: 700;
-            font-size: 12px;
+            font-size: 3.6mm;
+            line-height: 1;
         }
         .sop-label-title {
-            margin-top: 1mm;
-            margin-bottom: 2mm;
             text-align: center;
             font-weight: 700;
-            font-size: 13px;
-            line-height: 1.2;
+            font-size: 3.2mm;
+            line-height: 1.05;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
+            align-self: center;
         }
         .sop-label-barcode {
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-bottom: 1mm;
+            margin: 0;
+            padding: 0;
         }
         .sop-label-barcode svg {
             width: 90%;
@@ -285,27 +325,11 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
         .sop-label-sku {
             text-align: center;
             font-weight: 700;
-            font-size: 12px;
+            font-size: 3.5mm;
             letter-spacing: 0.02em;
             white-space: pre;
-        }
-        .sop-print-toolbar {
-            padding: 8px 12px;
-            background: #f0f0f0;
-            border-bottom: 1px solid #ddd;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .sop-print-toolbar button {
-            padding: 6px 10px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        @media print {
-            body { background: #fff; }
-            .sop-print-toolbar { display: none; }
-            .sop-label-page { padding: 0; }
+            line-height: 1;
+            align-self: center;
         }
     </style>
 </head>
