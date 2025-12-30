@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.1
+ * File version: 1.0.2
  *
  * Provides defaults, sanitization, and helper accessors for label settings.
  */
@@ -38,15 +38,15 @@ if ( ! function_exists( 'sop_labels_stream_preorder_labels_csv' ) ) {
         $sheet_header = is_array( $sheet_header ) ? $sheet_header : array();
         $line_rows    = is_array( $line_rows ) ? $line_rows : array();
 
-        $sheet_id    = isset( $sheet_header['id'] ) ? (int) $sheet_header['id'] : 0;
-        $order_label = '';
+        $sheet_id      = isset( $sheet_header['id'] ) ? (int) $sheet_header['id'] : 0;
+        $order_number  = '';
         if ( ! empty( $sheet_header['order_number_label'] ) ) {
-            $order_label = (string) $sheet_header['order_number_label'];
-        } elseif ( $sheet_id > 0 ) {
-            $order_label = (string) $sheet_id;
+            $order_number = sanitize_text_field( (string) $sheet_header['order_number_label'] );
         }
 
-        $filename = ( '' !== $filename ) ? $filename : 'labels-' . ( $order_label ? $order_label : 'sheet' ) . '.csv';
+        // Filename can still fall back to sheet_id for readability.
+        $filename_ref = ( '' !== $order_number ) ? $order_number : ( ( $sheet_id > 0 ) ? (string) $sheet_id : 'sheet' );
+        $filename     = ( '' !== $filename ) ? $filename : 'labels-' . $filename_ref . '.csv';
 
         if ( ! headers_sent() ) {
             nocache_headers();
@@ -92,7 +92,7 @@ if ( ! function_exists( 'sop_labels_stream_preorder_labels_csv' ) ) {
                     $product_name,
                     $qty_out,
                     $sheet_id,
-                    $order_label,
+                    $order_number,
                 )
             );
         }
