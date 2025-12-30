@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.7
+ * File version: 1.0.8
  *
  * Provides defaults, sanitization, helper accessors, and in-house print label view.
  */
@@ -215,10 +215,10 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             --label-w: <?php echo esc_html( $w_mm ); ?>mm;
             --label-h: <?php echo esc_html( $h_mm ); ?>mm;
             --pad: 0.5mm;
-            --toprow-h: 5mm;
-            --title-h: 6mm;
+            --toprow-h: 6mm;
             --barcode-h: 10mm;
             --sku-h: 3mm;
+            --title-h: calc(var(--label-h) - (var(--pad) * 2) - var(--toprow-h) - var(--barcode-h) - var(--sku-h));
         }
         @page {
             size: var(--label-w) var(--label-h);
@@ -307,13 +307,13 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             right: 0;
             top: 0;
             font-weight: 700;
-            font-size: 3.6mm;
+            font-size: 1.8mm;
             line-height: 1;
         }
         .sop-label-title {
             text-align: center;
             font-weight: 700;
-            font-size: 3.2mm;
+            font-size: 2.2mm;
             line-height: 1.05;
             display: -webkit-box;
             -webkit-line-clamp: 2;
@@ -337,7 +337,7 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
         .sop-label-sku {
             text-align: center;
             font-weight: 700;
-            font-size: 3.5mm;
+            font-size: 2.5mm;
             letter-spacing: 0.02em;
             white-space: pre;
             line-height: 1;
