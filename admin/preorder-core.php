@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.50
+ * File version: 11.51
  * - Remove legacy XLS export endpoints (XLSX only).
+ * - Add Labels (CSV) export for saved Pre-Order sheets.
  * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
  * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
@@ -1052,6 +1053,63 @@ function sop_handle_export_preorder_sheet_xlsx() {
 
     readfile( $xlsx_path );
     @unlink( $xlsx_path );
+    exit;
+}
+
+add_action( 'admin_post_sop_export_preorder_labels_csv', 'sop_handle_export_preorder_labels_csv' );
+function sop_handle_export_preorder_labels_csv() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You are not allowed to export labels.', 'sop' ) );
+    }
+
+    $nonce = isset( $_REQUEST['_wpnonce'] ) ? wp_unslash( $_REQUEST['_wpnonce'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    if ( ! wp_verify_nonce( $nonce, 'sop_export_preorder_labels_csv' ) ) {
+        wp_die( esc_html__( 'Invalid labels export request.', 'sop' ) );
+    }
+
+    $sheet_id    = isset( $_REQUEST['sop_sheet_id'] ) ? (int) $_REQUEST['sop_sheet_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    $supplier_id = isset( $_REQUEST['supplier_id'] ) ? (int) $_REQUEST['supplier_id'] : 0; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+
+    if ( $sheet_id <= 0 ) {
+        wp_die( esc_html__( 'Pre-order sheet not found for labels export.', 'sop' ) );
+    }
+
+    $dataset = sop_preorder_build_export_dataset( $sheet_id, $supplier_id );
+    if ( is_wp_error( $dataset ) ) {
+        wp_die( esc_html( $dataset->get_error_message() ) );
+    }
+
+    list( $sheet_header, $line_rows ) = $dataset;
+
+    if ( ! function_exists( 'sop_labels_stream_preorder_labels_csv' ) ) {
+        wp_die( esc_html__( 'Labels module not available.', 'sop' ) );
+    }
+
+    $supplier_slug = '';
+    if ( function_exists( 'sop_get_supplier_label' ) && ! empty( $sheet_header['supplier_id'] ) ) {
+        $supplier_label = sop_get_supplier_label( (int) $sheet_header['supplier_id'] );
+        $supplier_slug  = sanitize_title( $supplier_label );
+    } elseif ( ! empty( $sheet_header['supplier_name'] ) ) {
+        $supplier_slug = sanitize_title( $sheet_header['supplier_name'] );
+    } elseif ( ! empty( $sheet_header['supplier_id'] ) ) {
+        $supplier_slug = 'supplier-' . (int) $sheet_header['supplier_id'];
+    } else {
+        $supplier_slug = 'supplier';
+    }
+
+    $order_number = ! empty( $sheet_header['order_number_label'] ) ? preg_replace( '/[^0-9A-Za-z\-_]/', '', $sheet_header['order_number_label'] ) : (string) (int) $sheet_id;
+    $version      = ! empty( $sheet_header['edit_version'] ) ? (int) $sheet_header['edit_version'] : 1;
+    $order_date   = ! empty( $sheet_header['order_date_owner'] ) ? preg_replace( '/[^0-9\-]/', '', $sheet_header['order_date_owner'] ) : gmdate( 'Y-m-d' );
+
+    $filename = sprintf(
+        '%s-labels-%s-v%d-%s.csv',
+        $supplier_slug,
+        $order_number,
+        $version,
+        $order_date
+    );
+
+    sop_labels_stream_preorder_labels_csv( $sheet_header, $line_rows, $filename );
     exit;
 }
 

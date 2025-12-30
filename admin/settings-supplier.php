@@ -2278,42 +2278,6 @@ class sop_Admin_Settings {
 
                         <tr>
                             <th scope="row">
-                                <label for="sop_supplier_label_width_mm">
-                                    <?php esc_html_e( 'Supplier label size override (mm)', 'sop' ); ?>
-                                </label>
-                            </th>
-                            <td>
-                                <label>
-                                    <?php esc_html_e( 'Width', 'sop' ); ?>
-                                    <input type="number"
-                                           id="sop_supplier_label_width_mm"
-                                           name="sop_supplier_label_width_mm"
-                                           class="small-text"
-                                           step="0.1"
-                                           min="10"
-                                           max="150"
-                                           value="<?php echo esc_attr( $label_width_mm_val ); ?>" />
-                                </label>
-                                &nbsp;&times;&nbsp;
-                                <label>
-                                    <?php esc_html_e( 'Height', 'sop' ); ?>
-                                    <input type="number"
-                                           id="sop_supplier_label_height_mm"
-                                           name="sop_supplier_label_height_mm"
-                                           class="small-text"
-                                           step="0.1"
-                                           min="10"
-                                           max="150"
-                                           value="<?php echo esc_attr( $label_height_mm_val ); ?>" />
-                                </label>
-                                <p class="description">
-                                    <?php esc_html_e( 'Optional. Leave blank to use the global Labels & Barcodes default size.', 'sop' ); ?>
-                                </p>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <th scope="row">
                                 <label for="sop_supplier_slug">
                                     <?php esc_html_e( 'Slug', 'sop' ); ?>
                                 </label>
@@ -2592,6 +2556,42 @@ class sop_Admin_Settings {
                                        class="small-text" />
                                 <p class="description">
                                     <?php esc_html_e( 'Allowance for container planning on new Pre-Order sheets (e.g. 5 = 5% spare, -5 = slight overfill). Leave blank to use the plugin default (5%).', 'sop' ); ?>
+                                </p>
+                            </td>
+                        </tr>
+
+                        <tr>
+                            <th scope="row">
+                                <label for="sop_supplier_label_width_mm">
+                                    <?php esc_html_e( 'Supplier label size override (mm)', 'sop' ); ?>
+                                </label>
+                            </th>
+                            <td>
+                                <label>
+                                    <?php esc_html_e( 'Width', 'sop' ); ?>
+                                    <input type="number"
+                                           id="sop_supplier_label_width_mm"
+                                           name="sop_supplier_label_width_mm"
+                                           class="small-text"
+                                           step="0.1"
+                                           min="10"
+                                           max="150"
+                                           value="<?php echo esc_attr( $label_width_mm_val ); ?>" />
+                                </label>
+                                &nbsp;&times;&nbsp;
+                                <label>
+                                    <?php esc_html_e( 'Height', 'sop' ); ?>
+                                    <input type="number"
+                                           id="sop_supplier_label_height_mm"
+                                           name="sop_supplier_label_height_mm"
+                                           class="small-text"
+                                           step="0.1"
+                                           min="10"
+                                           max="150"
+                                           value="<?php echo esc_attr( $label_height_mm_val ); ?>" />
+                                </label>
+                                <p class="description">
+                                    <?php esc_html_e( 'Optional. Leave blank to use the global Labels & Barcodes default size.', 'sop' ); ?>
                                 </p>
                             </td>
                         </tr>

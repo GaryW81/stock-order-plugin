@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.0
+ * File version: 1.0.1
  *
  * Provides defaults, sanitization, and helper accessors for label settings.
  */
@@ -23,6 +23,81 @@ if ( ! function_exists( 'sop_labels_get_default_settings' ) ) {
             'include_qty'             => 1,
             'include_sheet_number'    => 1,
         );
+    }
+}
+
+if ( ! function_exists( 'sop_labels_stream_preorder_labels_csv' ) ) {
+    /**
+     * Stream a Labels (CSV) export for a pre-order sheet.
+     *
+     * @param array  $sheet_header Sheet header data.
+     * @param array  $line_rows    Line rows for export.
+     * @param string $filename     Filename to send (optional, can be blank).
+     */
+    function sop_labels_stream_preorder_labels_csv( $sheet_header, $line_rows, $filename = '' ) {
+        $sheet_header = is_array( $sheet_header ) ? $sheet_header : array();
+        $line_rows    = is_array( $line_rows ) ? $line_rows : array();
+
+        $sheet_id    = isset( $sheet_header['id'] ) ? (int) $sheet_header['id'] : 0;
+        $order_label = '';
+        if ( ! empty( $sheet_header['order_number_label'] ) ) {
+            $order_label = (string) $sheet_header['order_number_label'];
+        } elseif ( $sheet_id > 0 ) {
+            $order_label = (string) $sheet_id;
+        }
+
+        $filename = ( '' !== $filename ) ? $filename : 'labels-' . ( $order_label ? $order_label : 'sheet' ) . '.csv';
+
+        if ( ! headers_sent() ) {
+            nocache_headers();
+            header( 'Content-Type: text/csv; charset=utf-8' );
+            header( 'Content-Disposition: attachment; filename="' . sanitize_file_name( $filename ) . '"' );
+        }
+
+        // Output BOM for Excel.
+        echo "\xEF\xBB\xBF"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+
+        $out = fopen( 'php://output', 'w' );
+        if ( ! $out ) {
+            return;
+        }
+
+        // Header row.
+        fputcsv( $out, array( 'sku', 'product_name', 'qty', 'sheet_number', 'order_number' ) );
+
+        foreach ( $line_rows as $row ) {
+            if ( ! is_array( $row ) ) {
+                continue;
+            }
+
+            $sku = isset( $row['sku'] ) ? (string) $row['sku'] : '';
+            if ( '' === $sku ) {
+                continue;
+            }
+
+            $qty = isset( $row['qty'] ) ? (float) $row['qty'] : 0;
+            if ( $qty <= 0 ) {
+                continue;
+            }
+
+            $product_name = isset( $row['product_name'] ) ? (string) $row['product_name'] : '';
+
+            // Render qty as int when appropriate.
+            $qty_out = ( (int) $qty === $qty ) ? (int) $qty : rtrim( rtrim( number_format( $qty, 4, '.', '' ), '0' ), '.' );
+
+            fputcsv(
+                $out,
+                array(
+                    $sku,
+                    $product_name,
+                    $qty_out,
+                    $sheet_id,
+                    $order_label,
+                )
+            );
+        }
+
+        fclose( $out );
     }
 }
 
@@ -137,4 +212,3 @@ if ( ! function_exists( 'sop_labels_get_supplier_label_size_mm' ) ) {
         return $global;
     }
 }
-
