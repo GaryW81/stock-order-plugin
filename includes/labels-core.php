@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.6
+ * File version: 1.0.7
  *
  * Provides defaults, sanitization, helper accessors, and in-house print label view.
  */
@@ -188,7 +188,7 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
                 if ( $maybe_id > 0 ) {
                     $src = wp_get_attachment_image_src( $maybe_id, 'full' );
                     if ( ! empty( $src[0] ) ) {
-                        $brand_logo_html = '<img src="' . esc_url( $src[0] ) . '" alt="' . esc_attr( $brand_name ) . '" />';
+                        $brand_logo_html = '<img class="sop-label-logo-img" src="' . esc_url( $src[0] ) . '" alt="' . esc_attr( $brand_name ) . '" />';
                         break;
                     }
                 }
@@ -196,7 +196,7 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
         }
 
         if ( '' === $brand_logo_html && '' !== $brand_name ) {
-            $brand_logo_html = '<span class="sop-label-brand-text">' . esc_html( strtoupper( $brand_name ) ) . '</span>';
+            $brand_logo_html = '<span class="sop-label-logo-text">' . esc_html( strtoupper( $brand_name ) ) . '</span>';
         }
 
         $barcode_svg = function_exists( 'sop_barcode_code128_svg' ) ? sop_barcode_code128_svg( $sku, array( 'quiet_zone_modules' => 10, 'height_modules' => 60 ) ) : '';
@@ -272,23 +272,35 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             .sop-label { outline: none !important; }
             body { background: #fff; }
         }
-        .sop-label-top {
+        .sop-label__top {
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
             overflow: hidden;
         }
-        .sop-label-logo img {
-            max-height: 4.6mm;
+        .sop-label__logo-viewport {
+            width: 70%;
+            height: 7mm;
+            margin: 0 auto;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sop-label-logo-img {
+            height: 100%;
             width: auto;
             display: block;
-            margin: 0 auto;
+            transform: scale(3.5);
+            transform-origin: 50% 50%;
         }
-        .sop-label-brand-text {
+        .sop-label-logo-text {
             font-weight: 700;
             letter-spacing: 0.04em;
-            font-size: 3mm;
+            font-size: 2.2mm;
+            text-align: center;
+            line-height: 1;
         }
         .sop-label-date {
             position: absolute;
@@ -339,8 +351,10 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
     </div>
     <div class="sop-label-page">
         <div class="sop-label">
-            <div class="sop-label-top">
-                <div class="sop-label-logo"><?php echo wp_kses_post( $brand_logo_html ); ?></div>
+            <div class="sop-label__top">
+                <div class="sop-label__logo-viewport">
+                    <?php echo wp_kses_post( $brand_logo_html ); ?>
+                </div>
                 <?php if ( $include_date && $date_display ) : ?>
                     <div class="sop-label-date"><?php echo esc_html( $date_display ); ?></div>
                 <?php endif; ?>
