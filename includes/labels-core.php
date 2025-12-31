@@ -1,9 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.13
+ * File version: 1.0.14
  *
- * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, and in-house print label view.
+ * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, and in-house print label view.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -397,9 +397,92 @@ if ( ! function_exists( 'sop_labels_get_current_date_mm_yy' ) ) {
 }
 
 /**
+ * AJAX: return cached barcode SVG (no inline generation).
+ */
+add_action( 'wp_ajax_sop_barcode', 'sop_ajax_sop_barcode' );
+
+/**
  * Frontend: render a print-ready product label when requested.
  */
 add_action( 'template_redirect', 'sop_labels_maybe_render_product_label' );
+
+if ( ! function_exists( 'sop_ajax_sop_barcode' ) ) {
+    /**
+     * AJAX handler for cached barcode SVG.
+     *
+     * @return void
+     */
+    function sop_ajax_sop_barcode() {
+        if ( ! current_user_can( 'read' ) ) {
+            status_header( 403 );
+            header( 'Content-Type: text/plain; charset=utf-8' );
+            echo 'Forbidden';
+            exit;
+        }
+
+        $raw_sku = isset( $_REQUEST['sku'] ) ? (string) wp_unslash( $_REQUEST['sku'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( function_exists( 'sop_normalise_scan_input' ) ) {
+            $sku = sop_normalise_scan_input( $raw_sku );
+        } else {
+            $sku = trim( $raw_sku );
+        }
+
+        if ( '' === $sku ) {
+            status_header( 400 );
+            header( 'Content-Type: text/plain; charset=utf-8' );
+            echo 'Empty SKU';
+            exit;
+        }
+
+        $raw_args  = array();
+        $arg_keys  = array( 'width', 'height', 'dpi', 'quiet_zone_modules', 'height_modules' );
+        foreach ( $arg_keys as $key ) {
+            if ( isset( $_REQUEST[ $key ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $raw_args[ $key ] = wp_unslash( $_REQUEST[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            }
+        }
+        if ( function_exists( 'sop_barcode_normalise_args' ) ) {
+            $args = sop_barcode_normalise_args( $raw_args );
+        } else {
+            $args = $raw_args;
+        }
+
+        $svg = sop_get_barcode_svg( $sku, $args );
+        if ( is_wp_error( $svg ) ) {
+            $code = $svg->get_error_code();
+            $msg  = $svg->get_error_message();
+            switch ( $code ) {
+                case 'sop_barcode_empty_sku':
+                    $status = 400;
+                    break;
+                case 'sop_barcode_unknown_sku':
+                    $status = 404;
+                    break;
+                case 'sop_barcode_not_cached':
+                    $status = 409;
+                    break;
+                default:
+                    $status = 500;
+                    break;
+            }
+            status_header( $status );
+            header( 'Content-Type: text/plain; charset=utf-8' );
+            echo esc_html( $msg );
+            exit;
+        }
+
+        while ( ob_get_level() ) {
+            ob_end_clean();
+        }
+
+        status_header( 200 );
+        header( 'Content-Type: image/svg+xml; charset=utf-8' );
+        header( 'X-Content-Type-Options: nosniff' );
+        header( 'Cache-Control: private, max-age=86400' );
+        echo $svg; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        exit;
+    }
+}
 
 if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
     /**
