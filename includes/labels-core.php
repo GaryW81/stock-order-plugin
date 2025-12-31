@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.8
+ * File version: 1.0.9
  *
  * Provides defaults, sanitization, helper accessors, and in-house print label view.
  */
@@ -215,21 +215,21 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             --label-w: <?php echo esc_html( $w_mm ); ?>mm;
             --label-h: <?php echo esc_html( $h_mm ); ?>mm;
             --pad: 0.5mm;
+            --print-top-offset: 2px;
+            --pad-t: calc(var(--pad) + var(--print-top-offset));
+            --pad-b: var(--pad);
             --toprow-h: 6mm;
             --barcode-h: 10mm;
             --sku-h: 3mm;
-            --title-h: calc(var(--label-h) - (var(--pad) * 2) - var(--toprow-h) - var(--barcode-h) - var(--sku-h));
+            --title-h: calc(var(--label-h) - var(--pad-t) - var(--pad-b) - var(--toprow-h) - var(--barcode-h) - var(--sku-h));
         }
         @page {
             size: var(--label-w) var(--label-h);
             margin: 0;
         }
         html, body {
-            width: var(--label-w);
-            height: var(--label-h);
             margin: 0;
             padding: 0;
-            overflow: hidden;
             background: #fff;
             font-family: "Helvetica Neue", Arial, sans-serif;
         }
@@ -243,14 +243,20 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             font-size: 14px;
             cursor: pointer;
         }
-        .sop-label-page {
-            width: var(--label-w);
-            height: var(--label-h);
+        .sop-label-stage {
+            min-height: 100vh;
             display: flex;
             align-items: flex-start;
             justify-content: center;
-            padding: 0;
+            padding: 12px;
             box-sizing: border-box;
+        }
+        .sop-label-page {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            width: var(--label-w);
+            height: auto;
         }
         .sop-label {
             width: var(--label-w);
@@ -258,7 +264,10 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             box-sizing: border-box;
             display: grid;
             grid-template-rows: var(--toprow-h) var(--title-h) var(--barcode-h) var(--sku-h);
-            padding: var(--pad);
+            padding-top: var(--pad-t);
+            padding-bottom: var(--pad-b);
+            padding-left: var(--pad);
+            padding-right: var(--pad);
             background: #fff;
             overflow: hidden;
         }
@@ -268,7 +277,20 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             }
         }
         @media print {
+            html, body {
+                width: var(--label-w);
+                height: var(--label-h);
+                overflow: hidden;
+            }
             .sop-print-toolbar { display: none !important; }
+            .sop-label-stage {
+                padding: 0;
+                min-height: 0;
+            }
+            .sop-label-page {
+                width: var(--label-w);
+                height: var(--label-h);
+            }
             .sop-label { outline: none !important; }
             body { background: #fff; }
         }
@@ -349,21 +371,23 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
     <div class="sop-print-toolbar">
         <button type="button" onclick="window.print();"><?php esc_html_e( 'Print label', 'sop' ); ?></button>
     </div>
-    <div class="sop-label-page">
-        <div class="sop-label">
-            <div class="sop-label__top">
-                <div class="sop-label__logo-viewport">
-                    <?php echo wp_kses_post( $brand_logo_html ); ?>
+    <div class="sop-label-stage">
+        <div class="sop-label-page">
+            <div class="sop-label">
+                <div class="sop-label__top">
+                    <div class="sop-label__logo-viewport">
+                        <?php echo wp_kses_post( $brand_logo_html ); ?>
+                    </div>
+                    <?php if ( $include_date && $date_display ) : ?>
+                        <div class="sop-label-date"><?php echo esc_html( $date_display ); ?></div>
+                    <?php endif; ?>
                 </div>
-                <?php if ( $include_date && $date_display ) : ?>
-                    <div class="sop-label-date"><?php echo esc_html( $date_display ); ?></div>
-                <?php endif; ?>
+                <div class="sop-label-title"><?php echo esc_html( $name ); ?></div>
+                <div class="sop-label-barcode">
+                    <?php echo $barcode_svg ? $barcode_svg : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                </div>
+                <div class="sop-label-sku"><?php echo esc_html( $sku ); ?></div>
             </div>
-            <div class="sop-label-title"><?php echo esc_html( $name ); ?></div>
-            <div class="sop-label-barcode">
-                <?php echo $barcode_svg ? $barcode_svg : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-            </div>
-            <div class="sop-label-sku"><?php echo esc_html( $sku ); ?></div>
         </div>
     </div>
 </body>
