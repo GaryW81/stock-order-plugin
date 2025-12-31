@@ -1,9 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.14
+ * File version: 1.0.15
  *
- * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, and in-house print label view.
+ * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, and in-house print label view.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -402,6 +402,17 @@ if ( ! function_exists( 'sop_labels_get_current_date_mm_yy' ) ) {
 add_action( 'wp_ajax_sop_barcode', 'sop_ajax_sop_barcode' );
 
 /**
+ * Warm barcode cache via admin-post.
+ */
+add_action( 'admin_post_sop_barcode_warm_cache', 'sop_handle_barcode_warm_cache' );
+
+/**
+ * Generate cached barcodes on product save (products + variations).
+ */
+add_action( 'save_post_product', 'sop_barcode_maybe_cache_on_save', 20, 3 );
+add_action( 'save_post_product_variation', 'sop_barcode_maybe_cache_on_save', 20, 3 );
+
+/**
  * Frontend: render a print-ready product label when requested.
  */
 add_action( 'template_redirect', 'sop_labels_maybe_render_product_label' );
@@ -480,6 +491,184 @@ if ( ! function_exists( 'sop_ajax_sop_barcode' ) ) {
         header( 'X-Content-Type-Options: nosniff' );
         header( 'Cache-Control: private, max-age=86400' );
         echo $svg; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        exit;
+    }
+}
+
+if ( ! function_exists( 'sop_barcode_maybe_cache_on_save' ) ) {
+    /**
+     * Generate and cache barcode on product/variation save (no fatal on error).
+     *
+     * @param int     $post_id Post ID.
+     * @param WP_Post $post    Post object.
+     * @param bool    $update  Whether this is an existing post being updated.
+     * @return void
+     */
+    function sop_barcode_maybe_cache_on_save( $post_id, $post, $update ) {
+        unset( $update );
+
+        if ( ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) || wp_is_post_revision( $post_id ) ) {
+            return;
+        }
+
+        $post_type = isset( $post->post_type ) ? $post->post_type : get_post_type( $post_id );
+        if ( ! in_array( $post_type, array( 'product', 'product_variation' ), true ) ) {
+            return;
+        }
+
+        $sku_raw = (string) get_post_meta( $post_id, '_sku', true );
+        if ( function_exists( 'sop_normalise_scan_input' ) ) {
+            $sku = sop_normalise_scan_input( $sku_raw );
+        } else {
+            $sku = trim( $sku_raw );
+        }
+
+        if ( '' === $sku ) {
+            return;
+        }
+
+        $args = function_exists( 'sop_barcode_normalise_args' ) ? sop_barcode_normalise_args( array() ) : array();
+
+        $cached = false;
+        if ( function_exists( 'sop_barcode_read_cached_svg' ) ) {
+            $cached = ( false !== sop_barcode_read_cached_svg( $sku, $args ) );
+        } elseif ( function_exists( 'sop_barcode_get_cache_path' ) ) {
+            $paths  = sop_barcode_get_cache_path( $sku, $args );
+            $cached = ( ! is_wp_error( $paths ) && ! empty( $paths['path'] ) && file_exists( $paths['path'] ) );
+        }
+
+        if ( $cached ) {
+            return;
+        }
+
+        if ( function_exists( 'sop_barcode_generate_and_cache_svg' ) ) {
+            $maybe = sop_barcode_generate_and_cache_svg( $sku, $args );
+            if ( is_wp_error( $maybe ) ) {
+                return;
+            }
+        }
+    }
+}
+
+if ( ! function_exists( 'sop_handle_barcode_warm_cache' ) ) {
+    /**
+     * Admin-post handler to warm barcode cache in batches.
+     *
+     * @return void
+     */
+    function sop_handle_barcode_warm_cache() {
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_die( esc_html__( 'Forbidden', 'sop' ) );
+        }
+
+        check_admin_referer( 'sop_barcode_warm_cache' );
+
+        $offset = isset( $_GET['offset'] ) ? max( 0, (int) $_GET['offset'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $batch  = isset( $_GET['batch'] ) ? max( 10, min( 200, (int) $_GET['batch'] ) ) : 100; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        $args_defaults = function_exists( 'sop_barcode_normalise_args' ) ? sop_barcode_normalise_args( array() ) : array();
+
+        $query = new WP_Query(
+            array(
+                'post_type'      => array( 'product', 'product_variation' ),
+                'post_status'    => array( 'publish', 'private' ),
+                'posts_per_page' => $batch,
+                'offset'         => $offset,
+                'orderby'        => 'ID',
+                'order'          => 'ASC',
+                'fields'         => 'ids',
+                'no_found_rows'  => false,
+            )
+        );
+
+        $ids        = $query->posts;
+        $total      = (int) $query->found_posts;
+        $processed  = count( $ids );
+        $generated  = isset( $_GET['generated'] ) ? (int) $_GET['generated'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $skipped    = isset( $_GET['skipped'] ) ? (int) $_GET['skipped'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $missing    = isset( $_GET['missing'] ) ? (int) $_GET['missing'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $errors_cnt = isset( $_GET['errors'] ) ? (int) $_GET['errors'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        foreach ( $ids as $id ) {
+            $sku_raw = (string) get_post_meta( $id, '_sku', true );
+            if ( function_exists( 'sop_normalise_scan_input' ) ) {
+                $sku = sop_normalise_scan_input( $sku_raw );
+            } else {
+                $sku = trim( $sku_raw );
+            }
+
+            if ( '' === $sku ) {
+                $missing++;
+                continue;
+            }
+
+            $has_cache = false;
+            if ( function_exists( 'sop_barcode_read_cached_svg' ) ) {
+                $has_cache = ( false !== sop_barcode_read_cached_svg( $sku, $args_defaults ) );
+            } elseif ( function_exists( 'sop_barcode_get_cache_path' ) ) {
+                $paths     = sop_barcode_get_cache_path( $sku, $args_defaults );
+                $has_cache = ( ! is_wp_error( $paths ) && ! empty( $paths['path'] ) && file_exists( $paths['path'] ) );
+            }
+
+            if ( $has_cache ) {
+                $skipped++;
+                continue;
+            }
+
+            if ( function_exists( 'sop_barcode_generate_and_cache_svg' ) ) {
+                $result = sop_barcode_generate_and_cache_svg( $sku, $args_defaults );
+                if ( is_wp_error( $result ) ) {
+                    $errors_cnt++;
+                } else {
+                    $generated++;
+                }
+            } else {
+                $errors_cnt++;
+            }
+        }
+
+        $next = $offset + $processed;
+        if ( $processed > 0 && $next < $total ) {
+            $redirect = add_query_arg(
+                array(
+                    'action'    => 'sop_barcode_warm_cache',
+                    'offset'    => $next,
+                    'batch'     => $batch,
+                    'generated' => $generated,
+                    'skipped'   => $skipped,
+                    'missing'   => $missing,
+                    'errors'    => $errors_cnt,
+                    '_wpnonce'  => isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '',
+                ),
+                admin_url( 'admin-post.php' )
+            );
+            wp_safe_redirect( $redirect );
+            exit;
+        }
+
+        $redirect_target = wp_get_referer();
+        if ( ! $redirect_target ) {
+            $redirect_target = add_query_arg(
+                array(
+                    'page' => 'sop_stock_order',
+                    'tab'  => 'labels',
+                ),
+                admin_url( 'admin.php' )
+            );
+        }
+
+        $redirect = add_query_arg(
+            array(
+                'sop_barcode_warm_done' => 1,
+                'generated'             => $generated,
+                'skipped'               => $skipped,
+                'missing'               => $missing,
+                'errors'                => $errors_cnt,
+            ),
+            $redirect_target
+        );
+
+        wp_safe_redirect( $redirect );
         exit;
     }
 }
