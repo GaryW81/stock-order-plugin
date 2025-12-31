@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.9
+ * File version: 1.0.10
  *
  * Provides defaults, sanitization, helper accessors, and in-house print label view.
  */
@@ -215,13 +215,10 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             --label-w: <?php echo esc_html( $w_mm ); ?>mm;
             --label-h: <?php echo esc_html( $h_mm ); ?>mm;
             --pad: 0.5mm;
-            --print-top-offset: 2px;
-            --pad-t: calc(var(--pad) + var(--print-top-offset));
-            --pad-b: var(--pad);
             --toprow-h: 6mm;
             --barcode-h: 10mm;
             --sku-h: 3mm;
-            --title-h: calc(var(--label-h) - var(--pad-t) - var(--pad-b) - var(--toprow-h) - var(--barcode-h) - var(--sku-h));
+            --title-h: calc(var(--label-h) - (var(--pad) * 2) - var(--toprow-h) - var(--barcode-h) - var(--sku-h));
         }
         @page {
             size: var(--label-w) var(--label-h);
@@ -264,10 +261,7 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             box-sizing: border-box;
             display: grid;
             grid-template-rows: var(--toprow-h) var(--title-h) var(--barcode-h) var(--sku-h);
-            padding-top: var(--pad-t);
-            padding-bottom: var(--pad-b);
-            padding-left: var(--pad);
-            padding-right: var(--pad);
+            padding: var(--pad);
             background: #fff;
             overflow: hidden;
         }
@@ -314,8 +308,8 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             height: 100%;
             width: auto;
             display: block;
-            transform: scale(3.5);
-            transform-origin: 50% 50%;
+            transform: scale(3.0);
+            transform-origin: 50% 0%;
         }
         .sop-label-logo-text {
             font-weight: 700;
