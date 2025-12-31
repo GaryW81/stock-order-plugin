@@ -1,9 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.12
+ * File version: 1.0.13
  *
- * Provides defaults, sanitization, helper accessors, and in-house print label view.
+ * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, and in-house print label view.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -115,6 +115,275 @@ if ( ! function_exists( 'sop_labels_get_global_label_size_mm' ) ) {
     }
 }
 
+/* -------------------------------------------------------------------------
+ * Barcode core (SVG-only, Code128) with disk cache
+ * ---------------------------------------------------------------------- */
+
+if ( ! function_exists( 'sop_barcode_get_cache_dir' ) ) {
+    /**
+     * Get (and ensure) the barcode cache directory.
+     *
+     * @return array{dir:string,url:string}|WP_Error
+     */
+    function sop_barcode_get_cache_dir() {
+        $uploads = wp_upload_dir();
+        if ( ! empty( $uploads['error'] ) ) {
+            return new WP_Error( 'sop_barcode_cache_dir', $uploads['error'] );
+        }
+
+        $base_dir = trailingslashit( $uploads['basedir'] ) . 'sop-barcodes/';
+        $base_url = trailingslashit( $uploads['baseurl'] ) . 'sop-barcodes/';
+
+        if ( ! file_exists( $base_dir ) ) {
+            wp_mkdir_p( $base_dir );
+        }
+
+        if ( ! is_dir( $base_dir ) || ! is_writable( $base_dir ) ) {
+            return new WP_Error( 'sop_barcode_cache_dir', __( 'Barcode cache directory is not writable.', 'sop' ) );
+        }
+
+        return array(
+            'dir' => $base_dir,
+            'url' => $base_url,
+        );
+    }
+}
+
+if ( ! function_exists( 'sop_barcode_normalise_args' ) ) {
+    /**
+     * Normalise barcode args (only accepted keys are kept).
+     *
+     * @param array $args Raw args.
+     * @return array Normalised args.
+     */
+    function sop_barcode_normalise_args( $args ) {
+        $args = is_array( $args ) ? $args : array();
+
+        $defaults = array(
+            'width'              => '100%',
+            'height'             => '100%',
+            'dpi'                => 96,
+            'quiet_zone_modules' => 10,
+            'height_modules'     => 60,
+        );
+
+        $out = $defaults;
+
+        // width/height can be ints or percent strings.
+        foreach ( array( 'width', 'height' ) as $dim ) {
+            if ( isset( $args[ $dim ] ) ) {
+                $val = $args[ $dim ];
+                if ( is_numeric( $val ) ) {
+                    $out[ $dim ] = (string) (int) $val;
+                } elseif ( is_string( $val ) && preg_match( '/^\d+%$/', $val ) ) {
+                    $out[ $dim ] = $val;
+                }
+            }
+        }
+
+        if ( isset( $args['dpi'] ) ) {
+            $dpi = (int) $args['dpi'];
+            $dpi = min( 600, max( 72, $dpi ) );
+            $out['dpi'] = $dpi;
+        }
+
+        if ( isset( $args['quiet_zone_modules'] ) ) {
+            $qz = (int) $args['quiet_zone_modules'];
+            $qz = min( 30, max( 0, $qz ) );
+            $out['quiet_zone_modules'] = $qz;
+        }
+
+        if ( isset( $args['height_modules'] ) ) {
+            $hm = (int) $args['height_modules'];
+            $hm = min( 200, max( 10, $hm ) );
+            $out['height_modules'] = $hm;
+        }
+
+        return $out;
+    }
+}
+
+if ( ! function_exists( 'sop_barcode_build_cache_key' ) ) {
+    /**
+     * Build cache key hash.
+     *
+     * @param string $sku  SKU.
+     * @param array  $args Args.
+     * @return string
+     */
+    function sop_barcode_build_cache_key( $sku, array $args ) {
+        $normalized = sop_barcode_normalise_args( $args );
+        $payload    = wp_json_encode( array( 'sku' => $sku, 'args' => $normalized ) );
+        return md5( $payload );
+    }
+}
+
+if ( ! function_exists( 'sop_barcode_get_cache_path' ) ) {
+    /**
+     * Get cache file path/url for a SKU + args.
+     *
+     * @param string $sku  SKU.
+     * @param array  $args Args.
+     * @return array{path:string,url:string}|WP_Error
+     */
+    function sop_barcode_get_cache_path( $sku, array $args ) {
+        $cache_dir = sop_barcode_get_cache_dir();
+        if ( is_wp_error( $cache_dir ) ) {
+            return $cache_dir;
+        }
+
+        $hash      = sop_barcode_build_cache_key( $sku, $args );
+        $safe_sku  = sanitize_title( $sku );
+        if ( '' === $safe_sku ) {
+            $safe_sku = 'sku';
+        }
+        $filename  = $safe_sku . '--' . $hash . '.svg';
+
+        return array(
+            'path' => $cache_dir['dir'] . $filename,
+            'url'  => $cache_dir['url'] . $filename,
+        );
+    }
+}
+
+if ( ! function_exists( 'sop_barcode_read_cached_svg' ) ) {
+    /**
+     * Read cached SVG.
+     *
+     * @param string $sku  SKU.
+     * @param array  $args Args.
+     * @return string|false
+     */
+    function sop_barcode_read_cached_svg( $sku, array $args ) {
+        $paths = sop_barcode_get_cache_path( $sku, $args );
+        if ( is_wp_error( $paths ) ) {
+            return false;
+        }
+
+        if ( ! file_exists( $paths['path'] ) ) {
+            return false;
+        }
+
+        $svg = file_get_contents( $paths['path'] ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+        if ( ! $svg ) {
+            return false;
+        }
+
+        return $svg;
+    }
+}
+
+if ( ! function_exists( 'sop_barcode_write_cached_svg' ) ) {
+    /**
+     * Write SVG to cache.
+     *
+     * @param string $sku  SKU.
+     * @param array  $args Args.
+     * @param string $svg  SVG contents.
+     * @return bool
+     */
+    function sop_barcode_write_cached_svg( $sku, array $args, $svg ) {
+        $paths = sop_barcode_get_cache_path( $sku, $args );
+        if ( is_wp_error( $paths ) ) {
+            return false;
+        }
+
+        $svg = (string) $svg;
+        if ( '' === trim( $svg ) ) {
+            return false;
+        }
+
+        $bytes = file_put_contents( $paths['path'], $svg, LOCK_EX ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_file_put_contents
+        return ( false !== $bytes );
+    }
+}
+
+if ( ! function_exists( 'sop_get_barcode_svg' ) ) {
+    /**
+     * Retrieve cached barcode SVG for SKU + args. Does NOT generate on miss.
+     *
+     * @param string $sku  SKU (raw input).
+     * @param array  $args Barcode args.
+     * @return string|WP_Error SVG string or error.
+     */
+    function sop_get_barcode_svg( $sku, $args = array() ) {
+        $sku = (string) $sku;
+        if ( function_exists( 'sop_normalise_scan_input' ) ) {
+            $sku = sop_normalise_scan_input( $sku );
+        } else {
+            $sku = trim( $sku );
+        }
+
+        if ( '' === $sku ) {
+            return new WP_Error( 'sop_barcode_empty_sku', __( 'Empty SKU; cannot load barcode.', 'sop' ) );
+        }
+
+        // Validate SKU exists.
+        if ( function_exists( 'wc_get_product_id_by_sku' ) ) {
+            $pid = wc_get_product_id_by_sku( $sku );
+            if ( ! $pid ) {
+                return new WP_Error( 'sop_barcode_unknown_sku', __( 'Unknown SKU; cannot load barcode.', 'sop' ) );
+            }
+        }
+
+        $args = sop_barcode_normalise_args( $args );
+        $svg  = sop_barcode_read_cached_svg( $sku, $args );
+
+        if ( false === $svg ) {
+            return new WP_Error( 'sop_barcode_not_cached', __( 'Barcode not cached yet. Generate before use.', 'sop' ) );
+        }
+
+        return $svg;
+    }
+}
+
+if ( ! function_exists( 'sop_barcode_generate_and_cache_svg' ) ) {
+    /**
+     * Generate and cache a barcode SVG (explicit use; NOT called automatically).
+     *
+     * @param string $sku  SKU.
+     * @param array  $args Args for generator/cache.
+     * @return string|WP_Error SVG string or error.
+     */
+    function sop_barcode_generate_and_cache_svg( $sku, $args = array() ) {
+        $sku = (string) $sku;
+        if ( function_exists( 'sop_normalise_scan_input' ) ) {
+            $sku = sop_normalise_scan_input( $sku );
+        } else {
+            $sku = trim( $sku );
+        }
+
+        if ( '' === $sku ) {
+            return new WP_Error( 'sop_barcode_empty_sku', __( 'Empty SKU; cannot generate barcode.', 'sop' ) );
+        }
+
+        $args = sop_barcode_normalise_args( $args );
+
+        if ( ! function_exists( 'sop_barcode_code128_svg' ) ) {
+            return new WP_Error( 'sop_barcode_generator_missing', __( 'Barcode generator unavailable.', 'sop' ) );
+        }
+
+        $svg = sop_barcode_code128_svg(
+            $sku,
+            array(
+                'quiet_zone_modules' => $args['quiet_zone_modules'],
+                'height_modules'     => $args['height_modules'],
+            )
+        );
+
+        if ( '' === $svg ) {
+            return new WP_Error( 'sop_barcode_generate_failed', __( 'Failed to generate barcode.', 'sop' ) );
+        }
+
+        $written = sop_barcode_write_cached_svg( $sku, $args, $svg );
+        if ( ! $written ) {
+            return new WP_Error( 'sop_barcode_cache_write_failed', __( 'Failed to write barcode cache.', 'sop' ) );
+        }
+
+        return $svg;
+    }
+}
+
 if ( ! function_exists( 'sop_labels_get_current_date_mm_yy' ) ) {
     /**
      * Get current date in MM/YY format.
@@ -199,7 +468,14 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             $brand_logo_html = '<span class="sop-label-logo-text">' . esc_html( strtoupper( $brand_name ) ) . '</span>';
         }
 
-        $barcode_svg = function_exists( 'sop_barcode_code128_svg' ) ? sop_barcode_code128_svg( $sku, array( 'quiet_zone_modules' => 10, 'height_modules' => 60 ) ) : '';
+        $barcode_args = array(
+            'width'              => '100%',
+            'height'             => '100%',
+            'dpi'                => 96,
+            'quiet_zone_modules' => 10,
+            'height_modules'     => 60,
+        );
+        $barcode_svg  = function_exists( 'sop_get_barcode_svg' ) ? sop_get_barcode_svg( $sku, $barcode_args ) : new WP_Error( 'sop_barcode_api_missing', __( 'Barcode API unavailable.', 'sop' ) );
 
         nocache_headers();
         header( 'Content-Type: text/html; charset=utf-8' );
@@ -385,9 +661,15 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
                     <?php endif; ?>
                 </div>
                 <div class="sop-label-title"><?php echo esc_html( $name ); ?></div>
-                <div class="sop-label-barcode">
-                    <?php echo $barcode_svg ? $barcode_svg : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                </div>
+            <div class="sop-label-barcode">
+                <?php
+                if ( is_wp_error( $barcode_svg ) ) {
+                    echo '<div style="width:90%;text-align:center;font-size:2.2mm;line-height:1.2;">' . esc_html__( 'Barcode not cached yet — update product to generate.', 'sop' ) . '</div>';
+                } else {
+                    echo $barcode_svg; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                }
+                ?>
+            </div>
                 <div class="sop-label-sku"><?php echo esc_html( $sku ); ?></div>
             </div>
         </div>

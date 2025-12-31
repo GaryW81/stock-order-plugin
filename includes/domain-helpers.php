@@ -2,11 +2,12 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.25
+ * File version: 1.0.26
  * - Align handling-day helper with PO modal: order date is day 0, handling starts next day.
  * - Add holiday-aware handling days helper for forecast/PO parity.
  * - Prefer direct USDη'RMB base FX if provided in settings.
  * - Add helper to check Supplier SKUs column toggle.
+ * - Add scan normaliser for barcode/picking.
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -150,6 +151,20 @@ if ( ! function_exists( 'sop_get_supplier_shipping_days' ) ) {
         }
 
         return (int) $shipping_days;
+    }
+}
+
+if ( ! function_exists( 'sop_normalise_scan_input' ) ) {
+    /**
+     * Normalize scanned input (single contract for barcodes / picking).
+     *
+     * @param string $raw_scan Raw scan string.
+     * @return string Normalized scan (trimmed, internal spaces preserved, case preserved).
+     */
+    function sop_normalise_scan_input( $raw_scan ) {
+        $scan = (string) $raw_scan;
+        // Trim leading/trailing whitespace; preserve internal spacing and case.
+        return trim( $scan );
     }
 }
 
