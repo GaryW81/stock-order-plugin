@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.11
+ * File version: 1.0.12
  *
  * Provides defaults, sanitization, helper accessors, and in-house print label view.
  */
@@ -268,6 +268,11 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
         @media screen {
             .sop-label {
                 outline: 1px solid rgba(0,0,0,0.15);
+                transform: scale(2);
+                transform-origin: top center;
+            }
+            .sop-label-stage {
+                overflow: visible;
             }
         }
         @media print {
@@ -285,7 +290,10 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
                 width: var(--label-w);
                 height: var(--label-h);
             }
-            .sop-label { outline: none !important; }
+            .sop-label {
+                outline: none !important;
+                transform: none !important;
+            }
             body { background: #fff; }
         }
         .sop-label__top {
