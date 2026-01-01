@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.44
+ * File version: 1.0.46
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -48,6 +48,8 @@
  * - 1.0.42 - Mobile tap-to-view modal for Supplier SKUs (keeps 2-line compact preview).
  * - 1.0.43 - Supplier SKUs modal shows product + SKU context.
  * - 1.0.44 - Improve Goods-In mobile responsiveness (toolbar/filter/table).
+ * - 1.0.45 - Mobile: stack filters cleanly and force horizontal table scroll (no column squish).
+ * - 1.0.46 - Mobile polish: force table horizontal scroll; stack filters with clear spacing.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -505,21 +507,27 @@ function sop_render_goods_in_page() {
         <?php endif; ?>
 
         <div class="sop-goodsin-filter">
-            <label>
-                <input type="checkbox" id="sop-goodsin-show-completed" />
-                <?php esc_html_e( 'Show completed lines', 'sop' ); ?>
-            </label>
-            <label>
-                <input type="checkbox" id="sop-goodsin-issues-only" />
-                <?php esc_html_e( 'Issues only', 'sop' ); ?>
-            </label>
-            <label class="sop-goodsin-search-wrap">
+            <div class="sop-goodsin-filter-checks">
+                <label>
+                    <input type="checkbox" id="sop-goodsin-show-completed" />
+                    <?php esc_html_e( 'Show completed lines', 'sop' ); ?>
+                </label>
+                <label>
+                    <input type="checkbox" id="sop-goodsin-issues-only" />
+                    <?php esc_html_e( 'Issues only', 'sop' ); ?>
+                </label>
+            </div>
+            <div class="sop-goodsin-filter-row">
                 <input type="text" id="sop-goodsin-carton" placeholder="<?php esc_attr_e( 'Carton (Enter)', 'sop' ); ?>" autocomplete="off" />
                 <button type="button" class="button-link" id="sop-goodsin-carton-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
+            </div>
+            <div class="sop-goodsin-filter-row">
                 <input type="text" id="sop-goodsin-scan" placeholder="<?php esc_attr_e( 'Scan SKU (Enter)', 'sop' ); ?>" autocomplete="off" />
+            </div>
+            <div class="sop-goodsin-filter-row">
                 <input type="text" id="sop-goodsin-search" placeholder="<?php esc_attr_e( 'Search SKU / Product / Carton / Location', 'sop' ); ?>" autocomplete="off" />
                 <button type="button" class="button-link" id="sop-goodsin-search-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
-            </label>
+            </div>
             <span id="sop-goodsin-filter-summary" aria-live="polite"></span>
         </div>
 
@@ -909,12 +917,37 @@ function sop_render_goods_in_page() {
             display: block;
             cursor: pointer;
         }
-.sop-goodsin-table td[data-column="supplier_skus"] .sop-supplier-skus-line {
+        .sop-goodsin-table td[data-column="supplier_skus"] .sop-supplier-skus-line {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             display: block;
             max-width: 100%;
+        }
+        .sop-goodsin-filter {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+        }
+        .sop-goodsin-filter-checks {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .sop-goodsin-filter-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .sop-goodsin-filter-row input[type="text"] {
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        .sop-goodsin-filter-summary {
+            display: inline-block;
         }
         /* Mobile responsive tweaks */
         @media (max-width: 782px) {
@@ -937,32 +970,32 @@ function sop_render_goods_in_page() {
                 width: 100%;
             }
             .sop-goodsin-filter {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+            .sop-goodsin-filter-checks {
+                width: 100%;
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 8px;
-                align-items: start;
             }
-            .sop-goodsin-search-wrap {
-                grid-column: 1 / -1;
-                display: grid;
-                grid-template-columns: 1fr;
-                gap: 8px;
+            .sop-goodsin-filter-row {
                 width: 100%;
+                flex-wrap: nowrap;
             }
-            .sop-goodsin-search-wrap input[type="text"] {
+            .sop-goodsin-filter-row input[type="text"] {
                 width: 100%;
                 max-width: 100%;
                 box-sizing: border-box;
-                padding: 10px 10px;
+                padding: 10px;
                 font-size: 16px;
             }
-            #sop-goodsin-carton-clear,
-            #sop-goodsin-search-clear {
-                justify-self: start;
+            .sop-goodsin-filter-row .button-link {
+                white-space: nowrap;
                 padding: 0;
             }
             #sop-goodsin-filter-summary {
-                grid-column: 1 / -1;
                 display: block;
                 margin-top: 4px;
             }
@@ -970,7 +1003,14 @@ function sop_render_goods_in_page() {
                 padding: 4px;
                 border-left: 0;
                 border-right: 0;
+                overflow-x: auto;
+                overflow-y: hidden;
                 -webkit-overflow-scrolling: touch;
+            }
+            .sop-preorder-table-wrapper .sop-goodsin-table {
+                width: max-content;
+                min-width: 1100px;
+                table-layout: auto;
             }
             .sop-goodsin-columns-popover {
                 max-height: 60vh;
@@ -981,8 +1021,15 @@ function sop_render_goods_in_page() {
             .sop-goodsin-toolbar-actions {
                 grid-template-columns: 1fr;
             }
-            .sop-goodsin-filter {
+            .sop-goodsin-filter-checks {
                 grid-template-columns: 1fr;
+            }
+            .sop-goodsin-filter-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .sop-goodsin-filter-row .button-link {
+                align-self: flex-start;
             }
         }
         .sop-skus-modal {
