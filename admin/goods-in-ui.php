@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.40
+ * File version: 1.0.41
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -44,6 +44,7 @@
  * - 1.0.38 - Fix Supplier SKUs column toggle scope in Goods-In UI.
  * - 1.0.39 - Fix Goods-In column widths when Supplier SKUs column is enabled (data-column width rules).
  * - 1.0.40 - Compact Supplier SKUs preview to a single line to prevent row height growth.
+ * - 1.0.41 - Supplier SKUs two-line preview and product link opens in a new tab.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -184,7 +185,10 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
 }
 
 /**
- * Format supplier SKUs for compact, single-line display with tooltip.
+ * Format supplier SKUs for compact, two-line display with tooltip.
+ *
+ * Line 1: first SKU line.
+ * Line 2: second SKU line (if only two) or "+N SKUs" when more than two.
  *
  * @param string $raw Raw supplier SKUs (possibly multiline).
  * @return string HTML span with compact display and full tooltip.
@@ -203,17 +207,25 @@ function sop_goodsin_format_supplier_skus_compact_html( $raw ) {
         return '';
     }
 
-    $first = array_shift( $clean );
-    $extra = count( $clean );
-    $display = $first;
-    if ( $extra > 0 ) {
-        $display .= ' … (+' . $extra . ')';
+    $count = count( $clean );
+    $line1 = $clean[0];
+    $line2 = '';
+    if ( 2 === $count ) {
+        $line2 = $clean[1];
+    } elseif ( $count >= 3 ) {
+        $line2 = '+' . ( $count - 1 ) . ' SKUs';
     }
 
-    $title_lines = array_merge( array( $first ), $clean );
-    $title       = implode( "\n", $title_lines );
+    $title = implode( "\n", $clean );
 
-    return '<span class="sop-supplier-skus-compact" title="' . esc_attr( $title ) . '">' . esc_html( $display ) . '</span>';
+    $html  = '<div class="sop-supplier-skus-compact" title="' . esc_attr( $title ) . '">';
+    $html .= '<div class="sop-supplier-skus-line sop-supplier-skus-line1">' . esc_html( $line1 ) . '</div>';
+    if ( '' !== $line2 ) {
+        $html .= '<div class="sop-supplier-skus-line sop-supplier-skus-line2">' . esc_html( $line2 ) . '</div>';
+    }
+    $html .= '</div>';
+
+    return $html;
 }
 
 function sop_render_goods_in_page() {
@@ -632,7 +644,7 @@ function sop_render_goods_in_page() {
                         <div class="sop-goodsin-product-wrap">
                             <?php
                             if ( $product_link ) {
-                                echo '<a class="sop-goodsin-product-link" href="' . esc_url( $product_link ) . '">' . esc_html( $name ) . '</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                echo '<a class="sop-goodsin-product-link" href="' . esc_url( $product_link ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $name ) . '</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                             } else {
                                 echo '<span class="sop-goodsin-product-link">' . esc_html( $name ) . '</span>';
                             }
@@ -887,12 +899,17 @@ function sop_render_goods_in_page() {
             width: 140px;
             min-width: 140px;
             max-width: 180px;
-            white-space: nowrap;
+            white-space: normal;
         }
         .sop-goodsin-table td[data-column="supplier_skus"] .sop-supplier-skus-compact {
             display: block;
+        }
+        .sop-goodsin-table td[data-column="supplier_skus"] .sop-supplier-skus-line {
+            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            display: block;
+            max-width: 100%;
         }
         .sop-goodsin-table td input[type="text"],
         .sop-goodsin-table td input[type="number"],
