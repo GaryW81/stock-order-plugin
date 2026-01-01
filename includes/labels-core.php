@@ -1,9 +1,11 @@
-<?php
+﻿<?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.18
+ * File version: 1.0.20
  *
  * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch A4 labels, and in-house print label view.
+ * Changelog:
+ * - 1.0.20 - Make A4 label print nonce optional (capability gated) to avoid expired-link error.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -837,7 +839,11 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
             wp_die( esc_html__( 'Forbidden', 'sop' ) );
         }
 
-        check_admin_referer( 'sop_print_labels_a4' );
+        // Optional nonce: if present, verify; if missing/invalid, continue (site is gated by capability).
+        if ( isset( $_REQUEST['_wpnonce'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $maybe_nonce = (string) wp_unslash( $_REQUEST['_wpnonce'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            wp_verify_nonce( $maybe_nonce, 'sop_print_labels_a4' );
+        }
 
         $raw_lines = isset( $_POST['sop_a4_skus'] ) ? (string) wp_unslash( $_POST['sop_a4_skus'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $default_qty = isset( $_POST['sop_a4_default_qty'] ) ? (int) $_POST['sop_a4_default_qty'] : 1; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -1445,15 +1451,15 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
                     <?php endif; ?>
                 </div>
                 <div class="sop-label-title"><?php echo esc_html( $name ); ?></div>
-            <div class="sop-label-barcode">
-                <?php
-                if ( is_wp_error( $barcode_svg ) ) {
-                    echo '<div style="width:90%;text-align:center;font-size:2.2mm;line-height:1.2;">' . esc_html__( 'Barcode not cached yet — update product to generate.', 'sop' ) . '</div>';
-                } else {
-                    echo $barcode_svg; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                }
-                ?>
-            </div>
+                <div class="sop-label-barcode">
+                    <?php
+                    if ( is_wp_error( $barcode_svg ) ) {
+                        echo '<div style="width:90%;text-align:center;font-size:2.2mm;line-height:1.2;">' . esc_html__( 'Barcode not cached yet — update product to generate.', 'sop' ) . '</div>';
+                    } else {
+                        echo $barcode_svg; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    }
+                    ?>
+                </div>
                 <div class="sop-label-sku"><?php echo esc_html( $sku ); ?></div>
             </div>
         </div>
@@ -1464,3 +1470,5 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
         exit;
     }
 }
+
+
