@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.39
+ * File version: 1.0.40
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -43,6 +43,7 @@
  * - 1.0.37 - Optional Supplier SKUs column (per-supplier toggle).
  * - 1.0.38 - Fix Supplier SKUs column toggle scope in Goods-In UI.
  * - 1.0.39 - Fix Goods-In column widths when Supplier SKUs column is enabled (data-column width rules).
+ * - 1.0.40 - Compact Supplier SKUs preview to a single line to prevent row height growth.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -180,6 +181,39 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
     }
 
     return $rows;
+}
+
+/**
+ * Format supplier SKUs for compact, single-line display with tooltip.
+ *
+ * @param string $raw Raw supplier SKUs (possibly multiline).
+ * @return string HTML span with compact display and full tooltip.
+ */
+function sop_goodsin_format_supplier_skus_compact_html( $raw ) {
+    $lines = preg_split( '/\r\n|\r|\n/', (string) $raw );
+    $clean = array();
+    foreach ( $lines as $line ) {
+        $line = trim( $line );
+        if ( '' !== $line ) {
+            $clean[] = $line;
+        }
+    }
+
+    if ( empty( $clean ) ) {
+        return '';
+    }
+
+    $first = array_shift( $clean );
+    $extra = count( $clean );
+    $display = $first;
+    if ( $extra > 0 ) {
+        $display .= ' … (+' . $extra . ')';
+    }
+
+    $title_lines = array_merge( array( $first ), $clean );
+    $title       = implode( "\n", $title_lines );
+
+    return '<span class="sop-supplier-skus-compact" title="' . esc_attr( $title ) . '">' . esc_html( $display ) . '</span>';
 }
 
 function sop_render_goods_in_page() {
@@ -576,11 +610,18 @@ function sop_render_goods_in_page() {
                     <td class="sop-goodsin-col-location column-location" data-column="location"><?php echo esc_html( $location ); ?></td>
                     <td class="sop-goodsin-col-sku" data-column="sku"><?php echo esc_html( $sku . $missing_pid_warning ); ?></td>
                     <?php if ( $show_supplier_skus_column ) : ?>
-                        <?php $supplier_skus_sort = trim( str_replace( array( "\r\n", "\r", "\n" ), ' ', $supplier_skus_val ) ); ?>
+                        <?php
+                        $supplier_skus_lines = array();
+                        if ( '' !== $supplier_skus_val ) {
+                            $supplier_skus_lines = array_filter( array_map( 'trim', preg_split( '/\r\n|\r|\n/', (string) $supplier_skus_val ) ), 'strlen' );
+                        }
+                        $supplier_skus_sort = trim( implode( ' | ', $supplier_skus_lines ) );
+                        $supplier_skus_compact_html = sop_goodsin_format_supplier_skus_compact_html( $supplier_skus_val );
+                        ?>
                         <td class="sop-goodsin-col-supplier-skus" data-column="supplier_skus" data-sort-key="supplier_skus" data-sort-value="<?php echo esc_attr( $supplier_skus_sort ); ?>" data-sort-text="<?php echo esc_attr( $supplier_skus_sort ); ?>">
                             <?php
-                            if ( '' !== $supplier_skus_val ) {
-                                echo wp_kses_post( nl2br( esc_html( $supplier_skus_val ) ) );
+                            if ( '' !== $supplier_skus_compact_html ) {
+                                echo wp_kses_post( $supplier_skus_compact_html );
                             } else {
                                 echo '&ndash;';
                             }
@@ -846,7 +887,12 @@ function sop_render_goods_in_page() {
             width: 140px;
             min-width: 140px;
             max-width: 180px;
-            white-space: pre-line;
+            white-space: nowrap;
+        }
+        .sop-goodsin-table td[data-column="supplier_skus"] .sop-supplier-skus-compact {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .sop-goodsin-table td input[type="text"],
         .sop-goodsin-table td input[type="number"],
