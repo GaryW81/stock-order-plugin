@@ -1,10 +1,11 @@
 ﻿<?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.24
+ * File version: 1.0.25
  *
  * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch labels, and in-house print label view.
  * Changelog:
+ * - 1.0.25 - Rename bulk label form button text.
  * - 1.0.24 - Fix bulk labels screen preview cropping (wrapper accounts for 2x preview scale; print unchanged).
  * - 1.0.23 - Fix bulk label print splitting (hide headers in print, prevent page breaks inside labels).
  * - 1.0.22 - Bulk labels reuse single template/CSS; fix print sizing and barcode rendering.
@@ -1350,7 +1351,7 @@ if ( ! function_exists( 'sop_shortcode_a4_labels_print_form' ) ) {
                 <input type="number" name="sop_a4_default_qty" min="1" max="100" value="1" />
             </p>
             <p>
-                <button type="submit" class="button button-primary"><?php esc_html_e( 'Generate bulk labels', 'sop' ); ?></button>
+                <button type="submit" class="button button-primary"><?php esc_html_e( 'Generate Bulk Labels', 'sop' ); ?></button>
             </p>
         </form>
         <?php
