@@ -191,10 +191,12 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
  * Line 1: first SKU line.
  * Line 2: second SKU line (if only two) or "+N SKUs" when more than two.
  *
- * @param string $raw Raw supplier SKUs (possibly multiline).
+ * @param string $raw           Raw supplier SKUs (possibly multiline).
+ * @param string $product_name  Product name for modal context.
+ * @param string $product_sku   Product SKU for modal context.
  * @return string HTML span with compact display and full tooltip.
  */
-function sop_goodsin_format_supplier_skus_compact_html( $raw ) {
+function sop_goodsin_format_supplier_skus_compact_html( $raw, $product_name = '', $product_sku = '' ) {
     $lines = preg_split( '/\r\n|\r|\n/', (string) $raw );
     $clean = array();
     foreach ( $lines as $line ) {
@@ -218,8 +220,7 @@ function sop_goodsin_format_supplier_skus_compact_html( $raw ) {
     }
 
     $title = implode( "\n", $clean );
-
-    $html  = '<div class="sop-supplier-skus-compact" title="' . esc_attr( $title ) . '" data-full-skus="' . esc_attr( $title ) . '" role="button" tabindex="0" aria-label="' . esc_attr__( 'View supplier SKUs', 'sop' ) . '">';
+    $html  = '<div class="sop-supplier-skus-compact" title="' . esc_attr( $title ) . '" data-full-skus="' . esc_attr( $title ) . '" data-product-name="' . esc_attr( $product_name ) . '" data-product-sku="' . esc_attr( $product_sku ) . '" role="button" tabindex="0" aria-label="' . esc_attr__( 'View supplier SKUs', 'sop' ) . '">';
     $html .= '<div class="sop-supplier-skus-line sop-supplier-skus-line1">' . esc_html( $line1 ) . '</div>';
     if ( '' !== $line2 ) {
         $html .= '<div class="sop-supplier-skus-line sop-supplier-skus-line2">' . esc_html( $line2 ) . '</div>';
@@ -629,7 +630,7 @@ function sop_render_goods_in_page() {
                             $supplier_skus_lines = array_filter( array_map( 'trim', preg_split( '/\r\n|\r|\n/', (string) $supplier_skus_val ) ), 'strlen' );
                         }
                         $supplier_skus_sort = trim( implode( ' | ', $supplier_skus_lines ) );
-                        $supplier_skus_compact_html = sop_goodsin_format_supplier_skus_compact_html( $supplier_skus_val );
+                        $supplier_skus_compact_html = sop_goodsin_format_supplier_skus_compact_html( $supplier_skus_val, $name, $sku );
                         ?>
                         <td class="sop-goodsin-col-supplier-skus" data-column="supplier_skus" data-sort-key="supplier_skus" data-sort-value="<?php echo esc_attr( $supplier_skus_sort ); ?>" data-sort-text="<?php echo esc_attr( $supplier_skus_sort ); ?>">
                             <?php
@@ -946,6 +947,17 @@ function sop_render_goods_in_page() {
         .sop-skus-modal__title {
             font-weight: 700;
             margin: 0;
+        }
+        .sop-skus-modal__context {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.3;
+            color: #1d2327;
+        }
+        .sop-skus-modal__context-sku {
+            font-family: Consolas, Monaco, monospace;
+            color: #50575e;
+            word-break: break-word;
         }
         .sop-skus-modal__content {
             white-space: pre-line;
@@ -1303,6 +1315,10 @@ function sop_render_goods_in_page() {
         <div class="sop-skus-modal__panel" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Supplier SKUs', 'sop' ); ?>">
             <button type="button" class="sop-skus-modal__close" data-sop-close="1" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">×</button>
             <div class="sop-skus-modal__title"><?php esc_html_e( 'Supplier SKUs', 'sop' ); ?></div>
+            <div class="sop-skus-modal__context">
+                <div class="sop-skus-modal__context-name"></div>
+                <div class="sop-skus-modal__context-sku"></div>
+            </div>
             <pre class="sop-skus-modal__content"></pre>
         </div>
     </div>
@@ -1324,6 +1340,8 @@ function sop_render_goods_in_page() {
             var $notesModalClose = $('#sop-goodsin-notes-close');
             var $skusModal = $('#sop-skus-modal');
             var $skusModalContent = $('#sop-skus-modal .sop-skus-modal__content');
+            var $skusModalContextName = $('#sop-skus-modal .sop-skus-modal__context-name');
+            var $skusModalContextSku = $('#sop-skus-modal .sop-skus-modal__context-sku');
             var $showCompleted = $('#sop-goodsin-show-completed');
             var $filterSummary = $('#sop-goodsin-filter-summary');
             var $searchInput = $('#sop-goodsin-search');
@@ -1876,16 +1894,30 @@ function sop_render_goods_in_page() {
                 if ( $skusModalContent.length ) {
                     $skusModalContent.text('');
                 }
+                if ( $skusModalContextName.length ) {
+                    $skusModalContextName.text('');
+                }
+                if ( $skusModalContextSku.length ) {
+                    $skusModalContextSku.text('');
+                }
             }
 
             $(document).on('click', '.sop-supplier-skus-compact', function(){
                 var full = $(this).data('full-skus') || $(this).attr('title') || '';
+                var prodName = $(this).data('product-name') || '';
+                var prodSku = $(this).data('product-sku') || '';
                 full = (full || '').toString();
                 if ( ! full ) {
                     return;
                 }
                 if ( $skusModalContent.length ) {
                     $skusModalContent.text( full );
+                }
+                if ( $skusModalContextName.length ) {
+                    $skusModalContextName.text( prodName || '<?php echo esc_js( __( '(Unknown product)', 'sop' ) ); ?>' );
+                }
+                if ( $skusModalContextSku.length ) {
+                    $skusModalContextSku.text( prodSku ? ('SKU: ' + prodSku) : '' );
                 }
                 if ( $skusModal.length ) {
                     $skusModal.addClass('is-open').attr('aria-hidden', 'false');
