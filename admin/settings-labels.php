@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes settings tab
- * File version: 1.0.8
+ * File version: 1.0.9
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

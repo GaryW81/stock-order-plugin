@@ -1,10 +1,11 @@
 ﻿<?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.21
+ * File version: 1.0.22
  *
  * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch labels, and in-house print label view.
  * Changelog:
+ * - 1.0.22 - Bulk labels reuse single template/CSS; fix print sizing and barcode rendering.
  * - 1.0.21 - Bulk labels reuse single template (label-sized pages), shared label renderer; alias bulk action.
  */
 
@@ -95,6 +96,184 @@ if ( ! function_exists( 'sop_labels_render_label_html' ) ) {
             </div>
             <div class="sop-label-sku"><?php echo esc_html( $sku ); ?></div>
         </div>
+        <?php
+        return ob_get_clean();
+    }
+}
+
+if ( ! function_exists( 'sop_labels_get_label_css' ) ) {
+    /**
+     * Get the shared label CSS for single/bulk labels.
+     *
+     * @param float $w_mm Label width in mm.
+     * @param float $h_mm Label height in mm.
+     * @return string CSS wrapped in <style> tag.
+     */
+    function sop_labels_get_label_css( $w_mm, $h_mm ) {
+        $w_mm = (float) $w_mm;
+        $h_mm = (float) $h_mm;
+
+        ob_start();
+        ?>
+        <style>
+            :root {
+                --label-w: <?php echo esc_html( $w_mm ); ?>mm;
+                --label-h: <?php echo esc_html( $h_mm ); ?>mm;
+                --pad: 0.5mm;
+                --toprow-h: 6mm;
+                --barcode-h: 10mm;
+                --sku-h: 3mm;
+                --title-h: calc(var(--label-h) - (var(--pad) * 2) - var(--toprow-h) - var(--barcode-h) - var(--sku-h));
+            }
+            @page {
+                size: var(--label-w) var(--label-h);
+                margin: 0;
+            }
+            * { box-sizing: border-box; }
+            html, body {
+                margin: 0;
+                padding: 0;
+                background: #fff;
+                font-family: "Helvetica Neue", Arial, sans-serif;
+            }
+            .sop-print-toolbar {
+                padding: 6px 10px;
+                background: #f0f0f0;
+                border-bottom: 1px solid #ddd;
+            }
+            .sop-print-toolbar button {
+                padding: 6px 10px;
+                font-size: 14px;
+                cursor: pointer;
+            }
+            .sop-label-stage {
+                min-height: 100vh;
+                display: flex;
+                align-items: flex-start;
+                justify-content: center;
+                padding: 12px;
+                box-sizing: border-box;
+            }
+            .sop-label-page {
+                display: flex;
+                align-items: flex-start;
+                justify-content: center;
+                width: var(--label-w);
+                height: auto;
+            }
+            .sop-label {
+                width: var(--label-w);
+                height: var(--label-h);
+                box-sizing: border-box;
+                display: grid;
+                grid-template-rows: var(--toprow-h) var(--title-h) var(--barcode-h) var(--sku-h);
+                padding: var(--pad);
+                background: #fff;
+                overflow: hidden;
+            }
+            @media screen {
+                .sop-label {
+                    outline: 1px solid rgba(0,0,0,0.15);
+                    transform: scale(2);
+                    transform-origin: top center;
+                }
+                .sop-label-stage {
+                    overflow: visible;
+                }
+            }
+            @media print {
+                html, body {
+                    width: var(--label-w);
+                    height: var(--label-h);
+                    overflow: hidden;
+                }
+                .sop-print-toolbar { display: none !important; }
+                .sop-label-stage {
+                    padding: 0;
+                    min-height: 0;
+                }
+                .sop-label-page {
+                    width: var(--label-w);
+                    height: var(--label-h);
+                }
+                .sop-label {
+                    outline: none !important;
+                    transform: none !important;
+                }
+                body { background: #fff; }
+            }
+            .sop-label__top {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                overflow: hidden;
+            }
+            .sop-label__logo-viewport {
+                width: 70%;
+                height: 100%;
+                margin: 0 auto;
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .sop-label-logo-img {
+                height: 100%;
+                width: auto;
+                display: block;
+                transform: scale(2.6);
+                transform-origin: 50% 50%;
+            }
+            .sop-label-logo-text {
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                font-size: 2.2mm;
+                text-align: center;
+                line-height: 1;
+            }
+            .sop-label-date {
+                position: absolute;
+                right: 0;
+                top: 0;
+                font-weight: 700;
+                font-size: 1.8mm;
+                line-height: 1;
+            }
+            .sop-label-title {
+                text-align: center;
+                font-weight: 700;
+                font-size: 2.2mm;
+                line-height: 1.05;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+                align-self: center;
+            }
+            .sop-label-barcode {
+                width: 100%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin: 0;
+                padding: 0;
+            }
+            .sop-label-barcode svg {
+                width: 90%;
+                height: 10mm;
+                display: block;
+            }
+            .sop-label-sku {
+                text-align: center;
+                font-weight: 700;
+                font-size: 2.5mm;
+                letter-spacing: 0.02em;
+                white-space: pre;
+                line-height: 1;
+                align-self: center;
+            }
+        </style>
         <?php
         return ob_get_clean();
     }
@@ -1043,37 +1222,9 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
 <html <?php language_attributes(); ?>>
 <head>
     <meta charset="<?php bloginfo( 'charset' ); ?>">
+    <?php echo sop_labels_get_label_css( $w_mm, $h_mm ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
     <style>
-        :root {
-            --label-w: <?php echo esc_html( $w_mm ); ?>mm;
-            --label-h: <?php echo esc_html( $h_mm ); ?>mm;
-            --pad: 0.5mm;
-            --toprow-h: 6mm;
-            --barcode-h: 10mm;
-            --sku-h: 3mm;
-            --title-h: calc(var(--label-h) - (var(--pad) * 2) - var(--toprow-h) - var(--barcode-h) - var(--sku-h));
-        }
-        @page {
-            size: var(--label-w) var(--label-h);
-            margin: 0;
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: "Helvetica Neue", Arial, sans-serif;
-            background: #fff;
-        }
-        .sop-print-toolbar {
-            padding: 8px 12px;
-            background: #f0f0f0;
-            border-bottom: 1px solid #ddd;
-        }
-        .sop-print-toolbar button {
-            padding: 6px 10px;
-            font-size: 14px;
-            cursor: pointer;
-        }
+        /* Bulk-only adjustments */
         .sop-bulk-stage {
             padding: 12px;
             display: flex;
@@ -1084,109 +1235,27 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
         .sop-label-page {
             width: var(--label-w);
             height: var(--label-h);
-            page-break-after: always;
-            overflow: hidden;
             display: flex;
             align-items: flex-start;
             justify-content: center;
+            page-break-after: always;
+            break-after: page;
         }
-        .sop-label-page:last-child { page-break-after: auto; }
-        .sop-label {
-            width: var(--label-w);
-            height: var(--label-h);
-            box-sizing: border-box;
-            display: grid;
-            grid-template-rows: var(--toprow-h) var(--title-h) var(--barcode-h) var(--sku-h);
-            padding: var(--pad);
-            background: #fff;
-            overflow: hidden;
-        }
+        .sop-label-page:last-child { page-break-after: auto; break-after: auto; }
         @media screen {
-            .sop-label {
-                outline: 1px solid rgba(0,0,0,0.15);
-                transform: scale(2);
-                transform-origin: top center;
-            }
-            .sop-label-page {
-                margin-bottom: var(--label-h);
-            }
+            .sop-label-page { margin-bottom: var(--label-h); }
         }
         @media print {
-            .sop-print-toolbar { display: none !important; }
-            .sop-label-page { margin: 0; padding: 0; }
-            .sop-label { outline: none !important; transform: none !important; }
-            body { background: #fff; }
-        }
-        .sop-label__top {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            overflow: hidden;
-        }
-        .sop-label__logo-viewport {
-            width: 70%;
-            height: 100%;
-            margin: 0 auto;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .sop-label-logo-img {
-            height: 100%;
-            width: auto;
-            display: block;
-            transform: scale(2.6);
-            transform-origin: 50% 50%;
-        }
-        .sop-label-logo-text {
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            font-size: 2.2mm;
-            text-align: center;
-            line-height: 1;
-        }
-        .sop-label-date {
-            position: absolute;
-            right: 0;
-            top: 0;
-            font-weight: 700;
-            font-size: 1.8mm;
-            line-height: 1;
-        }
-        .sop-label-title {
-            text-align: center;
-            font-weight: 700;
-            font-size: 2.2mm;
-            line-height: 1.05;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            align-self: center;
-        }
-        .sop-label-barcode {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0;
-            padding: 0;
-        }
-        .sop-label-barcode svg {
-            width: 90%;
-            height: 10mm;
-            display: block;
-        }
-        .sop-label-sku {
-            text-align: center;
-            font-weight: 700;
-            font-size: 2.5mm;
-            letter-spacing: 0.02em;
-            white-space: pre;
-            line-height: 1;
-            align-self: center;
+            /* Override single-label html/body clamp so multiple labels can print */
+            html, body {
+                width: auto !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+            .sop-print-toolbar,
+            .sop-bulk-warnings {
+                display: none !important;
+            }
         }
     </style>
 </head>
@@ -1196,7 +1265,7 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
     </div>
     <div class="sop-bulk-stage">
         <?php if ( ! empty( $unknown ) || ! empty( $barcode_errors ) ) : ?>
-            <div style="font-size:13px;padding:8px 10px;background:#fff8e5;border:1px solid #f0d48a;color:#705300;width:100%;max-width:640px;">
+            <div class="sop-bulk-warnings" style="font-size:13px;padding:8px 10px;background:#fff8e5;border:1px solid #f0d48a;color:#705300;width:100%;max-width:640px;">
                 <?php if ( ! empty( $unknown ) ) : ?>
                     <div><?php printf( esc_html__( 'Unknown SKUs: %d', 'sop' ), count( $unknown ) ); ?></div>
                 <?php endif; ?>
@@ -1256,7 +1325,7 @@ if ( ! function_exists( 'sop_shortcode_a4_labels_print_form' ) ) {
                 <input type="number" name="sop_a4_default_qty" min="1" max="100" value="1" />
             </p>
             <p>
-                <button type="submit" class="button button-primary"><?php esc_html_e( 'Generate Labels', 'sop' ); ?></button>
+                <button type="submit" class="button button-primary"><?php esc_html_e( 'Generate bulk labels', 'sop' ); ?></button>
             </p>
         </form>
         <?php
@@ -1385,164 +1454,7 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
 <head>
     <meta charset="<?php bloginfo( 'charset' ); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        :root {
-            --label-w: <?php echo esc_html( $w_mm ); ?>mm;
-            --label-h: <?php echo esc_html( $h_mm ); ?>mm;
-            --pad: 0.5mm;
-            --toprow-h: 6mm;
-            --barcode-h: 10mm;
-            --sku-h: 3mm;
-            --title-h: calc(var(--label-h) - (var(--pad) * 2) - var(--toprow-h) - var(--barcode-h) - var(--sku-h));
-        }
-        @page {
-            size: var(--label-w) var(--label-h);
-            margin: 0;
-        }
-        html, body {
-            margin: 0;
-            padding: 0;
-            background: #fff;
-            font-family: "Helvetica Neue", Arial, sans-serif;
-        }
-        .sop-print-toolbar {
-            padding: 6px 10px;
-            background: #f0f0f0;
-            border-bottom: 1px solid #ddd;
-        }
-        .sop-print-toolbar button {
-            padding: 6px 10px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        .sop-label-stage {
-            min-height: 100vh;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            padding: 12px;
-            box-sizing: border-box;
-        }
-        .sop-label-page {
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            width: var(--label-w);
-            height: auto;
-        }
-        .sop-label {
-            width: var(--label-w);
-            height: var(--label-h);
-            box-sizing: border-box;
-            display: grid;
-            grid-template-rows: var(--toprow-h) var(--title-h) var(--barcode-h) var(--sku-h);
-            padding: var(--pad);
-            background: #fff;
-            overflow: hidden;
-        }
-        @media screen {
-            .sop-label {
-                outline: 1px solid rgba(0,0,0,0.15);
-                transform: scale(2);
-                transform-origin: top center;
-            }
-            .sop-label-stage {
-                overflow: visible;
-            }
-        }
-        @media print {
-            html, body {
-                width: var(--label-w);
-                height: var(--label-h);
-                overflow: hidden;
-            }
-            .sop-print-toolbar { display: none !important; }
-            .sop-label-stage {
-                padding: 0;
-                min-height: 0;
-            }
-            .sop-label-page {
-                width: var(--label-w);
-                height: var(--label-h);
-            }
-            .sop-label {
-                outline: none !important;
-                transform: none !important;
-            }
-            body { background: #fff; }
-        }
-        .sop-label__top {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            overflow: hidden;
-        }
-        .sop-label__logo-viewport {
-            width: 70%;
-            height: 100%;
-            margin: 0 auto;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .sop-label-logo-img {
-            height: 100%;
-            width: auto;
-            display: block;
-            transform: scale(2.6);
-            transform-origin: 50% 50%;
-        }
-        .sop-label-logo-text {
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            font-size: 2.2mm;
-            text-align: center;
-            line-height: 1;
-        }
-        .sop-label-date {
-            position: absolute;
-            right: 0;
-            top: 0;
-            font-weight: 700;
-            font-size: 1.8mm;
-            line-height: 1;
-        }
-        .sop-label-title {
-            text-align: center;
-            font-weight: 700;
-            font-size: 2.2mm;
-            line-height: 1.05;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            align-self: center;
-        }
-        .sop-label-barcode {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin: 0;
-            padding: 0;
-        }
-        .sop-label-barcode svg {
-            width: 90%;
-            height: 10mm;
-            display: block;
-        }
-        .sop-label-sku {
-            text-align: center;
-            font-weight: 700;
-            font-size: 2.5mm;
-            letter-spacing: 0.02em;
-            white-space: pre;
-            line-height: 1;
-            align-self: center;
-        }
-    </style>
+    <?php echo sop_labels_get_label_css( $w_mm, $h_mm ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 </head>
 <body>
     <div class="sop-print-toolbar">
