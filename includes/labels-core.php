@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.17
+ * File version: 1.0.18
  *
  * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch A4 labels, and in-house print label view.
  */
@@ -471,6 +471,8 @@ if ( ! function_exists( 'sop_labels_get_product_location' ) ) {
         }
 
         $keys = array(
+            '_product_location',
+            'product_location',
             '_sop_location',
             'sop_location',
             '_location',
@@ -479,21 +481,30 @@ if ( ! function_exists( 'sop_labels_get_product_location' ) ) {
             'warehouse_location',
         );
 
+        $found = '';
         foreach ( $keys as $key ) {
             $val = get_post_meta( $product_id, $key, true );
             if ( '' !== trim( (string) $val ) ) {
-                $val = trim( (string) $val );
-                /**
-                 * Filter product location for labels.
-                 *
-                 * @param string $val        Location string.
-                 * @param int    $product_id Product ID.
-                 */
-                return apply_filters( 'sop_labels_product_location', $val, $product_id );
+                $found = trim( (string) $val );
+                break;
             }
         }
 
-        return apply_filters( 'sop_labels_product_location', '', $product_id );
+        // Variation -> parent fallback.
+        if ( '' === $found ) {
+            $parent_id = wp_get_post_parent_id( $product_id );
+            if ( $parent_id ) {
+                foreach ( $keys as $key ) {
+                    $val = get_post_meta( $parent_id, $key, true );
+                    if ( '' !== trim( (string) $val ) ) {
+                        $found = trim( (string) $val );
+                        break;
+                    }
+                }
+            }
+        }
+
+        return apply_filters( 'sop_labels_product_location', $found, $product_id );
     }
 }
 
