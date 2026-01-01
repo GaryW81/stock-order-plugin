@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes settings tab
- * File version: 1.0.6
+ * File version: 1.0.7
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -119,6 +119,37 @@ if ( ! function_exists( 'sop_labels_render_settings_tab' ) ) {
             ?>
             <p>
                 <a class="button button-primary" href="<?php echo esc_url( $warm_url ); ?>"><?php esc_html_e( 'Warm barcode cache', 'sop' ); ?></a>
+            </p>
+
+            <h3><?php esc_html_e( 'Barcode Contract (Pick & Pack)', 'sop' ); ?></h3>
+            <ul style="list-style: disc; padding-left: 20px;">
+                <li><?php esc_html_e( 'Symbology: Code 128', 'sop' ); ?></li>
+                <li><?php esc_html_e( 'Barcode data: Product SKU (exact string, case preserved)', 'sop' ); ?></li>
+                <li><?php esc_html_e( 'Whitespace: trim leading/trailing only; preserve internal spaces', 'sop' ); ?></li>
+                <li><?php esc_html_e( 'Match: exact string only (reject partial)', 'sop' ); ?></li>
+                <li><?php esc_html_e( 'Source of truth: SOP (Pick & Pack must not implement its own barcode generator)', 'sop' ); ?></li>
+            </ul>
+
+            <?php $admin_ajax = esc_url( admin_url( 'admin-ajax.php' ) ); ?>
+            <p><strong><?php esc_html_e( 'PHP scan normaliser:', 'sop' ); ?></strong></p>
+            <textarea readonly class="large-text code" rows="1" onclick="this.select();">sop_normalise_scan_input( $raw_scan );</textarea>
+
+            <p><strong><?php esc_html_e( 'PHP barcode getter (SVG only):', 'sop' ); ?></strong></p>
+            <textarea readonly class="large-text code" rows="3" onclick="this.select();">$svg = sop_get_barcode_svg( $sku );
+if ( is_wp_error( $svg ) ) { /* handle */ }</textarea>
+
+            <p><strong><?php esc_html_e( 'AJAX endpoint example:', 'sop' ); ?></strong></p>
+            <input type="text" readonly class="regular-text" onclick="this.select();" value="<?php echo esc_attr( $admin_ajax . '?action=sop_barcode&sku=KRZ1234' ); ?>" />
+
+            <p><strong><?php esc_html_e( 'Barcode tester (opens SVG in new tab):', 'sop' ); ?></strong></p>
+            <form method="get" action="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>" target="_blank" style="margin-bottom:20px;">
+                <input type="hidden" name="action" value="sop_barcode" />
+                <input type="text" name="sku" placeholder="<?php esc_attr_e( 'Enter SKU (exact)', 'sop' ); ?>" />
+                <button type="submit" class="button"><?php esc_html_e( 'Open barcode SVG', 'sop' ); ?></button>
+            </form>
+
+            <p><strong><?php esc_html_e( 'Scanner assumptions:', 'sop' ); ?></strong><br />
+                <?php esc_html_e( 'HID keyboard mode; terminator Enter/newline; no prefix/suffix assumed; single focused input model recommended.', 'sop' ); ?>
             </p>
         </div>
         <?php
