@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.42
+ * File version: 1.0.44
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -46,6 +46,8 @@
  * - 1.0.40 - Compact Supplier SKUs preview to a single line to prevent row height growth.
  * - 1.0.41 - Supplier SKUs two-line preview and product link opens in a new tab.
  * - 1.0.42 - Mobile tap-to-view modal for Supplier SKUs (keeps 2-line compact preview).
+ * - 1.0.43 - Supplier SKUs modal shows product + SKU context.
+ * - 1.0.44 - Improve Goods-In mobile responsiveness (toolbar/filter/table).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -907,12 +909,81 @@ function sop_render_goods_in_page() {
             display: block;
             cursor: pointer;
         }
-        .sop-goodsin-table td[data-column="supplier_skus"] .sop-supplier-skus-line {
+.sop-goodsin-table td[data-column="supplier_skus"] .sop-supplier-skus-line {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             display: block;
             max-width: 100%;
+        }
+        /* Mobile responsive tweaks */
+        @media (max-width: 782px) {
+            .sop-goodsin-toolbar { gap: 8px; }
+            .sop-goodsin-toolbar-actions {
+                width: 100%;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+            .sop-goodsin-toolbar-actions .button,
+            .sop-goodsin-toolbar-actions a.button {
+                width: 100%;
+                text-align: center;
+                padding: 10px 8px;
+                box-sizing: border-box;
+            }
+            .sop-goodsin-toolbar-columns,
+            .sop-goodsin-columns-toggle {
+                width: 100%;
+            }
+            .sop-goodsin-filter {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+                align-items: start;
+            }
+            .sop-goodsin-search-wrap {
+                grid-column: 1 / -1;
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+                width: 100%;
+            }
+            .sop-goodsin-search-wrap input[type="text"] {
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+                padding: 10px 10px;
+                font-size: 16px;
+            }
+            #sop-goodsin-carton-clear,
+            #sop-goodsin-search-clear {
+                justify-self: start;
+                padding: 0;
+            }
+            #sop-goodsin-filter-summary {
+                grid-column: 1 / -1;
+                display: block;
+                margin-top: 4px;
+            }
+            .sop-preorder-table-wrapper {
+                padding: 4px;
+                border-left: 0;
+                border-right: 0;
+                -webkit-overflow-scrolling: touch;
+            }
+            .sop-goodsin-columns-popover {
+                max-height: 60vh;
+                overflow: auto;
+            }
+        }
+        @media (max-width: 480px) {
+            .sop-goodsin-toolbar-actions {
+                grid-template-columns: 1fr;
+            }
+            .sop-goodsin-filter {
+                grid-template-columns: 1fr;
+            }
         }
         .sop-skus-modal {
             position: fixed;
