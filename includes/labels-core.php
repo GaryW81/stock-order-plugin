@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.16
+ * File version: 1.0.17
  *
  * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch A4 labels, and in-house print label view.
  */
@@ -298,6 +298,67 @@ if ( ! function_exists( 'sop_barcode_write_cached_svg' ) ) {
     }
 }
 
+if ( ! function_exists( 'sop_barcode_delete_cached_svgs_for_sku' ) ) {
+    /**
+     * Delete all cached barcode SVGs for a SKU.
+     *
+     * @param string $sku SKU.
+     * @return int Number of files deleted.
+     */
+    function sop_barcode_delete_cached_svgs_for_sku( $sku ) {
+        if ( function_exists( 'sop_normalise_scan_input' ) ) {
+            $sku = sop_normalise_scan_input( $sku );
+        } else {
+            $sku = trim( (string) $sku );
+        }
+
+        if ( '' === $sku ) {
+            return 0;
+        }
+
+        $cache_dir = sop_barcode_get_cache_dir();
+        if ( is_wp_error( $cache_dir ) ) {
+            return 0;
+        }
+
+        $default_args = function_exists( 'sop_barcode_normalise_args' ) ? sop_barcode_normalise_args( array() ) : array();
+        $sample       = sop_barcode_get_cache_path( $sku, $default_args );
+        if ( is_wp_error( $sample ) || empty( $sample['path'] ) ) {
+            return 0;
+        }
+
+        $basename = basename( $sample['path'] );
+        $prefix   = strstr( $basename, '--', true );
+        if ( false === $prefix || '' === $prefix ) {
+            return 0;
+        }
+
+        $pattern = trailingslashit( $cache_dir['dir'] ) . $prefix . '--*.svg';
+        $files   = glob( $pattern ); // phpcs:ignore WordPress.WP.AlternativeFunctions.glob_glob
+        if ( ! is_array( $files ) ) {
+            return 0;
+        }
+
+        $deleted = 0;
+        foreach ( $files as $file ) {
+            $file = (string) $file;
+            if ( '' === $file ) {
+                continue;
+            }
+            // Safety: ensure file is within cache dir.
+            if ( 0 !== strpos( realpath( $file ), realpath( $cache_dir['dir'] ) ) ) { // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.runtime_configuration_realpath
+                continue;
+            }
+            if ( file_exists( $file ) ) {
+                unlink( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+                $deleted++;
+            }
+        }
+
+        return $deleted;
+    }
+}
+
 if ( ! function_exists( 'sop_get_barcode_svg' ) ) {
     /**
      * Retrieve cached barcode SVG for SKU + args. Does NOT generate on miss.
@@ -467,6 +528,11 @@ add_shortcode( 'sop_a4_labels_print_form', 'sop_shortcode_a4_labels_print_form' 
  */
 add_action( 'template_redirect', 'sop_labels_maybe_render_product_label' );
 
+/**
+ * Clean up cache on delete.
+ */
+add_action( 'before_delete_post', 'sop_barcode_cleanup_on_delete', 10, 1 );
+
 if ( ! function_exists( 'sop_ajax_sop_barcode' ) ) {
     /**
      * AJAX handler for cached barcode SVG.
@@ -573,8 +639,29 @@ if ( ! function_exists( 'sop_barcode_maybe_cache_on_save' ) ) {
             $sku = trim( $sku_raw );
         }
 
+        $prev_raw = (string) get_post_meta( $post_id, '_sop_barcode_last_sku', true );
+        if ( function_exists( 'sop_normalise_scan_input' ) ) {
+            $prev_sku = sop_normalise_scan_input( $prev_raw );
+        } else {
+            $prev_sku = trim( $prev_raw );
+        }
+
         if ( '' === $sku ) {
+            if ( '' !== $prev_sku ) {
+                $owner = function_exists( 'wc_get_product_id_by_sku' ) ? wc_get_product_id_by_sku( $prev_sku ) : 0;
+                if ( ! $owner || (int) $owner === (int) $post_id ) {
+                    sop_barcode_delete_cached_svgs_for_sku( $prev_sku );
+                }
+                delete_post_meta( $post_id, '_sop_barcode_last_sku' );
+            }
             return;
+        }
+
+        if ( '' !== $prev_sku && $prev_sku !== $sku ) {
+            $owner = function_exists( 'wc_get_product_id_by_sku' ) ? wc_get_product_id_by_sku( $prev_sku ) : 0;
+            if ( ! $owner || (int) $owner === (int) $post_id ) {
+                sop_barcode_delete_cached_svgs_for_sku( $prev_sku );
+            }
         }
 
         $args = function_exists( 'sop_barcode_normalise_args' ) ? sop_barcode_normalise_args( array() ) : array();
@@ -597,6 +684,8 @@ if ( ! function_exists( 'sop_barcode_maybe_cache_on_save' ) ) {
                 return;
             }
         }
+
+        update_post_meta( $post_id, '_sop_barcode_last_sku', $sku );
     }
 }
 
@@ -651,6 +740,8 @@ if ( ! function_exists( 'sop_handle_barcode_warm_cache' ) ) {
                 $missing++;
                 continue;
             }
+
+            update_post_meta( $id, '_sop_barcode_last_sku', $sku );
 
             $has_cache = false;
             if ( function_exists( 'sop_barcode_read_cached_svg' ) ) {
@@ -1028,6 +1119,53 @@ if ( ! function_exists( 'sop_shortcode_a4_labels_print_form' ) ) {
         </form>
         <?php
         return ob_get_clean();
+    }
+}
+
+if ( ! function_exists( 'sop_barcode_cleanup_on_delete' ) ) {
+    /**
+     * Delete cached barcodes when a product/variation is permanently deleted.
+     *
+     * @param int $post_id Post ID being deleted.
+     * @return void
+     */
+    function sop_barcode_cleanup_on_delete( $post_id ) {
+        if ( wp_is_post_revision( $post_id ) ) {
+            return;
+        }
+
+        $post_type = get_post_type( $post_id );
+        if ( ! in_array( $post_type, array( 'product', 'product_variation' ), true ) ) {
+            return;
+        }
+
+        $sku_current = (string) get_post_meta( $post_id, '_sku', true );
+        $sku_prev    = (string) get_post_meta( $post_id, '_sop_barcode_last_sku', true );
+
+        if ( function_exists( 'sop_normalise_scan_input' ) ) {
+            $sku_current = sop_normalise_scan_input( $sku_current );
+            $sku_prev    = sop_normalise_scan_input( $sku_prev );
+        } else {
+            $sku_current = trim( $sku_current );
+            $sku_prev    = trim( $sku_prev );
+        }
+
+        $targets = array();
+        if ( '' !== $sku_current ) {
+            $targets[ $sku_current ] = true;
+        }
+        if ( '' !== $sku_prev ) {
+            $targets[ $sku_prev ] = true;
+        }
+
+        foreach ( array_keys( $targets ) as $sku ) {
+            $owner = function_exists( 'wc_get_product_id_by_sku' ) ? wc_get_product_id_by_sku( $sku ) : 0;
+            if ( ! $owner || (int) $owner === (int) $post_id ) {
+                sop_barcode_delete_cached_svgs_for_sku( $sku );
+            }
+        }
+
+        delete_post_meta( $post_id, '_sop_barcode_last_sku' );
     }
 }
 
