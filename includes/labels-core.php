@@ -1,10 +1,11 @@
 ﻿<?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.23
+ * File version: 1.0.24
  *
  * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch labels, and in-house print label view.
  * Changelog:
+ * - 1.0.24 - Fix bulk labels screen preview cropping (wrapper accounts for 2x preview scale; print unchanged).
  * - 1.0.23 - Fix bulk label print splitting (hide headers in print, prevent page breaks inside labels).
  * - 1.0.22 - Bulk labels reuse single template/CSS; fix print sizing and barcode rendering.
  * - 1.0.21 - Bulk labels reuse single template (label-sized pages), shared label renderer; alias bulk action.
@@ -1245,7 +1246,14 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
         }
         .sop-label-page:last-child { page-break-after: auto; break-after: auto; }
         @media screen {
-            .sop-label-page { margin-bottom: var(--label-h); }
+            /* Match the 2x preview scale from shared CSS so labels are not clipped on screen */
+            .sop-label-page {
+                width: calc(var(--label-w) * 2);
+                height: calc(var(--label-h) * 2);
+                overflow: visible;
+                page-break-after: auto;
+                break-after: auto;
+            }
         }
         @media print {
             /* Override single-label html/body clamp so multiple labels can print */
