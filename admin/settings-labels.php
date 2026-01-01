@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes settings tab
- * File version: 1.0.7
+ * File version: 1.0.8
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -95,8 +95,8 @@ if ( ! function_exists( 'sop_labels_render_settings_tab' ) ) {
                 <span class="description"><?php esc_html_e( 'Set it to open in a new tab for easier printing.', 'sop' ); ?></span>
             </p>
 
-            <h3><?php esc_html_e( 'A4 batch label printing', 'sop' ); ?></h3>
-            <p><?php esc_html_e( 'Place this shortcode on a private page for staff to print A4 label sheets (login with read capability required):', 'sop' ); ?></p>
+            <h3><?php esc_html_e( 'Bulk label printing', 'sop' ); ?></h3>
+            <p><?php esc_html_e( 'Place this shortcode on a private page for staff to print bulk labels (login with read capability required):', 'sop' ); ?></p>
             <p>
                 <input type="text" readonly class="regular-text" value="[sop_a4_labels_print_form]" onclick="this.select();" />
             </p>

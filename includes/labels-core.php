@@ -1,15 +1,103 @@
 ﻿<?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.20
+ * File version: 1.0.21
  *
- * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch A4 labels, and in-house print label view.
+ * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch labels, and in-house print label view.
  * Changelog:
- * - 1.0.20 - Make A4 label print nonce optional (capability gated) to avoid expired-link error.
+ * - 1.0.21 - Bulk labels reuse single template (label-sized pages), shared label renderer; alias bulk action.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
+}
+
+if ( ! function_exists( 'sop_labels_get_brand_logo_html' ) ) {
+    /**
+     * Get brand logo HTML and brand name for a product.
+     *
+     * @param int $product_id Product ID.
+     * @return array{html:string,name:string}
+     */
+    function sop_labels_get_brand_logo_html( $product_id ) {
+        $product_id = (int) $product_id;
+        $html       = '';
+        $brand_name = '';
+
+        $terms = wp_get_post_terms( $product_id, 'product_brand' );
+        if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+            $brand        = $terms[0];
+            $brand_name   = isset( $brand->name ) ? (string) $brand->name : '';
+            $possible_ids = array(
+                get_term_meta( $brand->term_id, 'thumbnail_id', true ),
+                get_term_meta( $brand->term_id, 'brand_logo_id', true ),
+                get_term_meta( $brand->term_id, 'logo_id', true ),
+                get_term_meta( $brand->term_id, 'image_id', true ),
+            );
+            foreach ( $possible_ids as $maybe_id ) {
+                $maybe_id = absint( $maybe_id );
+                if ( $maybe_id > 0 ) {
+                    $src = wp_get_attachment_image_src( $maybe_id, 'full' );
+                    if ( ! empty( $src[0] ) ) {
+                        $html = '<img class="sop-label-logo-img" src="' . esc_url( $src[0] ) . '" alt="' . esc_attr( $brand_name ) . '" />';
+                        break;
+                    }
+                }
+            }
+        }
+
+        if ( '' === $html && '' !== $brand_name ) {
+            $html = '<span class="sop-label-logo-text">' . esc_html( strtoupper( $brand_name ) ) . '</span>';
+        }
+
+        return array(
+            'html' => $html,
+            'name' => $brand_name,
+        );
+    }
+}
+
+if ( ! function_exists( 'sop_labels_render_label_html' ) ) {
+    /**
+     * Render the HTML for a single label using the shared template.
+     *
+     * @param array $data Label data (sku, product_name, brand_logo_html, include_date, date_mm_yy, barcode_svg).
+     * @return string
+     */
+    function sop_labels_render_label_html( $data ) {
+        $sku             = isset( $data['sku'] ) ? (string) $data['sku'] : '';
+        $name            = isset( $data['product_name'] ) ? (string) $data['product_name'] : '';
+        $brand_logo_html = isset( $data['brand_logo_html'] ) ? (string) $data['brand_logo_html'] : '';
+        $include_date    = ! empty( $data['include_date'] );
+        $date_display    = isset( $data['date_mm_yy'] ) ? (string) $data['date_mm_yy'] : '';
+        $barcode_svg     = isset( $data['barcode_svg'] ) ? $data['barcode_svg'] : '';
+
+        ob_start();
+        ?>
+        <div class="sop-label">
+            <div class="sop-label__top">
+                <div class="sop-label__logo-viewport">
+                    <?php echo wp_kses_post( $brand_logo_html ); ?>
+                </div>
+                <?php if ( $include_date && $date_display ) : ?>
+                    <div class="sop-label-date"><?php echo esc_html( $date_display ); ?></div>
+                <?php endif; ?>
+            </div>
+            <div class="sop-label-title"><?php echo esc_html( $name ); ?></div>
+            <div class="sop-label-barcode">
+                <?php
+                if ( is_wp_error( $barcode_svg ) ) {
+                    echo '<div style="width:90%;text-align:center;font-size:2.2mm;line-height:1.2;">' . esc_html__( 'Barcode not cached yet - update product to generate.', 'sop' ) . '</div>';
+                } else {
+                    echo $barcode_svg; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                }
+                ?>
+            </div>
+            <div class="sop-label-sku"><?php echo esc_html( $sku ); ?></div>
+        </div>
+        <?php
+        return ob_get_clean();
+    }
 }
 
 if ( ! function_exists( 'sop_labels_get_default_settings' ) ) {
@@ -524,6 +612,7 @@ add_action( 'admin_post_sop_barcode_warm_cache', 'sop_handle_barcode_warm_cache'
  * Admin-post: A4 batch label print.
  */
 add_action( 'admin_post_sop_print_labels_a4', 'sop_handle_print_labels_a4' );
+add_action( 'admin_post_sop_print_labels_bulk', 'sop_handle_print_labels_a4' );
 
 /**
  * Generate cached barcodes on product save (products + variations).
@@ -829,7 +918,7 @@ if ( ! function_exists( 'sop_handle_barcode_warm_cache' ) ) {
 
 if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
     /**
-     * Admin-post handler to render A4 batch labels.
+     * Admin-post handler to render bulk labels (one label per page) reusing the single label template.
      *
      * @return void
      */
@@ -845,21 +934,22 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
             wp_verify_nonce( $maybe_nonce, 'sop_print_labels_a4' );
         }
 
-        $raw_lines = isset( $_POST['sop_a4_skus'] ) ? (string) wp_unslash( $_POST['sop_a4_skus'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $default_qty = isset( $_POST['sop_a4_default_qty'] ) ? (int) $_POST['sop_a4_default_qty'] : 1; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        $default_qty = min( 100, max( 1, $default_qty ) );
-
-        $lines = preg_split( '/\\r\\n|\\r|\\n/', $raw_lines );
-        $lines = is_array( $lines ) ? $lines : array();
-
-        $max_total = 500;
+        $raw_lines    = isset( $_POST['sop_a4_skus'] ) ? (string) wp_unslash( $_POST['sop_a4_skus'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $default_qty  = isset( $_POST['sop_a4_default_qty'] ) ? (int) $_POST['sop_a4_default_qty'] : 1; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $default_qty  = min( 100, max( 1, $default_qty ) );
+        $lines        = preg_split( '/\\r\\n|\\r|\\n/', $raw_lines );
+        $lines        = is_array( $lines ) ? $lines : array();
+        $max_total    = 5000;
         $args_defaults = function_exists( 'sop_barcode_normalise_args' ) ? sop_barcode_normalise_args( array() ) : array(
             'quiet_zone_modules' => 10,
             'height_modules'     => 60,
         );
+        $settings      = sop_labels_get_settings();
+        $include_date  = ! empty( $settings['include_date'] );
+        $date_display  = $include_date ? sop_labels_get_current_date_mm_yy() : '';
 
-        $labels = array();
-        $unknown = array();
+        $labels         = array();
+        $unknown        = array();
         $barcode_errors = array();
         $seen_generation = array();
 
@@ -870,13 +960,11 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
                 continue;
             }
 
-            // Parse qty: allow "SKU,10" or "SKU x 10".
             $qty = $default_qty;
             if ( preg_match( '/^(.+?)[,xX]\\s*(\\d+)$/', $raw_line, $m ) ) {
                 $raw_line = trim( $m[1] );
                 $qty      = (int) $m[2];
             }
-
             $qty = min( 500, max( 1, $qty ) );
 
             if ( function_exists( 'sop_normalise_scan_input' ) ) {
@@ -898,12 +986,12 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
 
             $product = function_exists( 'wc_get_product' ) ? wc_get_product( $pid ) : null;
             $name    = $product ? (string) $product->get_name() : '';
-            $location = function_exists( 'sop_labels_get_product_location' ) ? sop_labels_get_product_location( $pid ) : '';
 
-            $barcode_svg = function_exists( 'sop_get_barcode_svg' ) ? sop_get_barcode_svg( $sku, $args_defaults ) : new WP_Error( 'sop_barcode_api_missing', __( 'Barcode API unavailable.', 'sop' ) );
+            $brand_logo   = sop_labels_get_brand_logo_html( $pid );
+            $barcode_svg  = function_exists( 'sop_get_barcode_svg' ) ? sop_get_barcode_svg( $sku, $args_defaults ) : new WP_Error( 'sop_barcode_api_missing', __( 'Barcode API unavailable.', 'sop' ) );
             if ( is_wp_error( $barcode_svg ) && 'sop_barcode_not_cached' === $barcode_svg->get_error_code() && function_exists( 'sop_barcode_generate_and_cache_svg' ) ) {
                 if ( ! isset( $seen_generation[ $sku ] ) ) {
-                    $gen = sop_barcode_generate_and_cache_svg( $sku, $args_defaults );
+                    $gen                      = sop_barcode_generate_and_cache_svg( $sku, $args_defaults );
                     $seen_generation[ $sku ] = true;
                     if ( ! is_wp_error( $gen ) ) {
                         $barcode_svg = sop_get_barcode_svg( $sku, $args_defaults );
@@ -919,15 +1007,15 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
             }
 
             $labels[] = array(
-                'sku'       => $sku,
-                'name'      => $name,
-                'location'  => $location,
-                'barcode'   => $barcode_svg,
-                'qty'       => $qty,
+                'sku'             => $sku,
+                'name'            => $name,
+                'brand_logo_html' => $brand_logo['html'],
+                'qty'             => $qty,
+                'barcode_svg'     => $barcode_svg,
             );
         }
 
-        // Expand qty.
+        // Expand qty respecting max_total.
         $expanded = array();
         foreach ( $labels as $label ) {
             $copies = (int) $label['qty'];
@@ -943,18 +1031,9 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
             wp_die( esc_html__( 'No labels to print.', 'sop' ) );
         }
 
-        $size    = sop_labels_get_global_label_size_mm();
-        $w_mm    = isset( $size['width_mm'] ) ? (float) $size['width_mm'] : 50.0;
-        $h_mm    = isset( $size['height_mm'] ) ? (float) $size['height_mm'] : 25.0;
-        $margin  = 5;
-        $cols    = (int) floor( ( 210 - ( $margin * 2 ) ) / $w_mm );
-        $rows    = (int) floor( ( 297 - ( $margin * 2 ) ) / $h_mm );
-        if ( $cols < 1 || $rows < 1 ) {
-            wp_die( esc_html__( 'Label size too large for A4 with current margins.', 'sop' ) );
-        }
-        $per_page = $cols * $rows;
-
-        $pages = array_chunk( $expanded, $per_page );
+        $size   = sop_labels_get_global_label_size_mm();
+        $w_mm   = isset( $size['width_mm'] ) ? (float) $size['width_mm'] : 50.0;
+        $h_mm   = isset( $size['height_mm'] ) ? (float) $size['height_mm'] : 25.0;
 
         nocache_headers();
         header( 'Content-Type: text/html; charset=utf-8' );
@@ -965,82 +1044,129 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
 <head>
     <meta charset="<?php bloginfo( 'charset' ); ?>">
     <style>
+        :root {
+            --label-w: <?php echo esc_html( $w_mm ); ?>mm;
+            --label-h: <?php echo esc_html( $h_mm ); ?>mm;
+            --pad: 0.5mm;
+            --toprow-h: 6mm;
+            --barcode-h: 10mm;
+            --sku-h: 3mm;
+            --title-h: calc(var(--label-h) - (var(--pad) * 2) - var(--toprow-h) - var(--barcode-h) - var(--sku-h));
+        }
         @page {
-            size: A4;
-            margin: <?php echo (int) $margin; ?>mm;
+            size: var(--label-w) var(--label-h);
+            margin: 0;
         }
         * { box-sizing: border-box; }
         body {
             margin: 0;
             padding: 0;
             font-family: "Helvetica Neue", Arial, sans-serif;
+            background: #fff;
         }
-        .sop-a4-toolbar {
+        .sop-print-toolbar {
             padding: 8px 12px;
             background: #f0f0f0;
             border-bottom: 1px solid #ddd;
         }
-        .sop-a4-toolbar button {
+        .sop-print-toolbar button {
             padding: 6px 10px;
             font-size: 14px;
             cursor: pointer;
         }
-        .sop-a4-warnings {
-            margin: 10px 12px 0 12px;
-            padding: 8px;
-            background: #fff8e5;
-            border: 1px solid #f0d48a;
-            color: #705300;
-            font-size: 13px;
-        }
-        .sop-a4-page {
-            page-break-after: always;
-            padding: 8px 12px 12px 12px;
-        }
-        .sop-a4-page:last-child {
-            page-break-after: auto;
-        }
-        .sop-a4-grid {
-            display: grid;
-            grid-template-columns: repeat(<?php echo (int) $cols; ?>, <?php echo esc_html( $w_mm ); ?>mm);
-            grid-auto-rows: <?php echo esc_html( $h_mm ); ?>mm;
-            gap: 0mm;
-            justify-content: start;
-            align-content: start;
-        }
-        .sop-a4-label {
-            width: <?php echo esc_html( $w_mm ); ?>mm;
-            height: <?php echo esc_html( $h_mm ); ?>mm;
-            overflow: hidden;
-            padding: 1mm;
+        .sop-bulk-stage {
+            padding: 12px;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .sop-label-page {
+            width: var(--label-w);
+            height: var(--label-h);
+            page-break-after: always;
+            overflow: hidden;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+        .sop-label-page:last-child { page-break-after: auto; }
+        .sop-label {
+            width: var(--label-w);
+            height: var(--label-h);
+            box-sizing: border-box;
+            display: grid;
+            grid-template-rows: var(--toprow-h) var(--title-h) var(--barcode-h) var(--sku-h);
+            padding: var(--pad);
             background: #fff;
-            border: 1px solid rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+        @media screen {
+            .sop-label {
+                outline: 1px solid rgba(0,0,0,0.15);
+                transform: scale(2);
+                transform-origin: top center;
+            }
+            .sop-label-page {
+                margin-bottom: var(--label-h);
+            }
         }
         @media print {
-            .sop-a4-toolbar,
-            .sop-a4-warnings { display: none !important; }
-            .sop-a4-page { padding: 0; margin: 0; }
-            .sop-a4-label { border: none; }
+            .sop-print-toolbar { display: none !important; }
+            .sop-label-page { margin: 0; padding: 0; }
+            .sop-label { outline: none !important; transform: none !important; }
+            body { background: #fff; }
         }
-        .sop-a4-title {
-            font-size: 12px;
-            line-height: 1.1;
+        .sop-label__top {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .sop-label__logo-viewport {
+            width: 70%;
+            height: 100%;
+            margin: 0 auto;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sop-label-logo-img {
+            height: 100%;
+            width: auto;
+            display: block;
+            transform: scale(2.6);
+            transform-origin: 50% 50%;
+        }
+        .sop-label-logo-text {
             font-weight: 700;
-            margin: 0 0 2px 0;
+            letter-spacing: 0.04em;
+            font-size: 2.2mm;
+            text-align: center;
+            line-height: 1;
+        }
+        .sop-label-date {
+            position: absolute;
+            right: 0;
+            top: 0;
+            font-weight: 700;
+            font-size: 1.8mm;
+            line-height: 1;
+        }
+        .sop-label-title {
+            text-align: center;
+            font-weight: 700;
+            font-size: 2.2mm;
+            line-height: 1.05;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
+            align-self: center;
         }
-        .sop-a4-location {
-            font-size: 10px;
-            line-height: 1.1;
-            margin: 0 0 2px 0;
-        }
-        .sop-a4-barcode {
+        .sop-label-barcode {
             width: 100%;
             display: flex;
             justify-content: center;
@@ -1048,56 +1174,55 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
             margin: 0;
             padding: 0;
         }
-        .sop-a4-barcode svg {
+        .sop-label-barcode svg {
             width: 90%;
             height: 10mm;
             display: block;
         }
-        .sop-a4-sku {
+        .sop-label-sku {
             text-align: center;
             font-weight: 700;
-            font-size: 11px;
-            letter-spacing: 0.01em;
+            font-size: 2.5mm;
+            letter-spacing: 0.02em;
             white-space: pre;
             line-height: 1;
-            margin: 2px 0 0 0;
+            align-self: center;
         }
     </style>
 </head>
 <body>
-    <div class="sop-a4-toolbar">
+    <div class="sop-print-toolbar">
         <button type="button" onclick="window.print();"><?php esc_html_e( 'Print', 'sop' ); ?></button>
     </div>
-    <?php if ( ! empty( $unknown ) || ! empty( $barcode_errors ) ) : ?>
-        <div class="sop-a4-warnings">
-            <?php if ( ! empty( $unknown ) ) : ?>
-                <div><?php printf( esc_html__( 'Unknown SKUs: %d', 'sop' ), count( $unknown ) ); ?></div>
-            <?php endif; ?>
-            <?php if ( ! empty( $barcode_errors ) ) : ?>
-                <div><?php printf( esc_html__( 'Barcode errors: %d', 'sop' ), count( $barcode_errors ) ); ?></div>
-            <?php endif; ?>
-        </div>
-    <?php endif; ?>
-    <?php foreach ( $pages as $page_labels ) : ?>
-        <div class="sop-a4-page">
-            <div class="sop-a4-grid">
-                <?php foreach ( $page_labels as $label ) : ?>
-                    <div class="sop-a4-label">
-                        <div>
-                            <div class="sop-a4-title"><?php echo esc_html( $label['name'] ); ?></div>
-                            <?php if ( ! empty( $label['location'] ) ) : ?>
-                                <div class="sop-a4-location"><?php echo esc_html( $label['location'] ); ?></div>
-                            <?php endif; ?>
-                        </div>
-                        <div class="sop-a4-barcode">
-                            <?php echo $label['barcode']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        </div>
-                        <div class="sop-a4-sku"><?php echo esc_html( $label['sku'] ); ?></div>
-                    </div>
-                <?php endforeach; ?>
+    <div class="sop-bulk-stage">
+        <?php if ( ! empty( $unknown ) || ! empty( $barcode_errors ) ) : ?>
+            <div style="font-size:13px;padding:8px 10px;background:#fff8e5;border:1px solid #f0d48a;color:#705300;width:100%;max-width:640px;">
+                <?php if ( ! empty( $unknown ) ) : ?>
+                    <div><?php printf( esc_html__( 'Unknown SKUs: %d', 'sop' ), count( $unknown ) ); ?></div>
+                <?php endif; ?>
+                <?php if ( ! empty( $barcode_errors ) ) : ?>
+                    <div><?php printf( esc_html__( 'Barcode errors: %d', 'sop' ), count( $barcode_errors ) ); ?></div>
+                <?php endif; ?>
             </div>
-        </div>
-    <?php endforeach; ?>
+        <?php endif; ?>
+
+        <?php foreach ( $expanded as $label ) : ?>
+            <div class="sop-label-page">
+                <?php
+                echo sop_labels_render_label_html(
+                    array(
+                        'sku'             => $label['sku'],
+                        'product_name'    => $label['name'],
+                        'brand_logo_html' => $label['brand_logo_html'],
+                        'include_date'    => $include_date,
+                        'date_mm_yy'      => $date_display,
+                        'barcode_svg'     => $label['barcode_svg'],
+                    )
+                ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                ?>
+            </div>
+        <?php endforeach; ?>
+    </div>
 </body>
 </html>
         <?php
@@ -1107,7 +1232,7 @@ if ( ! function_exists( 'sop_handle_print_labels_a4' ) ) {
 
 if ( ! function_exists( 'sop_shortcode_a4_labels_print_form' ) ) {
     /**
-     * Shortcode: renders A4 labels print form for logged-in users.
+     * Shortcode: renders bulk labels print form for logged-in users.
      *
      * @param array $atts Shortcode atts.
      * @return string
@@ -1131,7 +1256,7 @@ if ( ! function_exists( 'sop_shortcode_a4_labels_print_form' ) ) {
                 <input type="number" name="sop_a4_default_qty" min="1" max="100" value="1" />
             </p>
             <p>
-                <button type="submit" class="button button-primary"><?php esc_html_e( 'Generate A4 Labels', 'sop' ); ?></button>
+                <button type="submit" class="button button-primary"><?php esc_html_e( 'Generate Labels', 'sop' ); ?></button>
             </p>
         </form>
         <?php
@@ -1229,34 +1354,8 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
         $w_mm         = isset( $size['width_mm'] ) ? (float) $size['width_mm'] : 50.0;
         $h_mm         = isset( $size['height_mm'] ) ? (float) $size['height_mm'] : 25.0;
 
-        $brand_logo_html = '';
-        $brand_name      = '';
-
-        $terms = wp_get_post_terms( $product_id, 'product_brand' );
-        if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
-            $brand        = $terms[0];
-            $brand_name   = isset( $brand->name ) ? (string) $brand->name : '';
-            $possible_ids = array(
-                get_term_meta( $brand->term_id, 'thumbnail_id', true ),
-                get_term_meta( $brand->term_id, 'brand_logo_id', true ),
-                get_term_meta( $brand->term_id, 'logo_id', true ),
-                get_term_meta( $brand->term_id, 'image_id', true ),
-            );
-            foreach ( $possible_ids as $maybe_id ) {
-                $maybe_id = absint( $maybe_id );
-                if ( $maybe_id > 0 ) {
-                    $src = wp_get_attachment_image_src( $maybe_id, 'full' );
-                    if ( ! empty( $src[0] ) ) {
-                        $brand_logo_html = '<img class="sop-label-logo-img" src="' . esc_url( $src[0] ) . '" alt="' . esc_attr( $brand_name ) . '" />';
-                        break;
-                    }
-                }
-            }
-        }
-
-        if ( '' === $brand_logo_html && '' !== $brand_name ) {
-            $brand_logo_html = '<span class="sop-label-logo-text">' . esc_html( strtoupper( $brand_name ) ) . '</span>';
-        }
+        $brand_logo      = sop_labels_get_brand_logo_html( $product_id );
+        $brand_logo_html = $brand_logo['html'];
 
         $barcode_args = array(
             'width'              => '100%',
@@ -1266,6 +1365,16 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
             'height_modules'     => 60,
         );
         $barcode_svg  = function_exists( 'sop_get_barcode_svg' ) ? sop_get_barcode_svg( $sku, $barcode_args ) : new WP_Error( 'sop_barcode_api_missing', __( 'Barcode API unavailable.', 'sop' ) );
+        $label_html   = sop_labels_render_label_html(
+            array(
+                'sku'             => $sku,
+                'product_name'    => $name,
+                'brand_logo_html' => $brand_logo_html,
+                'include_date'    => $include_date,
+                'date_mm_yy'      => $date_display,
+                'barcode_svg'     => $barcode_svg,
+            )
+        );
 
         nocache_headers();
         header( 'Content-Type: text/html; charset=utf-8' );
@@ -1441,27 +1550,7 @@ if ( ! function_exists( 'sop_labels_maybe_render_product_label' ) ) {
     </div>
     <div class="sop-label-stage">
         <div class="sop-label-page">
-            <div class="sop-label">
-                <div class="sop-label__top">
-                    <div class="sop-label__logo-viewport">
-                        <?php echo wp_kses_post( $brand_logo_html ); ?>
-                    </div>
-                    <?php if ( $include_date && $date_display ) : ?>
-                        <div class="sop-label-date"><?php echo esc_html( $date_display ); ?></div>
-                    <?php endif; ?>
-                </div>
-                <div class="sop-label-title"><?php echo esc_html( $name ); ?></div>
-                <div class="sop-label-barcode">
-                    <?php
-                    if ( is_wp_error( $barcode_svg ) ) {
-                        echo '<div style="width:90%;text-align:center;font-size:2.2mm;line-height:1.2;">' . esc_html__( 'Barcode not cached yet — update product to generate.', 'sop' ) . '</div>';
-                    } else {
-                        echo $barcode_svg; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                    }
-                    ?>
-                </div>
-                <div class="sop-label-sku"><?php echo esc_html( $sku ); ?></div>
-            </div>
+            <?php echo $label_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         </div>
     </div>
 </body>
