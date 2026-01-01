@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.41
+ * File version: 1.0.42
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -45,6 +45,7 @@
  * - 1.0.39 - Fix Goods-In column widths when Supplier SKUs column is enabled (data-column width rules).
  * - 1.0.40 - Compact Supplier SKUs preview to a single line to prevent row height growth.
  * - 1.0.41 - Supplier SKUs two-line preview and product link opens in a new tab.
+ * - 1.0.42 - Mobile tap-to-view modal for Supplier SKUs (keeps 2-line compact preview).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -185,7 +186,7 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
 }
 
 /**
- * Format supplier SKUs for compact, two-line display with tooltip.
+ * Format supplier SKUs for compact, two-line display with tooltip and mobile modal support.
  *
  * Line 1: first SKU line.
  * Line 2: second SKU line (if only two) or "+N SKUs" when more than two.
@@ -218,7 +219,7 @@ function sop_goodsin_format_supplier_skus_compact_html( $raw ) {
 
     $title = implode( "\n", $clean );
 
-    $html  = '<div class="sop-supplier-skus-compact" title="' . esc_attr( $title ) . '">';
+    $html  = '<div class="sop-supplier-skus-compact" title="' . esc_attr( $title ) . '" data-full-skus="' . esc_attr( $title ) . '" role="button" tabindex="0" aria-label="' . esc_attr__( 'View supplier SKUs', 'sop' ) . '">';
     $html .= '<div class="sop-supplier-skus-line sop-supplier-skus-line1">' . esc_html( $line1 ) . '</div>';
     if ( '' !== $line2 ) {
         $html .= '<div class="sop-supplier-skus-line sop-supplier-skus-line2">' . esc_html( $line2 ) . '</div>';
@@ -903,6 +904,7 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-table td[data-column="supplier_skus"] .sop-supplier-skus-compact {
             display: block;
+            cursor: pointer;
         }
         .sop-goodsin-table td[data-column="supplier_skus"] .sop-supplier-skus-line {
             white-space: nowrap;
@@ -910,6 +912,60 @@ function sop_render_goods_in_page() {
             text-overflow: ellipsis;
             display: block;
             max-width: 100%;
+        }
+        .sop-skus-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 10000;
+        }
+        .sop-skus-modal.is-open {
+            display: block;
+        }
+        .sop-skus-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+        }
+        .sop-skus-modal__panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            padding: 16px;
+            border-radius: 4px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            min-width: 280px;
+            max-width: 480px;
+            max-height: 70vh;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .sop-skus-modal__title {
+            font-weight: 700;
+            margin: 0;
+        }
+        .sop-skus-modal__content {
+            white-space: pre-line;
+            margin: 0;
+            padding: 8px;
+            border: 1px solid #dcdcde;
+            border-radius: 3px;
+            background: #f6f7f7;
+            overflow: auto;
+            flex: 1 1 auto;
+        }
+        .sop-skus-modal__close {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: transparent;
+            border: 0;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
         }
         .sop-goodsin-table td input[type="text"],
         .sop-goodsin-table td input[type="number"],
@@ -1242,6 +1298,15 @@ function sop_render_goods_in_page() {
         }
     </style>
 
+    <div id="sop-skus-modal" class="sop-skus-modal" aria-hidden="true">
+        <div class="sop-skus-modal__backdrop" data-sop-close="1"></div>
+        <div class="sop-skus-modal__panel" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Supplier SKUs', 'sop' ); ?>">
+            <button type="button" class="sop-skus-modal__close" data-sop-close="1" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">×</button>
+            <div class="sop-skus-modal__title"><?php esc_html_e( 'Supplier SKUs', 'sop' ); ?></div>
+            <pre class="sop-skus-modal__content"></pre>
+        </div>
+    </div>
+
     <script>
         (function($){
             var $form = $('#sop-goodsin-form');
@@ -1257,6 +1322,8 @@ function sop_render_goods_in_page() {
             var $notesModalProduct = $('#sop-goodsin-notes-product');
             var $notesModalSave = $('#sop-goodsin-notes-save');
             var $notesModalClose = $('#sop-goodsin-notes-close');
+            var $skusModal = $('#sop-skus-modal');
+            var $skusModalContent = $('#sop-skus-modal .sop-skus-modal__content');
             var $showCompleted = $('#sop-goodsin-show-completed');
             var $filterSummary = $('#sop-goodsin-filter-summary');
             var $searchInput = $('#sop-goodsin-search');
@@ -1801,6 +1868,39 @@ function sop_render_goods_in_page() {
             sopGoodsinApplyColumnVisibility();
             $('#sop-goodsin-lines tbody tr').each(function(){ updateRowSortData($(this)); });
             sopGoodsinApplyFilterAll();
+
+            function sopCloseSkusModal() {
+                if ( $skusModal.length ) {
+                    $skusModal.removeClass('is-open').attr('aria-hidden', 'true');
+                }
+                if ( $skusModalContent.length ) {
+                    $skusModalContent.text('');
+                }
+            }
+
+            $(document).on('click', '.sop-supplier-skus-compact', function(){
+                var full = $(this).data('full-skus') || $(this).attr('title') || '';
+                full = (full || '').toString();
+                if ( ! full ) {
+                    return;
+                }
+                if ( $skusModalContent.length ) {
+                    $skusModalContent.text( full );
+                }
+                if ( $skusModal.length ) {
+                    $skusModal.addClass('is-open').attr('aria-hidden', 'false');
+                }
+            });
+
+            $(document).on('click', '[data-sop-close="1"]', function(){
+                sopCloseSkusModal();
+            });
+
+            $(document).on('keydown', function(e){
+                if ( e.key === 'Escape' || e.keyCode === 27 ) {
+                    sopCloseSkusModal();
+                }
+            });
         })(jQuery);
     </script>
     <?php
