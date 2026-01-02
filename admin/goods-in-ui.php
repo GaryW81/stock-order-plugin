@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.48
+ * File version: 1.0.49
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -52,6 +52,7 @@
  * - 1.0.46 - Mobile polish: force table horizontal scroll; stack filters with clear spacing.
  * - 1.0.47 - Mobile grid layout tightened (7-line layout).
  * - 1.0.48 - Refine mobile 7-line grid wrapper (header/actions/filters).
+ * - 1.0.49 - Mobile grid enforces two-column rows for header/actions/filters.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1041,17 +1042,47 @@ function sop_render_goods_in_page() {
             .sop-goodsin-columns-toggle {
                 width: 100%;
             }
-            .sop-goodsin-filter {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 8px;
-            }
-            .sop-goodsin-filter-checks {
-                width: 100%;
+
+            /* Mobile grid for header/actions/filters: fixed 2-column layout */
+            .sop-goodsin-mobile-grid{
                 display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 8px;
+                grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+                grid-template-areas:
+                    "title back"
+                    "sheet sheet"
+                    "save add"
+                    "complete columns"
+                    "show issues"
+                    "carton scan"
+                    "search search";
+                gap: 8px 10px;
+                align-items: start;
             }
+            .sop-goodsin-mg-title    { grid-area: title; }
+            .sop-goodsin-mg-back     { grid-area: back; justify-self: end; }
+            .sop-goodsin-mg-sheet    { grid-area: sheet; }
+            .sop-goodsin-mg-save     { grid-area: save; }
+            .sop-goodsin-mg-add      { grid-area: add; }
+            .sop-goodsin-mg-complete { grid-area: complete; }
+            .sop-goodsin-mg-columns  { grid-area: columns; justify-self: end; }
+            .sop-goodsin-mg-show     { grid-area: show; }
+            .sop-goodsin-mg-issues   { grid-area: issues; }
+            .sop-goodsin-mg-carton   { grid-area: carton; }
+            .sop-goodsin-mg-scan     { grid-area: scan; }
+            .sop-goodsin-mg-search   { grid-area: search; }
+
+            .sop-goodsin-mobile-grid .button,
+            .sop-goodsin-mobile-grid button{
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .sop-goodsin-mg-back .button,
+            .sop-goodsin-mg-back a.button,
+            .sop-goodsin-mg-columns .button,
+            .sop-goodsin-mg-columns button{
+                width: auto;
+            }
+
             .sop-goodsin-filter-row {
                 width: 100%;
                 flex-wrap: nowrap;
@@ -1087,21 +1118,6 @@ function sop_render_goods_in_page() {
             .sop-goodsin-columns-popover {
                 max-height: 60vh;
                 overflow: auto;
-            }
-        }
-        @media (max-width: 480px) {
-            .sop-goodsin-toolbar-actions {
-                grid-template-columns: 1fr;
-            }
-            .sop-goodsin-filter-checks {
-                grid-template-columns: 1fr;
-            }
-            .sop-goodsin-filter-row {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .sop-goodsin-filter-row .button-link {
-                align-self: flex-start;
             }
         }
         .sop-skus-modal {
