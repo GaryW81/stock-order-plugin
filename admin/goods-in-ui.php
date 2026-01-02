@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.51
+ * File version: 1.0.54
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -55,6 +55,9 @@
  * - 1.0.49 - Mobile grid enforces two-column rows for header/actions/filters.
  * - 1.0.50 - Mobile: search input height 40px; header select-all checkbox 25x15.
  * - 1.0.51 - Mobile: set search/carton/scan inputs to 40px height; header select-all checkbox 25px high.
+ * - 1.0.52 - Mobile: add camera Scan button beside search (Code128 -> Scan SKU input).
+ * - 1.0.53 - Mobile: wire camera scan modal (Code128) + rename bulk label button text.
+ * - 1.0.54 - Mobile: ensure scan modal open/close handlers wired (ESC/backdrop/btn).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -581,9 +584,12 @@ function sop_render_goods_in_page() {
                 </div>
             </div>
             <div class="sop-goodsin-mg-search">
-                <div class="sop-goodsin-filter-row">
-                    <input type="text" id="sop-goodsin-search" placeholder="<?php esc_attr_e( 'Search SKU / Product / Carton / Location', 'sop' ); ?>" autocomplete="off" />
-                    <button type="button" class="button-link" id="sop-goodsin-search-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
+                <div class="sop-goodsin-mobile-searchrow">
+                    <div class="sop-goodsin-filter-row">
+                        <input type="text" id="sop-goodsin-search" placeholder="<?php esc_attr_e( 'Search SKU / Product / Carton / Location', 'sop' ); ?>" autocomplete="off" />
+                        <button type="button" class="button-link" id="sop-goodsin-search-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
+                    </div>
+                    <button type="button" class="button sop-goodsin-scan-btn" id="sop-goodsin-scan-btn"><?php esc_html_e( 'Scan', 'sop' ); ?></button>
                 </div>
                 <span id="sop-goodsin-filter-summary" aria-live="polite"></span>
             </div>
@@ -1024,6 +1030,12 @@ function sop_render_goods_in_page() {
         .sop-goodsin-filter-summary {
             display: inline-block;
         }
+        .sop-goodsin-mobile-searchrow {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+        }
         /* Mobile responsive tweaks */
         @media (max-width: 782px) {
             .sop-goodsin-toolbar { gap: 8px; }
@@ -1089,6 +1101,13 @@ function sop_render_goods_in_page() {
                 width: 100%;
                 flex-wrap: nowrap;
             }
+            .sop-goodsin-mobile-searchrow {
+                display: grid;
+                grid-template-columns: 2fr 1fr;
+                gap: 8px;
+                align-items: center;
+                width: 100%;
+            }
             .sop-goodsin-filter-row input[type="text"] {
                 width: 100%;
                 max-width: 100%;
@@ -1118,6 +1137,11 @@ function sop_render_goods_in_page() {
                 table-layout: auto;
             }
             #sop-goodsin-search {
+                height: 40px;
+                min-height: 40px;
+                box-sizing: border-box;
+            }
+            .sop-goodsin-scan-btn {
                 height: 40px;
                 min-height: 40px;
                 box-sizing: border-box;
@@ -1194,6 +1218,63 @@ function sop_render_goods_in_page() {
             flex: 1 1 auto;
         }
         .sop-skus-modal__close {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: transparent;
+            border: 0;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .sop-scan-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 10001;
+        }
+        .sop-scan-modal.is-open {
+            display: block;
+        }
+        .sop-scan-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+        }
+        .sop-scan-modal__panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            padding: 16px;
+            border-radius: 6px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+            min-width: 280px;
+            max-width: 520px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .sop-scan-modal__title {
+            font-weight: 700;
+            margin: 0;
+        }
+        .sop-scan-modal__status {
+            min-height: 18px;
+            font-size: 13px;
+            color: #1d2327;
+        }
+        .sop-scan-modal__video {
+            width: 100%;
+            max-height: 60vh;
+            background: #000;
+        }
+        .sop-scan-modal__actions {
+            text-align: right;
+        }
+        .sop-scan-modal__close {
             position: absolute;
             top: 6px;
             right: 6px;
@@ -1547,6 +1628,19 @@ function sop_render_goods_in_page() {
         </div>
     </div>
 
+    <div id="sop-goodsin-scan-modal" class="sop-scan-modal" aria-hidden="true">
+        <div class="sop-scan-modal__backdrop" data-sop-scan-close="1"></div>
+        <div class="sop-scan-modal__panel" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Scan barcode', 'sop' ); ?>">
+            <button type="button" class="sop-scan-modal__close" data-sop-scan-close="1" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">×</button>
+            <div class="sop-scan-modal__title"><?php esc_html_e( 'Scan barcode', 'sop' ); ?></div>
+            <div class="sop-scan-modal__status" id="sop-goodsin-scan-status"></div>
+            <video id="sop-goodsin-scan-video" autoplay playsinline class="sop-scan-modal__video"></video>
+            <div class="sop-scan-modal__actions">
+                <button type="button" class="button" data-sop-scan-close="1"><?php esc_html_e( 'Cancel', 'sop' ); ?></button>
+            </div>
+        </div>
+    </div>
+
     <script>
         (function($){
             var $form = $('#sop-goodsin-form');
@@ -1571,9 +1665,15 @@ function sop_render_goods_in_page() {
             var $searchInput = $('#sop-goodsin-search');
             var $searchClear = $('#sop-goodsin-search-clear');
             var $scanInput = $('#sop-goodsin-scan');
+            var $scanButton = $('#sop-goodsin-scan-btn');
+            var $scanModal = $('#sop-goodsin-scan-modal');
+            var $scanVideo = $('#sop-goodsin-scan-video');
+            var $scanStatus = $('#sop-goodsin-scan-status');
             var $issuesOnly = $('#sop-goodsin-issues-only');
             var notesActiveRow = null;
             var sopGoodsinFilterTimer = null;
+            var sopScanStream = null;
+            var sopScanRaf = null;
 
             function markDirty() {
                 dirty = true;
@@ -1587,6 +1687,119 @@ function sop_render_goods_in_page() {
             function sopGoodsinNormalizeQuery(str) {
                 return (str || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
             }
+
+            function sopStopScanLoop() {
+                if ( sopScanRaf ) {
+                    cancelAnimationFrame( sopScanRaf );
+                    sopScanRaf = null;
+                }
+            }
+
+            function sopStopScanStream() {
+                if ( sopScanStream ) {
+                    try {
+                        sopScanStream.getTracks().forEach(function(track){
+                            if ( track && track.stop ) {
+                                track.stop();
+                            }
+                        });
+                    } catch (e) {}
+                    sopScanStream = null;
+                }
+                if ( $scanVideo && $scanVideo.length ) {
+                    $scanVideo[0].srcObject = null;
+                }
+            }
+
+            function sopCloseScanModal() {
+                sopStopScanLoop();
+                sopStopScanStream();
+                if ( $scanStatus && $scanStatus.length ) {
+                    $scanStatus.text('');
+                }
+                if ( $scanModal && $scanModal.length ) {
+                    $scanModal.removeClass('is-open').attr('aria-hidden', 'true');
+                }
+            }
+
+            function sopTriggerScanEnter(val) {
+                if ( ! $scanInput || ! $scanInput.length ) {
+                    return;
+                }
+                var cleaned = (val || '').toString().trim();
+                if ( ! cleaned ) {
+                    return;
+                }
+                $scanInput.val( cleaned );
+                var evt = $.Event('keydown', { key: 'Enter', which: 13, keyCode: 13 });
+                $scanInput.trigger(evt);
+            }
+
+            function sopOpenScanModal() {
+                if ( ! $scanModal || ! $scanModal.length ) {
+                    return;
+                }
+                sopCloseScanModal();
+                if ( $scanStatus && $scanStatus.length ) {
+                    $scanStatus.text('');
+                }
+                $scanModal.addClass('is-open').attr('aria-hidden', 'false');
+
+                if ( typeof navigator === 'undefined' || ! navigator.mediaDevices || ! navigator.mediaDevices.getUserMedia ) {
+                    $scanStatus.text('<?php echo esc_js( __( 'Camera access is not available in this browser.', 'sop' ) ); ?>');
+                    return;
+                }
+
+                if ( typeof BarcodeDetector === 'undefined' ) {
+                    $scanStatus.text('<?php echo esc_js( __( 'Camera barcode scanning is not supported on this device.', 'sop' ) ); ?>');
+                    return;
+                }
+
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } }).then(function(stream){
+                    sopScanStream = stream;
+                    if ( $scanVideo && $scanVideo.length ) {
+                        $scanVideo[0].srcObject = stream;
+                        $scanVideo[0].play().catch(function(){});
+                    }
+                    var detector = new BarcodeDetector({ formats: ['code_128'] });
+
+                    var detectLoop = function(){
+                        if ( ! sopScanStream ) {
+                            return;
+                        }
+                        detector.detect( $scanVideo[0] ).then(function(barcodes){
+                            if ( barcodes && barcodes.length ) {
+                                var raw = ( barcodes[0].rawValue || '' ).toString().trim();
+                                sopCloseScanModal();
+                                if ( raw ) {
+                                    sopTriggerScanEnter( raw );
+                                }
+                                return;
+                            }
+                            sopScanRaf = requestAnimationFrame( detectLoop );
+                        }).catch(function(err){
+                            sopStopScanLoop();
+                            var msg = ( err && err.message ) ? err.message : err;
+                            $scanStatus.text( '<?php echo esc_js( __( 'Scan error: ', 'sop' ) ); ?>' + msg );
+                        });
+                    };
+                    detectLoop();
+                }).catch(function(){
+                    $scanStatus.text('<?php echo esc_js( __( 'Camera access denied or unavailable.', 'sop' ) ); ?>');
+                });
+            }
+
+            if ( $scanButton.length ) {
+                $scanButton.on('click', function(e){
+                    e.preventDefault();
+                    sopOpenScanModal();
+                });
+            }
+
+            $(document).on('click', '[data-sop-scan-close="1"]', function(e){
+                e.preventDefault();
+                sopCloseScanModal();
+            });
 
             function sopGoodsinGetRowSearchText($tr) {
                 var cached = $tr.data('sopSearchText');
@@ -2155,6 +2368,7 @@ function sop_render_goods_in_page() {
             $(document).on('keydown', function(e){
                 if ( e.key === 'Escape' || e.keyCode === 27 ) {
                     sopCloseSkusModal();
+                    sopCloseScanModal();
                 }
             });
         })(jQuery);
