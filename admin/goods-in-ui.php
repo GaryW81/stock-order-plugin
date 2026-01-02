@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.46
+ * File version: 1.0.48
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -50,6 +50,8 @@
  * - 1.0.44 - Improve Goods-In mobile responsiveness (toolbar/filter/table).
  * - 1.0.45 - Mobile: stack filters cleanly and force horizontal table scroll (no column squish).
  * - 1.0.46 - Mobile polish: force table horizontal scroll; stack filters with clear spacing.
+ * - 1.0.47 - Mobile grid layout tightened (7-line layout).
+ * - 1.0.48 - Refine mobile 7-line grid wrapper (header/actions/filters).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -245,7 +247,6 @@ function sop_render_goods_in_page() {
     $msg = isset( $_GET['sop_msg'] ) ? sanitize_key( wp_unslash( $_GET['sop_msg'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
     echo '<div class="wrap">';
-    echo '<h1>' . esc_html__( 'Goods In', 'sop' ) . '</h1>';
 
     if ( $msg ) {
         $notice_class = 'notice notice-info';
@@ -298,6 +299,7 @@ function sop_render_goods_in_page() {
     if ( $sheet_id <= 0 ) {
         $sheets = sop_goodsin_get_open_sheets();
 
+        echo '<h1>' . esc_html__( 'Goods In', 'sop' ) . '</h1>';
         echo '<p>' . esc_html__( 'Select a locked/receiving sheet to receive stock against it.', 'sop' ) . '</p>';
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
@@ -375,10 +377,6 @@ function sop_render_goods_in_page() {
     }
 
     $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
-    echo '<h2>' . esc_html( sprintf( __( 'Sheet #%1$d (%2$s) - %3$s', 'sop' ), $sheet_id, $supplier_name, $status ) ) . '</h2>';
-
-    $back_url = add_query_arg( array( 'page' => 'sop-goods-in' ), admin_url( 'admin.php' ) );
-    echo '<p><a class="button" href="' . esc_url( $back_url ) . '">' . esc_html__( 'Back to list', 'sop' ) . '</a></p>';
 
     $lines = sop_goodsin_get_sheet_lines_for_ui( $sheet_id );
 
@@ -411,125 +409,199 @@ function sop_render_goods_in_page() {
             }
         }
     }
+
+    $columns_config = array(
+        array(
+            'key'     => 'image',
+            'label'   => __( 'Image', 'sop' ),
+            'visible' => true,
+        ),
+        array(
+            'key'     => 'location',
+            'label'   => __( 'Location', 'sop' ),
+            'visible' => true,
+        ),
+        array(
+            'key'     => 'sku',
+            'label'   => __( 'SKU', 'sop' ),
+            'visible' => true,
+        ),
+    );
+
+    if ( $show_supplier_skus_column ) {
+        $columns_config[] = array(
+            'key'     => 'supplier_skus',
+            'label'   => __( 'Supplier SKUs', 'sop' ),
+            'visible' => true,
+        );
+    }
+
+    $columns_config = array_merge(
+        $columns_config,
+        array(
+            array(
+                'key'     => 'product',
+                'label'   => __( 'Product', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'ordered',
+                'label'   => __( 'Ordered', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'received',
+                'label'   => __( 'Received', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'missing',
+                'label'   => __( 'Missing', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'reject',
+                'label'   => __( 'Reject', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'reason',
+                'label'   => __( 'Reason', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'carton',
+                'label'   => __( 'Carton no.', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'product_notes',
+                'label'   => __( 'Product notes', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'order_notes',
+                'label'   => __( 'Order notes', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'goodsin_notes',
+                'label'   => __( 'Goods-In Notes', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'stocked',
+                'label'   => __( 'Stocked', 'sop' ),
+                'visible' => true,
+            ),
+            array(
+                'key'     => 'outstanding',
+                'label'   => __( 'Outstanding', 'sop' ),
+                'visible' => true,
+            ),
+        )
+    );
+
+    $issue_export_url = '';
+    if ( $has_issue_lines && 'received' === $status ) {
+        $issue_export_url = wp_nonce_url(
+            add_query_arg(
+                array(
+                    'action'   => 'sop_export_goodsin_issues_xlsx',
+                    'sheet_id' => $sheet_id,
+                ),
+                admin_url( 'admin-post.php' )
+            ),
+            'sop_export_goodsin_issues_xlsx',
+            'sop_export_goodsin_nonce'
+        );
+    }
+
     ?>
     <form id="sop-goodsin-form" method="post" action="<?php echo esc_url( $form_action ); ?>">
         <?php wp_nonce_field( 'sop_goodsin_action', 'sop_goodsin_nonce' ); ?>
-        <input type="hidden" name="action" id="sop-goodsin-action" value="sop_goodsin_save" />
+        <input type="hidden" name="action" value="sop_goodsin_save" id="sop-goodsin-action" />
+        <input type="hidden" name="sheet_id" value="<?php echo (int) $sheet_id; ?>" />
         <input type="hidden" name="sop_goodsin_payload_json" id="sop-goodsin-payload-json" value="" />
 
-        <div class="sop-goodsin-toolbar">
-            <div class="sop-goodsin-toolbar-actions">
-                <button type="button" class="button button-primary sop-goodsin-submit" data-action="save"><?php esc_html_e( 'Save progress', 'sop' ); ?></button>
-                <button type="button" class="button sop-goodsin-submit" data-action="apply_selected"><?php esc_html_e( 'Add selected to stock', 'sop' ); ?></button>
-                <button type="button" class="button button-secondary sop-goodsin-submit" data-action="complete"><?php esc_html_e( 'Complete Goods-In', 'sop' ); ?></button>
-                <?php
-                $is_completed = ( isset( $sheet['status'] ) && 'received' === $sheet['status'] );
-                if ( $is_completed && $has_issue_lines ) {
-                    $issues_url = wp_nonce_url(
-                        add_query_arg(
-                            array(
-                                'action'       => 'sop_export_goodsin_issues_xlsx',
-                                'sop_sheet_id' => (int) $sheet_id,
-                            ),
-                            admin_url( 'admin-post.php' )
-                        ),
-                        'sop_export_goodsin_issues_xlsx',
-                        'sop_goodsin_export_nonce'
-                    );
-                    echo '<a class="button" href="' . esc_url( $issues_url ) . '">' . esc_html__( 'Export Issues (XLSX)', 'sop' ) . '</a>';
-                }
-                ?>
+        <div class="sop-goodsin-mobile-grid">
+            <div class="sop-goodsin-mg-title">
+                <h1><?php esc_html_e( 'Goods In', 'sop' ); ?></h1>
             </div>
-            <div class="sop-goodsin-toolbar-columns">
-                <?php
-                $columns_config = array(
-                    'image'          => __( 'Image', 'sop' ),
-                    'location'       => __( 'Location', 'sop' ),
-                    'sku'            => __( 'SKU', 'sop' ),
-                    'product'        => __( 'Product', 'sop' ),
-                    'ordered'        => __( 'Ordered', 'sop' ),
-                    'received'       => __( 'Received', 'sop' ),
-                    'missing'        => __( 'Missing', 'sop' ),
-                    'reject'         => __( 'Reject', 'sop' ),
-                    'reason'         => __( 'Reason', 'sop' ),
-                    'carton'         => __( 'Carton no.', 'sop' ),
-                    'product_notes'  => __( 'Product notes', 'sop' ),
-                    'order_notes'    => __( 'Order notes', 'sop' ),
-                    'goodsin_notes'  => __( 'Goods-In Notes', 'sop' ),
-                    'stocked'        => __( 'Stocked', 'sop' ),
-                    'outstanding'    => __( 'Outstanding', 'sop' ),
-                );
-                if ( $show_supplier_skus_column ) {
-                    $before = array(
-                        'image'    => $columns_config['image'],
-                        'location' => $columns_config['location'],
-                        'sku'      => $columns_config['sku'],
-                    );
-                    $after = $columns_config;
-                    unset( $after['image'], $after['location'], $after['sku'] );
-                    $columns_config = $before + array( 'supplier_skus' => __( 'Supplier SKUs', 'sop' ) ) + $after;
-                }
-                ?>
-                <div class="sop-goodsin-columns">
-                    <button type="button" class="button sop-goodsin-columns-toggle" aria-expanded="false"><?php esc_html_e( 'Columns', 'sop' ); ?></button>
-                    <div class="sop-goodsin-columns-popover" aria-hidden="true">
-                        <div class="sop-goodsin-columns-panel">
-                            <ul class="sop-goodsin-columns-list">
-                                <?php foreach ( $columns_config as $col_key => $col_label ) : ?>
-                                    <li>
-                                        <label>
-                                            <input type="checkbox" data-column="<?php echo esc_attr( $col_key ); ?>" checked="checked" />
-                                            <?php echo esc_html( $col_label ); ?>
-                                        </label>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
+            <div class="sop-goodsin-mg-back">
+                <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=sop-goods-in' ) ); ?>"><?php esc_html_e( 'Back to list', 'sop' ); ?></a>
+            </div>
+            <div class="sop-goodsin-mg-sheet">
+                <strong><?php echo esc_html( sprintf( __( 'Sheet #%1$d (%2$s) - %3$s', 'sop' ), $sheet_id, $supplier_name, $status ) ); ?></strong>
+            </div>
+            <div class="sop-goodsin-mg-save">
+                <button type="button" class="button button-primary sop-goodsin-submit" data-action="save"><?php esc_html_e( 'Save progress', 'sop' ); ?></button>
+            </div>
+            <div class="sop-goodsin-mg-add">
+                <button type="button" class="button sop-goodsin-submit" data-action="apply_stock"><?php esc_html_e( 'Add selected to stock', 'sop' ); ?></button>
+            </div>
+            <div class="sop-goodsin-mg-complete">
+                <button type="button" class="button button-primary sop-goodsin-submit" data-action="complete"><?php esc_html_e( 'Complete Goods-In', 'sop' ); ?></button>
+            </div>
+            <div class="sop-goodsin-mg-columns">
+                <div class="sop-goodsin-columns" id="sop-goodsin-columns">
+                    <button type="button" class="button sop-goodsin-columns-toggle" aria-expanded="false" aria-controls="sop-goodsin-columns-popover"><?php esc_html_e( 'Columns', 'sop' ); ?></button>
+                    <div class="sop-goodsin-columns-popover" id="sop-goodsin-columns-popover" aria-hidden="true">
+                        <ul class="sop-goodsin-columns-list">
+                            <?php foreach ( $columns_config as $col ) : ?>
+                                <li>
+                                    <label>
+                                        <input type="checkbox" data-column="<?php echo esc_attr( $col['key'] ); ?>" <?php checked( ! empty( $col['visible'] ) ); ?> />
+                                        <?php echo esc_html( $col['label'] ); ?>
+                                    </label>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
                     </div>
                 </div>
             </div>
+            <div class="sop-goodsin-mg-show">
+                <label><input type="checkbox" id="sop-goodsin-show-completed" /> <?php esc_html_e( 'Show completed lines', 'sop' ); ?></label>
+            </div>
+            <div class="sop-goodsin-mg-issues">
+                <label><input type="checkbox" id="sop-goodsin-issues-only" /> <?php esc_html_e( 'Issues only', 'sop' ); ?></label>
+            </div>
+            <div class="sop-goodsin-mg-carton">
+                <div class="sop-goodsin-filter-row">
+                    <input type="text" id="sop-goodsin-carton" placeholder="<?php esc_attr_e( 'Carton (Enter)', 'sop' ); ?>" autocomplete="off" />
+                    <button type="button" class="button-link" id="sop-goodsin-carton-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
+                </div>
+            </div>
+            <div class="sop-goodsin-mg-scan">
+                <div class="sop-goodsin-filter-row">
+                    <input type="text" id="sop-goodsin-scan" placeholder="<?php esc_attr_e( 'Scan SKU (Enter)', 'sop' ); ?>" autocomplete="off" />
+                </div>
+            </div>
+            <div class="sop-goodsin-mg-search">
+                <div class="sop-goodsin-filter-row">
+                    <input type="text" id="sop-goodsin-search" placeholder="<?php esc_attr_e( 'Search SKU / Product / Carton / Location', 'sop' ); ?>" autocomplete="off" />
+                    <button type="button" class="button-link" id="sop-goodsin-search-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
+                </div>
+                <span id="sop-goodsin-filter-summary" aria-live="polite"></span>
+            </div>
         </div>
-        <?php if ( $is_completed && $has_issue_lines && is_array( $issue_summary ) && isset( $issue_summary['issue_line_count'] ) && $issue_summary['issue_line_count'] > 0 ) : ?>
+
+        <?php if ( $issue_summary && 'received' === $status && isset( $issue_summary['issue_line_count'] ) && $issue_summary['issue_line_count'] > 0 ) : ?>
             <div class="notice notice-info sop-goodsin-dispute-summary">
                 <p><strong><?php esc_html_e( 'Dispute summary', 'sop' ); ?></strong></p>
                 <ul>
                     <li><?php printf( esc_html__( 'Issue lines: %d', 'sop' ), (int) $issue_summary['issue_line_count'] ); ?></li>
-                    <li><?php printf( esc_html__( 'Missing units: %s', 'sop' ), esc_html( number_format_i18n( $issue_summary['total_missing'], 0 ) ) ); ?></li>
-                    <li><?php printf( esc_html__( 'Reject units: %s', 'sop' ), esc_html( number_format_i18n( $issue_summary['total_reject'], 0 ) ) ); ?></li>
-                    <li><?php printf( esc_html__( 'Credit qty: %s', 'sop' ), esc_html( number_format_i18n( $issue_summary['total_credit_qty'], 0 ) ) ); ?></li>
-                    <li><?php printf( esc_html__( 'Credit total (%s): %s', 'sop' ), esc_html( $issue_summary['supplier_currency'] ), esc_html( number_format_i18n( $issue_summary['total_credit_total_supplier'], 2 ) ) ); ?></li>
-                    <?php if ( ! empty( $issue_summary['is_rmb'] ) && $issue_summary['fx_rmb_per_usd'] > 0 ) : ?>
-                        <li><?php printf( esc_html__( 'Credit total (USD): %s', 'sop' ), esc_html( number_format_i18n( $issue_summary['total_credit_total_usd'], 2 ) ) ); ?></li>
-                        <li><?php printf( esc_html__( 'FX used (RMB/USD): %s', 'sop' ), esc_html( number_format_i18n( $issue_summary['fx_rmb_per_usd'], 3 ) ) ); ?></li>
+                    <li><?php printf( esc_html__( 'Missing units: %d', 'sop' ), (int) $issue_summary['total_missing'] ); ?></li>
+                    <li><?php printf( esc_html__( 'Reject units: %d', 'sop' ), (int) $issue_summary['total_reject'] ); ?></li>
+                    <li><?php printf( esc_html__( 'Credit qty: %d', 'sop' ), (int) $issue_summary['total_credit_qty'] ); ?></li>
+                    <li><?php printf( esc_html__( 'Credit total (%1$s): %2$s', 'sop' ), esc_html( $issue_summary['supplier_currency'] ), esc_html( number_format_i18n( (float) $issue_summary['total_credit_total_supplier'], 2 ) ) ); ?></li>
+                    <?php if ( ! empty( $issue_summary['is_rmb'] ) && ! empty( $issue_summary['fx_rmb_per_usd'] ) && ! empty( $issue_summary['total_credit_total_usd'] ) ) : ?>
+                        <li><?php printf( esc_html__( 'Credit total (USD): %s', 'sop' ), esc_html( number_format_i18n( (float) $issue_summary['total_credit_total_usd'], 2 ) ) ); ?></li>
+                        <li><?php printf( esc_html__( 'FX used (RMB/USD): %s', 'sop' ), esc_html( number_format_i18n( (float) $issue_summary['fx_rmb_per_usd'], 3 ) ) ); ?></li>
                     <?php endif; ?>
                 </ul>
             </div>
         <?php endif; ?>
-
-        <div class="sop-goodsin-filter">
-            <div class="sop-goodsin-filter-checks">
-                <label>
-                    <input type="checkbox" id="sop-goodsin-show-completed" />
-                    <?php esc_html_e( 'Show completed lines', 'sop' ); ?>
-                </label>
-                <label>
-                    <input type="checkbox" id="sop-goodsin-issues-only" />
-                    <?php esc_html_e( 'Issues only', 'sop' ); ?>
-                </label>
-            </div>
-            <div class="sop-goodsin-filter-row">
-                <input type="text" id="sop-goodsin-carton" placeholder="<?php esc_attr_e( 'Carton (Enter)', 'sop' ); ?>" autocomplete="off" />
-                <button type="button" class="button-link" id="sop-goodsin-carton-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
-            </div>
-            <div class="sop-goodsin-filter-row">
-                <input type="text" id="sop-goodsin-scan" placeholder="<?php esc_attr_e( 'Scan SKU (Enter)', 'sop' ); ?>" autocomplete="off" />
-            </div>
-            <div class="sop-goodsin-filter-row">
-                <input type="text" id="sop-goodsin-search" placeholder="<?php esc_attr_e( 'Search SKU / Product / Carton / Location', 'sop' ); ?>" autocomplete="off" />
-                <button type="button" class="button-link" id="sop-goodsin-search-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
-            </div>
-            <span id="sop-goodsin-filter-summary" aria-live="polite"></span>
-        </div>
 
         <div class="sop-preorder-table-wrapper" aria-label="Goods-In table scroll">
         <table class="wp-list-table widefat fixed striped sop-preorder-table sop-goodsin-table" id="sop-goodsin-lines">
