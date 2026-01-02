@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.54
+ * File version: 1.0.55
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -58,6 +58,7 @@
  * - 1.0.52 - Mobile: add camera Scan button beside search (Code128 -> Scan SKU input).
  * - 1.0.53 - Mobile: wire camera scan modal (Code128) + rename bulk label button text.
  * - 1.0.54 - Mobile: ensure scan modal open/close handlers wired (ESC/backdrop/btn).
+ * - 1.0.55 - Mobile scan: wait for video frames before detect; handle InvalidStateError gracefully.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1674,6 +1675,8 @@ function sop_render_goods_in_page() {
             var sopGoodsinFilterTimer = null;
             var sopScanStream = null;
             var sopScanRaf = null;
+            var sopScanReadyTimer = null;
+            var sopScanActive = false;
 
             function markDirty() {
                 dirty = true;
@@ -1689,6 +1692,11 @@ function sop_render_goods_in_page() {
             }
 
             function sopStopScanLoop() {
+                sopScanActive = false;
+                if ( sopScanReadyTimer ) {
+                    clearTimeout( sopScanReadyTimer );
+                    sopScanReadyTimer = null;
+                }
                 if ( sopScanRaf ) {
                     cancelAnimationFrame( sopScanRaf );
                     sopScanRaf = null;
@@ -1735,6 +1743,103 @@ function sop_render_goods_in_page() {
                 $scanInput.trigger(evt);
             }
 
+            function sopGetBarcodeFormats() {
+                var fallback = ['code_128'];
+                if ( typeof BarcodeDetector === 'undefined' ) {
+                    return Promise.resolve([]);
+                }
+                if ( typeof BarcodeDetector.getSupportedFormats === 'function' ) {
+                    try {
+                        var res = BarcodeDetector.getSupportedFormats();
+                        if ( res && typeof res.then === 'function' ) {
+                            return res.then(function(list){
+                                if ( Array.isArray(list) && list.length ) {
+                                    return list.indexOf('code_128') !== -1 ? ['code_128'] : list;
+                                }
+                                return fallback;
+                            }).catch(function(){
+                                return fallback;
+                            });
+                        }
+                        if ( Array.isArray(res) && res.length ) {
+                            return Promise.resolve( res.indexOf('code_128') !== -1 ? ['code_128'] : res );
+                        }
+                    } catch (e) {
+                        return Promise.resolve( fallback );
+                    }
+                }
+                return Promise.resolve( fallback );
+            }
+
+            function sopWaitForVideoReady(videoEl, cb, attempt) {
+                if ( ! sopScanActive ) {
+                    return;
+                }
+                attempt = attempt || 0;
+                if ( videoEl && videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.videoHeight > 0 ) {
+                    cb();
+                    return;
+                }
+                sopScanReadyTimer = setTimeout(function(){
+                    sopWaitForVideoReady(videoEl, cb, attempt + 1);
+                }, 120);
+            }
+
+            function sopStartScanLoop(detector) {
+                var detectLoop = function(){
+                    if ( ! sopScanActive ) {
+                        return;
+                    }
+                    var videoEl = ( $scanVideo && $scanVideo.length ) ? $scanVideo[0] : null;
+                    if ( ! videoEl ) {
+                        sopScanRaf = requestAnimationFrame( detectLoop );
+                        return;
+                    }
+                    if ( videoEl.readyState < 2 || ! videoEl.videoWidth || ! videoEl.videoHeight ) {
+                        sopScanRaf = requestAnimationFrame( detectLoop );
+                        return;
+                    }
+                    detector.detect( videoEl ).then(function(barcodes){
+                        if ( ! sopScanActive ) {
+                            return;
+                        }
+                        if ( barcodes && barcodes.length ) {
+                            var raw = ( barcodes[0].rawValue || '' ).toString().trim();
+                            sopCloseScanModal();
+                            if ( raw ) {
+                                sopTriggerScanEnter( raw );
+                            }
+                            return;
+                        }
+                        sopScanRaf = requestAnimationFrame( detectLoop );
+                    }).catch(function(err){
+                        if ( ! sopScanActive ) {
+                            return;
+                        }
+                        var name = err && err.name ? err.name : '';
+                        var msg = err && err.message ? err.message : '';
+                        if ( name === 'InvalidStateError' || ( msg && msg.indexOf('Invalid element or state') !== -1 ) ) {
+                            sopScanRaf = requestAnimationFrame( detectLoop );
+                            return;
+                        }
+                        if ( name === 'NotSupportedError' ) {
+                            if ( $scanStatus && $scanStatus.length ) {
+                                $scanStatus.text('<?php echo esc_js( __( 'Camera barcode scanning is not supported on this device. Use Bluetooth scanner or type SKU.', 'sop' ) ); ?>');
+                            }
+                            sopStopScanLoop();
+                            sopStopScanStream();
+                            return;
+                        }
+                        if ( $scanStatus && $scanStatus.length ) {
+                            $scanStatus.text( '<?php echo esc_js( __( 'Scan error: ', 'sop' ) ); ?>' + ( msg || name || err ) );
+                        }
+                        sopScanRaf = requestAnimationFrame( detectLoop );
+                    });
+                };
+                sopScanActive = true;
+                sopScanRaf = requestAnimationFrame( detectLoop );
+            }
+
             function sopOpenScanModal() {
                 if ( ! $scanModal || ! $scanModal.length ) {
                     return;
@@ -1755,37 +1860,55 @@ function sop_render_goods_in_page() {
                     return;
                 }
 
+                sopScanActive = true;
+
                 navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } }).then(function(stream){
                     sopScanStream = stream;
-                    if ( $scanVideo && $scanVideo.length ) {
-                        $scanVideo[0].srcObject = stream;
-                        $scanVideo[0].play().catch(function(){});
+                    var videoEl = ( $scanVideo && $scanVideo.length ) ? $scanVideo[0] : null;
+                    if ( videoEl ) {
+                        videoEl.srcObject = stream;
+                        var playPromise = videoEl.play();
+                        if ( playPromise && typeof playPromise.catch === 'function' ) {
+                            playPromise.catch(function(){});
+                        }
                     }
-                    var detector = new BarcodeDetector({ formats: ['code_128'] });
-
-                    var detectLoop = function(){
-                        if ( ! sopScanStream ) {
+                    sopGetBarcodeFormats().then(function(formats){
+                        var detector;
+                        try {
+                            detector = ( formats && formats.length ) ? new BarcodeDetector({ formats: formats }) : new BarcodeDetector();
+                        } catch (e) {
+                            if ( $scanStatus && $scanStatus.length ) {
+                                $scanStatus.text('<?php echo esc_js( __( 'Camera barcode scanning is not supported on this device. Use Bluetooth scanner or type SKU.', 'sop' ) ); ?>');
+                            }
+                            sopStopScanStream();
+                            sopStopScanLoop();
                             return;
                         }
-                        detector.detect( $scanVideo[0] ).then(function(barcodes){
-                            if ( barcodes && barcodes.length ) {
-                                var raw = ( barcodes[0].rawValue || '' ).toString().trim();
-                                sopCloseScanModal();
-                                if ( raw ) {
-                                    sopTriggerScanEnter( raw );
-                                }
-                                return;
-                            }
-                            sopScanRaf = requestAnimationFrame( detectLoop );
-                        }).catch(function(err){
-                            sopStopScanLoop();
-                            var msg = ( err && err.message ) ? err.message : err;
-                            $scanStatus.text( '<?php echo esc_js( __( 'Scan error: ', 'sop' ) ); ?>' + msg );
+                        sopWaitForVideoReady(videoEl, function(){
+                            sopStartScanLoop( detector );
                         });
-                    };
-                    detectLoop();
-                }).catch(function(){
-                    $scanStatus.text('<?php echo esc_js( __( 'Camera access denied or unavailable.', 'sop' ) ); ?>');
+                    }).catch(function(){
+                        sopWaitForVideoReady(videoEl, function(){
+                            try {
+                                sopStartScanLoop( new BarcodeDetector({ formats: ['code_128'] }) );
+                            } catch (e) {
+                                if ( $scanStatus && $scanStatus.length ) {
+                                    $scanStatus.text('<?php echo esc_js( __( 'Camera barcode scanning is not supported on this device. Use Bluetooth scanner or type SKU.', 'sop' ) ); ?>');
+                                }
+                                sopStopScanStream();
+                                sopStopScanLoop();
+                            }
+                        });
+                    });
+                }).catch(function(err){
+                    sopStopScanLoop();
+                    sopStopScanStream();
+                    var name = err && err.name ? err.name : '';
+                    if ( name === 'NotAllowedError' || name === 'SecurityError' ) {
+                        $scanStatus.text('<?php echo esc_js( __( 'Camera permission denied. Allow camera access to scan barcodes.', 'sop' ) ); ?>');
+                    } else {
+                        $scanStatus.text('<?php echo esc_js( __( 'Camera access denied or unavailable.', 'sop' ) ); ?>');
+                    }
                 });
             }
 
