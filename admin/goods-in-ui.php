@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.69
+ * File version: 1.0.73
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -9,6 +9,10 @@
  * - Adjusted Location/SKU/Product widths and always-visible sort indicators.
  * - Confine horizontal scrolling to table container (prevent full-page scrollbar).
  * - Mobile: add product modal scaffold (tap-to-open) and scroll helper.
+ * - 1.0.73 - Open product modal after scan input/camera (scan lock guard).
+ * - 1.0.72 - Open product modal automatically after scans (camera/Bluetooth) with scan lock guard.
+ * - 1.0.71 - Open product modal after scan (camera + scan input) with scan lock reset.
+ * - 1.0.70 - Open product modal after scan (camera + scan input), with scan lock to avoid double triggers.
  * - 1.0.69 - Mobile: product modal scaffold open/close + row data attributes and tap-to-open.
  * - 1.0.68 - Mobile: add product modal open/close JS (tap row to open; populate from row dataset).
  * - 1.0.67 - Mobile: add product modal open/close JS (tap row to open; populate from row dataset).
@@ -1826,6 +1830,7 @@ function sop_render_goods_in_page() {
             var sopScanRaf = null;
             var sopScanReadyTimer = null;
             var sopScanActive = false;
+            var sopScanLock = false;
 
             function markDirty() {
                 dirty = true;
@@ -2460,16 +2465,20 @@ function sop_render_goods_in_page() {
                     return;
                 }
                 e.preventDefault();
-                var scanVal = ($scanInput.val() || '').toString().trim();
+                var scanVal = ($scanInput.val() || '').toString();
+                var scanValTrim = scanVal.trim();
                 if ( ! scanVal ) {
                     return;
                 }
-                $searchInput.val( scanVal );
+                $searchInput.val( scanValTrim );
                 try {
-                    window.localStorage.setItem('sop_goodsin_search_query', scanVal);
+                    window.localStorage.setItem('sop_goodsin_search_query', scanValTrim);
                 } catch (e2) {}
                 sopGoodsinApplyFilterAll();
                 sopGoodsinJumpToFirstVisible();
+                setTimeout(function(){
+                    sopGoodsinOpenProductModalForSku( scanValTrim );
+                }, 20);
                 $scanInput.val('');
             });
 
@@ -2624,6 +2633,7 @@ function sop_render_goods_in_page() {
                     return;
                 }
                 activeProductRow = null;
+                sopScanLock = false;
                 $productModal.removeClass('is-open').attr('aria-hidden', 'true');
                 $productModalName.text('');
                 $productModalSku.text('');
@@ -2668,6 +2678,29 @@ function sop_render_goods_in_page() {
                 }
 
                 $productModal.addClass('is-open').attr('aria-hidden', 'false');
+            }
+
+            function sopGoodsinOpenProductModalForSku(sku) {
+                var cleaned = (sku || '').toString().trim();
+                if ( ! cleaned || sopScanLock ) {
+                    return false;
+                }
+                var $rows = $('#sop-goodsin-lines tbody tr:visible');
+                var $match = $rows.filter(function(){
+                    var rowSku = ($(this).data('sku') || '').toString().trim();
+                    return rowSku.toLowerCase() === cleaned.toLowerCase();
+                }).first();
+                if ( ! $match.length ) {
+                    if ( $scanStatus && $scanStatus.length ) {
+                        $scanStatus.text('<?php echo esc_js( __( 'SKU not found in visible rows.', 'sop' ) ); ?>');
+                    }
+                    return false;
+                }
+                sopScanLock = true;
+                requestAnimationFrame(function(){
+                    sopGoodsInOpenProductModal( $match );
+                });
+                return true;
             }
 
             function sopCloseSkusModal() {
