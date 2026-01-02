@@ -1,13 +1,21 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.55
+ * File version: 1.0.69
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
  * - Add unsaved changes warning for edited goods-in forms; column toggle dropdown; location column reposition/wrapping.
  * - Adjusted Location/SKU/Product widths and always-visible sort indicators.
  * - Confine horizontal scrolling to table container (prevent full-page scrollbar).
+ * - Mobile: add product modal scaffold (tap-to-open) and scroll helper.
+ * - 1.0.69 - Mobile: product modal scaffold open/close + row data attributes and tap-to-open.
+ * - 1.0.68 - Mobile: add product modal open/close JS (tap row to open; populate from row dataset).
+ * - 1.0.67 - Mobile: add product modal open/close JS (tap row to open; populate from row dataset).
+ * - 1.0.66 - Mobile: add product modal scaffold (tap-to-open) with row dataset and modal wiring.
+ * - 1.0.65 - Mobile: add product modal scaffold (tap-to-open).
+ * - 1.0.64 - Mobile: add product modal scaffold (tap-to-open).
+ * - 1.0.63 - Mobile: add product modal scaffold (tap-to-open).
  * - 1.0.05 - Hydrate Goods-In display fields with live WooCommerce data (preserve saved stock snapshot).
  * - 1.0.06 - Key Goods-In inputs by product_id (SKU display-only; disable inputs when product_id missing).
  * - 1.0.07 - Apply preorder-style tablecloth wrapper (sticky header + scroll container) to Goods-In list.
@@ -59,6 +67,9 @@
  * - 1.0.53 - Mobile: wire camera scan modal (Code128) + rename bulk label button text.
  * - 1.0.54 - Mobile: ensure scan modal open/close handlers wired (ESC/backdrop/btn).
  * - 1.0.55 - Mobile scan: wait for video frames before detect; handle InvalidStateError gracefully.
+ * - 1.0.56 - Mobile: add product modal scaffold (tap-to-open).
+ * - 1.0.60 - Mobile: product modal scaffold wiring (row data + modal shell).
+ * - 1.0.61 - Mobile: product modal open/close JS, row tap-to-open, and scroll helper.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -675,25 +686,44 @@ function sop_render_goods_in_page() {
 
                 $product      = function_exists( 'wc_get_product' ) ? wc_get_product( $pid ) : null;
                 $image_html   = '';
+                $image_url    = '';
                 if ( $product && method_exists( $product, 'get_image_id' ) ) {
                     $img_id = $product->get_image_id();
                     if ( $img_id ) {
                         $image_html = wp_get_attachment_image( $img_id, array( 100, 100 ), false, array( 'class' => 'sop-goodsin-img' ) );
+                        $src        = wp_get_attachment_image_src( $img_id, 'full' );
+                        if ( $src && isset( $src[0] ) ) {
+                            $image_url = $src[0];
+                        }
                     }
                 }
                 if ( '' === $image_html && ! empty( $line['image_id'] ) ) {
                     $image_html = wp_get_attachment_image( (int) $line['image_id'], array( 100, 100 ), false, array( 'class' => 'sop-goodsin-img' ) );
+                    $src        = wp_get_attachment_image_src( (int) $line['image_id'], 'full' );
+                    if ( $src && isset( $src[0] ) ) {
+                        $image_url = $src[0];
+                    }
                 }
                 if ( '' === $image_html ) {
                     $placeholder = function_exists( 'wc_placeholder_img_src' ) ? wc_placeholder_img_src( 'woocommerce_thumbnail' ) : '';
                     if ( $placeholder ) {
                         $image_html = '<img class="sop-goodsin-img" src="' . esc_url( $placeholder ) . '" alt="" />';
+                        $image_url  = $placeholder;
                     }
                 }
                 $product_link = $pid > 0 ? get_edit_post_link( $pid, '' ) : '';
                 $carton = isset( $line['carton_number'] ) ? (string) $line['carton_number'] : '';
                 ?>
-                <tr data-line-id="<?php echo esc_attr( $line_id ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>"
+                <tr data-line-id="<?php echo esc_attr( $line_id ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>" data-sop-row="1"
+                    data-sku="<?php echo esc_attr( trim( $sku ) ); ?>"
+                    data-product-name="<?php echo esc_attr( $name ); ?>"
+                    data-location="<?php echo esc_attr( $location ); ?>"
+                    data-carton="<?php echo esc_attr( $carton ); ?>"
+                    data-ordered="<?php echo esc_attr( $ordered ); ?>"
+                    data-edit-url="<?php echo esc_url( $product_link ); ?>"
+                    data-image-url="<?php echo esc_url( $image_url ); ?>"
+                    data-has-product-notes="<?php echo $product_notes ? '1' : '0'; ?>"
+                    data-has-order-notes="<?php echo $order_notes ? '1' : '0'; ?>"
                     data-sort-sku="<?php echo esc_attr( mb_strtolower( $sku ) ); ?>"
                     data-sort-product="<?php echo esc_attr( mb_strtolower( $name ) ); ?>"
                     data-sort-location="<?php echo esc_attr( mb_strtolower( $location ) ); ?>"
@@ -1228,6 +1258,96 @@ function sop_render_goods_in_page() {
             line-height: 1;
             cursor: pointer;
         }
+        .sop-goodsin-product-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 10002;
+        }
+        .sop-goodsin-product-modal.is-open {
+            display: block;
+        }
+        .sop-goodsin-product-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+        }
+        .sop-goodsin-product-modal__inner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            border-radius: 6px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+            padding: 16px;
+            max-width: 520px;
+            width: 95vw;
+            max-height: 90vh;
+            overflow: auto;
+            box-sizing: border-box;
+        }
+        .sop-goodsin-product-modal__close {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            background: transparent;
+            border: 0;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .sop-goodsin-product-modal__header {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+        .sop-goodsin-product-modal__title {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .sop-goodsin-product-modal__name {
+            font-weight: 700;
+            font-size: 15px;
+            line-height: 1.3;
+        }
+        .sop-goodsin-product-modal__sku {
+            font-family: Consolas, Monaco, monospace;
+            font-size: 13px;
+            color: #50575e;
+            word-break: break-word;
+        }
+        .sop-goodsin-product-modal__meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 12px;
+            align-items: center;
+            font-size: 13px;
+            color: #1d2327;
+        }
+        .sop-goodsin-product-modal__edit {
+            color: #2271b1;
+            text-decoration: none;
+        }
+        .sop-goodsin-product-modal__image-wrap {
+            width: 100%;
+            text-align: center;
+            margin-top: 8px;
+        }
+        .sop-goodsin-product-modal__image {
+            max-width: 220px;
+            max-height: 180px;
+            width: auto;
+            height: auto;
+            border: 1px solid #e2e4e7;
+            border-radius: 4px;
+        }
+        .sop-goodsin-product-modal__image.is-hidden,
+        .sop-goodsin-product-modal__edit.is-hidden {
+            display: none;
+        }
         .sop-scan-modal {
             position: fixed;
             inset: 0;
@@ -1625,9 +1745,30 @@ function sop_render_goods_in_page() {
                 <div class="sop-skus-modal__context-name"></div>
                 <div class="sop-skus-modal__context-sku"></div>
             </div>
-            <pre class="sop-skus-modal__content"></pre>
-        </div>
-    </div>
+		<pre class="sop-skus-modal__content"></pre>
+	</div>
+</div>
+
+<div id="sop-goodsin-product-modal" class="sop-modal sop-goodsin-product-modal" aria-hidden="true">
+	<div class="sop-goodsin-product-modal__backdrop" data-sop-prod-close="1"></div>
+	<div class="sop-modal__inner sop-goodsin-product-modal__inner" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Product details', 'stock-order-plugin' ); ?>">
+		<button type="button" class="sop-modal__close sop-goodsin-product-modal__close" data-sop-prod-close="1" aria-label="<?php esc_attr_e( 'Close modal', 'stock-order-plugin' ); ?>">×</button>
+		<div class="sop-goodsin-product-modal__header">
+			<div class="sop-goodsin-product-modal__title">
+				<div class="sop-goodsin-product-modal__name"></div>
+				<div class="sop-goodsin-product-modal__sku"></div>
+			</div>
+			<div class="sop-goodsin-product-modal__meta">
+				<div class="sop-goodsin-product-modal__carton"></div>
+				<div class="sop-goodsin-product-modal__location"></div>
+				<a class="sop-goodsin-product-modal__edit" target="_blank" rel="noopener noreferrer"></a>
+			</div>
+		</div>
+		<div class="sop-goodsin-product-modal__image-wrap">
+			<img class="sop-goodsin-product-modal__image" alt="">
+		</div>
+	</div>
+</div>
 
     <div id="sop-goodsin-scan-modal" class="sop-scan-modal" aria-hidden="true">
         <div class="sop-scan-modal__backdrop" data-sop-scan-close="1"></div>
@@ -1670,8 +1811,16 @@ function sop_render_goods_in_page() {
             var $scanModal = $('#sop-goodsin-scan-modal');
             var $scanVideo = $('#sop-goodsin-scan-video');
             var $scanStatus = $('#sop-goodsin-scan-status');
+            var $productModal = $('#sop-goodsin-product-modal');
+            var $productModalName = $productModal.find('.sop-goodsin-product-modal__name');
+            var $productModalSku = $productModal.find('.sop-goodsin-product-modal__sku');
+            var $productModalLocation = $productModal.find('.sop-goodsin-product-modal__location');
+            var $productModalCarton = $productModal.find('.sop-goodsin-product-modal__carton');
+            var $productModalEdit = $productModal.find('.sop-goodsin-product-modal__edit');
+            var $productModalImage = $productModal.find('.sop-goodsin-product-modal__image');
             var $issuesOnly = $('#sop-goodsin-issues-only');
             var notesActiveRow = null;
+            var activeProductRow = null;
             var sopGoodsinFilterTimer = null;
             var sopScanStream = null;
             var sopScanRaf = null;
@@ -1689,6 +1838,29 @@ function sop_render_goods_in_page() {
 
             function sopGoodsinNormalizeQuery(str) {
                 return (str || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+            }
+
+            function sopGoodsinJumpToFirstVisible(target) {
+                var el = target;
+                if ( typeof target === 'string' ) {
+                    el = document.querySelector(target);
+                }
+                if ( ! el && ! target ) {
+                    var firstRow = $('#sop-goodsin-lines tbody tr:visible').first();
+                    if ( firstRow.length ) {
+                        el = firstRow.get(0);
+                    }
+                }
+                if ( ! el || ! el.scrollIntoView ) {
+                    return;
+                }
+                try {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                } catch (e) {
+                    try {
+                        el.scrollIntoView();
+                    } catch (e2) {}
+                }
             }
 
             function sopStopScanLoop() {
@@ -2447,6 +2619,57 @@ function sop_render_goods_in_page() {
             $('#sop-goodsin-lines tbody tr').each(function(){ updateRowSortData($(this)); });
             sopGoodsinApplyFilterAll();
 
+            function sopGoodsInCloseProductModal() {
+                if ( ! $productModal.length ) {
+                    return;
+                }
+                activeProductRow = null;
+                $productModal.removeClass('is-open').attr('aria-hidden', 'true');
+                $productModalName.text('');
+                $productModalSku.text('');
+                $productModalLocation.text('');
+                $productModalCarton.text('');
+                $productModalEdit.attr('href', '#').addClass('is-hidden');
+                $productModalImage.attr('src', '').addClass('is-hidden');
+            }
+
+            function sopGoodsInOpenProductModal(rowEl) {
+                var $row = $(rowEl || []);
+                if ( ! $row.length || ! $productModal.length ) {
+                    return;
+                }
+                activeProductRow = $row;
+                var name = ($row.data('productName') || '').toString();
+                var sku = ($row.data('sku') || '').toString();
+                var location = ($row.data('location') || '').toString();
+                var carton = ($row.data('carton') || '').toString();
+                var editUrl = ($row.data('editUrl') || '').toString();
+                var imageUrl = ($row.data('imageUrl') || '').toString();
+
+                if ( ! carton && $cartonInput && $cartonInput.length ) {
+                    carton = ($cartonInput.val() || '').toString();
+                }
+
+                $productModalName.text( name || '<?php echo esc_js( __( '(Unknown product)', 'sop' ) ); ?>' );
+                $productModalSku.text( sku ? ('SKU: ' + sku) : '' );
+                $productModalLocation.text( location ? ('<?php echo esc_js( __( 'Location:', 'sop' ) ); ?> ' + location) : '' );
+                $productModalCarton.text( carton ? ('<?php echo esc_js( __( 'Carton:', 'sop' ) ); ?> ' + carton) : '' );
+
+                if ( editUrl ) {
+                    $productModalEdit.attr('href', editUrl).removeClass('is-hidden');
+                } else {
+                    $productModalEdit.attr('href', '#').addClass('is-hidden');
+                }
+
+                if ( imageUrl ) {
+                    $productModalImage.attr('src', imageUrl).removeClass('is-hidden');
+                } else {
+                    $productModalImage.attr('src', '').addClass('is-hidden');
+                }
+
+                $productModal.addClass('is-open').attr('aria-hidden', 'false');
+            }
+
             function sopCloseSkusModal() {
                 if ( $skusModal.length ) {
                     $skusModal.removeClass('is-open').attr('aria-hidden', 'true');
@@ -2488,10 +2711,28 @@ function sop_render_goods_in_page() {
                 sopCloseSkusModal();
             });
 
+            $(document).on('click', '[data-sop-prod-close="1"]', function(e){
+                e.preventDefault();
+                sopGoodsInCloseProductModal();
+            });
+
+            $('#sop-goodsin-lines').on('click', 'td[data-column="sku"], td[data-column="product"], td[data-column="image"]', function(e){
+                var $cell = $(this);
+                if ( $cell.is('td[data-column="product"]') && $(e.target).is('a') ) {
+                    return;
+                }
+                var $tr = $cell.closest('tr');
+                if ( $tr.length ) {
+                    e.preventDefault();
+                    sopGoodsInOpenProductModal( $tr );
+                }
+            });
+
             $(document).on('keydown', function(e){
                 if ( e.key === 'Escape' || e.keyCode === 27 ) {
                     sopCloseSkusModal();
                     sopCloseScanModal();
+                    sopGoodsInCloseProductModal();
                 }
             });
         })(jQuery);
