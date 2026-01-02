@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.49
+ * File version: 1.0.50
  *
  * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
@@ -53,6 +53,7 @@
  * - 1.0.47 - Mobile grid layout tightened (7-line layout).
  * - 1.0.48 - Refine mobile 7-line grid wrapper (header/actions/filters).
  * - 1.0.49 - Mobile grid enforces two-column rows for header/actions/filters.
+ * - 1.0.50 - Mobile: search input height 40px; header select-all checkbox 25x15.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1114,6 +1115,16 @@ function sop_render_goods_in_page() {
                 width: max-content;
                 min-width: 1100px;
                 table-layout: auto;
+            }
+            #sop-goodsin-search {
+                height: 40px;
+                min-height: 40px;
+                box-sizing: border-box;
+            }
+            #sop-goodsin-select-all {
+                width: 25px;
+                height: 15px;
+                vertical-align: middle;
             }
             .sop-goodsin-columns-popover {
                 max-height: 60vh;
