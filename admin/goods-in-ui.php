@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
-* File version: 1.0.76
+* File version: 1.0.77
  *
+* - 1.0.77 - Mobile product modal: header bar + scan-next stays in modal.
 * - 1.0.76 - Mobile: add admin-bar-safe top offset for product modal.
 * - 1.0.75 - Product modal matches mobile design reference (Step 1: layout + bindings).
 * - 1.0.74 - Product modal matches mobile design; qty +/- updates row; scan opens modal.
@@ -1311,15 +1312,38 @@ function sop_render_goods_in_page() {
             overflow: auto;
             box-sizing: border-box;
         }
-        .sop-goodsin-product-modal__close {
-            position: absolute;
-            top: 8px;
-            right: 10px;
-            background: transparent;
+        .sop-goodsin-product-modal__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .sop-goodsin-product-modal__header-title {
+            flex: 1 1 auto;
+            text-align: center;
+            font-weight: 600;
+            font-size: 16px;
+            color: #1d2327;
+        }
+        .sop-goodsin-product-modal__header-btn {
+            background: none;
             border: 0;
-            font-size: 18px;
-            line-height: 1;
+            padding: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #50575e;
             cursor: pointer;
+            min-width: 48px;
+        }
+        .sop-goodsin-product-modal__back {
+            font-size: 20px;
+            color: #1d2327;
+            text-align: left;
+        }
+        .sop-goodsin-product-modal__next {
+            text-align: right;
+            letter-spacing: 0.02em;
         }
         .sop-goodsin-product-modal__card {
             display: flex;
@@ -1929,9 +1953,13 @@ function sop_render_goods_in_page() {
 
 <div id="sop-goodsin-product-modal" class="sop-modal sop-goodsin-product-modal" aria-hidden="true">
 	<div class="sop-goodsin-product-modal__backdrop" data-sop-prod-close="1"></div>
-	<div class="sop-modal__inner sop-goodsin-product-modal__inner" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Product details', 'stock-order-plugin' ); ?>">
-		<button type="button" class="sop-modal__close sop-goodsin-product-modal__close" data-sop-prod-close="1" aria-label="<?php esc_attr_e( 'Close modal', 'stock-order-plugin' ); ?>">×</button>
-		<div class="sop-goodsin-product-modal__card">
+    <div class="sop-modal__inner sop-goodsin-product-modal__inner" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Product details', 'stock-order-plugin' ); ?>">
+        <div class="sop-goodsin-product-modal__header">
+            <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__back" data-sop-prod-close="1" aria-label="<?php esc_attr_e( 'Back', 'sop' ); ?>">&larr;</button>
+            <div class="sop-goodsin-product-modal__header-title"><?php esc_html_e( 'Goods-In', 'sop' ); ?></div>
+            <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__next" id="sop-product-modal-header-next"><?php esc_html_e( 'NEXT', 'sop' ); ?></button>
+        </div>
+        <div class="sop-goodsin-product-modal__card">
 			<div id="sop-product-modal-name" class="sop-goodsin-product-modal__block sop-goodsin-product-modal__name"></div>
 			<div id="sop-product-modal-sku" class="sop-goodsin-product-modal__block sop-goodsin-product-modal__block--sku sop-goodsin-product-modal__sku"></div>
 
@@ -2039,6 +2067,7 @@ function sop_render_goods_in_page() {
             var $productModalBtnPlus = $('#sop-product-modal-btn-plus');
             var $productModalBtnScanNext = $('#sop-product-modal-btn-scan-next');
             var $productModalBtnConfirm = $('#sop-product-modal-btn-confirm');
+            var $productModalHeaderNext = $('#sop-product-modal-header-next');
             var $issuesOnly = $('#sop-goodsin-issues-only');
             var notesActiveRow = null;
             var activeProductRow = null;
@@ -2048,6 +2077,9 @@ function sop_render_goods_in_page() {
             var sopScanReadyTimer = null;
             var sopScanActive = false;
             var sopScanLock = false;
+            if ( typeof window.__sop_goodsin_scan_from_product_modal === 'undefined' ) {
+                window.__sop_goodsin_scan_from_product_modal = false;
+            }
 
             function markDirty() {
                 dirty = true;
@@ -2199,7 +2231,11 @@ function sop_render_goods_in_page() {
                         }
                         if ( barcodes && barcodes.length ) {
                             var raw = ( barcodes[0].rawValue || '' ).toString().trim();
+                            var fromProductModal = !!window.__sop_goodsin_scan_from_product_modal;
                             sopCloseScanModal();
+                            if ( fromProductModal ) {
+                                window.__sop_goodsin_scan_from_product_modal = false;
+                            }
                             if ( raw ) {
                                 sopTriggerScanEnter( raw );
                             }
@@ -2845,6 +2881,22 @@ function sop_render_goods_in_page() {
             $('#sop-goodsin-lines tbody tr').each(function(){ updateRowSortData($(this)); });
             sopGoodsinApplyFilterAll();
 
+            function sopGoodsinProductModalBeginScanNext() {
+                var isMobile = window.matchMedia && window.matchMedia('(max-width: 782px)').matches;
+                var canCamera = typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof BarcodeDetector !== 'undefined';
+                if ( isMobile && canCamera ) {
+                    window.__sop_goodsin_scan_from_product_modal = true;
+                    sopOpenScanModal();
+                    return;
+                }
+                window.__sop_goodsin_scan_from_product_modal = false;
+                if ( $scanInput.length ) {
+                    $scanInput.focus().select();
+                } else {
+                    $searchInput.focus().select();
+                }
+            }
+
             function sopGoodsinGetRowModalData($tr) {
                 var name = ($tr.data('productName') || '').toString();
                 var sku = ($tr.data('sku') || '').toString();
@@ -2971,12 +3023,12 @@ function sop_render_goods_in_page() {
 
                 $productModalBtnScanNext.on('click', function(e){
                     e.preventDefault();
-                    sopGoodsInCloseProductModal();
-                    if ( $scanInput.length ) {
-                        $scanInput.focus().select();
-                    } else {
-                        $searchInput.focus().select();
-                    }
+                    sopGoodsinProductModalBeginScanNext();
+                });
+
+                $productModalHeaderNext.on('click', function(e){
+                    e.preventDefault();
+                    sopGoodsinProductModalBeginScanNext();
                 });
 
                 $productModalNotesProductView.on('click', function(e){
