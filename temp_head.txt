@@ -1,0 +1,200 @@
+<?php
+/**
+ * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
+* File version: 1.0.74
+ *
+ * - 1.0.74 - Product modal matches mobile design; qty +/- updates row; scan opens modal.
+* - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
+ * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
+ * - Add unsaved changes warning for edited goods-in forms; column toggle dropdown; location column reposition/wrapping.
+ * - Adjusted Location/SKU/Product widths and always-visible sort indicators.
+ * - Confine horizontal scrolling to table container (prevent full-page scrollbar).
+ * - Mobile: add product modal scaffold (tap-to-open) and scroll helper.
+ * - 1.0.73 - Open product modal after scan input/camera (scan lock guard).
+ * - 1.0.72 - Open product modal automatically after scans (camera/Bluetooth) with scan lock guard.
+ * - 1.0.71 - Open product modal after scan (camera + scan input) with scan lock reset.
+ * - 1.0.70 - Open product modal after scan (camera + scan input), with scan lock to avoid double triggers.
+ * - 1.0.69 - Mobile: product modal scaffold open/close + row data attributes and tap-to-open.
+ * - 1.0.68 - Mobile: add product modal open/close JS (tap row to open; populate from row dataset).
+ * - 1.0.67 - Mobile: add product modal open/close JS (tap row to open; populate from row dataset).
+ * - 1.0.66 - Mobile: add product modal scaffold (tap-to-open) with row dataset and modal wiring.
+ * - 1.0.65 - Mobile: add product modal scaffold (tap-to-open).
+ * - 1.0.64 - Mobile: add product modal scaffold (tap-to-open).
+ * - 1.0.63 - Mobile: add product modal scaffold (tap-to-open).
+ * - 1.0.05 - Hydrate Goods-In display fields with live WooCommerce data (preserve saved stock snapshot).
+ * - 1.0.06 - Key Goods-In inputs by product_id (SKU display-only; disable inputs when product_id missing).
+ * - 1.0.07 - Apply preorder-style tablecloth wrapper (sticky header + scroll container) to Goods-In list.
+ * - 1.0.08 - Fix Goods-In right-side column widths (Ordered → Outstanding) in tablecloth layout.
+ * - 1.0.09 - Set qty columns to 80px and rows to 80px height in Goods-In tablecloth layout.
+ * - 1.0.10 - Tighten Goods-In image and column widths (narrow/reason/stocked/outstanding).
+ * - 1.0.11 - Set Location/SKU/Product column widths and padding for Goods-In table.
+ * - 1.0.12 - Enforce 80px rows; remove vertical padding; truncate long text cells with hover tooltips.
+ * - 1.0.13 - Header checkbox padding + location/carton/notes column width updates.
+ * - 1.0.14 - Header tick column sizing/padding adjustments.
+ * - 1.0.15 - Resize header select-all checkbox to 16px.
+ * - 1.0.16 - Adjust Goods-In check column to 16px with 10px side padding.
+ * - 1.0.17 - Allow product link wrapping within fixed-height wrapper (rows remain 80px).
+ * - 1.0.18 - Vertically center wrapped product link; clamp product/order notes to 4 lines with tooltips.
+ * - 1.0.19 - Goods-In notes modal with 3-line preview; product link wrap stays centered.
+ * - 1.0.20 - Goods-In notes preview styled as textbox (3-line clamp, modal click area).
+ * - 1.0.21 - Set Goods-In notes modal to 700x342 and widen Location column to 56px.
+ * - 1.0.22 - Align Goods-In notes modal to Pre-Order styling; auto-grow textarea (no modal scroll).
+ * - 1.0.23 - Match Pre-Order notes modal UX (overlay position, close/X, product line, resizable textarea).
+ * - 1.0.24 - Match Location column sizing/padding to Pre-Order sheet.
+ * - 1.0.25 - Add Outstanding-only filter (auto-hide completed lines, toggle + counter).
+ * - 1.0.26 - Add Goods-In search filter + Enter-to-jump (SKU/Product/Carton/Location).
+ * - 1.0.27 - Widen search box to 250px; add Scan SKU jump/focus input.
+ * - 1.0.28 - Hotfix parse error: ensure JS stays inside script; maintain search/scan features.
+ * - 1.0.29 - Enter in qty inputs ticks row, updates, and returns focus to Scan.
+ * - 1.0.30 - Add Carton filter (carton mode) stacking with search/completed filters.
+ * - 1.0.31 - Add completed-only Goods-In Issues XLSX export button.
+ * - 1.0.32 - Harden Goods-In Issues button gating (completed + has issues).
+ * - 1.0.33 - Finalise Goods-In Issues XLSX export gating and data plumbing.
+ * - 1.0.34 - Add Goods-In "Issues only" filter toggle (missing/reject > 0).
+ * - 1.0.35 - Show dispute summary (missing/reject/credit totals with RMB FX) on completed goods-in.
+ * - 1.0.36 - Fix Missing/Reject persistence (prefill + payload + handler key alignment).
+ * - 1.0.37 - Optional Supplier SKUs column (per-supplier toggle).
+ * - 1.0.38 - Fix Supplier SKUs column toggle scope in Goods-In UI.
+ * - 1.0.39 - Fix Goods-In column widths when Supplier SKUs column is enabled (data-column width rules).
+ * - 1.0.40 - Compact Supplier SKUs preview to a single line to prevent row height growth.
+ * - 1.0.41 - Supplier SKUs two-line preview and product link opens in a new tab.
+ * - 1.0.42 - Mobile tap-to-view modal for Supplier SKUs (keeps 2-line compact preview).
+ * - 1.0.43 - Supplier SKUs modal shows product + SKU context.
+ * - 1.0.44 - Improve Goods-In mobile responsiveness (toolbar/filter/table).
+ * - 1.0.45 - Mobile: stack filters cleanly and force horizontal table scroll (no column squish).
+ * - 1.0.46 - Mobile polish: force table horizontal scroll; stack filters with clear spacing.
+ * - 1.0.47 - Mobile grid layout tightened (7-line layout).
+ * - 1.0.48 - Refine mobile 7-line grid wrapper (header/actions/filters).
+ * - 1.0.49 - Mobile grid enforces two-column rows for header/actions/filters.
+ * - 1.0.50 - Mobile: search input height 40px; header select-all checkbox 25x15.
+ * - 1.0.51 - Mobile: set search/carton/scan inputs to 40px height; header select-all checkbox 25px high.
+ * - 1.0.52 - Mobile: add camera Scan button beside search (Code128 -> Scan SKU input).
+ * - 1.0.53 - Mobile: wire camera scan modal (Code128) + rename bulk label button text.
+ * - 1.0.54 - Mobile: ensure scan modal open/close handlers wired (ESC/backdrop/btn).
+ * - 1.0.55 - Mobile scan: wait for video frames before detect; handle InvalidStateError gracefully.
+ * - 1.0.56 - Mobile: add product modal scaffold (tap-to-open).
+ * - 1.0.60 - Mobile: product modal scaffold wiring (row data + modal shell).
+ * - 1.0.61 - Mobile: product modal open/close JS, row tap-to-open, and scroll helper.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+add_action( 'admin_menu', 'sop_goodsin_register_menu', 99 );
+function sop_goodsin_register_menu() {
+    add_submenu_page(
+        'sop_stock_order_dashboard',
+        __( 'Goods In', 'sop' ),
+        __( 'Goods In', 'sop' ),
+        'manage_woocommerce',
+        'sop-goods-in',
+        'sop_render_goods_in_page'
+    );
+}
+
+/**
+ * Get open goods-in sheets (locked/receiving) with outstanding totals.
+ *
+ * @return array
+ */
+function sop_goodsin_get_open_sheets() {
+    global $wpdb;
+
+    $tbl_sheets = function_exists( 'sop_get_preorder_sheet_table_name' ) ? sop_get_preorder_sheet_table_name() : '';
+    $tbl_lines  = function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ? sop_get_preorder_sheet_lines_table_name() : '';
+
+    if ( '' === $tbl_sheets ) {
+        $tbl_sheets = $wpdb->prefix . 'sop_preorder_sheet';
+    }
+    if ( '' === $tbl_lines ) {
+        $tbl_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
+    }
+
+    $sql = "SELECT
+                s.id,
+                s.supplier_id,
+                s.status,
+                s.title,
+                s.order_number_label,
+                s.updated_at,
+                COUNT(l.id) AS total_lines,
+                SUM(
+                    CASE
+                        WHEN l.qty_owner > 0 THEN
+                            CASE
+                                WHEN (
+                                    l.qty_owner
+                                    - COALESCE(l.goods_in_stock_added_qty, 0)
+                                    - COALESCE(l.goods_in_missing_qty, 0)
+                                    - COALESCE(l.goods_in_reject_qty, 0)
+                                ) > 0
+                                THEN (
+                                    l.qty_owner
+                                    - COALESCE(l.goods_in_stock_added_qty, 0)
+                                    - COALESCE(l.goods_in_missing_qty, 0)
+                                    - COALESCE(l.goods_in_reject_qty, 0)
+                                )
+                                ELSE 0
+                            END
+                        ELSE 0
+                    END
+                ) AS outstanding_qty
+            FROM {$tbl_sheets} s
+            LEFT JOIN {$tbl_lines} l ON l.sheet_id = s.id
+            WHERE s.status IN ( 'locked', 'receiving' )
+            GROUP BY s.id
+            ORDER BY s.updated_at DESC, s.id DESC";
+
+    $rows = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+    return is_array( $rows ) ? $rows : array();
+}
+
+/**
+ * Get goods-in lines for a sheet (filtered to qty_owner > 0 and not removed).
+ *
+ * @param int $sheet_id
+ * @return array
+ */
+function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
+    global $wpdb;
+
+    $sheet_id = (int) $sheet_id;
+    if ( $sheet_id <= 0 ) {
+        return array();
+    }
+
+    $tbl_lines = function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ? sop_get_preorder_sheet_lines_table_name() : '';
+    if ( '' === $tbl_lines ) {
+        $tbl_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
+    }
+
+    $sql = "SELECT
+                l.id AS line_id,
+                l.sheet_id,
+                l.product_id,
+                l.sku_owner,
+                l.qty_owner,
+                l.image_id,
+                l.goods_in_received_qty,
+                l.goods_in_missing_qty,
+                l.location,
+                l.product_notes_owner,
+                l.order_notes_owner,
+                l.goods_in_reject_qty,
+                l.goods_in_reject_reason,
+                l.goods_in_notes,
+                l.goods_in_stock_added_qty,
+                p.post_title AS product_name
+            FROM {$tbl_lines} l
+            LEFT JOIN {$wpdb->posts} p ON p.ID = l.product_id
+            LEFT JOIN {$wpdb->postmeta} pm ON pm.post_id = l.product_id AND pm.meta_key = %s
+            WHERE l.sheet_id = %d
+              AND l.qty_owner > 0
+              AND ( pm.meta_value IS NULL OR pm.meta_value <> '1' )
+            ORDER BY l.sort_index ASC, l.id ASC";
+
+    $rows = $wpdb->get_results( $wpdb->prepare( $sql, '_sop_preorder_removed', $sheet_id ), ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+    $rows = is_array( $rows ) ? $rows : array();
+
+    // Hydrate display fields with live product data (do not alter saved stock snapshots).

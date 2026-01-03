@@ -1,9 +1,10 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.73
+* File version: 1.0.74
  *
- * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
+ * - 1.0.74 - Product modal matches mobile design; qty +/- updates row; scan opens modal.
+* - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
  * - Add unsaved changes warning for edited goods-in forms; column toggle dropdown; location column reposition/wrapping.
  * - Adjusted Location/SKU/Product widths and always-visible sort indicators.
