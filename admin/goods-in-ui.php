@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
-* File version: 1.0.80
+* File version: 1.0.81
  *
+* - 1.0.81 - Fix product modal carton/stock wiring + prev/next navigation.
 * - 1.0.80 - Goods-In product modal: fix prev/next navigation + carton/stock rendering.
 * - 1.0.79 - Goods-In product modal: fix prev/next, carton, and stock data plumbing.
 * - 1.0.78 - Goods-In product modal: close icon, carton/location/stock meta order, prev/next navigation.
@@ -727,13 +728,25 @@ function sop_render_goods_in_page() {
                 if ( isset( $line['carton_no'] ) && '' !== (string) $line['carton_no'] ) {
                     $carton = (string) $line['carton_no'];
                 }
-                $stock_qty = 0;
+                $stock_qty = null;
                 $stock_keys = array( 'current_stock', 'stock_qty', 'stock_snapshot', 'stock_on_hand', 'stock_at_save', 'saved_stock' );
                 foreach ( $stock_keys as $stock_key ) {
                     if ( isset( $line[ $stock_key ] ) && '' !== $line[ $stock_key ] && null !== $line[ $stock_key ] ) {
                         $stock_qty = (int) $line[ $stock_key ];
                         break;
                     }
+                }
+                if ( null === $stock_qty && $pid > 0 && function_exists( 'wc_get_product' ) ) {
+                    $product = wc_get_product( $pid );
+                    if ( $product ) {
+                        $stock_raw = $product->get_stock_quantity();
+                        if ( null !== $stock_raw && '' !== $stock_raw ) {
+                            $stock_qty = (int) $stock_raw;
+                        }
+                    }
+                }
+                if ( null === $stock_qty ) {
+                    $stock_qty = '';
                 }
                                 ?>
                                 <tr data-line-id="<?php echo esc_attr( $line_id ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>" data-sop-row="1"
@@ -2942,12 +2955,17 @@ function sop_render_goods_in_page() {
                 var sku = ($tr.data('sku') || '').toString();
                 var location = ($tr.data('location') || '').toString();
                 var cartonVal = ($tr.find('input.sop-goodsin-carton-no').val() || '').toString().trim();
+                var cartonCellText = ($tr.find('td[data-column="carton"]').text() || '').toString().trim();
                 var cartonFallback = ($cartonInput.length ? $cartonInput.val() : '');
                 cartonFallback = (cartonFallback || '').toString().trim();
-                var carton = cartonVal || cartonFallback || '\u2014';
-                var stockVal = parseInt($tr.attr('data-stock-qty') || '0', 10);
-                if ( isNaN( stockVal ) ) {
-                    stockVal = 0;
+                var carton = cartonVal || cartonCellText || cartonFallback || '\u2014';
+                var stockRaw = $tr.attr('data-stock-qty');
+                var stockVal = null;
+                if ( typeof stockRaw !== 'undefined' && stockRaw !== '' ) {
+                    stockVal = parseInt( stockRaw, 10 );
+                    if ( isNaN( stockVal ) ) {
+                        stockVal = null;
+                    }
                 }
                 var editUrl = ($tr.data('editUrl') || '').toString();
                 var imageUrl = ($tr.data('imageUrl') || '').toString();
@@ -2999,11 +3017,15 @@ function sop_render_goods_in_page() {
                 }
                 var cartonText = '<?php echo esc_js( __( 'Carton No.:', 'sop' ) ); ?> ' + cartonValue;
                 var locationText = data.location ? ('<?php echo esc_js( __( 'Location:', 'sop' ) ); ?> ' + data.location) : '';
-                var stockQty = parseInt( data.stock_qty, 10 );
-                if ( isNaN( stockQty ) ) {
-                    stockQty = 0;
+                var stockQty = data.stock_qty;
+                var stockLabel = '\u2014';
+                if ( stockQty !== null && stockQty !== '' && typeof stockQty !== 'undefined' ) {
+                    var parsedStock = parseInt( stockQty, 10 );
+                    if ( ! isNaN( parsedStock ) ) {
+                        stockLabel = parsedStock;
+                    }
                 }
-                var stockText = '<?php echo esc_js( __( 'Stock qty:', 'sop' ) ); ?> ' + stockQty;
+                var stockText = '<?php echo esc_js( __( 'Stock:', 'sop' ) ); ?> ' + stockLabel;
                 var qtyOrderedText = '<?php echo esc_js( __( 'Qty Ordered:', 'sop' ) ); ?> ' + ( Math.round( data.qty_ordered ) || 0 );
                 var qtyReceivedText = ( Math.round( data.qty_received ) || 0 );
                 var addedVal = ! isNaN( data.added_to_stock ) ? Math.round( data.added_to_stock ) : qtyReceivedText;
@@ -3052,35 +3074,29 @@ function sop_render_goods_in_page() {
             }
 
             function sopGoodsinProductModalNavigate(delta) {
-                var $rows = $('#sop-goodsin-lines tbody tr:visible').filter('[data-line-id]');
-                if ( ! $rows.length ) {
+                var rows = $('#sop-goodsin-lines tbody tr').filter(':visible').get();
+                if ( ! rows.length ) {
                     return;
                 }
-                var currentLineId = ($productModal.data('currentLineId') || '').toString();
-                if ( ! currentLineId && activeProductRow && activeProductRow.length ) {
-                    currentLineId = (activeProductRow.attr('data-line-id') || '').toString();
+                var currentEl = $productModal.data('currentRowEl') || null;
+                if ( ! currentEl && activeProductRow && activeProductRow.length ) {
+                    currentEl = activeProductRow.get(0);
                 }
-                if ( ! currentLineId ) {
+                if ( ! currentEl ) {
                     sopGoodsinProductModalUpdateNavButtons();
                     return;
                 }
-                var currentIndex = -1;
-                $rows.each(function(idx){
-                    if ( ($(this).attr('data-line-id') || '') === currentLineId ) {
-                        currentIndex = idx;
-                        return false;
-                    }
-                });
+                var currentIndex = rows.indexOf( currentEl );
                 if ( currentIndex < 0 ) {
                     sopGoodsinProductModalUpdateNavButtons();
                     return;
                 }
                 var targetIndex = currentIndex + delta;
-                if ( targetIndex < 0 || targetIndex >= $rows.length ) {
+                if ( targetIndex < 0 || targetIndex >= rows.length ) {
                     sopGoodsinProductModalUpdateNavButtons();
                     return;
                 }
-                var $targetRow = $rows.eq( targetIndex );
+                var $targetRow = $( rows[ targetIndex ] );
                 sopGoodsInOpenProductModal( $targetRow );
                 if ( $targetRow.length && $targetRow.get(0) && typeof $targetRow.get(0).scrollIntoView === 'function' ) {
                     $targetRow.get(0).scrollIntoView({ block: 'center' });
@@ -3091,35 +3107,29 @@ function sop_render_goods_in_page() {
                 if ( ! $productModalHeaderPrev.length || ! $productModalHeaderNext.length ) {
                     return;
                 }
-                var $rows = $('#sop-goodsin-lines tbody tr:visible').filter('[data-line-id]');
-                if ( ! $rows.length ) {
+                var rows = $('#sop-goodsin-lines tbody tr').filter(':visible').get();
+                if ( ! rows.length ) {
                     $productModalHeaderPrev.addClass('is-disabled').prop('disabled', true);
                     $productModalHeaderNext.addClass('is-disabled').prop('disabled', true);
                     return;
                 }
-                var currentLineId = ($productModal.data('currentLineId') || '').toString();
-                if ( ! currentLineId && activeProductRow && activeProductRow.length ) {
-                    currentLineId = (activeProductRow.attr('data-line-id') || '').toString();
+                var currentEl = $productModal.data('currentRowEl') || null;
+                if ( ! currentEl && activeProductRow && activeProductRow.length ) {
+                    currentEl = activeProductRow.get(0);
                 }
-                if ( ! currentLineId ) {
+                if ( ! currentEl ) {
                     $productModalHeaderPrev.addClass('is-disabled').prop('disabled', true);
                     $productModalHeaderNext.addClass('is-disabled').prop('disabled', true);
                     return;
                 }
-                var currentIndex = -1;
-                $rows.each(function(idx){
-                    if ( ($(this).attr('data-line-id') || '') === currentLineId ) {
-                        currentIndex = idx;
-                        return false;
-                    }
-                });
+                var currentIndex = rows.indexOf( currentEl );
                 if ( currentIndex < 0 ) {
                     $productModalHeaderPrev.addClass('is-disabled').prop('disabled', true);
                     $productModalHeaderNext.addClass('is-disabled').prop('disabled', true);
                     return;
                 }
                 var hasPrev = currentIndex > 0;
-                var hasNext = currentIndex < ( $rows.length - 1 );
+                var hasNext = currentIndex < ( rows.length - 1 );
                 $productModalHeaderPrev.toggleClass('is-disabled', ! hasPrev).prop('disabled', ! hasPrev);
                 $productModalHeaderNext.toggleClass('is-disabled', ! hasNext).prop('disabled', ! hasNext);
             }
@@ -3192,7 +3202,7 @@ function sop_render_goods_in_page() {
                 sopScanLock = false;
                 $productModal.removeClass('is-open').attr('aria-hidden', 'true');
                 $productModal.removeAttr('data-sop-current-sku');
-                $productModal.removeData('currentLineId');
+                $productModal.removeData('currentRowEl');
                 $productModalName.text('');
                 $productModalSku.text('');
                 $productModalLocation.text('');
@@ -3218,7 +3228,7 @@ function sop_render_goods_in_page() {
                 }
                 activeProductRow = $row;
                 window.sopGoodsinModalCurrentRow = $row;
-                $productModal.data('currentLineId', ($row.attr('data-line-id') || '').toString());
+                $productModal.data('currentRowEl', $row.get(0));
                 var currentSku = ($row.data('sku') || '').toString().trim();
                 if ( ! currentSku ) {
                     currentSku = ($row.find('td[data-column="sku"]').text() || '').toString().trim();
