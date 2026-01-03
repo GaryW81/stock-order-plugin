@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
-* File version: 1.0.75
+* File version: 1.0.76
  *
+* - 1.0.76 - Mobile: add admin-bar-safe top offset for product modal.
 * - 1.0.75 - Product modal matches mobile design reference (Step 1: layout + bindings).
 * - 1.0.74 - Product modal matches mobile design; qty +/- updates row; scan opens modal.
 * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
@@ -1264,6 +1265,23 @@ function sop_render_goods_in_page() {
             line-height: 1;
             cursor: pointer;
         }
+        :root {
+            --sop-wpadminbar-h: 0px;
+        }
+        body.wp-admin {
+            --sop-wpadminbar-h: 46px;
+        }
+        body.admin-bar {
+            --sop-wpadminbar-h: 46px;
+        }
+        @media (min-width: 783px) {
+            body.wp-admin {
+                --sop-wpadminbar-h: 32px;
+            }
+            body.admin-bar {
+                --sop-wpadminbar-h: 32px;
+            }
+        }
         .sop-goodsin-product-modal {
             position: fixed;
             inset: 0;
@@ -1487,13 +1505,14 @@ function sop_render_goods_in_page() {
         }
         @media (max-width: 782px) {
             .sop-goodsin-product-modal__inner {
-                top: 0;
+                top: calc(var(--sop-wpadminbar-h) + 12px);
                 left: 0;
                 transform: none;
                 width: 100%;
                 max-width: 100%;
-                height: 100%;
-                max-height: 100%;
+                height: auto;
+                max-height: calc(100vh - var(--sop-wpadminbar-h) - 24px);
+                overflow-y: auto;
                 border-radius: 0;
             }
         }
