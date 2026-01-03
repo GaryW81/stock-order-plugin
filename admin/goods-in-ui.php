@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
-* File version: 1.0.77
+* File version: 1.0.78
  *
+* - 1.0.78 - Goods-In product modal: close icon, carton/location/stock meta order, prev/next navigation.
 * - 1.0.77 - Mobile product modal: header bar + scan-next stays in modal.
 * - 1.0.76 - Mobile: add admin-bar-safe top offset for product modal.
 * - 1.0.75 - Product modal matches mobile design reference (Step 1: layout + bindings).
@@ -1313,14 +1314,14 @@ function sop_render_goods_in_page() {
             box-sizing: border-box;
         }
         .sop-goodsin-product-modal__header {
-            display: flex;
+            display: grid;
+            grid-template-columns: 44px 1fr 88px;
             align-items: center;
-            justify-content: space-between;
-            gap: 10px;
+            gap: 8px;
             margin-bottom: 12px;
         }
         .sop-goodsin-product-modal__header-title {
-            flex: 1 1 auto;
+            justify-self: center;
             text-align: center;
             font-weight: 600;
             font-size: 16px;
@@ -1330,20 +1331,38 @@ function sop_render_goods_in_page() {
             background: none;
             border: 0;
             padding: 0;
-            font-size: 15px;
-            font-weight: 600;
-            color: #50575e;
             cursor: pointer;
-            min-width: 48px;
+            min-width: 40px;
+            min-height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        .sop-goodsin-product-modal__back {
-            font-size: 20px;
+        .sop-goodsin-product-modal__close {
+            border: 1px solid #c3c4c7;
+            border-radius: 999px;
+            background: #fff;
             color: #1d2327;
-            text-align: left;
+            font-size: 20px;
+            line-height: 1;
         }
-        .sop-goodsin-product-modal__next {
-            text-align: right;
-            letter-spacing: 0.02em;
+        .sop-goodsin-product-modal__header-nav {
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+        }
+        .sop-goodsin-product-modal__nav-btn {
+            border: 1px solid #c3c4c7;
+            border-radius: 999px;
+            background: #fff;
+            color: #1d2327;
+            font-size: 18px;
+            line-height: 1;
+        }
+        .sop-goodsin-product-modal__nav-btn.is-disabled,
+        .sop-goodsin-product-modal__nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
         }
         .sop-goodsin-product-modal__card {
             display: flex;
@@ -1524,7 +1543,8 @@ function sop_render_goods_in_page() {
             color: #fff;
         }
         .sop-goodsin-product-modal__image.is-hidden,
-        .sop-goodsin-product-modal__edit.is-hidden {
+        .sop-goodsin-product-modal__edit.is-hidden,
+        .sop-goodsin-product-modal__stock.is-hidden {
             display: none;
         }
         @media (max-width: 782px) {
@@ -1955,9 +1975,12 @@ function sop_render_goods_in_page() {
 	<div class="sop-goodsin-product-modal__backdrop" data-sop-prod-close="1"></div>
     <div class="sop-modal__inner sop-goodsin-product-modal__inner" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Product details', 'stock-order-plugin' ); ?>">
         <div class="sop-goodsin-product-modal__header">
-            <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__back" data-sop-prod-close="1" aria-label="<?php esc_attr_e( 'Back', 'sop' ); ?>">&larr;</button>
+            <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__close" data-sop-prod-close="1" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">&times;</button>
             <div class="sop-goodsin-product-modal__header-title"><?php esc_html_e( 'Goods-In', 'sop' ); ?></div>
-            <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__next" id="sop-product-modal-header-next"><?php esc_html_e( 'NEXT', 'sop' ); ?></button>
+            <div class="sop-goodsin-product-modal__header-nav">
+                <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__nav-btn" id="sop-product-modal-header-prev" aria-label="<?php esc_attr_e( 'Previous product', 'sop' ); ?>">&lsaquo;</button>
+                <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__nav-btn" id="sop-product-modal-header-next" aria-label="<?php esc_attr_e( 'Next product', 'sop' ); ?>">&rsaquo;</button>
+            </div>
         </div>
         <div class="sop-goodsin-product-modal__card">
 			<div id="sop-product-modal-name" class="sop-goodsin-product-modal__block sop-goodsin-product-modal__name"></div>
@@ -1967,11 +1990,12 @@ function sop_render_goods_in_page() {
 				<div class="sop-goodsin-product-modal__image-wrap">
 					<img id="sop-product-modal-image" class="sop-goodsin-product-modal__image" alt="">
 				</div>
-				<div class="sop-goodsin-product-modal__meta">
-					<div id="sop-product-modal-carton" class="sop-goodsin-product-modal__carton"></div>
-					<div id="sop-product-modal-location" class="sop-goodsin-product-modal__location"></div>
-					<a id="sop-product-modal-edit" class="sop-goodsin-product-modal__edit" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit product', 'sop' ); ?></a>
-				</div>
+                <div class="sop-goodsin-product-modal__meta">
+                    <div id="sop-product-modal-carton" class="sop-goodsin-product-modal__carton"></div>
+                    <div id="sop-product-modal-location" class="sop-goodsin-product-modal__location"></div>
+                    <div id="sop-product-modal-stock" class="sop-goodsin-product-modal__stock is-hidden"></div>
+                    <a id="sop-product-modal-edit" class="sop-goodsin-product-modal__edit" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit product', 'sop' ); ?></a>
+                </div>
 			</div>
 
 			<div class="sop-goodsin-product-modal__notes">
@@ -2053,6 +2077,7 @@ function sop_render_goods_in_page() {
             var $productModalSku = $('#sop-product-modal-sku');
             var $productModalLocation = $('#sop-product-modal-location');
             var $productModalCarton = $('#sop-product-modal-carton');
+            var $productModalStock = $('#sop-product-modal-stock');
             var $productModalEdit = $('#sop-product-modal-edit');
             var $productModalImage = $('#sop-product-modal-image');
             var $productModalQtyOrdered = $('#sop-product-modal-qty-ordered');
@@ -2067,6 +2092,7 @@ function sop_render_goods_in_page() {
             var $productModalBtnPlus = $('#sop-product-modal-btn-plus');
             var $productModalBtnScanNext = $('#sop-product-modal-btn-scan-next');
             var $productModalBtnConfirm = $('#sop-product-modal-btn-confirm');
+            var $productModalHeaderPrev = $('#sop-product-modal-header-prev');
             var $productModalHeaderNext = $('#sop-product-modal-header-next');
             var $issuesOnly = $('#sop-goodsin-issues-only');
             var notesActiveRow = null;
@@ -2902,6 +2928,14 @@ function sop_render_goods_in_page() {
                 var sku = ($tr.data('sku') || '').toString();
                 var location = ($tr.data('location') || '').toString();
                 var carton = ($tr.data('carton') || '').toString();
+                var stockRaw = $tr.data('stockQty');
+                if ( typeof stockRaw === 'undefined' ) {
+                    stockRaw = $tr.data('stock');
+                }
+                var stockVal = parseFloat(stockRaw);
+                if ( isNaN( stockVal ) ) {
+                    stockVal = '';
+                }
                 var editUrl = ($tr.data('editUrl') || '').toString();
                 var imageUrl = ($tr.data('imageUrl') || '').toString();
                 var orderedVal = parseFloat($tr.data('sopOrdered')) || parseFloat($tr.data('sort-ordered')) || 0;
@@ -2933,6 +2967,7 @@ function sop_render_goods_in_page() {
                     edit_url: editUrl,
                     carton_no: carton,
                     location: location,
+                    stock_qty: stockVal,
                     qty_ordered: orderedVal,
                     qty_received: receivedVal,
                     added_to_stock: stockedVal,
@@ -2950,6 +2985,10 @@ function sop_render_goods_in_page() {
                 var skuText = data.sku ? ('SKU: ' + data.sku) : '';
                 var cartonText = data.carton_no ? ('<?php echo esc_js( __( 'Carton No.:', 'sop' ) ); ?> ' + data.carton_no) : '';
                 var locationText = data.location ? ('<?php echo esc_js( __( 'Location:', 'sop' ) ); ?> ' + data.location) : '';
+                var stockText = '';
+                if ( data.stock_qty !== '' && ! isNaN( data.stock_qty ) ) {
+                    stockText = '<?php echo esc_js( __( 'Stock:', 'sop' ) ); ?> ' + Math.round( data.stock_qty );
+                }
                 var qtyOrderedText = '<?php echo esc_js( __( 'Qty Ordered:', 'sop' ) ); ?> ' + ( Math.round( data.qty_ordered ) || 0 );
                 var qtyReceivedText = ( Math.round( data.qty_received ) || 0 );
                 var addedVal = ! isNaN( data.added_to_stock ) ? Math.round( data.added_to_stock ) : qtyReceivedText;
@@ -2959,10 +2998,17 @@ function sop_render_goods_in_page() {
                 $productModalSku.text( skuText );
                 $productModalCarton.text( cartonText );
                 $productModalLocation.text( locationText );
+                $productModalStock.text( stockText );
                 $productModalQtyOrdered.text( qtyOrderedText );
                 $productModalQtyValue.text( qtyReceivedText );
                 $productModalAdded.text( '<?php echo esc_js( __( 'Added to stock:', 'sop' ) ); ?> ' + addedVal );
                 $productModalOutstanding.text( '<?php echo esc_js( __( 'Outstanding:', 'sop' ) ); ?> ' + outstandingVal );
+
+                if ( stockText ) {
+                    $productModalStock.removeClass('is-hidden');
+                } else {
+                    $productModalStock.addClass('is-hidden');
+                }
 
                 if ( data.edit_url ) {
                     $productModalEdit.attr('href', data.edit_url).removeClass('is-hidden');
@@ -2984,6 +3030,68 @@ function sop_render_goods_in_page() {
 
                 $productModalNotesProductView.toggleClass('is-disabled', ! data.product_notes_text).prop('disabled', ! data.product_notes_text);
                 $productModalNotesOrderView.toggleClass('is-disabled', ! data.order_notes_text).prop('disabled', ! data.order_notes_text);
+
+                sopGoodsinProductModalUpdateNavButtons();
+            }
+
+            function sopGoodsinGetVisibleGoodsRows() {
+                return $('#sop-goodsin-lines tbody tr').filter(function(){
+                    return $(this).is(':visible');
+                });
+            }
+
+            function sopGoodsinProductModalNavigate(delta) {
+                if ( ! activeProductRow || ! activeProductRow.length ) {
+                    return;
+                }
+                var $rows = sopGoodsinGetVisibleGoodsRows();
+                if ( ! $rows.length ) {
+                    return;
+                }
+                var currentIndex = $rows.index( activeProductRow );
+                if ( currentIndex < 0 ) {
+                    var currentSku = (activeProductRow.data('sku') || '').toString().trim().toLowerCase();
+                    if ( currentSku ) {
+                        $rows.each(function(idx){
+                            var rowSku = ($(this).data('sku') || '').toString().trim().toLowerCase();
+                            if ( rowSku === currentSku ) {
+                                currentIndex = idx;
+                                return false;
+                            }
+                        });
+                    }
+                }
+                if ( currentIndex < 0 ) {
+                    return;
+                }
+                var targetIndex = currentIndex + delta;
+                if ( targetIndex < 0 || targetIndex >= $rows.length ) {
+                    sopGoodsinProductModalUpdateNavButtons();
+                    return;
+                }
+                sopGoodsInOpenProductModal( $rows.eq( targetIndex ) );
+            }
+
+            function sopGoodsinProductModalUpdateNavButtons() {
+                if ( ! $productModalHeaderPrev.length || ! $productModalHeaderNext.length ) {
+                    return;
+                }
+                var $rows = sopGoodsinGetVisibleGoodsRows();
+                if ( ! activeProductRow || ! activeProductRow.length || ! $rows.length ) {
+                    $productModalHeaderPrev.addClass('is-disabled').prop('disabled', true);
+                    $productModalHeaderNext.addClass('is-disabled').prop('disabled', true);
+                    return;
+                }
+                var currentIndex = $rows.index( activeProductRow );
+                if ( currentIndex < 0 ) {
+                    $productModalHeaderPrev.addClass('is-disabled').prop('disabled', true);
+                    $productModalHeaderNext.addClass('is-disabled').prop('disabled', true);
+                    return;
+                }
+                var hasPrev = currentIndex > 0;
+                var hasNext = currentIndex < ( $rows.length - 1 );
+                $productModalHeaderPrev.toggleClass('is-disabled', ! hasPrev).prop('disabled', ! hasPrev);
+                $productModalHeaderNext.toggleClass('is-disabled', ! hasNext).prop('disabled', ! hasNext);
             }
 
             function sopGoodsinBindProductModalActions() {
@@ -3026,9 +3134,14 @@ function sop_render_goods_in_page() {
                     sopGoodsinProductModalBeginScanNext();
                 });
 
+                $productModalHeaderPrev.on('click', function(e){
+                    e.preventDefault();
+                    sopGoodsinProductModalNavigate(-1);
+                });
+
                 $productModalHeaderNext.on('click', function(e){
                     e.preventDefault();
-                    sopGoodsinProductModalBeginScanNext();
+                    sopGoodsinProductModalNavigate(1);
                 });
 
                 $productModalNotesProductView.on('click', function(e){
@@ -3061,6 +3174,7 @@ function sop_render_goods_in_page() {
                 $productModalSku.text('');
                 $productModalLocation.text('');
                 $productModalCarton.text('');
+                $productModalStock.text('').addClass('is-hidden');
                 $productModalQtyOrdered.text('');
                 $productModalQtyValue.text('0');
                 $productModalAdded.text('');
@@ -3071,6 +3185,7 @@ function sop_render_goods_in_page() {
                 $productModalNotesOrderView.data('noteText', '').removeClass('is-disabled').prop('disabled', false);
                 $productModalEdit.attr('href', '#').addClass('is-hidden');
                 $productModalImage.attr('src', '').addClass('is-hidden');
+                sopGoodsinProductModalUpdateNavButtons();
             }
 
             function sopGoodsInOpenProductModal(rowEl) {
