@@ -1,9 +1,10 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
-* File version: 1.0.74
+* File version: 1.0.75
  *
- * - 1.0.74 - Product modal matches mobile design; qty +/- updates row; scan opens modal.
+* - 1.0.75 - Product modal matches mobile design reference (Step 1: layout + bindings).
+* - 1.0.74 - Product modal matches mobile design; qty +/- updates row; scan opens modal.
 * - Layout polish: tighter checkbox, 80x80 images (78x78 display), sortable columns, required notes columns.
  * - Remove "Add all" button; use keyed inputs to keep rows stable when sorting.
  * - Add unsaved changes warning for edited goods-in forms; column toggle dropdown; location column reposition/wrapping.
@@ -1283,9 +1284,9 @@ function sop_render_goods_in_page() {
             left: 50%;
             transform: translate(-50%, -50%);
             background: #fff;
-            border-radius: 6px;
+            border-radius: 10px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-            padding: 16px;
+            padding: 16px 18px 20px;
             max-width: 520px;
             width: 95vw;
             max-height: 90vh;
@@ -1302,56 +1303,209 @@ function sop_render_goods_in_page() {
             line-height: 1;
             cursor: pointer;
         }
-        .sop-goodsin-product-modal__header {
+        .sop-goodsin-product-modal__card {
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            margin-bottom: 10px;
+            gap: 14px;
         }
-        .sop-goodsin-product-modal__title {
+        .sop-goodsin-product-modal__block {
+            border: 1px solid #dcdcde;
+            border-radius: 6px;
+            padding: 12px 14px;
+            background: #fff;
+            font-size: 16px;
+            color: #1d2327;
+            line-height: 1.35;
+        }
+        .sop-goodsin-product-modal__block--sku {
+            background: #f6f7f7;
+            font-size: 14px;
+            color: #1d2327;
+        }
+        .sop-goodsin-product-modal__media {
             display: flex;
-            flex-direction: column;
-            gap: 2px;
+            gap: 16px;
+            align-items: flex-start;
         }
-        .sop-goodsin-product-modal__name {
-            font-weight: 700;
-            font-size: 15px;
-            line-height: 1.3;
+        .sop-goodsin-product-modal__image-wrap {
+            flex: 0 0 44%;
+            max-width: 44%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 120px;
         }
-        .sop-goodsin-product-modal__sku {
-            font-family: Consolas, Monaco, monospace;
-            font-size: 13px;
-            color: #50575e;
-            word-break: break-word;
+        .sop-goodsin-product-modal__image {
+            max-width: 100%;
+            max-height: 180px;
+            width: auto;
+            height: auto;
+            border: 1px solid #e2e4e7;
+            border-radius: 6px;
+            background: #fff;
         }
         .sop-goodsin-product-modal__meta {
+            flex: 1 1 auto;
             display: flex;
-            flex-wrap: wrap;
-            gap: 6px 12px;
-            align-items: center;
-            font-size: 13px;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 15px;
             color: #1d2327;
         }
         .sop-goodsin-product-modal__edit {
             color: #2271b1;
             text-decoration: none;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 4px;
         }
-        .sop-goodsin-product-modal__image-wrap {
-            width: 100%;
-            text-align: center;
-            margin-top: 8px;
+        .sop-goodsin-product-modal__notes {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 4px;
         }
-        .sop-goodsin-product-modal__image {
-            max-width: 220px;
-            max-height: 180px;
-            width: auto;
-            height: auto;
+        .sop-goodsin-product-modal__note-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+        }
+        .sop-goodsin-product-modal__note-label {
+            flex: 1 1 auto;
+        }
+        .sop-goodsin-product-modal__note-status {
+            width: 26px;
+            height: 26px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+        .sop-goodsin-product-modal__note-status.is-no {
+            color: #d63638;
+        }
+        .sop-goodsin-product-modal__note-status.is-yes {
+            color: #1f9d55;
+        }
+        .sop-goodsin-product-modal__note-status.is-no::before {
+            content: "X";
+        }
+        .sop-goodsin-product-modal__note-status.is-yes::before {
+            content: "\2713";
+        }
+        .sop-goodsin-product-modal__note-view {
+            border: 1px solid #50575e;
+            background: #fff;
+            color: #1d2327;
+            padding: 4px 12px;
+            border-radius: 8px;
+            font-size: 15px;
+            line-height: 1.2;
+            cursor: pointer;
+        }
+        .sop-goodsin-product-modal__note-view.is-disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .sop-goodsin-product-modal__qty-ordered {
             border: 1px solid #e2e4e7;
-            border-radius: 4px;
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            font-size: 17px;
+            font-weight: 600;
+            background: #fff;
+        }
+        .sop-goodsin-product-modal__qty-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 22px;
+            margin-top: 6px;
+        }
+        .sop-goodsin-product-modal__qty-btn {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            background: #fff;
+            font-size: 30px;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sop-goodsin-product-modal__qty-btn--minus {
+            border-color: #d63638;
+            color: #d63638;
+        }
+        .sop-goodsin-product-modal__qty-btn--plus {
+            border-color: #2ea2cc;
+            color: #2ea2cc;
+        }
+        .sop-goodsin-product-modal__qty-value {
+            font-size: 24px;
+            font-weight: 600;
+            min-width: 40px;
+            text-align: center;
+        }
+        .sop-goodsin-product-modal__summary {
+            text-align: center;
+            font-size: 16px;
+            line-height: 1.4;
+            color: #1d2327;
+        }
+        .sop-goodsin-product-modal__actions {
+            display: flex;
+            gap: 14px;
+            margin-top: 6px;
+        }
+        .sop-goodsin-product-modal__action-btn {
+            flex: 1 1 50%;
+            padding: 12px 14px;
+            border-radius: 16px;
+            border: 0;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .sop-goodsin-product-modal__action-btn--scan {
+            background: #9da0a6;
+            color: #fff;
+        }
+        .sop-goodsin-product-modal__action-btn--confirm {
+            background: #2ea2cc;
+            color: #fff;
         }
         .sop-goodsin-product-modal__image.is-hidden,
         .sop-goodsin-product-modal__edit.is-hidden {
             display: none;
+        }
+        @media (max-width: 782px) {
+            .sop-goodsin-product-modal__inner {
+                top: 0;
+                left: 0;
+                transform: none;
+                width: 100%;
+                max-width: 100%;
+                height: 100%;
+                max-height: 100%;
+                border-radius: 0;
+            }
+        }
+        @media (max-width: 480px) {
+            .sop-goodsin-product-modal__media {
+                gap: 12px;
+            }
+            .sop-goodsin-product-modal__image-wrap {
+                flex: 0 0 42%;
+                max-width: 42%;
+                min-height: 110px;
+            }
         }
         .sop-scan-modal {
             position: fixed;
@@ -1758,19 +1912,50 @@ function sop_render_goods_in_page() {
 	<div class="sop-goodsin-product-modal__backdrop" data-sop-prod-close="1"></div>
 	<div class="sop-modal__inner sop-goodsin-product-modal__inner" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Product details', 'stock-order-plugin' ); ?>">
 		<button type="button" class="sop-modal__close sop-goodsin-product-modal__close" data-sop-prod-close="1" aria-label="<?php esc_attr_e( 'Close modal', 'stock-order-plugin' ); ?>">×</button>
-		<div class="sop-goodsin-product-modal__header">
-			<div class="sop-goodsin-product-modal__title">
-				<div class="sop-goodsin-product-modal__name"></div>
-				<div class="sop-goodsin-product-modal__sku"></div>
+		<div class="sop-goodsin-product-modal__card">
+			<div id="sop-product-modal-name" class="sop-goodsin-product-modal__block sop-goodsin-product-modal__name"></div>
+			<div id="sop-product-modal-sku" class="sop-goodsin-product-modal__block sop-goodsin-product-modal__block--sku sop-goodsin-product-modal__sku"></div>
+
+			<div class="sop-goodsin-product-modal__media">
+				<div class="sop-goodsin-product-modal__image-wrap">
+					<img id="sop-product-modal-image" class="sop-goodsin-product-modal__image" alt="">
+				</div>
+				<div class="sop-goodsin-product-modal__meta">
+					<div id="sop-product-modal-carton" class="sop-goodsin-product-modal__carton"></div>
+					<div id="sop-product-modal-location" class="sop-goodsin-product-modal__location"></div>
+					<a id="sop-product-modal-edit" class="sop-goodsin-product-modal__edit" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit product', 'sop' ); ?></a>
+				</div>
 			</div>
-			<div class="sop-goodsin-product-modal__meta">
-				<div class="sop-goodsin-product-modal__carton"></div>
-				<div class="sop-goodsin-product-modal__location"></div>
-				<a class="sop-goodsin-product-modal__edit" target="_blank" rel="noopener noreferrer"></a>
+
+			<div class="sop-goodsin-product-modal__notes">
+				<div class="sop-goodsin-product-modal__note-row">
+					<div class="sop-goodsin-product-modal__note-label"><?php esc_html_e( 'Product notes', 'sop' ); ?></div>
+					<span id="sop-product-modal-notes-product-status" class="sop-goodsin-product-modal__note-status" aria-hidden="true"></span>
+					<button type="button" id="sop-product-modal-notes-product-view" class="sop-goodsin-product-modal__note-view"><?php esc_html_e( 'View', 'sop' ); ?></button>
+				</div>
+				<div class="sop-goodsin-product-modal__note-row">
+					<div class="sop-goodsin-product-modal__note-label"><?php esc_html_e( 'Order notes', 'sop' ); ?></div>
+					<span id="sop-product-modal-notes-order-status" class="sop-goodsin-product-modal__note-status" aria-hidden="true"></span>
+					<button type="button" id="sop-product-modal-notes-order-view" class="sop-goodsin-product-modal__note-view"><?php esc_html_e( 'View', 'sop' ); ?></button>
+				</div>
 			</div>
-		</div>
-		<div class="sop-goodsin-product-modal__image-wrap">
-			<img class="sop-goodsin-product-modal__image" alt="">
+
+			<div id="sop-product-modal-qty-ordered" class="sop-goodsin-product-modal__qty-ordered"></div>
+			<div class="sop-goodsin-product-modal__qty-control">
+				<button type="button" id="sop-product-modal-btn-minus" class="sop-goodsin-product-modal__qty-btn sop-goodsin-product-modal__qty-btn--minus" aria-label="<?php esc_attr_e( 'Decrease received quantity', 'sop' ); ?>">-</button>
+				<div id="sop-product-modal-qty-value" class="sop-goodsin-product-modal__qty-value">0</div>
+				<button type="button" id="sop-product-modal-btn-plus" class="sop-goodsin-product-modal__qty-btn sop-goodsin-product-modal__qty-btn--plus" aria-label="<?php esc_attr_e( 'Increase received quantity', 'sop' ); ?>">+</button>
+			</div>
+
+			<div class="sop-goodsin-product-modal__summary">
+				<div id="sop-product-modal-added"></div>
+				<div id="sop-product-modal-outstanding"></div>
+			</div>
+
+			<div class="sop-goodsin-product-modal__actions">
+				<button type="button" id="sop-product-modal-btn-scan-next" class="sop-goodsin-product-modal__action-btn sop-goodsin-product-modal__action-btn--scan"><?php esc_html_e( 'Scan next', 'sop' ); ?></button>
+				<button type="button" id="sop-product-modal-btn-confirm" class="sop-goodsin-product-modal__action-btn sop-goodsin-product-modal__action-btn--confirm"><?php esc_html_e( 'Confirm', 'sop' ); ?></button>
+			</div>
 		</div>
 	</div>
 </div>
@@ -1817,12 +2002,24 @@ function sop_render_goods_in_page() {
             var $scanVideo = $('#sop-goodsin-scan-video');
             var $scanStatus = $('#sop-goodsin-scan-status');
             var $productModal = $('#sop-goodsin-product-modal');
-            var $productModalName = $productModal.find('.sop-goodsin-product-modal__name');
-            var $productModalSku = $productModal.find('.sop-goodsin-product-modal__sku');
-            var $productModalLocation = $productModal.find('.sop-goodsin-product-modal__location');
-            var $productModalCarton = $productModal.find('.sop-goodsin-product-modal__carton');
-            var $productModalEdit = $productModal.find('.sop-goodsin-product-modal__edit');
-            var $productModalImage = $productModal.find('.sop-goodsin-product-modal__image');
+            var $productModalName = $('#sop-product-modal-name');
+            var $productModalSku = $('#sop-product-modal-sku');
+            var $productModalLocation = $('#sop-product-modal-location');
+            var $productModalCarton = $('#sop-product-modal-carton');
+            var $productModalEdit = $('#sop-product-modal-edit');
+            var $productModalImage = $('#sop-product-modal-image');
+            var $productModalQtyOrdered = $('#sop-product-modal-qty-ordered');
+            var $productModalQtyValue = $('#sop-product-modal-qty-value');
+            var $productModalAdded = $('#sop-product-modal-added');
+            var $productModalOutstanding = $('#sop-product-modal-outstanding');
+            var $productModalNotesProductStatus = $('#sop-product-modal-notes-product-status');
+            var $productModalNotesOrderStatus = $('#sop-product-modal-notes-order-status');
+            var $productModalNotesProductView = $('#sop-product-modal-notes-product-view');
+            var $productModalNotesOrderView = $('#sop-product-modal-notes-order-view');
+            var $productModalBtnMinus = $('#sop-product-modal-btn-minus');
+            var $productModalBtnPlus = $('#sop-product-modal-btn-plus');
+            var $productModalBtnScanNext = $('#sop-product-modal-btn-scan-next');
+            var $productModalBtnConfirm = $('#sop-product-modal-btn-confirm');
             var $issuesOnly = $('#sop-goodsin-issues-only');
             var notesActiveRow = null;
             var activeProductRow = null;
@@ -2629,6 +2826,159 @@ function sop_render_goods_in_page() {
             $('#sop-goodsin-lines tbody tr').each(function(){ updateRowSortData($(this)); });
             sopGoodsinApplyFilterAll();
 
+            function sopGoodsinGetRowModalData($tr) {
+                var name = ($tr.data('productName') || '').toString();
+                var sku = ($tr.data('sku') || '').toString();
+                var location = ($tr.data('location') || '').toString();
+                var carton = ($tr.data('carton') || '').toString();
+                var editUrl = ($tr.data('editUrl') || '').toString();
+                var imageUrl = ($tr.data('imageUrl') || '').toString();
+                var orderedVal = parseFloat($tr.data('sopOrdered')) || parseFloat($tr.data('sort-ordered')) || 0;
+                var receivedVal = parseFloat($tr.find('.sop-goodsin-received').val()) || 0;
+                var missingVal = parseFloat($tr.find('.sop-goodsin-missing').val()) || 0;
+                var rejectVal = parseFloat($tr.find('.sop-goodsin-reject').val()) || 0;
+                var stockedVal = parseFloat($tr.find('td[data-column="stocked"]').text()) || parseFloat($tr.data('sort-stocked')) || 0;
+                var outstandingVal = Math.max(0, orderedVal - receivedVal - missingVal - rejectVal);
+                var productNotes = ($tr.find('td[data-column="product_notes"] .sop-goodsin-notes-text').text() || '').toString().trim();
+                var orderNotes = ($tr.find('td[data-column="order_notes"] .sop-goodsin-notes-text').text() || '').toString().trim();
+
+                if ( ! carton && $cartonInput && $cartonInput.length ) {
+                    carton = ($cartonInput.val() || '').toString();
+                }
+                if ( ! name ) {
+                    name = ($tr.find('.sop-goodsin-product-link').text() || '').toString().trim();
+                }
+                if ( ! location ) {
+                    location = ($tr.find('td[data-column="location"]').text() || '').toString().trim();
+                }
+                if ( ! sku ) {
+                    sku = ($tr.find('td[data-column="sku"]').text() || '').toString().trim();
+                }
+
+                return {
+                    product_name: name,
+                    sku: sku,
+                    image_url: imageUrl,
+                    edit_url: editUrl,
+                    carton_no: carton,
+                    location: location,
+                    qty_ordered: orderedVal,
+                    qty_received: receivedVal,
+                    added_to_stock: stockedVal,
+                    outstanding: outstandingVal,
+                    product_notes_text: productNotes,
+                    order_notes_text: orderNotes
+                };
+            }
+
+            function sopGoodsinRenderProductModal(data) {
+                if ( ! $productModal.length ) {
+                    return;
+                }
+                var nameText = data.product_name || '<?php echo esc_js( __( '(Unknown product)', 'sop' ) ); ?>';
+                var skuText = data.sku ? ('SKU: ' + data.sku) : '';
+                var cartonText = data.carton_no ? ('<?php echo esc_js( __( 'Carton No.:', 'sop' ) ); ?> ' + data.carton_no) : '';
+                var locationText = data.location ? ('<?php echo esc_js( __( 'Location:', 'sop' ) ); ?> ' + data.location) : '';
+                var qtyOrderedText = '<?php echo esc_js( __( 'Qty Ordered:', 'sop' ) ); ?> ' + ( Math.round( data.qty_ordered ) || 0 );
+                var qtyReceivedText = ( Math.round( data.qty_received ) || 0 );
+                var addedVal = ! isNaN( data.added_to_stock ) ? Math.round( data.added_to_stock ) : qtyReceivedText;
+                var outstandingVal = Math.max(0, Math.round( data.outstanding ) || 0);
+
+                $productModalName.text( nameText );
+                $productModalSku.text( skuText );
+                $productModalCarton.text( cartonText );
+                $productModalLocation.text( locationText );
+                $productModalQtyOrdered.text( qtyOrderedText );
+                $productModalQtyValue.text( qtyReceivedText );
+                $productModalAdded.text( '<?php echo esc_js( __( 'Added to stock:', 'sop' ) ); ?> ' + addedVal );
+                $productModalOutstanding.text( '<?php echo esc_js( __( 'Outstanding:', 'sop' ) ); ?> ' + outstandingVal );
+
+                if ( data.edit_url ) {
+                    $productModalEdit.attr('href', data.edit_url).removeClass('is-hidden');
+                } else {
+                    $productModalEdit.attr('href', '#').addClass('is-hidden');
+                }
+
+                if ( data.image_url ) {
+                    $productModalImage.attr('src', data.image_url).removeClass('is-hidden');
+                } else {
+                    $productModalImage.attr('src', '').addClass('is-hidden');
+                }
+
+                $productModalNotesProductStatus.removeClass('is-yes is-no').addClass( data.product_notes_text ? 'is-yes' : 'is-no' );
+                $productModalNotesOrderStatus.removeClass('is-yes is-no').addClass( data.order_notes_text ? 'is-yes' : 'is-no' );
+
+                $productModalNotesProductView.data('noteText', data.product_notes_text || '');
+                $productModalNotesOrderView.data('noteText', data.order_notes_text || '');
+
+                $productModalNotesProductView.toggleClass('is-disabled', ! data.product_notes_text).prop('disabled', ! data.product_notes_text);
+                $productModalNotesOrderView.toggleClass('is-disabled', ! data.order_notes_text).prop('disabled', ! data.order_notes_text);
+            }
+
+            function sopGoodsinBindProductModalActions() {
+                if ( ! $productModal.length || $productModal.data('sopBound') ) {
+                    return;
+                }
+                $productModal.data('sopBound', '1');
+
+                $productModalBtnMinus.on('click', function(e){
+                    e.preventDefault();
+                    if ( ! activeProductRow || ! activeProductRow.length ) {
+                        return;
+                    }
+                    var $input = activeProductRow.find('.sop-goodsin-received');
+                    var current = parseFloat($input.val()) || 0;
+                    var next = Math.max(0, current - 1);
+                    $input.val(next).trigger('input').trigger('change');
+                    sopGoodsinRenderProductModal( sopGoodsinGetRowModalData( activeProductRow ) );
+                });
+
+                $productModalBtnPlus.on('click', function(e){
+                    e.preventDefault();
+                    if ( ! activeProductRow || ! activeProductRow.length ) {
+                        return;
+                    }
+                    var $input = activeProductRow.find('.sop-goodsin-received');
+                    var current = parseFloat($input.val()) || 0;
+                    var next = Math.max(0, current + 1);
+                    $input.val(next).trigger('input').trigger('change');
+                    sopGoodsinRenderProductModal( sopGoodsinGetRowModalData( activeProductRow ) );
+                });
+
+                $productModalBtnConfirm.on('click', function(e){
+                    e.preventDefault();
+                    sopGoodsInCloseProductModal();
+                });
+
+                $productModalBtnScanNext.on('click', function(e){
+                    e.preventDefault();
+                    sopGoodsInCloseProductModal();
+                    if ( $scanInput.length ) {
+                        $scanInput.focus().select();
+                    } else {
+                        $searchInput.focus().select();
+                    }
+                });
+
+                $productModalNotesProductView.on('click', function(e){
+                    e.preventDefault();
+                    var noteText = ($(this).data('noteText') || '').toString();
+                    if ( ! noteText ) {
+                        return;
+                    }
+                    window.alert(noteText);
+                });
+
+                $productModalNotesOrderView.on('click', function(e){
+                    e.preventDefault();
+                    var noteText = ($(this).data('noteText') || '').toString();
+                    if ( ! noteText ) {
+                        return;
+                    }
+                    window.alert(noteText);
+                });
+            }
+
             function sopGoodsInCloseProductModal() {
                 if ( ! $productModal.length ) {
                     return;
@@ -2640,6 +2990,14 @@ function sop_render_goods_in_page() {
                 $productModalSku.text('');
                 $productModalLocation.text('');
                 $productModalCarton.text('');
+                $productModalQtyOrdered.text('');
+                $productModalQtyValue.text('0');
+                $productModalAdded.text('');
+                $productModalOutstanding.text('');
+                $productModalNotesProductStatus.removeClass('is-yes is-no');
+                $productModalNotesOrderStatus.removeClass('is-yes is-no');
+                $productModalNotesProductView.data('noteText', '').removeClass('is-disabled').prop('disabled', false);
+                $productModalNotesOrderView.data('noteText', '').removeClass('is-disabled').prop('disabled', false);
                 $productModalEdit.attr('href', '#').addClass('is-hidden');
                 $productModalImage.attr('src', '').addClass('is-hidden');
             }
@@ -2650,34 +3008,8 @@ function sop_render_goods_in_page() {
                     return;
                 }
                 activeProductRow = $row;
-                var name = ($row.data('productName') || '').toString();
-                var sku = ($row.data('sku') || '').toString();
-                var location = ($row.data('location') || '').toString();
-                var carton = ($row.data('carton') || '').toString();
-                var editUrl = ($row.data('editUrl') || '').toString();
-                var imageUrl = ($row.data('imageUrl') || '').toString();
-
-                if ( ! carton && $cartonInput && $cartonInput.length ) {
-                    carton = ($cartonInput.val() || '').toString();
-                }
-
-                $productModalName.text( name || '<?php echo esc_js( __( '(Unknown product)', 'sop' ) ); ?>' );
-                $productModalSku.text( sku ? ('SKU: ' + sku) : '' );
-                $productModalLocation.text( location ? ('<?php echo esc_js( __( 'Location:', 'sop' ) ); ?> ' + location) : '' );
-                $productModalCarton.text( carton ? ('<?php echo esc_js( __( 'Carton:', 'sop' ) ); ?> ' + carton) : '' );
-
-                if ( editUrl ) {
-                    $productModalEdit.attr('href', editUrl).removeClass('is-hidden');
-                } else {
-                    $productModalEdit.attr('href', '#').addClass('is-hidden');
-                }
-
-                if ( imageUrl ) {
-                    $productModalImage.attr('src', imageUrl).removeClass('is-hidden');
-                } else {
-                    $productModalImage.attr('src', '').addClass('is-hidden');
-                }
-
+                sopGoodsinBindProductModalActions();
+                sopGoodsinRenderProductModal( sopGoodsinGetRowModalData( $row ) );
                 $productModal.addClass('is-open').attr('aria-hidden', 'false');
             }
 
