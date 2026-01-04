@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
-* File version: 1.0.84
+* File version: 1.0.85
  *
+* - 1.0.85 - Desktop: restore Goods-In toolbar layout; keep mobile grid rules scoped to <= 782px.
 * - 1.0.84 - Fix modal prev/next navigation + correct carton/stock wiring.
 * - 1.0.83 - Version bump after verifying modal prev/next navigation wiring.
 * - 1.0.82 - Fix modal prev/next navigation (visible-row order + correct enable/disable).
@@ -1105,6 +1106,45 @@ function sop_render_goods_in_page() {
             align-items: center;
             gap: 10px;
             width: 100%;
+        }
+        /* Desktop toolbar layout (restore after mobile grid changes) */
+        @media (min-width: 783px) {
+            .sop-goodsin-mobile-grid {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 10px 12px;
+                margin: 0 0 10px 0;
+            }
+            .sop-goodsin-mg-title {
+                flex: 1 1 auto;
+            }
+            .sop-goodsin-mg-title h1 {
+                margin: 0;
+                padding: 0;
+            }
+            .sop-goodsin-mg-back {
+                flex: 0 0 auto;
+                margin-left: auto;
+            }
+            .sop-goodsin-mg-sheet {
+                flex: 0 0 100%;
+            }
+            /* Keep action buttons on their own row by pushing Columns to the right and forcing wrap after it */
+            .sop-goodsin-mg-columns {
+                flex: 0 0 auto;
+                margin-left: auto;
+            }
+            /* Let search consume remaining space on the filter row (wraps naturally on smaller desktops) */
+            .sop-goodsin-mg-search {
+                flex: 1 1 420px;
+                min-width: 320px;
+            }
+            /* Make Scan input width match Carton input for consistent desktop toolbar sizing */
+            #sop-goodsin-scan {
+                width: 150px;
+                box-sizing: border-box;
+            }
         }
         /* Mobile responsive tweaks */
         @media (max-width: 782px) {
