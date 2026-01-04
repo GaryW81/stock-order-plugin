@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
-* File version: 1.0.82
+* File version: 1.0.83
  *
+* - 1.0.83 - Version bump after verifying modal prev/next navigation wiring.
 * - 1.0.82 - Fix modal prev/next navigation (visible-row order + correct enable/disable).
 * - 1.0.81 - Fix product modal carton/stock wiring + prev/next navigation.
 * - 1.0.80 - Goods-In product modal: fix prev/next navigation + carton/stock rendering.
