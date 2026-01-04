@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
-* File version: 1.0.83
+* File version: 1.0.84
  *
+* - 1.0.84 - Fix modal prev/next navigation + correct carton/stock wiring.
 * - 1.0.83 - Version bump after verifying modal prev/next navigation wiring.
 * - 1.0.82 - Fix modal prev/next navigation (visible-row order + correct enable/disable).
 * - 1.0.81 - Fix product modal carton/stock wiring + prev/next navigation.
@@ -2956,10 +2957,11 @@ function sop_render_goods_in_page() {
                 var sku = ($tr.data('sku') || '').toString();
                 var location = ($tr.data('location') || '').toString();
                 var cartonVal = ($tr.find('input.sop-goodsin-carton-no').val() || '').toString().trim();
+                var cartonDataAttr = ($tr.attr('data-carton') || '').toString().trim();
                 var cartonCellText = ($tr.find('td[data-column="carton"]').text() || '').toString().trim();
                 var cartonFallback = ($cartonInput.length ? $cartonInput.val() : '');
                 cartonFallback = (cartonFallback || '').toString().trim();
-                var carton = cartonVal || cartonCellText || cartonFallback || '\u2014';
+                var carton = cartonVal || cartonDataAttr || cartonCellText || cartonFallback || '\u2014';
                 var stockRaw = $tr.attr('data-stock-qty');
                 var stockVal = null;
                 if ( typeof stockRaw !== 'undefined' && stockRaw !== '' ) {
@@ -3269,7 +3271,7 @@ function sop_render_goods_in_page() {
                 if ( ! cleaned || sopScanLock ) {
                     return false;
                 }
-                var $rows = $('#sop-goodsin-lines tbody tr:visible');
+                var $rows = sopGoodsinGetVisibleGoodsRows();
                 var $match = $rows.filter(function(){
                     var rowSku = ($(this).data('sku') || '').toString().trim();
                     return rowSku.toLowerCase() === cleaned.toLowerCase();
