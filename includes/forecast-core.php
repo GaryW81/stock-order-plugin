@@ -9,7 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.24
+ * File version: 1.0.25
+ * - Removed stray placeholder label in get_supplier_product_ids().
  * - Inbound: support inbound_map (locked sheet quantities) in stock_at_arrival and suggested_raw.
  * - Correct fallback SOQ to prefer monthly cap × buffer and treat MOQ as one-off pack size.
  */
@@ -347,7 +348,6 @@ class Stock_Order_Plugin_Core_Engine {
         }
 
         $posts_table = $wpdb->posts;
-        the_meta: // NOT REAL - remove
         $meta_table  = $wpdb->postmeta;
 
         $sql = "
