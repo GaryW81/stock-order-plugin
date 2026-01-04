@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.18
+ * File version: 1.0.19
+ * - Sync legacy sop_supplier_id meta with _sop_supplier_id on save/unassign to prevent forecast mismatch.
  * - Allow max_order_qty_per_month to save decimals (2dp), accept comma, and never block product save.
  * - Add Supplier SKUs meta (multi-line) for optional Supplier SKUs column.
  *
@@ -317,9 +318,11 @@ function sop_save_product_supplier_meta( $post_id ) {
     // Normalise: 0 or positive int only.
     if ( $supplier_id > 0 ) {
         update_post_meta( $post_id, '_sop_supplier_id', $supplier_id );
+        update_post_meta( $post_id, 'sop_supplier_id', $supplier_id );
     } else {
         // 0 / empty = "no supplier" - delete meta to keep DB clean.
         delete_post_meta( $post_id, '_sop_supplier_id' );
+        delete_post_meta( $post_id, 'sop_supplier_id' );
     }
 
     // Location: write to SOP bin location (primary) and mirror to _product_location.
@@ -419,6 +422,9 @@ function sop_get_product_supplier_id( $product_id ) {
     }
 
     $supplier_id = get_post_meta( $product_id, '_sop_supplier_id', true );
+    if ( '' === $supplier_id ) {
+        $supplier_id = get_post_meta( $product_id, 'sop_supplier_id', true );
+    }
 
     return (int) $supplier_id;
 }
