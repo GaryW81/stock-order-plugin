@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
-* File version: 1.0.81
+* File version: 1.0.82
  *
+* - 1.0.82 - Fix modal prev/next navigation (visible-row order + correct enable/disable).
 * - 1.0.81 - Fix product modal carton/stock wiring + prev/next navigation.
 * - 1.0.80 - Goods-In product modal: fix prev/next navigation + carton/stock rendering.
 * - 1.0.79 - Goods-In product modal: fix prev/next, carton, and stock data plumbing.
@@ -1386,8 +1387,7 @@ function sop_render_goods_in_page() {
             font-size: 18px;
             line-height: 1;
         }
-        .sop-goodsin-product-modal__nav-btn.is-disabled,
-        .sop-goodsin-product-modal__nav-btn:disabled {
+        .sop-goodsin-product-modal__nav-btn.is-disabled {
             opacity: 0.4;
             cursor: not-allowed;
         }
@@ -3069,13 +3069,27 @@ function sop_render_goods_in_page() {
 
             function sopGoodsinGetVisibleGoodsRows() {
                 return $('#sop-goodsin-lines tbody tr').filter(function(){
-                    return $(this).is(':visible');
+                    var lineId = $(this).attr('data-line-id');
+                    if ( typeof lineId === 'undefined' || lineId === '' ) {
+                        return false;
+                    }
+                    if ( isNaN( parseInt( lineId, 10 ) ) ) {
+                        return false;
+                    }
+                    if ( $(this).is(':visible') ) {
+                        return true;
+                    }
+                    if ( this.getClientRects && this.getClientRects().length ) {
+                        return true;
+                    }
+                    return false;
                 });
             }
 
             function sopGoodsinProductModalNavigate(delta) {
-                var rows = $('#sop-goodsin-lines tbody tr').filter(':visible').get();
+                var rows = sopGoodsinGetVisibleGoodsRows().get();
                 if ( ! rows.length ) {
+                    sopGoodsinProductModalUpdateNavButtons();
                     return;
                 }
                 var currentEl = $productModal.data('currentRowEl') || null;
@@ -3107,10 +3121,20 @@ function sop_render_goods_in_page() {
                 if ( ! $productModalHeaderPrev.length || ! $productModalHeaderNext.length ) {
                     return;
                 }
-                var rows = $('#sop-goodsin-lines tbody tr').filter(':visible').get();
+                var rows = sopGoodsinGetVisibleGoodsRows().get();
+                var setNavState = function( $btn, enabled ) {
+                    $btn.toggleClass('is-disabled', ! enabled)
+                        .attr('aria-disabled', enabled ? 'false' : 'true')
+                        .removeAttr('disabled');
+                    if ( enabled ) {
+                        $btn.removeAttr('tabindex');
+                    } else {
+                        $btn.attr('tabindex', '-1');
+                    }
+                };
                 if ( ! rows.length ) {
-                    $productModalHeaderPrev.addClass('is-disabled').prop('disabled', true);
-                    $productModalHeaderNext.addClass('is-disabled').prop('disabled', true);
+                    setNavState( $productModalHeaderPrev, false );
+                    setNavState( $productModalHeaderNext, false );
                     return;
                 }
                 var currentEl = $productModal.data('currentRowEl') || null;
@@ -3118,20 +3142,20 @@ function sop_render_goods_in_page() {
                     currentEl = activeProductRow.get(0);
                 }
                 if ( ! currentEl ) {
-                    $productModalHeaderPrev.addClass('is-disabled').prop('disabled', true);
-                    $productModalHeaderNext.addClass('is-disabled').prop('disabled', true);
+                    setNavState( $productModalHeaderPrev, false );
+                    setNavState( $productModalHeaderNext, false );
                     return;
                 }
                 var currentIndex = rows.indexOf( currentEl );
                 if ( currentIndex < 0 ) {
-                    $productModalHeaderPrev.addClass('is-disabled').prop('disabled', true);
-                    $productModalHeaderNext.addClass('is-disabled').prop('disabled', true);
+                    setNavState( $productModalHeaderPrev, false );
+                    setNavState( $productModalHeaderNext, false );
                     return;
                 }
                 var hasPrev = currentIndex > 0;
                 var hasNext = currentIndex < ( rows.length - 1 );
-                $productModalHeaderPrev.toggleClass('is-disabled', ! hasPrev).prop('disabled', ! hasPrev);
-                $productModalHeaderNext.toggleClass('is-disabled', ! hasNext).prop('disabled', ! hasNext);
+                setNavState( $productModalHeaderPrev, hasPrev );
+                setNavState( $productModalHeaderNext, hasNext );
             }
 
             function sopGoodsinBindProductModalActions() {
@@ -3310,11 +3334,17 @@ function sop_render_goods_in_page() {
 
             $(document).on('click', '.sop-goodsin-pm-nav-prev', function(e){
                 e.preventDefault();
+                if ( $(this).hasClass('is-disabled') || $(this).attr('aria-disabled') === 'true' ) {
+                    return;
+                }
                 sopGoodsinProductModalNavigate(-1);
             });
 
             $(document).on('click', '.sop-goodsin-pm-nav-next', function(e){
                 e.preventDefault();
+                if ( $(this).hasClass('is-disabled') || $(this).attr('aria-disabled') === 'true' ) {
+                    return;
+                }
                 sopGoodsinProductModalNavigate(1);
             });
 
