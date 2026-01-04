@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 4
  * Stockout tracking + maintenance hooks
- * File version: 1.0.2
+ * File version: 1.0.3
+ * - Schedule sop_daily_maintenance cron on init.
  *
  * - Hooks WooCommerce stock changes to stockout open/close helpers.
  * - Ensures a daily maintenance cron runs to prune old stockout logs.
@@ -111,6 +112,7 @@ function sop_run_daily_maintenance_tasks() {
 add_action( 'woocommerce_product_set_stock', 'sop_handle_product_stock_change', 20 );
 add_action( 'woocommerce_product_set_stock_status', 'sop_handle_product_stock_status_change', 20, 3 );
 add_action( 'sop_daily_maintenance', 'sop_run_daily_maintenance_tasks' );
+add_action( 'init', 'sop_ensure_daily_maintenance_cron' );
 
 /**
  * Register Stockout Log (Debug) admin page.

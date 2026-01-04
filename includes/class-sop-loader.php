@@ -2,7 +2,8 @@
 /**
  * Main loader for the Stock Order Plugin.
  *
- * File version: 1.0.01
+ * File version: 1.0.02
+ * - Load stockout tracking module in core bootstrap.
  * - Goods-In v1: load goods-in admin core/UI.
  */
 
@@ -37,6 +38,7 @@ class sop_Loader {
     protected function load_core() {
         require_once SOP_PLUGIN_DIR . 'includes/db-helpers.php';
         require_once SOP_PLUGIN_DIR . 'includes/domain-helpers.php';
+        require_once SOP_PLUGIN_DIR . 'includes/stockout-tracking.php';
         require_once SOP_PLUGIN_DIR . 'includes/helper-buffer.php';
         require_once SOP_PLUGIN_DIR . 'includes/forecast-core.php';
         require_once SOP_PLUGIN_DIR . 'includes/supplier-meta-box.php';
