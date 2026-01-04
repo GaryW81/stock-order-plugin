@@ -1,10 +1,11 @@
-﻿<?php
+<?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.25
+ * File version: 1.0.26
  *
  * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch labels, and in-house print label view.
  * Changelog:
+ * - 1.0.26 - Remove BOM/leading bytes before PHP tag.
  * - 1.0.25 - Rename bulk label form button text.
  * - 1.0.24 - Fix bulk labels screen preview cropping (wrapper accounts for 2x preview scale; print unchanged).
  * - 1.0.23 - Fix bulk label print splitting (hide headers in print, prevent page breaks inside labels).
