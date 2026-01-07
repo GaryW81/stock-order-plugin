@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.52 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.53 *
+ * - V12.53 - PO holiday period: resolve next-year occurrence + allow clearing without re-autofill.
  * - V12.52 - Remove Labels (CSV) download for saved sheets.
  * - V12.51 - Add Labels (CSV) download for saved sheets.
  * - V12.50 - Add optional Supplier SKUs column when enabled per supplier.
@@ -4710,6 +4711,8 @@ function sop_preorder_render_admin_page() {
                 } catch ( e ) {
                     holidayPeriodsMd = [];
                 }
+                var sopPoIsNewSheet = <?php echo $is_new_sheet ? 'true' : 'false'; ?>;
+                var sopPoHolidayAutofillDisabled = ! sopPoIsNewSheet;
 
                 function sopAddDaysToDate( ymd, days ) {
                     if ( ! ymd ) {
@@ -4774,6 +4777,69 @@ function sop_preorder_render_admin_page() {
                     var mm = ( month < 10 ? '0' + month : '' + month );
                     var dd = ( day < 10 ? '0' + day : '' + day );
                     return mm + '-' + dd;
+                }
+
+                function sopResolveHolidayYmdRange( orderYmd, startMd, endMd ) {
+                    if ( ! orderYmd || ! startMd || ! endMd ) {
+                        return { startYmd: '', endYmd: '' };
+                    }
+                    var orderParts = orderYmd.split( '-' );
+                    if ( orderParts.length !== 3 ) {
+                        return { startYmd: '', endYmd: '' };
+                    }
+                    var orderYear = parseInt( orderParts[0], 10 );
+                    if ( ! orderYear ) {
+                        return { startYmd: '', endYmd: '' };
+                    }
+                    var startParts = startMd.split( '-' );
+                    var endParts   = endMd.split( '-' );
+                    if ( startParts.length !== 2 || endParts.length !== 2 ) {
+                        return { startYmd: '', endYmd: '' };
+                    }
+                    var sm = parseInt( startParts[0], 10 );
+                    var sd = parseInt( startParts[1], 10 );
+                    var em = parseInt( endParts[0], 10 );
+                    var ed = parseInt( endParts[1], 10 );
+                    if ( ! sm || ! sd || ! em || ! ed ) {
+                        return { startYmd: '', endYmd: '' };
+                    }
+
+                    var buildYmd = function( year, month, day ) {
+                        if ( ! year || ! month || ! day ) {
+                            return '';
+                        }
+                        var mm = ( month < 10 ? '0' + month : '' + month );
+                        var dd = ( day < 10 ? '0' + day : '' + day );
+                        return year + '-' + mm + '-' + dd;
+                    };
+
+                    var startMdNum = ( sm * 100 ) + sd;
+                    var endMdNum   = ( em * 100 ) + ed;
+                    var startYear  = orderYear;
+                    var endYear    = orderYear;
+                    if ( startMdNum > endMdNum ) {
+                        endYear = orderYear + 1;
+                    }
+
+                    var startYmd = buildYmd( startYear, sm, sd );
+                    var endYmd   = buildYmd( endYear, em, ed );
+                    if ( ! startYmd || ! endYmd ) {
+                        return { startYmd: '', endYmd: '' };
+                    }
+
+                    var orderDate = new Date( orderYmd );
+                    var endDate   = new Date( endYmd );
+                    if ( ! isNaN( orderDate.getTime() ) && ! isNaN( endDate.getTime() ) && endDate < orderDate ) {
+                        startYear = orderYear + 1;
+                        endYear   = startYear + ( startMdNum > endMdNum ? 1 : 0 );
+                        startYmd  = buildYmd( startYear, sm, sd );
+                        endYmd    = buildYmd( endYear, em, ed );
+                    }
+
+                    return {
+                        startYmd: startYmd,
+                        endYmd: endYmd
+                    };
                 }
 
                 function sopIsDayInHolidayPeriod( month, day, period ) {
@@ -4898,34 +4964,51 @@ function sop_preorder_render_admin_page() {
                     var holidayStartYmd = $holidayStart.length ? $holidayStart.val() : '';
                     var holidayEndYmd   = $holidayEnd.length ? $holidayEnd.val() : '';
 
-                    // Prefill PO holiday fields from supplier periods if blank.
-                    if ( ! holidayStartYmd && holidayPeriodsMd.length ) {
+                    var firstStartMd = '';
+                    var firstEndMd   = '';
+                    if ( holidayPeriodsMd.length ) {
                         var first = holidayPeriodsMd[0];
-                        if ( first && ( first.start || first.start_md ) ) {
-                            var firstStart = first.start || first.start_md;
-                            holidayStartYmd = sopBuildHolidayYmdFromMd( orderYmd, firstStart );
-                            if ( holidayStartYmd && $holidayStart.length ) {
-                                $holidayStart.val( holidayStartYmd );
+                        if ( first ) {
+                            firstStartMd = first.start_md || first.start || '';
+                            firstEndMd   = first.end_md || first.end || '';
+                        }
+                    }
+
+                    // Auto-correct stale saved holiday range when it matches supplier default and is in the past.
+                    if ( holidayStartYmd && holidayEndYmd && firstStartMd && firstEndMd ) {
+                        var startMdCheck = sopBuildHolidayMdFromYmd( holidayStartYmd );
+                        var endMdCheck   = sopBuildHolidayMdFromYmd( holidayEndYmd );
+                        if ( startMdCheck === firstStartMd && endMdCheck === firstEndMd ) {
+                            var savedEndDate = new Date( holidayEndYmd );
+                            if ( ! isNaN( savedEndDate.getTime() ) && savedEndDate < orderDate ) {
+                                var resolvedSaved = sopResolveHolidayYmdRange( orderYmd, firstStartMd, firstEndMd );
+                                if ( resolvedSaved.startYmd && resolvedSaved.endYmd ) {
+                                    holidayStartYmd = resolvedSaved.startYmd;
+                                    holidayEndYmd   = resolvedSaved.endYmd;
+                                    if ( $holidayStart.length ) {
+                                        $holidayStart.val( holidayStartYmd );
+                                    }
+                                    if ( $holidayEnd.length ) {
+                                        $holidayEnd.val( holidayEndYmd );
+                                    }
+                                }
                             }
                         }
                     }
-                    if ( ! holidayEndYmd && holidayPeriodsMd.length ) {
-                        var firstEndMd = ( holidayPeriodsMd[0].end_md || holidayPeriodsMd[0].end ) || '';
-                        if ( firstEndMd ) {
-                            var tmpEnd = sopBuildHolidayYmdFromMd( orderYmd, firstEndMd );
-                            if ( tmpEnd && holidayStartYmd ) {
-                                var startDate = new Date( holidayStartYmd );
-                                var endDate   = new Date( tmpEnd );
-                                if ( endDate < startDate ) {
-                                    var parts = tmpEnd.split( '-' );
-                                    var ny    = startDate.getFullYear() + 1;
-                                    tmpEnd    = ny + '-' + parts[1] + '-' + parts[2];
-                                }
+
+                    // Prefill PO holiday fields from supplier periods if blank.
+                    if ( ! holidayStartYmd && ! holidayEndYmd && ! sopPoHolidayAutofillDisabled && firstStartMd && firstEndMd ) {
+                        var resolved = sopResolveHolidayYmdRange( orderYmd, firstStartMd, firstEndMd );
+                        if ( resolved.startYmd && resolved.endYmd ) {
+                            holidayStartYmd = resolved.startYmd;
+                            holidayEndYmd   = resolved.endYmd;
+                            if ( $holidayStart.length ) {
+                                $holidayStart.val( holidayStartYmd );
                             }
-                            holidayEndYmd = tmpEnd;
                             if ( $holidayEnd.length ) {
                                 $holidayEnd.val( holidayEndYmd );
                             }
+                            sopPoHolidayAutofillDisabled = true;
                         }
                     }
 
@@ -4968,8 +5051,14 @@ function sop_preorder_render_admin_page() {
                 }
 
                 $( document ).on( 'change', 'input[name=\"sop_po_order_date\"]', sopRecalcPoDatesFromOrder );
-                $( document ).on( 'change', 'input[name=\"sop_po_holiday_start\"]', sopRecalcPoDatesFromOrder );
-                $( document ).on( 'change', 'input[name=\"sop_po_holiday_end\"]', sopRecalcPoDatesFromOrder );
+                $( document ).on( 'change', 'input[name=\"sop_po_holiday_start\"], input[name=\"sop_po_holiday_end\"]', function() {
+                    var startVal = $( 'input[name=\"sop_po_holiday_start\"]' ).val() || '';
+                    var endVal   = $( 'input[name=\"sop_po_holiday_end\"]' ).val() || '';
+                    if ( ! startVal && ! endVal ) {
+                        sopPoHolidayAutofillDisabled = true;
+                    }
+                    sopRecalcPoDatesFromOrder();
+                } );
 
                 // Recalculate on load if an order date already exists.
                 if ( $( 'input[name=\"sop_po_order_date\"]' ).length && $( 'input[name=\"sop_po_order_date\"]' ).val() ) {
