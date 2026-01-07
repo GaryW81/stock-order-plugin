@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.53 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.54 *
+ * - V12.54 - Version bump after PO holiday period fixes.
  * - V12.53 - PO holiday period: resolve next-year occurrence + allow clearing without re-autofill.
  * - V12.52 - Remove Labels (CSV) download for saved sheets.
  * - V12.51 - Add Labels (CSV) download for saved sheets.
