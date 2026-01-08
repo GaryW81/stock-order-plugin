@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.54 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.55 *
+ * - V12.55 - PO holiday override: only keep when overlaps handling window; clear irrelevant saved first-holiday; fix holiday separator text.
  * - V12.54 - Version bump after PO holiday period fixes.
  * - V12.53 - PO holiday period: resolve next-year occurrence + allow clearing without re-autofill.
  * - V12.52 - Remove Labels (CSV) download for saved sheets.
@@ -1883,7 +1884,7 @@ function sop_preorder_render_admin_page() {
                                     <input type="date"
                                            name="sop_po_holiday_start"
                                            value="<?php echo esc_attr( $po_holiday_start ); ?>"<?php echo $po_disabled_attr; ?> />
-                                    <span class="sop-po-holiday-separator">â€“</span>
+                                    <span class="sop-po-holiday-separator"><?php esc_html_e( 'to', 'sop' ); ?></span>
                                     <input type="date"
                                            name="sop_po_holiday_end"
                                            value="<?php echo esc_attr( $po_holiday_end ); ?>"<?php echo $po_disabled_attr; ?> />
@@ -1933,7 +1934,7 @@ function sop_preorder_render_admin_page() {
                                         $po_total_skus  = isset( $total_skus ) ? (int) $total_skus : 0;
                                         $po_total_units = isset( $total_units ) ? (int) $total_units : 0;
                                         printf(
-                                            esc_html__( 'Purchase order #%1$s â€“ %2$d SKUs / %3$d pcs', 'sop' ),
+                                            esc_html__( 'Purchase order #%1$s - %2$d SKUs / %3$d pcs', 'sop' ),
                                             esc_html( $sheet_order_number_label ),
                                             $po_total_skus,
                                             $po_total_units
@@ -4975,6 +4976,19 @@ function sop_preorder_render_admin_page() {
                         }
                     }
 
+                    var baselineLoadDate = sopAddHandlingWorkingDays( orderDate, handlingDays, holidayPeriodsMd );
+                    var firstHolidayOverlapsHandling = false;
+                    if ( firstStartMd && firstEndMd ) {
+                        var resolvedFirst = sopResolveHolidayYmdRange( orderYmd, firstStartMd, firstEndMd );
+                        if ( resolvedFirst.startYmd && resolvedFirst.endYmd ) {
+                            var firstStartDate = new Date( resolvedFirst.startYmd );
+                            var firstEndDate   = new Date( resolvedFirst.endYmd );
+                            if ( ! isNaN( firstStartDate.getTime() ) && ! isNaN( firstEndDate.getTime() ) ) {
+                                firstHolidayOverlapsHandling = ( firstStartDate <= baselineLoadDate && firstEndDate >= orderDate );
+                            }
+                        }
+                    }
+
                     // Auto-correct stale saved holiday range when it matches supplier default and is in the past.
                     if ( holidayStartYmd && holidayEndYmd && firstStartMd && firstEndMd ) {
                         var startMdCheck = sopBuildHolidayMdFromYmd( holidayStartYmd );
@@ -4997,8 +5011,24 @@ function sop_preorder_render_admin_page() {
                         }
                     }
 
+                    // Auto-clear saved default holiday when it doesn't overlap the handling window.
+                    if ( holidayStartYmd && holidayEndYmd && firstStartMd && firstEndMd ) {
+                        var clearStartMd = sopBuildHolidayMdFromYmd( holidayStartYmd );
+                        var clearEndMd   = sopBuildHolidayMdFromYmd( holidayEndYmd );
+                        if ( clearStartMd === firstStartMd && clearEndMd === firstEndMd && ! firstHolidayOverlapsHandling ) {
+                            holidayStartYmd = '';
+                            holidayEndYmd   = '';
+                            if ( $holidayStart.length ) {
+                                $holidayStart.val( '' );
+                            }
+                            if ( $holidayEnd.length ) {
+                                $holidayEnd.val( '' );
+                            }
+                        }
+                    }
+
                     // Prefill PO holiday fields from supplier periods if blank.
-                    if ( ! holidayStartYmd && ! holidayEndYmd && ! sopPoHolidayAutofillDisabled && firstStartMd && firstEndMd ) {
+                    if ( ! holidayStartYmd && ! holidayEndYmd && ! sopPoHolidayAutofillDisabled && firstStartMd && firstEndMd && firstHolidayOverlapsHandling ) {
                         var resolved = sopResolveHolidayYmdRange( orderYmd, firstStartMd, firstEndMd );
                         if ( resolved.startYmd && resolved.endYmd ) {
                             holidayStartYmd = resolved.startYmd;
@@ -5297,3 +5327,4 @@ function sop_preorder_render_admin_page() {
     </script>
     <?php
 }
+
