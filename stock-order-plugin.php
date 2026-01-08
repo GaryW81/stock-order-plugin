@@ -2,15 +2,16 @@
 /**
  * Plugin Name: Stock Order Plugin (SOP)
  * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control.
- * Version: 5.9.55
+ * Version: 5.9.56
  * Author: Wilson Organisation Ltd
  */
 
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.01
+ * File version: 1.0.02
  * - Ensure sop_daily_maintenance cron is scheduled on activation and cleared on deactivation.
+ * - Run sop_DB::maybe_install() on admin_init for safe schema upgrades.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -18,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.55' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.56' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -114,6 +115,10 @@ register_deactivation_hook( __FILE__, 'sop_deactivate_plugin' );
 add_action(
     'admin_init',
     function () {
+        if ( class_exists( 'sop_DB' ) ) {
+            sop_DB::maybe_install();
+        }
+
         if ( class_exists( 'SOP_Legacy_History' ) ) {
             SOP_Legacy_History::install();
         }

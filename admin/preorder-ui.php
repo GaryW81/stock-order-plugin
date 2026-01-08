@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.56 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.57 *
+ * - V12.57 - Saved sheets: overlay per-line order notes + carton no displays correctly after reload.
  * - V12.56 - PO holiday period selects overlapping supplier range (multi-period safe) and avoids mutating supplier holiday list.
  * - V12.55 - PO holiday override: only keep when overlaps handling window; clear irrelevant saved first-holiday; fix holiday separator text.
  * - V12.54 - Version bump after PO holiday period fixes.
@@ -670,6 +671,10 @@ function sop_preorder_render_admin_page() {
 
                     if ( isset( $line['product_notes_owner'] ) ) {
                         $row['notes'] = $line['product_notes_owner'];
+                    }
+
+                    if ( isset( $line['order_notes_owner'] ) ) {
+                        $row['order_notes'] = $line['order_notes_owner'];
                     }
 
                     if ( isset( $line['carton_no'] ) ) {

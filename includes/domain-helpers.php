@@ -2,12 +2,13 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.26
+ * File version: 1.0.27
  * - Align handling-day helper with PO modal: order date is day 0, handling starts next day.
  * - Add holiday-aware handling days helper for forecast/PO parity.
  * - Prefer direct USDη'RMB base FX if provided in settings.
  * - Add helper to check Supplier SKUs column toggle.
  * - Add scan normaliser for barcode/picking.
+ * - Persist preorder carton_no when saving sheet lines.
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -646,6 +647,7 @@ function sop_insert_preorder_sheet_lines( $sheet_id, array $lines ) {
             'moq_owner'             => isset( $line['moq_owner'] ) ? (float) $line['moq_owner'] : 0.0,
             'product_notes_owner'   => isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : null,
             'order_notes_owner'     => isset( $line['order_notes_owner'] ) ? $line['order_notes_owner'] : null,
+            'carton_no'             => isset( $line['carton_no'] ) ? (string) $line['carton_no'] : '',
             'sku_supplier'          => isset( $line['sku_supplier'] ) ? (string) $line['sku_supplier'] : '',
             'qty_supplier'          => isset( $line['qty_supplier'] ) ? (float) $line['qty_supplier'] : 0.0,
             'cost_rmb_supplier'     => isset( $line['cost_rmb_supplier'] ) ? (float) $line['cost_rmb_supplier'] : 0.0,
@@ -668,6 +670,7 @@ function sop_insert_preorder_sheet_lines( $sheet_id, array $lines ) {
             '%f', // moq_owner.
             '%s', // product_notes_owner.
             '%s', // order_notes_owner.
+            '%s', // carton_no.
             '%s', // sku_supplier.
             '%f', // qty_supplier.
             '%f', // cost_rmb_supplier.

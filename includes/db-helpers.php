@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 1 (DB + Helpers)
- * File version: 1.0.02
+ * File version: 1.0.03
  *
  * - Declares sop_DB class (schema + helpers).
  * - Defines all core Stock Order Plugin tables.
@@ -10,6 +10,7 @@
  * - Adds generic CRUD helpers for all SOP tables.
  * - 1.0.01 - Inbound stock helper: sum locked sheet qty per product.
  * - 1.0.02 - Goods-In v1: add goods-in columns to preorder lines and compute inbound as outstanding.
+ * - 1.0.03 - Add carton_no to preorder sheet lines for per-line carton tracking.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -27,7 +28,7 @@ if ( ! class_exists( 'sop_DB' ) ) {
          * Current schema version for this project.
          * Bump this when tables/columns change in future phases.
          */
-        const VERSION = '1.2.1';
+        const VERSION = '1.2.2';
 
         /**
          * Return list of logical table keys => physical table names.
@@ -275,6 +276,7 @@ if ( ! class_exists( 'sop_DB' ) ) {
                 moq_owner DECIMAL(14,3) NOT NULL DEFAULT 0,
                 product_notes_owner LONGTEXT NULL,
                 order_notes_owner LONGTEXT NULL,
+                carton_no VARCHAR(190) NOT NULL DEFAULT '',
                 sku_supplier VARCHAR(190) NOT NULL DEFAULT '',
                 qty_supplier DECIMAL(14,3) NOT NULL DEFAULT 0,
                 cost_rmb_supplier DECIMAL(14,4) NOT NULL DEFAULT 0,
