@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.55 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.56 *
+ * - V12.56 - PO holiday period selects overlapping supplier range (multi-period safe) and avoids mutating supplier holiday list.
  * - V12.55 - PO holiday override: only keep when overlaps handling window; clear irrelevant saved first-holiday; fix holiday separator text.
  * - V12.54 - Version bump after PO holiday period fixes.
  * - V12.53 - PO holiday period: resolve next-year occurrence + allow clearing without re-autofill.
@@ -4714,7 +4715,7 @@ function sop_preorder_render_admin_page() {
                     holidayPeriodsMd = [];
                 }
                 var sopPoIsNewSheet = <?php echo $is_new_sheet ? 'true' : 'false'; ?>;
-                var sopPoHolidayAutofillDisabled = ! sopPoIsNewSheet;
+                var sopPoHolidayAutofillDisabled = false;
 
                 function sopAddDaysToDate( ymd, days ) {
                     if ( ! ymd ) {
@@ -4844,6 +4845,54 @@ function sop_preorder_render_admin_page() {
                     };
                 }
 
+                function sopFindFirstOverlappingSupplierHoliday( orderYmd, orderDate, baselineLoadDate, holidayPeriodsMd ) {
+                    if ( ! orderYmd || ! orderDate || ! baselineLoadDate || isNaN( orderDate.getTime() ) || isNaN( baselineLoadDate.getTime() ) ) {
+                        return null;
+                    }
+                    if ( ! Array.isArray( holidayPeriodsMd ) || ! holidayPeriodsMd.length ) {
+                        return null;
+                    }
+                    var match = null;
+                    for ( var i = 0; i < holidayPeriodsMd.length; i++ ) {
+                        var period = holidayPeriodsMd[ i ] || {};
+                        var startMd = period.start_md || period.start || '';
+                        var endMd   = period.end_md || period.end || '';
+                        if ( ! startMd || ! endMd ) {
+                            continue;
+                        }
+                        var resolved = sopResolveHolidayYmdRange( orderYmd, startMd, endMd );
+                        if ( ! resolved.startYmd || ! resolved.endYmd ) {
+                            continue;
+                        }
+                        var startDate = new Date( resolved.startYmd );
+                        var endDate   = new Date( resolved.endYmd );
+                        if ( isNaN( startDate.getTime() ) || isNaN( endDate.getTime() ) ) {
+                            continue;
+                        }
+                        if ( startDate <= baselineLoadDate && endDate >= orderDate ) {
+                            if ( ! match || startDate < match.startDate ) {
+                                match = {
+                                    startMd: startMd,
+                                    endMd: endMd,
+                                    startYmd: resolved.startYmd,
+                                    endYmd: resolved.endYmd,
+                                    startDate: startDate,
+                                    endDate: endDate
+                                };
+                            }
+                        }
+                    }
+                    if ( ! match ) {
+                        return null;
+                    }
+                    return {
+                        startMd: match.startMd,
+                        endMd: match.endMd,
+                        startYmd: match.startYmd,
+                        endYmd: match.endYmd
+                    };
+                }
+
                 function sopIsDayInHolidayPeriod( month, day, period ) {
                     if ( ! period || ( ! period.start && ! period.start_md ) || ( ! period.end && ! period.end_md ) ) {
                         return false;
@@ -4966,81 +5015,67 @@ function sop_preorder_render_admin_page() {
                     var holidayStartYmd = $holidayStart.length ? $holidayStart.val() : '';
                     var holidayEndYmd   = $holidayEnd.length ? $holidayEnd.val() : '';
 
-                    var firstStartMd = '';
-                    var firstEndMd   = '';
-                    if ( holidayPeriodsMd.length ) {
-                        var first = holidayPeriodsMd[0];
-                        if ( first ) {
-                            firstStartMd = first.start_md || first.start || '';
-                            firstEndMd   = first.end_md || first.end || '';
-                        }
-                    }
-
                     var baselineLoadDate = sopAddHandlingWorkingDays( orderDate, handlingDays, holidayPeriodsMd );
-                    var firstHolidayOverlapsHandling = false;
-                    if ( firstStartMd && firstEndMd ) {
-                        var resolvedFirst = sopResolveHolidayYmdRange( orderYmd, firstStartMd, firstEndMd );
-                        if ( resolvedFirst.startYmd && resolvedFirst.endYmd ) {
-                            var firstStartDate = new Date( resolvedFirst.startYmd );
-                            var firstEndDate   = new Date( resolvedFirst.endYmd );
-                            if ( ! isNaN( firstStartDate.getTime() ) && ! isNaN( firstEndDate.getTime() ) ) {
-                                firstHolidayOverlapsHandling = ( firstStartDate <= baselineLoadDate && firstEndDate >= orderDate );
+                    var overlappingSupplierHoliday = sopFindFirstOverlappingSupplierHoliday( orderYmd, orderDate, baselineLoadDate, holidayPeriodsMd );
+
+                    var savedStartMd = holidayStartYmd ? sopBuildHolidayMdFromYmd( holidayStartYmd ) : '';
+                    var savedEndMd   = holidayEndYmd ? sopBuildHolidayMdFromYmd( holidayEndYmd ) : '';
+                    var savedMatchesSupplier = false;
+                    if ( savedStartMd && savedEndMd && holidayPeriodsMd.length ) {
+                        for ( var smi = 0; smi < holidayPeriodsMd.length; smi++ ) {
+                            var savedPeriod = holidayPeriodsMd[ smi ] || {};
+                            var savedPeriodStart = savedPeriod.start_md || savedPeriod.start || '';
+                            var savedPeriodEnd   = savedPeriod.end_md || savedPeriod.end || '';
+                            if ( savedPeriodStart === savedStartMd && savedPeriodEnd === savedEndMd ) {
+                                savedMatchesSupplier = true;
+                                break;
                             }
                         }
                     }
 
-                    // Auto-correct stale saved holiday range when it matches supplier default and is in the past.
-                    if ( holidayStartYmd && holidayEndYmd && firstStartMd && firstEndMd ) {
-                        var startMdCheck = sopBuildHolidayMdFromYmd( holidayStartYmd );
-                        var endMdCheck   = sopBuildHolidayMdFromYmd( holidayEndYmd );
-                        if ( startMdCheck === firstStartMd && endMdCheck === firstEndMd ) {
-                            var savedEndDate = new Date( holidayEndYmd );
-                            if ( ! isNaN( savedEndDate.getTime() ) && savedEndDate < orderDate ) {
-                                var resolvedSaved = sopResolveHolidayYmdRange( orderYmd, firstStartMd, firstEndMd );
-                                if ( resolvedSaved.startYmd && resolvedSaved.endYmd ) {
-                                    holidayStartYmd = resolvedSaved.startYmd;
-                                    holidayEndYmd   = resolvedSaved.endYmd;
-                                    if ( $holidayStart.length ) {
-                                        $holidayStart.val( holidayStartYmd );
-                                    }
-                                    if ( $holidayEnd.length ) {
-                                        $holidayEnd.val( holidayEndYmd );
-                                    }
+                    if ( savedMatchesSupplier ) {
+                        var resolvedSaved = sopResolveHolidayYmdRange( orderYmd, savedStartMd, savedEndMd );
+                        if ( resolvedSaved.startYmd && resolvedSaved.endYmd ) {
+                            if ( holidayStartYmd !== resolvedSaved.startYmd || holidayEndYmd !== resolvedSaved.endYmd ) {
+                                holidayStartYmd = resolvedSaved.startYmd;
+                                holidayEndYmd   = resolvedSaved.endYmd;
+                                if ( $holidayStart.length ) {
+                                    $holidayStart.val( holidayStartYmd );
+                                }
+                                if ( $holidayEnd.length ) {
+                                    $holidayEnd.val( holidayEndYmd );
+                                }
+                            }
+                            var savedStartDate = new Date( holidayStartYmd );
+                            var savedEndDate   = new Date( holidayEndYmd );
+                            var savedOverlapsHandling = false;
+                            if ( ! isNaN( savedStartDate.getTime() ) && ! isNaN( savedEndDate.getTime() ) ) {
+                                savedOverlapsHandling = ( savedStartDate <= baselineLoadDate && savedEndDate >= orderDate );
+                            }
+                            if ( ! savedOverlapsHandling ) {
+                                holidayStartYmd = '';
+                                holidayEndYmd   = '';
+                                if ( $holidayStart.length ) {
+                                    $holidayStart.val( '' );
+                                }
+                                if ( $holidayEnd.length ) {
+                                    $holidayEnd.val( '' );
                                 }
                             }
                         }
                     }
 
-                    // Auto-clear saved default holiday when it doesn't overlap the handling window.
-                    if ( holidayStartYmd && holidayEndYmd && firstStartMd && firstEndMd ) {
-                        var clearStartMd = sopBuildHolidayMdFromYmd( holidayStartYmd );
-                        var clearEndMd   = sopBuildHolidayMdFromYmd( holidayEndYmd );
-                        if ( clearStartMd === firstStartMd && clearEndMd === firstEndMd && ! firstHolidayOverlapsHandling ) {
-                            holidayStartYmd = '';
-                            holidayEndYmd   = '';
-                            if ( $holidayStart.length ) {
-                                $holidayStart.val( '' );
-                            }
-                            if ( $holidayEnd.length ) {
-                                $holidayEnd.val( '' );
-                            }
-                        }
-                    }
-
                     // Prefill PO holiday fields from supplier periods if blank.
-                    if ( ! holidayStartYmd && ! holidayEndYmd && ! sopPoHolidayAutofillDisabled && firstStartMd && firstEndMd && firstHolidayOverlapsHandling ) {
-                        var resolved = sopResolveHolidayYmdRange( orderYmd, firstStartMd, firstEndMd );
-                        if ( resolved.startYmd && resolved.endYmd ) {
-                            holidayStartYmd = resolved.startYmd;
-                            holidayEndYmd   = resolved.endYmd;
-                            if ( $holidayStart.length ) {
-                                $holidayStart.val( holidayStartYmd );
-                            }
-                            if ( $holidayEnd.length ) {
-                                $holidayEnd.val( holidayEndYmd );
-                            }
-                            sopPoHolidayAutofillDisabled = true;
+                    if ( ! holidayStartYmd && ! holidayEndYmd && ! sopPoHolidayAutofillDisabled && overlappingSupplierHoliday ) {
+                        holidayStartYmd = overlappingSupplierHoliday.startYmd;
+                        holidayEndYmd   = overlappingSupplierHoliday.endYmd;
+                        if ( $holidayStart.length ) {
+                            $holidayStart.val( holidayStartYmd );
                         }
+                        if ( $holidayEnd.length ) {
+                            $holidayEnd.val( holidayEndYmd );
+                        }
+                        sopPoHolidayAutofillDisabled = true;
                     }
 
                     // If a holiday period is set on this PO, build an override period in month/day format.
@@ -5056,17 +5091,28 @@ function sop_preorder_render_admin_page() {
                         }
                     }
 
-                    // Apply the override to the working holiday periods for this calculation.
+                    var workingHolidayPeriods = holidayPeriodsMd.slice();
                     if ( overridePeriod ) {
-                        if ( holidayPeriodsMd.length ) {
-                            holidayPeriodsMd[0] = overridePeriod;
-                        } else {
-                            holidayPeriodsMd = [ overridePeriod ];
+                        var replaced = false;
+                        if ( overlappingSupplierHoliday && overlappingSupplierHoliday.startMd && overlappingSupplierHoliday.endMd ) {
+                            for ( var wi = 0; wi < workingHolidayPeriods.length; wi++ ) {
+                                var workingPeriod = workingHolidayPeriods[ wi ] || {};
+                                var workingStart = workingPeriod.start_md || workingPeriod.start || '';
+                                var workingEnd   = workingPeriod.end_md || workingPeriod.end || '';
+                                if ( workingStart === overlappingSupplierHoliday.startMd && workingEnd === overlappingSupplierHoliday.endMd ) {
+                                    workingHolidayPeriods[ wi ] = overridePeriod;
+                                    replaced = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if ( ! replaced ) {
+                            workingHolidayPeriods.push( overridePeriod );
                         }
                     }
 
                     // Container load date: add handling working days (holidays extend handling).
-                    var loadDate = sopAddHandlingWorkingDays( orderDate, handlingDays, holidayPeriodsMd );
+                    var loadDate = sopAddHandlingWorkingDays( orderDate, handlingDays, workingHolidayPeriods );
                     var loadYmd = sopDateToYmd( loadDate );
                     if ( loadYmd && $loadDate.length ) {
                         $loadDate.val( loadYmd );
