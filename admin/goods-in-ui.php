@@ -1,8 +1,10 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.89
+ * File version: 1.0.91
  *
+ * - 1.0.91 - Goods-In: use carton text for search/filter/modal after input removal.
+ * - 1.0.90 - Goods-In: carton text display + numeric sort by first carton number.
  * - 1.0.89 - Goods-In: load carton_no from saved lines and render carton read-only.
  * - 1.0.88 - Scan input opens modal without altering search filter (prev/next stays active).
  * - 1.0.87 - Mobile: modal prev/next navigation respects visible Goods-In rows.
@@ -775,6 +777,19 @@ function sop_render_goods_in_page() {
                 if ( isset( $line['carton_no'] ) && '' !== (string) $line['carton_no'] ) {
                     $carton = (string) $line['carton_no'];
                 }
+                $carton_segments = array();
+                if ( '' !== trim( $carton ) ) {
+                    $carton_segments = array_filter( array_map( 'trim', explode( ',', $carton ) ), 'strlen' );
+                }
+                if ( ! empty( $carton_segments ) ) {
+                    $carton_display = implode( '<br />', array_map( 'esc_html', $carton_segments ) );
+                } else {
+                    $carton_display = '&mdash;';
+                }
+                $carton_sort_key = 999999999;
+                if ( preg_match( '/\d+/', $carton, $carton_match ) ) {
+                    $carton_sort_key = (int) $carton_match[0];
+                }
                 $stock_qty = null;
                 $stock_keys = array( 'current_stock', 'stock_qty', 'stock_snapshot', 'stock_on_hand', 'stock_at_save', 'saved_stock' );
                 foreach ( $stock_keys as $stock_key ) {
@@ -871,8 +886,8 @@ function sop_render_goods_in_page() {
                             <option value="other" <?php selected( $reason, 'other' ); ?>><?php esc_html_e( 'Other', 'sop' ); ?></option>
                         </select>
                     </td>
-                    <td class="sop-goodsin-carton sop-goodsin-cell-truncate" data-column="carton" title="<?php echo esc_attr( $carton ); ?>">
-                        <input type="text" class="sop-goodsin-carton-no sop-goodsin-carton-input sop-goodsin-carton-readonly" value="<?php echo esc_attr( $carton ); ?>" readonly="readonly" <?php echo $inputs_disabled_attr; ?> />
+                    <td class="sop-goodsin-carton sop-goodsin-cell-truncate" data-column="carton" data-carton-sort="<?php echo esc_attr( $carton_sort_key ); ?>" title="<?php echo esc_attr( $carton ); ?>">
+                        <div class="sop-goodsin-carton-text"><?php echo wp_kses_post( $carton_display ); ?></div>
                     </td>
                     <td class="sop-goodsin-text-col" data-column="product_notes" title="<?php echo esc_attr( $product_notes ); ?>">
                         <div class="sop-goodsin-notes-wrap">
@@ -1078,13 +1093,10 @@ function sop_render_goods_in_page() {
             width: 120px;
             min-width: 120px;
         }
-        .sop-goodsin-carton-readonly {
-            border: 0;
-            background: transparent;
-            box-shadow: none;
-            padding: 0;
-            width: 100%;
-            line-height: 1.4;
+        .sop-goodsin-carton-text {
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.2;
         }
         /* Notes columns */
         .sop-goodsin-table th[data-column="product_notes"],
@@ -2510,7 +2522,11 @@ function sop_render_goods_in_page() {
                 parts.push( ($tr.find('td.column-location').text() || '').toString() );
                 parts.push( ($tr.find('td[data-column="sku"]').text() || '').toString() );
                 parts.push( ($tr.find('.sop-goodsin-product-link').text() || '').toString() );
-                parts.push( ($tr.find('.sop-goodsin-carton-no').val() || '').toString() );
+                var cartonText = ($tr.attr('data-carton') || '').toString();
+                if ( ! cartonText ) {
+                    cartonText = ($tr.find('.sop-goodsin-carton-text').text() || '').toString();
+                }
+                parts.push( cartonText );
                 var text = parts.join(' ').toLowerCase();
                 $tr.data('sopSearchText', text);
                 return text;
@@ -2552,7 +2568,7 @@ function sop_render_goods_in_page() {
                         }
                     }
 
-                    var rowCarton = sopGoodsinNormalizeQuery( $tr.find('.sop-goodsin-carton-no').val() || '' );
+                    var rowCarton = sopGoodsinNormalizeQuery( ($tr.attr('data-carton') || $tr.find('.sop-goodsin-carton-text').text() || '') );
                     var matchesCarton = true;
                     if ( cartonQuery ) {
                         matchesCarton = ( rowCarton.indexOf( cartonQuery ) !== -1 );
@@ -2712,7 +2728,7 @@ function sop_render_goods_in_page() {
                 markDirty();
                 sopGoodsinScheduleFilterRefresh();
             });
-            $('#sop-goodsin-lines').on('input change', '.sop-goodsin-carton input, .sop-goodsin-carton', function(){
+            $('#sop-goodsin-lines').on('input change', '.sop-goodsin-carton-text, .sop-goodsin-carton', function(){
                 var $tr = $(this).closest('tr');
                 $tr.removeData('sopSearchText');
                 sopGoodsinScheduleFilterRefresh();
@@ -2937,8 +2953,19 @@ function sop_render_goods_in_page() {
                 var rowsArr = $rows.get();
 
                 rowsArr.sort(function(a, b){
-                    var aVal = $(a).data('sort-' + sortKey);
-                    var bVal = $(b).data('sort-' + sortKey);
+                    var $rowA = $(a);
+                    var $rowB = $(b);
+                    var aVal = $rowA.data('sort-' + sortKey);
+                    var bVal = $rowB.data('sort-' + sortKey);
+                    if ( sortKey === 'carton' ) {
+                        var aCartonKey = parseInt( $rowA.find('td[data-column="carton"]').attr('data-carton-sort'), 10 );
+                        var bCartonKey = parseInt( $rowB.find('td[data-column="carton"]').attr('data-carton-sort'), 10 );
+                        if ( isNaN( aCartonKey ) ) { aCartonKey = 999999999; }
+                        if ( isNaN( bCartonKey ) ) { bCartonKey = 999999999; }
+                        if ( aCartonKey !== bCartonKey ) {
+                            return newDir === 'asc' ? ( aCartonKey - bCartonKey ) : ( bCartonKey - aCartonKey );
+                        }
+                    }
 
                     if (sortType === 'number') {
                         aVal = parseFloat(aVal) || 0;
@@ -3045,7 +3072,10 @@ function sop_render_goods_in_page() {
                 var name = ($tr.data('productName') || '').toString();
                 var sku = ($tr.data('sku') || '').toString();
                 var location = ($tr.data('location') || '').toString();
-                var cartonVal = ($tr.find('input.sop-goodsin-carton-no').val() || '').toString().trim();
+                var cartonVal = ($tr.attr('data-carton') || '').toString().trim();
+                if ( ! cartonVal ) {
+                    cartonVal = ($tr.find('.sop-goodsin-carton-text').text() || '').toString().trim();
+                }
                 var cartonDataAttr = ($tr.attr('data-carton') || '').toString().trim();
                 var cartonCellText = ($tr.find('td[data-column="carton"]').text() || '').toString().trim();
                 var cartonFallback = ($cartonInput.length ? $cartonInput.val() : '');
