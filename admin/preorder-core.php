@@ -1,11 +1,12 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.56
+ * File version: 11.57
  * - Persist supplier preorder_hidden_columns.
  * - Persist preorder container planning values in PO payload for saved sheets.
  * - Saved sheets: include receiving/received, allow unlock for receiving, add Goods-In link.
  * - Enforce readonly for non-draft sheets (view-only actions and server-side guard).
+ * - Saved sheets: default all suppliers and show status badges.
  * - Remove legacy XLS export endpoints (XLSX only).
  * - Remove Labels (CSV) export for saved Pre-Order sheets.
  * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
@@ -437,6 +438,7 @@ function sop_render_preorder_sheets_page() {
 
     $suppliers = function_exists( 'sop_preorder_get_suppliers' ) ? sop_preorder_get_suppliers() : array();
     $sheets    = array();
+    $status_filters = array( 'draft', 'locked', 'receiving', 'received' );
 
     if ( isset( $_GET['sop_deleted'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $deleted_flag = (int) $_GET['sop_deleted']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -451,9 +453,11 @@ function sop_render_preorder_sheets_page() {
         $sheets = sop_get_preorder_sheets_for_supplier(
             $supplier_id,
             array(
-                'status' => array( 'draft', 'locked', 'receiving', 'received' ),
+                'status' => $status_filters,
             )
         );
+    } elseif ( function_exists( 'sop_preorder_get_sheets_all' ) ) {
+        $sheets = sop_preorder_get_sheets_all( $status_filters );
     }
     ?>
     <div class="wrap">
@@ -466,7 +470,7 @@ function sop_render_preorder_sheets_page() {
                     <th scope="row"><?php esc_html_e( 'Supplier', 'sop' ); ?></th>
                     <td>
                         <select name="supplier_id">
-                            <option value="0"><?php esc_html_e( 'Select a supplier', 'sop' ); ?></option>
+                            <option value="0"><?php esc_html_e( 'All suppliers', 'sop' ); ?></option>
                             <?php foreach ( $suppliers as $supplier ) : ?>
                                 <option value="<?php echo esc_attr( $supplier['id'] ); ?>" <?php selected( (int) $supplier['id'], $supplier_id ); ?>>
                                     <?php echo esc_html( $supplier['name'] ); ?>
@@ -479,11 +483,20 @@ function sop_render_preorder_sheets_page() {
             </table>
         </form>
 
-        <?php if ( $supplier_id <= 0 ) : ?>
-            <p><?php esc_html_e( 'Select a supplier to view saved sheets.', 'sop' ); ?></p>
-        <?php elseif ( empty( $sheets ) ) : ?>
-            <p><?php esc_html_e( 'No saved sheets found for this supplier.', 'sop' ); ?></p>
+        <?php if ( empty( $sheets ) ) : ?>
+            <?php if ( $supplier_id > 0 ) : ?>
+                <p><?php esc_html_e( 'No saved sheets found for this supplier.', 'sop' ); ?></p>
+            <?php else : ?>
+                <p><?php esc_html_e( 'No saved sheets found.', 'sop' ); ?></p>
+            <?php endif; ?>
         <?php else : ?>
+            <style>
+                .sop-status-pill{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-weight:600;font-size:12px;line-height:1;border:1px solid rgba(0,0,0,.08);background:#f6f7f7;color:#1d2327}
+                .sop-status-draft{background:#f6f7f7;border-color:#dfe1e5;color:#1d2327}
+                .sop-status-locked{background:#e8f1ff;border-color:#b9d1ff;color:#1d3b6b}
+                .sop-status-receiving{background:#fff3e0;border-color:#f6c77b;color:#6a3c00}
+                .sop-status-received{background:#e7f6ed;border-color:#a8ddb5;color:#1c5c2c}
+            </style>
             <table class="widefat striped">
                 <thead>
                     <tr>
@@ -503,7 +516,7 @@ function sop_render_preorder_sheets_page() {
                         <tr>
                             <td><?php echo esc_html( $sheet['id'] ); ?></td>
                             <td><?php echo esc_html( function_exists( 'sop_get_supplier_label' ) ? sop_get_supplier_label( $sheet['supplier_id'] ) : $sheet['supplier_id'] ); ?></td>
-                            <td><?php echo esc_html( isset( $sheet['status'] ) ? $sheet['status'] : '' ); ?></td>
+                            <td><?php echo sop_preorder_render_status_pill( isset( $sheet['status'] ) ? (string) $sheet['status'] : '' ); ?></td>
                             <td><?php echo ! empty( $sheet['order_number_label'] ) ? esc_html( $sheet['order_number_label'] ) : '&mdash;'; ?></td>
                             <td><?php echo ! empty( $sheet['edit_version'] ) ? (int) $sheet['edit_version'] : 1; ?></td>
                             <td><?php echo esc_html( isset( $sheet['order_date_owner'] ) ? $sheet['order_date_owner'] : '' ); ?></td>
@@ -600,6 +613,66 @@ function sop_render_preorder_sheets_page() {
         <?php endif; ?>
     </div>
     <?php
+}
+
+/**
+ * Render a status pill badge for saved sheets.
+ *
+ * @param string $status Sheet status.
+ * @return string
+ */
+function sop_preorder_render_status_pill( $status ) {
+    $status = (string) $status;
+    $slug   = sanitize_key( $status );
+    $labels = array(
+        'draft'     => __( 'Draft', 'sop' ),
+        'locked'    => __( 'Locked', 'sop' ),
+        'receiving' => __( 'Receiving', 'sop' ),
+        'received'  => __( 'Received', 'sop' ),
+    );
+
+    $label = isset( $labels[ $slug ] ) ? $labels[ $slug ] : ucfirst( $status );
+    $class = 'sop-status-pill';
+    if ( '' !== $slug ) {
+        $class .= ' sop-status-' . $slug;
+    }
+
+    return '<span class="' . esc_attr( $class ) . '">' . esc_html( $label ) . '</span>';
+}
+
+/**
+ * Fetch saved sheets across all suppliers with status filtering.
+ *
+ * @param array $statuses Statuses to include.
+ * @return array
+ */
+function sop_preorder_get_sheets_all( array $statuses ) {
+    global $wpdb;
+
+    $table_sheets = function_exists( 'sop_get_preorder_sheet_table_name' ) ? sop_get_preorder_sheet_table_name() : '';
+    if ( '' === $table_sheets ) {
+        $table_sheets = $wpdb->prefix . 'sop_preorder_sheet';
+    }
+
+    $status_list = array();
+    foreach ( $statuses as $status ) {
+        $status_list[] = sanitize_key( $status );
+    }
+    $status_list = array_values( array_filter( $status_list ) );
+    if ( empty( $status_list ) ) {
+        return array();
+    }
+
+    $placeholders = implode( ',', array_fill( 0, count( $status_list ), '%s' ) );
+    $sql = "SELECT *
+            FROM {$table_sheets}
+            WHERE status IN ( {$placeholders} )
+            ORDER BY updated_at DESC, id DESC";
+
+    $prepared = $wpdb->prepare( $sql, $status_list );
+    $rows = $wpdb->get_results( $prepared, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+    return is_array( $rows ) ? $rows : array();
 }
 
 /**
