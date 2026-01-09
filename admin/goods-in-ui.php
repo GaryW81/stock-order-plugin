@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.95
+ * File version: 1.0.96
  *
+ * - 1.0.96 - Mobile: modal height uses visual viewport var to remove bottom gap.
  * - 1.0.95 - Mobile: hide WP admin bar during Goods-In modals; remove top gap.
  * - 1.0.94 - UI: Goods-In modals respect WP adminbar height + reduce mobile bounce.
  * - 1.0.93 - UI: Goods-In product modal full-screen on mobile/tablet + full-height desktop.
@@ -1240,10 +1241,15 @@ function sop_render_goods_in_page() {
             .sop-goodsin-notes-modal-backdrop,
             .sop-goodsin-info-modal-backdrop {
                 top: 0 !important;
-                height: 100vh;
-                height: 100dvh;
-                height: 100svh;
+                height: var(--sop-goodsin-vvh) !important;
                 z-index: 1000000;
+            }
+            .sop-goodsin-product-modal__inner {
+                width: 100%;
+                height: 100%;
+                max-height: none;
+                margin: 0;
+                border-radius: 0;
             }
             .sop-goodsin-toolbar { gap: 8px; }
             .sop-goodsin-toolbar-actions {
@@ -1436,15 +1442,14 @@ function sop_render_goods_in_page() {
         }
         :root {
             --sop-wpadminbar-h: 0px;
+            --sop-goodsin-vvh: 100vh;
         }
         .sop-goodsin-product-modal {
             position: fixed;
             left: 0;
             right: 0;
             top: var(--sop-wpadminbar-h);
-            height: calc(100vh - var(--sop-wpadminbar-h));
-            height: calc(100dvh - var(--sop-wpadminbar-h));
-            height: calc(100svh - var(--sop-wpadminbar-h));
+            height: calc(var(--sop-goodsin-vvh) - var(--sop-wpadminbar-h));
             display: none;
             z-index: 10002;
             overscroll-behavior: none;
@@ -1931,9 +1936,7 @@ function sop_render_goods_in_page() {
             left: 0;
             right: 0;
             top: var(--sop-wpadminbar-h);
-            height: calc(100vh - var(--sop-wpadminbar-h));
-            height: calc(100dvh - var(--sop-wpadminbar-h));
-            height: calc(100svh - var(--sop-wpadminbar-h));
+            height: calc(var(--sop-goodsin-vvh) - var(--sop-wpadminbar-h));
             background: rgba(0, 0, 0, 0.4);
             z-index: 100000;
             display: none;
@@ -1961,9 +1964,7 @@ function sop_render_goods_in_page() {
             left: 0;
             right: 0;
             top: var(--sop-wpadminbar-h);
-            height: calc(100vh - var(--sop-wpadminbar-h));
-            height: calc(100dvh - var(--sop-wpadminbar-h));
-            height: calc(100svh - var(--sop-wpadminbar-h));
+            height: calc(var(--sop-goodsin-vvh) - var(--sop-wpadminbar-h));
             background: rgba(0, 0, 0, 0.4);
             z-index: 100000;
             display: none;
@@ -2321,6 +2322,18 @@ function sop_render_goods_in_page() {
                 document.documentElement.style.setProperty('--sop-wpadminbar-h', h + 'px');
             }
 
+            function sopGoodsinSyncVisualViewportVar() {
+                var h = 0;
+                if ( window.visualViewport && window.visualViewport.height ) {
+                    h = Math.round( window.visualViewport.height );
+                } else if ( window.innerHeight ) {
+                    h = Math.round( window.innerHeight );
+                }
+                if ( h > 0 ) {
+                    document.documentElement.style.setProperty('--sop-goodsin-vvh', h + 'px');
+                }
+            }
+
             var $form = $('#sop-goodsin-form');
             var $payload = $('#sop-goodsin-payload-json');
             var $actionField = $('#sop-goodsin-action');
@@ -2387,9 +2400,13 @@ function sop_render_goods_in_page() {
             }
 
             sopGoodsinSyncAdminbarHeightVar();
+            sopGoodsinSyncVisualViewportVar();
             $(window).on('resize orientationchange', function(){
                 clearTimeout(window.__sopGoodsinAdminbarTimer);
-                window.__sopGoodsinAdminbarTimer = setTimeout(sopGoodsinSyncAdminbarHeightVar, 100);
+                window.__sopGoodsinAdminbarTimer = setTimeout(function(){
+                    sopGoodsinSyncAdminbarHeightVar();
+                    sopGoodsinSyncVisualViewportVar();
+                }, 100);
             });
 
             function markDirty() {
@@ -2897,6 +2914,7 @@ function sop_render_goods_in_page() {
                 $notesModalEditor.focus();
                 document.documentElement.classList.add('sop-goodsin-modal-open');
                 document.body.classList.add('sop-goodsin-modal-open');
+                sopGoodsinSyncVisualViewportVar();
             }
 
             function closeNotesModal() {
@@ -2919,6 +2937,7 @@ function sop_render_goods_in_page() {
                 $infoModal.show().attr('aria-hidden', 'false');
                 document.documentElement.classList.add('sop-goodsin-modal-open');
                 document.body.classList.add('sop-goodsin-modal-open');
+                sopGoodsinSyncVisualViewportVar();
             }
 
             function closeInfoModal() {
@@ -3640,6 +3659,7 @@ function sop_render_goods_in_page() {
                 }
                 document.documentElement.classList.add('sop-goodsin-modal-open');
                 document.body.classList.add('sop-goodsin-modal-open');
+                sopGoodsinSyncVisualViewportVar();
                 activeProductRow = $row;
                 window.sopGoodsinModalCurrentRow = $row;
                 $productModal.data('currentRowEl', $row.get(0));
