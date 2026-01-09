@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.60 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.61 *
+ * - V12.61 - Enforce read-only view for non-draft sheets.
  * - V12.60 - Restore saved sheet container planning values (allowance/pallet) on open.
  * - V12.59 - Fix: SKU search icon click triggers filtering.
  * - V12.58 - Persist column visibility per supplier.
@@ -870,9 +871,10 @@ function sop_preorder_render_admin_page() {
         $current_status     = ! empty( $current_sheet['status'] ) ? $current_sheet['status'] : '';
         $current_updated    = ! empty( $current_sheet['updated_at'] ) ? $current_sheet['updated_at'] : '';
     }
-    $sop_sheet_is_locked = ( $current_sheet_id > 0 && 'locked' === $current_status );
-    $sop_disabled_attr   = $sop_sheet_is_locked ? ' disabled="disabled"' : '';
-    $po_disabled_attr    = $sop_sheet_is_locked ? ' disabled="disabled"' : '';
+    $sop_sheet_is_readonly = ( $current_sheet_id > 0 && $current_status && 'draft' !== $current_status );
+    $sop_sheet_is_locked   = $sop_sheet_is_readonly;
+    $sop_disabled_attr     = $sop_sheet_is_readonly ? ' disabled="disabled"' : '';
+    $po_disabled_attr      = $sop_sheet_is_readonly ? ' disabled="disabled"' : '';
     $is_existing_sheet   = ( $current_sheet_id > 0 );
     $save_button_label   = $is_existing_sheet ? esc_html__( 'Update Sheet', 'sop' ) : esc_html__( 'Save sheet', 'sop' );
 
@@ -1077,8 +1079,9 @@ function sop_preorder_render_admin_page() {
             ?>
         </h1>
         <?php
-        $sop_saved    = isset( $_GET['sop_saved'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_saved'] ) ) : '';
-        $sop_sheet_id = isset( $_GET['sop_sheet_id'] ) ? absint( $_GET['sop_sheet_id'] ) : 0;
+        $sop_saved            = isset( $_GET['sop_saved'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_saved'] ) ) : '';
+        $sop_sheet_id         = isset( $_GET['sop_sheet_id'] ) ? absint( $_GET['sop_sheet_id'] ) : 0;
+        $sop_preorder_readonly = isset( $_GET['sop_preorder_readonly'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_preorder_readonly'] ) ) : '';
 
         if ( '1' === $sop_saved ) {
             $message = $sop_sheet_id
@@ -1093,6 +1096,12 @@ function sop_preorder_render_admin_page() {
             printf(
                 '<div class="notice notice-error"><p>%s</p></div>',
                 esc_html__( 'There was a problem saving the pre-order sheet. Please try again.', 'sop' )
+            );
+        }
+        if ( '1' === $sop_preorder_readonly ) {
+            printf(
+                '<div class="notice notice-error"><p>%s</p></div>',
+                esc_html__( 'This sheet is not editable. Unlock it before saving changes.', 'sop' )
             );
         }
         ?>
@@ -1113,10 +1122,15 @@ function sop_preorder_render_admin_page() {
                     ?>
                 </p>
             </div>
-            <?php if ( $sop_sheet_is_locked ) : ?>
+            <?php if ( $sop_sheet_is_readonly ) : ?>
                 <div class="notice notice-warning sop-preorder-sheet-locked-banner">
                     <p>
-                        <?php esc_html_e( 'This saved pre-order sheet is locked. You can view and export it, but cannot edit until you unlock it from the Saved sheets list.', 'sop' ); ?>
+                        <?php
+                        printf(
+                            esc_html__( 'This saved pre-order sheet is %s. You can view and export it, but cannot edit until you unlock it from the Saved sheets list.', 'sop' ),
+                            esc_html( $current_status ? $current_status : 'locked' )
+                        );
+                        ?>
                     </p>
                 </div>
             <?php endif; ?>
@@ -1202,7 +1216,7 @@ function sop_preorder_render_admin_page() {
                                 </button>
                             <?php endif; ?>
 
-                            <?php if ( ! $sop_sheet_is_locked ) : ?>
+                            <?php if ( ! $sop_sheet_is_readonly ) : ?>
                                 <button type="button" class="button button-primary" id="sop-update-sheet-top">
                                     <?php echo $save_button_label; ?>
                                 </button>
@@ -3340,6 +3354,7 @@ function sop_preorder_render_admin_page() {
             var $columnCheckboxes    = $columnsPanel.find('input[type="checkbox"]');
             var $hiddenColumnsInput  = $('#sop_preorder_hidden_columns');
             var sopPreorderIsSubmittingSheet = false;
+            var sopPreorderIsReadOnly = <?php echo $sop_sheet_is_readonly ? 'true' : 'false'; ?>;
             var $saveUpdateButtons   = $( '#sop-update-sheet-top, #sop-update-sheet-bottom, .sop-preorder-save-sheet, .sop-preorder-update-sheet' );
             var $tableWrapper        = $('.sop-preorder-table-wrapper');
             if ( ! $tableWrapper.length ) {
@@ -3350,6 +3365,11 @@ function sop_preorder_render_admin_page() {
             var lastMouseClientY     = null;
             var soqScrollTimer       = null;
             var soqTooltipActiveEl   = null;
+
+            if ( sopPreorderIsReadOnly ) {
+                $table.find('tbody').find('input, select, textarea').prop('disabled', true);
+                $( '[name="sop_container_type"],[name="sop_allowance_percent"],[name="sop_pallet_layer"]' ).prop('disabled', true);
+            }
 
             function sopMarkUnsavedChanges() {
                 hasUnsavedChanges = true;

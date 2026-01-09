@@ -1,10 +1,11 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.55
+ * File version: 11.56
  * - Persist supplier preorder_hidden_columns.
  * - Persist preorder container planning values in PO payload for saved sheets.
  * - Saved sheets: include receiving/received, allow unlock for receiving, add Goods-In link.
+ * - Enforce readonly for non-draft sheets (view-only actions and server-side guard).
  * - Remove legacy XLS export endpoints (XLSX only).
  * - Remove Labels (CSV) export for saved Pre-Order sheets.
  * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
@@ -520,8 +521,13 @@ function sop_render_preorder_sheets_page() {
                                     admin_url( 'admin.php' )
                                 );
                                 ?>
+                                <?php
+                                $open_label = ( empty( $sheet_status ) || 'draft' === $sheet_status )
+                                    ? __( 'Open', 'sop' )
+                                    : __( 'View', 'sop' );
+                                ?>
                                 <a class="button" href="<?php echo esc_url( $open_url ); ?>">
-                                    <?php esc_html_e( 'Open', 'sop' ); ?>
+                                    <?php echo esc_html( $open_label ); ?>
                                 </a>
                                 <?php if ( empty( $sheet_status ) || 'draft' === $sheet_status ) : ?>
                                     <?php
@@ -702,7 +708,16 @@ function sop_handle_save_preorder_sheet() {
     if ( $sheet_id > 0 && function_exists( 'sop_get_preorder_sheet' ) ) {
         $existing_sheet = sop_get_preorder_sheet( $sheet_id );
         if ( is_array( $existing_sheet ) && ! empty( $existing_sheet['status'] ) && 'draft' !== $existing_sheet['status'] ) {
-            wp_die( esc_html__( 'This saved pre-order sheet is locked and cannot be edited. Please unlock it first.', 'sop' ) );
+            $redirect = add_query_arg(
+                array(
+                    'page'                 => 'sop-preorder-sheet',
+                    'sop_sheet_id'         => (int) $sheet_id,
+                    'sop_preorder_readonly'=> '1',
+                ),
+                admin_url( 'admin.php' )
+            );
+            wp_safe_redirect( $redirect );
+            exit;
         }
 
         // For existing sheets, always trust the stored supplier.
