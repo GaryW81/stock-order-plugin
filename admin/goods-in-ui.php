@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.87
+ * File version: 1.0.88
  *
+ * - 1.0.88 - Scan input opens modal without altering search filter (prev/next stays active).
  * - 1.0.87 - Mobile: modal prev/next navigation respects visible Goods-In rows.
  * - 1.0.86 - Goods-In list: toggle completed sheets and preserve filter in links.
  * - 1.0.85 - Desktop: restore Goods-In toolbar layout; keep mobile grid rules scoped to <= 782px.
@@ -2854,12 +2855,6 @@ function sop_render_goods_in_page() {
                 if ( ! scanVal ) {
                     return;
                 }
-                $searchInput.val( scanValTrim );
-                try {
-                    window.localStorage.setItem('sop_goodsin_search_query', scanValTrim);
-                } catch (e2) {}
-                sopGoodsinApplyFilterAll();
-                sopGoodsinJumpToFirstVisible();
                 setTimeout(function(){
                     sopGoodsinOpenProductModalForSku( scanValTrim );
                 }, 20);
@@ -3384,10 +3379,12 @@ function sop_render_goods_in_page() {
                     if ( $scanStatus && $scanStatus.length ) {
                         $scanStatus.text('<?php echo esc_js( __( 'SKU not found in visible rows.', 'sop' ) ); ?>');
                     }
+                    window.alert('<?php echo esc_js( __( 'SKU not found in current list.', 'sop' ) ); ?>');
                     return false;
                 }
                 sopScanLock = true;
                 requestAnimationFrame(function(){
+                    sopGoodsinJumpToFirstVisible( $match.get(0) );
                     sopGoodsInOpenProductModal( $match );
                 });
                 return true;
