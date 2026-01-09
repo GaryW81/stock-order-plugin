@@ -1,9 +1,10 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
-* File version: 1.0.85
+ * File version: 1.0.86
  *
-* - 1.0.85 - Desktop: restore Goods-In toolbar layout; keep mobile grid rules scoped to <= 782px.
+ * - 1.0.86 - Goods-In list: toggle completed sheets and preserve filter in links.
+ * - 1.0.85 - Desktop: restore Goods-In toolbar layout; keep mobile grid rules scoped to <= 782px.
 * - 1.0.84 - Fix modal prev/next navigation + correct carton/stock wiring.
 * - 1.0.83 - Version bump after verifying modal prev/next navigation wiring.
 * - 1.0.82 - Fix modal prev/next navigation (visible-row order + correct enable/disable).
@@ -109,7 +110,7 @@ function sop_goodsin_register_menu() {
  *
  * @return array
  */
-function sop_goodsin_get_open_sheets() {
+function sop_goodsin_get_open_sheets( $include_received = false ) {
     global $wpdb;
 
     $tbl_sheets = function_exists( 'sop_get_preorder_sheet_table_name' ) ? sop_get_preorder_sheet_table_name() : '';
@@ -121,6 +122,12 @@ function sop_goodsin_get_open_sheets() {
     if ( '' === $tbl_lines ) {
         $tbl_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
     }
+
+    $statuses = array( 'locked', 'receiving' );
+    if ( $include_received ) {
+        $statuses[] = 'received';
+    }
+    $status_sql = "'" . implode( "','", array_map( 'esc_sql', $statuses ) ) . "'";
 
     $sql = "SELECT
                 s.id,
@@ -153,7 +160,7 @@ function sop_goodsin_get_open_sheets() {
                 ) AS outstanding_qty
             FROM {$tbl_sheets} s
             LEFT JOIN {$tbl_lines} l ON l.sheet_id = s.id
-            WHERE s.status IN ( 'locked', 'receiving' )
+            WHERE s.status IN ( {$status_sql} )
             GROUP BY s.id
             ORDER BY s.updated_at DESC, s.id DESC";
 
@@ -331,10 +338,20 @@ function sop_render_goods_in_page() {
     }
 
     if ( $sheet_id <= 0 ) {
-        $sheets = sop_goodsin_get_open_sheets();
+        $show_completed = ( isset( $_GET['show_completed'] ) && '1' === sanitize_text_field( wp_unslash( $_GET['show_completed'] ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $sheets = sop_goodsin_get_open_sheets( $show_completed );
 
         echo '<h1>' . esc_html__( 'Goods In', 'sop' ) . '</h1>';
-        echo '<p>' . esc_html__( 'Select a locked/receiving sheet to receive stock against it.', 'sop' ) . '</p>';
+        if ( $show_completed ) {
+            echo '<p>' . esc_html__( 'Select a locked/receiving/received sheet to view or receive stock against it.', 'sop' ) . '</p>';
+        } else {
+            echo '<p>' . esc_html__( 'Select a locked/receiving sheet to receive stock against it.', 'sop' ) . '</p>';
+        }
+        echo '<form method="get" action="" class="sop-goodsin-completed-filter">';
+        echo '<input type="hidden" name="page" value="sop-goods-in" />';
+        echo '<label><input type="checkbox" name="show_completed" value="1" ' . checked( $show_completed, true, false ) . ' /> ' . esc_html__( 'Show completed sheets', 'sop' ) . '</label> ';
+        echo '<button type="submit" class="button">' . esc_html__( 'Apply', 'sop' ) . '</button>';
+        echo '</form>';
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
         echo '<th>' . esc_html__( 'Sheet ID', 'sop' ) . '</th>';
@@ -347,7 +364,11 @@ function sop_render_goods_in_page() {
         echo '</tr></thead><tbody>';
 
         if ( empty( $sheets ) ) {
-            echo '<tr><td colspan="7">' . esc_html__( 'No locked/receiving sheets found.', 'sop' ) . '</td></tr>';
+            if ( $show_completed ) {
+                echo '<tr><td colspan="7">' . esc_html__( 'No locked/receiving/received sheets found.', 'sop' ) . '</td></tr>';
+            } else {
+                echo '<tr><td colspan="7">' . esc_html__( 'No locked/receiving sheets found.', 'sop' ) . '</td></tr>';
+            }
         } else {
             foreach ( $sheets as $sheet ) {
                 $sid = isset( $sheet['id'] ) ? (int) $sheet['id'] : 0;
@@ -368,13 +389,14 @@ function sop_render_goods_in_page() {
                 $lines = isset( $sheet['total_lines'] ) ? (int) $sheet['total_lines'] : 0;
                 $outstanding = isset( $sheet['outstanding_qty'] ) ? (float) $sheet['outstanding_qty'] : 0.0;
 
-                $open_url = add_query_arg(
-                    array(
-                        'page'     => 'sop-goods-in',
-                        'sheet_id' => $sid,
-                    ),
-                    admin_url( 'admin.php' )
+                $open_args = array(
+                    'page'     => 'sop-goods-in',
+                    'sheet_id' => $sid,
                 );
+                if ( $show_completed ) {
+                    $open_args['show_completed'] = '1';
+                }
+                $open_url = add_query_arg( $open_args, admin_url( 'admin.php' ) );
 
                 echo '<tr>';
                 echo '<td>' . esc_html( $sid ) . '</td>';
@@ -563,7 +585,16 @@ function sop_render_goods_in_page() {
                 <h1><?php esc_html_e( 'Goods In', 'sop' ); ?></h1>
             </div>
             <div class="sop-goodsin-mg-back">
-                <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=sop-goods-in' ) ); ?>"><?php esc_html_e( 'Back to list', 'sop' ); ?></a>
+                <?php
+                $back_args = array( 'page' => 'sop-goods-in' );
+                if ( isset( $_GET['show_completed'] ) && '1' === sanitize_text_field( wp_unslash( $_GET['show_completed'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                    $back_args['show_completed'] = '1';
+                } elseif ( 'received' === $status ) {
+                    $back_args['show_completed'] = '1';
+                }
+                $back_url = add_query_arg( $back_args, admin_url( 'admin.php' ) );
+                ?>
+                <a class="button" href="<?php echo esc_url( $back_url ); ?>"><?php esc_html_e( 'Back to list', 'sop' ); ?></a>
             </div>
             <div class="sop-goodsin-mg-sheet">
                 <strong><?php echo esc_html( sprintf( __( 'Sheet #%1$d (%2$s) - %3$s', 'sop' ), $sheet_id, $supplier_name, $status ) ); ?></strong>

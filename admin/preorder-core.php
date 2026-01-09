@@ -1,9 +1,10 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.54
+ * File version: 11.55
  * - Persist supplier preorder_hidden_columns.
  * - Persist preorder container planning values in PO payload for saved sheets.
+ * - Saved sheets: include receiving/received, allow unlock for receiving, add Goods-In link.
  * - Remove legacy XLS export endpoints (XLSX only).
  * - Remove Labels (CSV) export for saved Pre-Order sheets.
  * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
@@ -449,7 +450,7 @@ function sop_render_preorder_sheets_page() {
         $sheets = sop_get_preorder_sheets_for_supplier(
             $supplier_id,
             array(
-                'status' => array( 'draft', 'locked' ),
+                'status' => array( 'draft', 'locked', 'receiving', 'received' ),
             )
         );
     }
@@ -551,7 +552,7 @@ function sop_render_preorder_sheets_page() {
                                             <?php esc_html_e( 'Delete', 'sop' ); ?>
                                         </button>
                                     </form>
-                                <?php elseif ( 'locked' === $sheet_status ) : ?>
+                                <?php elseif ( 'locked' === $sheet_status || 'receiving' === $sheet_status ) : ?>
                                     <?php
                                     $unlock_url = wp_nonce_url(
                                         add_query_arg(
@@ -568,6 +569,21 @@ function sop_render_preorder_sheets_page() {
                                     <a class="button" href="<?php echo esc_url( $unlock_url ); ?>"
                                        onclick="return confirm('<?php echo esc_js( __( 'Unlock this saved pre-order sheet to allow editing?', 'sop' ) ); ?>');">
                                         <?php esc_html_e( 'Unlock', 'sop' ); ?>
+                                    </a>
+                                <?php endif; ?>
+                                <?php if ( ! empty( $sheet_status ) && 'draft' !== $sheet_status ) : ?>
+                                    <?php
+                                    $goodsin_args = array(
+                                        'page'     => 'sop-goods-in',
+                                        'sheet_id' => isset( $sheet['id'] ) ? (int) $sheet['id'] : 0,
+                                    );
+                                    if ( 'received' === $sheet_status ) {
+                                        $goodsin_args['view'] = 'report';
+                                    }
+                                    $goodsin_url = add_query_arg( $goodsin_args, admin_url( 'admin.php' ) );
+                                    ?>
+                                    <a class="button" href="<?php echo esc_url( $goodsin_url ); ?>">
+                                        <?php esc_html_e( 'Goods-In', 'sop' ); ?>
                                     </a>
                                 <?php endif; ?>
                             </td>
@@ -1522,7 +1538,7 @@ function sop_preorder_handle_unlock_sheet() {
     }
 
     $status = isset( $sheet['status'] ) ? $sheet['status'] : '';
-    if ( 'locked' === $status ) {
+    if ( 'locked' === $status || 'receiving' === $status ) {
         $update_data = array(
             'status' => 'draft',
         );
