@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.52
+ * File version: 11.53
+ * - Persist supplier preorder_hidden_columns.
  * - Remove legacy XLS export endpoints (XLSX only).
  * - Remove Labels (CSV) export for saved Pre-Order sheets.
  * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
@@ -972,6 +973,94 @@ function sop_handle_save_preorder_sheet() {
             $pid = (int) $pid;
             if ( $pid > 0 ) {
                 update_post_meta( $pid, '_sop_preorder_removed', $removed_val ? 1 : 0 );
+            }
+        }
+    }
+
+    $hidden_columns_raw = isset( $_POST['sop_preorder_hidden_columns'] ) ? wp_unslash( $_POST['sop_preorder_hidden_columns'] ) : '';
+    $hidden_columns_list = array();
+    if ( is_array( $hidden_columns_raw ) ) {
+        $hidden_columns_list = $hidden_columns_raw;
+    } elseif ( is_string( $hidden_columns_raw ) && '' !== trim( $hidden_columns_raw ) ) {
+        $decoded_hidden = json_decode( $hidden_columns_raw, true );
+        if ( is_array( $decoded_hidden ) ) {
+            $hidden_columns_list = $decoded_hidden;
+        } else {
+            $hidden_columns_list = array_map( 'trim', explode( ',', $hidden_columns_raw ) );
+        }
+    }
+
+    $allowed_columns = array(
+        'image',
+        'location',
+        'sku',
+        'supplier_skus',
+        'brand',
+        'category',
+        'product',
+        'cost_supplier',
+        'cost_usd',
+        'stock',
+        'inbound',
+        'min_order',
+        'soq',
+        'order_qty',
+        'line_total',
+        'cubic',
+        'line_cbm',
+        'regular_unit',
+        'regular_line',
+        'notes',
+        'order_notes',
+        'carton_no',
+    );
+    $allowed_map = array_fill_keys( $allowed_columns, true );
+    $hidden_columns_sanitized = array();
+    foreach ( $hidden_columns_list as $hidden_col ) {
+        $clean_key = sanitize_key( $hidden_col );
+        if ( '' === $clean_key || ! isset( $allowed_map[ $clean_key ] ) ) {
+            continue;
+        }
+        $hidden_columns_sanitized[] = $clean_key;
+    }
+    $hidden_columns_sanitized = array_values( array_unique( $hidden_columns_sanitized ) );
+
+    if ( function_exists( 'sop_db_get_row' ) && function_exists( 'sop_db_update' ) ) {
+        $supplier_row = sop_db_get_row( 'suppliers', array( 'id' => $supplier_id ), ARRAY_A );
+        if ( is_array( $supplier_row ) ) {
+            $settings_json_raw = isset( $supplier_row['settings_json'] ) ? (string) $supplier_row['settings_json'] : '';
+            $settings          = array();
+            if ( '' !== $settings_json_raw ) {
+                $decoded_settings = json_decode( $settings_json_raw, true );
+                if ( is_array( $decoded_settings ) ) {
+                    $settings = $decoded_settings;
+                } else {
+                    $settings = null;
+                }
+            }
+
+            if ( is_array( $settings ) ) {
+                if ( empty( $hidden_columns_sanitized ) ) {
+                    unset( $settings['preorder_hidden_columns'] );
+                } else {
+                    $settings['preorder_hidden_columns'] = $hidden_columns_sanitized;
+                }
+
+                if ( empty( $settings ) && '' === $settings_json_raw ) {
+                    // No existing settings and nothing to save.
+                } else {
+                    $update_settings = array(
+                        'settings_json' => wp_json_encode( $settings ),
+                        'updated_at'    => current_time( 'mysql' ),
+                    );
+                    sop_db_update(
+                        'suppliers',
+                        $update_settings,
+                        array( 'id' => $supplier_id ),
+                        array( '%s', '%s' ),
+                        array( '%d' )
+                    );
+                }
             }
         }
     }

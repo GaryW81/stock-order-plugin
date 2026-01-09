@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.57 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.58 *
+ * - V12.58 - Persist column visibility per supplier.
  * - V12.57 - Saved sheets: overlay per-line order notes + carton no displays correctly after reload.
  * - V12.56 - PO holiday period selects overlapping supplier range (multi-period safe) and avoids mutating supplier holiday list.
  * - V12.55 - PO holiday override: only keep when overlaps handling window; clear irrelevant saved first-holiday; fix holiday separator text.
@@ -518,6 +519,29 @@ function sop_preorder_render_admin_page() {
         $default_allowance = 50;
     } elseif ( $default_allowance < -50 ) {
         $default_allowance = -50;
+    }
+
+    $sop_hidden_columns = array();
+    if ( isset( $supplier_settings['preorder_hidden_columns'] ) ) {
+        $hidden_columns_raw = $supplier_settings['preorder_hidden_columns'];
+        if ( is_string( $hidden_columns_raw ) ) {
+            $decoded_hidden = json_decode( $hidden_columns_raw, true );
+            $hidden_columns_raw = is_array( $decoded_hidden ) ? $decoded_hidden : array();
+        }
+        if ( is_array( $hidden_columns_raw ) ) {
+            foreach ( $hidden_columns_raw as $hidden_key ) {
+                $clean_key = sanitize_key( $hidden_key );
+                if ( '' === $clean_key ) {
+                    continue;
+                }
+                $sop_hidden_columns[] = $clean_key;
+            }
+        }
+    }
+    $sop_hidden_columns = array_values( array_unique( $sop_hidden_columns ) );
+    $sop_hidden_columns_json = wp_json_encode( $sop_hidden_columns );
+    if ( ! $sop_hidden_columns_json ) {
+        $sop_hidden_columns_json = '[]';
     }
 
     if ( $is_new_sheet ) {
@@ -1332,7 +1356,7 @@ function sop_preorder_render_admin_page() {
                                                         <input
                                                             type="checkbox"
                                                             data-column="<?php echo esc_attr( $column_key ); ?>"
-                                                            checked="checked"
+                                                            <?php echo checked( ! in_array( $column_key, $sop_hidden_columns, true ), true, false ); ?>
                                                         />
                                                         <?php echo esc_html( $column_label ); ?>
                                                     </label>
@@ -1362,6 +1386,7 @@ function sop_preorder_render_admin_page() {
                 <input type="hidden" name="sop_pallet_layer" value="<?php echo esc_attr( $pallet_layer ? 1 : 0 ); ?>" />
                 <input type="hidden" name="sop_po_payload" id="sop-po-payload" value="" />
                 <input type="hidden" name="sop_lines_json" id="sop-lines-json" value="" />
+                <input type="hidden" name="sop_preorder_hidden_columns" id="sop_preorder_hidden_columns" value="<?php echo esc_attr( $sop_hidden_columns_json ); ?>" />
 
                 <div class="sop-preorder-table-wrapper">
                 <table class="wp-list-table widefat fixed striped sop-preorder-table">
@@ -3289,6 +3314,7 @@ function sop_preorder_render_admin_page() {
             var $columnsToggleButton = $columnsWrapper.find('.sop-preorder-columns-toggle');
             var $columnsPanel        = $columnsWrapper.find('.sop-preorder-columns-popover');
             var $columnCheckboxes    = $columnsPanel.find('input[type="checkbox"]');
+            var $hiddenColumnsInput  = $('#sop_preorder_hidden_columns');
             var sopPreorderIsSubmittingSheet = false;
             var $saveUpdateButtons   = $( '#sop-update-sheet-top, #sop-update-sheet-bottom, .sop-preorder-save-sheet, .sop-preorder-update-sheet' );
             var $tableWrapper        = $('.sop-preorder-table-wrapper');
@@ -3331,6 +3357,23 @@ function sop_preorder_render_admin_page() {
                     var show = $(this).is(':checked');
                     $table.find('[data-column="' + columnKey + '"]').toggle(show);
                 });
+            }
+
+            function sopPreorderSyncHiddenColumnsInput() {
+                if ( ! $hiddenColumnsInput.length ) {
+                    return;
+                }
+                var hiddenColumns = [];
+                $columnCheckboxes.each(function() {
+                    var columnKey = $(this).data('column');
+                    if ( ! columnKey ) {
+                        return;
+                    }
+                    if ( ! $(this).is(':checked') ) {
+                        hiddenColumns.push( String( columnKey ) );
+                    }
+                });
+                $hiddenColumnsInput.val( JSON.stringify( hiddenColumns ) );
             }
 
             // Any text/number input or textarea inside the table is considered an edit.
@@ -3403,6 +3446,7 @@ function sop_preorder_render_admin_page() {
 
             if ( $sheetForm.length ) {
                 $sheetForm.on( 'submit', function() {
+                    sopPreorderSyncHiddenColumnsInput();
                     sopPreorderIsSubmittingSheet = true;
                     hasUnsavedChanges = false;
                 } );
@@ -3437,6 +3481,7 @@ function sop_preorder_render_admin_page() {
             if ( $columnsWrapper.length && $columnsToggleButton.length && $columnsPanel.length ) {
                 sopPreorderUpdateColumnsToggleLabel();
                 sopPreorderApplyColumnVisibility();
+                sopPreorderSyncHiddenColumnsInput();
 
                 $columnsToggleButton.on( 'click', function( e ) {
                     e.preventDefault();
@@ -3450,6 +3495,7 @@ function sop_preorder_render_admin_page() {
                 $columnCheckboxes.on( 'change', function() {
                     sopPreorderUpdateColumnsToggleLabel();
                     sopPreorderApplyColumnVisibility();
+                    sopPreorderSyncHiddenColumnsInput();
                 } );
 
                 $( document ).on( 'click', function( e ) {
