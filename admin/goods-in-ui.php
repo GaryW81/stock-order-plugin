@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.86
+ * File version: 1.0.87
  *
+ * - 1.0.87 - Mobile: modal prev/next navigation respects visible Goods-In rows.
  * - 1.0.86 - Goods-In list: toggle completed sheets and preserve filter in links.
  * - 1.0.85 - Desktop: restore Goods-In toolbar layout; keep mobile grid rules scoped to <= 782px.
 * - 1.0.84 - Fix modal prev/next navigation + correct carton/stock wiring.
@@ -1463,6 +1464,7 @@ function sop_render_goods_in_page() {
         .sop-goodsin-product-modal__nav-btn.is-disabled {
             opacity: 0.4;
             cursor: not-allowed;
+            pointer-events: none;
         }
         .sop-goodsin-product-modal__card {
             display: flex;
@@ -2591,6 +2593,9 @@ function sop_render_goods_in_page() {
                 }
                 summary += ')';
                 $filterSummary.text( summary );
+                if ( $productModal.length && $productModal.hasClass('is-open') ) {
+                    sopGoodsinProductModalUpdateNavButtons();
+                }
             }
 
             function sopGoodsinScheduleFilterRefresh() {
@@ -3143,14 +3148,18 @@ function sop_render_goods_in_page() {
 
             function sopGoodsinGetVisibleGoodsRows() {
                 return $('#sop-goodsin-lines tbody tr').filter(function(){
-                    var lineId = $(this).attr('data-line-id');
+                    var $tr = $(this);
+                    var lineId = $tr.attr('data-line-id');
                     if ( typeof lineId === 'undefined' || lineId === '' ) {
                         return false;
                     }
                     if ( isNaN( parseInt( lineId, 10 ) ) ) {
                         return false;
                     }
-                    if ( $(this).is(':visible') ) {
+                    if ( $tr.hasClass('sop-goodsin-row-hidden') || $tr.hasClass('sop-goodsin-row-search-hidden') || $tr.hasClass('sop-goodsin-row-carton-hidden') || $tr.hasClass('sop-goodsin-row-issues-hidden') ) {
+                        return false;
+                    }
+                    if ( $tr.is(':visible') ) {
                         return true;
                     }
                     if ( this.getClientRects && this.getClientRects().length ) {
@@ -3169,6 +3178,17 @@ function sop_render_goods_in_page() {
                 var currentEl = $productModal.data('currentRowEl') || null;
                 if ( ! currentEl && activeProductRow && activeProductRow.length ) {
                     currentEl = activeProductRow.get(0);
+                }
+                if ( ! currentEl ) {
+                    var currentLineId = parseInt( $productModal.data('currentLineId'), 10 );
+                    if ( currentLineId ) {
+                        for ( var ri = 0; ri < rows.length; ri++ ) {
+                            if ( parseInt( $( rows[ ri ] ).attr('data-line-id'), 10 ) === currentLineId ) {
+                                currentEl = rows[ ri ];
+                                break;
+                            }
+                        }
+                    }
                 }
                 if ( ! currentEl ) {
                     sopGoodsinProductModalUpdateNavButtons();
@@ -3214,6 +3234,17 @@ function sop_render_goods_in_page() {
                 var currentEl = $productModal.data('currentRowEl') || null;
                 if ( ! currentEl && activeProductRow && activeProductRow.length ) {
                     currentEl = activeProductRow.get(0);
+                }
+                if ( ! currentEl ) {
+                    var currentLineId = parseInt( $productModal.data('currentLineId'), 10 );
+                    if ( currentLineId ) {
+                        for ( var ri = 0; ri < rows.length; ri++ ) {
+                            if ( parseInt( $( rows[ ri ] ).attr('data-line-id'), 10 ) === currentLineId ) {
+                                currentEl = rows[ ri ];
+                                break;
+                            }
+                        }
+                    }
                 }
                 if ( ! currentEl ) {
                     setNavState( $productModalHeaderPrev, false );
@@ -3301,6 +3332,7 @@ function sop_render_goods_in_page() {
                 $productModal.removeClass('is-open').attr('aria-hidden', 'true');
                 $productModal.removeAttr('data-sop-current-sku');
                 $productModal.removeData('currentRowEl');
+                $productModal.removeData('currentLineId');
                 $productModalName.text('');
                 $productModalSku.text('');
                 $productModalLocation.text('');
@@ -3327,6 +3359,7 @@ function sop_render_goods_in_page() {
                 activeProductRow = $row;
                 window.sopGoodsinModalCurrentRow = $row;
                 $productModal.data('currentRowEl', $row.get(0));
+                $productModal.data('currentLineId', parseInt( $row.attr('data-line-id'), 10 ) || 0);
                 var currentSku = ($row.data('sku') || '').toString().trim();
                 if ( ! currentSku ) {
                     currentSku = ($row.find('td[data-column="sku"]').text() || '').toString().trim();
