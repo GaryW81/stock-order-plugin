@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.97
+ * File version: 1.0.98
  *
+ * - 1.0.98 - Mobile: ensure scan overlay above product modal and lock interaction while scanning.
  * - 1.0.97 - UI: desktop center +/- icons in qty stepper buttons.
  * - 1.0.96 - Mobile: modal height uses visual viewport var to remove bottom gap.
  * - 1.0.95 - Mobile: hide WP admin bar during Goods-In modals; remove top gap.
@@ -1790,7 +1791,7 @@ function sop_render_goods_in_page() {
             position: fixed;
             inset: 0;
             display: none;
-            z-index: 10001;
+            z-index: 1000005;
         }
         .sop-scan-modal.is-open {
             display: block;
@@ -1842,6 +1843,10 @@ function sop_render_goods_in_page() {
             font-size: 18px;
             line-height: 1;
             cursor: pointer;
+        }
+        html.sop-goodsin-scan-open .sop-goodsin-product-modal,
+        body.sop-goodsin-scan-open .sop-goodsin-product-modal {
+            pointer-events: none !important;
         }
         .sop-goodsin-table td input[type="text"],
         .sop-goodsin-table td input[type="number"],
@@ -2492,6 +2497,8 @@ function sop_render_goods_in_page() {
                 if ( $scanModal && $scanModal.length ) {
                     $scanModal.removeClass('is-open').attr('aria-hidden', 'true');
                 }
+                document.documentElement.classList.remove('sop-goodsin-scan-open');
+                document.body.classList.remove('sop-goodsin-scan-open');
             }
 
             function sopTriggerScanEnter(val) {
@@ -2617,6 +2624,8 @@ function sop_render_goods_in_page() {
                     $scanStatus.text('');
                 }
                 $scanModal.addClass('is-open').attr('aria-hidden', 'false');
+                document.documentElement.classList.add('sop-goodsin-scan-open');
+                document.body.classList.add('sop-goodsin-scan-open');
 
                 if ( typeof navigator === 'undefined' || ! navigator.mediaDevices || ! navigator.mediaDevices.getUserMedia ) {
                     $scanStatus.text('<?php echo esc_js( __( 'Camera access is not available in this browser.', 'sop' ) ); ?>');
