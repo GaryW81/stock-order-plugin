@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.91
+ * File version: 1.0.92
  *
+ * - 1.0.92 - Goods-In: notes title/centering + typed qty input in product modal.
  * - 1.0.91 - Goods-In: use carton text for search/filter/modal after input removal.
  * - 1.0.90 - Goods-In: carton text display + numeric sort by first carton number.
  * - 1.0.89 - Goods-In: load carton_no from saved lines and render carton read-only.
@@ -940,6 +941,18 @@ function sop_render_goods_in_page() {
             </div>
         </div>
 
+        <div class="sop-goodsin-info-modal-backdrop" id="sop-goodsin-info-modal-backdrop" aria-hidden="true"></div>
+        <div class="sop-goodsin-info-modal" id="sop-goodsin-info-modal" role="dialog" aria-modal="true" aria-labelledby="sop-goodsin-info-modal-title" aria-hidden="true">
+            <button type="button"
+                    class="button-link sop-goodsin-info-close"
+                    data-sop-info-close="1"
+                    aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">
+                &times;
+            </button>
+            <h3 id="sop-goodsin-info-modal-title"><?php esc_html_e( 'Product notes', 'sop' ); ?></h3>
+            <div class="sop-goodsin-info-modal-body" id="sop-goodsin-info-modal-body"></div>
+        </div>
+
         <?php if ( 'report' === $view || 'received' === $status ) : ?>
             <h3><?php esc_html_e( 'Goods-In Report (Issues)', 'sop' ); ?></h3>
             <table class="widefat striped">
@@ -1646,6 +1659,11 @@ function sop_render_goods_in_page() {
             font-weight: 600;
             min-width: 40px;
             text-align: center;
+            width: 84px;
+            border: 1px solid #dcdcde;
+            border-radius: 12px;
+            padding: 6px 8px;
+            background: #fff;
         }
         .sop-goodsin-product-modal__summary {
             text-align: center;
@@ -1882,6 +1900,58 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-notes-modal h3 {
             margin-top: 0;
+        }
+        .sop-goodsin-info-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 100000;
+            display: none;
+        }
+        .sop-goodsin-info-modal {
+            position: fixed;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff;
+            padding: 16px;
+            border: 1px solid #ccd0d4;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 100001;
+            width: 560px;
+            max-width: 90%;
+            box-sizing: border-box;
+            display: none;
+        }
+        .sop-goodsin-info-modal h3 {
+            margin-top: 0;
+        }
+        .sop-goodsin-info-modal-body {
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.4;
+            max-height: 60vh;
+            overflow: auto;
+        }
+        .sop-goodsin-info-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 20px;
+            line-height: 1;
+        }
+        @media (min-width: 783px) {
+            .sop-goodsin-notes-modal,
+            .sop-goodsin-info-modal {
+                top: 50%;
+                transform: translate(-50%, -50%);
+                max-height: 80vh;
+                overflow: auto;
+            }
         }
         .sop-goodsin-notes-modal-body {
             margin-bottom: 10px;
@@ -2147,7 +2217,7 @@ function sop_render_goods_in_page() {
 			<div id="sop-product-modal-qty-ordered" class="sop-goodsin-product-modal__qty-ordered"></div>
 			<div class="sop-goodsin-product-modal__qty-control">
 				<button type="button" id="sop-product-modal-btn-minus" class="sop-goodsin-product-modal__qty-btn sop-goodsin-product-modal__qty-btn--minus" aria-label="<?php esc_attr_e( 'Decrease received quantity', 'sop' ); ?>">-</button>
-				<div id="sop-product-modal-qty-value" class="sop-goodsin-product-modal__qty-value">0</div>
+				<input type="number" id="sop-product-modal-qty-value" class="sop-goodsin-product-modal__qty-value" inputmode="numeric" pattern="[0-9]*" step="1" min="0" value="0" />
 				<button type="button" id="sop-product-modal-btn-plus" class="sop-goodsin-product-modal__qty-btn sop-goodsin-product-modal__qty-btn--plus" aria-label="<?php esc_attr_e( 'Increase received quantity', 'sop' ); ?>">+</button>
 			</div>
 
@@ -2192,6 +2262,10 @@ function sop_render_goods_in_page() {
             var $notesModalProduct = $('#sop-goodsin-notes-product');
             var $notesModalSave = $('#sop-goodsin-notes-save');
             var $notesModalClose = $('#sop-goodsin-notes-close');
+            var $infoModal = $('#sop-goodsin-info-modal');
+            var $infoModalBackdrop = $('#sop-goodsin-info-modal-backdrop');
+            var $infoModalTitle = $('#sop-goodsin-info-modal-title');
+            var $infoModalBody = $('#sop-goodsin-info-modal-body');
             var $skusModal = $('#sop-skus-modal');
             var $skusModalContent = $('#sop-skus-modal .sop-skus-modal__content');
             var $skusModalContextName = $('#sop-skus-modal .sop-skus-modal__context-name');
@@ -2751,6 +2825,26 @@ function sop_render_goods_in_page() {
                 $notesModalBackdrop.hide().attr('aria-hidden', 'true');
             }
 
+            function openInfoModal(titleText, bodyText) {
+                if ( ! $infoModal.length ) {
+                    return;
+                }
+                $infoModalTitle.text(titleText || '');
+                $infoModalBody.text(bodyText || '');
+                $infoModalBackdrop.show().attr('aria-hidden', 'false');
+                $infoModal.show().attr('aria-hidden', 'false');
+            }
+
+            function closeInfoModal() {
+                if ( ! $infoModal.length ) {
+                    return;
+                }
+                $infoModal.hide().attr('aria-hidden', 'true');
+                $infoModalBackdrop.hide().attr('aria-hidden', 'true');
+                $infoModalTitle.text('');
+                $infoModalBody.text('');
+            }
+
             function saveNotesModal() {
                 if ( ! notesActiveRow ) { return; }
                 var newNotes = $notesModalEditor.val() || '';
@@ -2790,10 +2884,24 @@ function sop_render_goods_in_page() {
                 closeNotesModal();
             });
 
+            $(document).on('click', '[data-sop-info-close="1"]', function(e){
+                e.preventDefault();
+                closeInfoModal();
+            });
+
+            $infoModalBackdrop.on('click', function(e){
+                e.preventDefault();
+                closeInfoModal();
+            });
+
             $(document).on('keydown', function(e){
                 if ( 27 === e.which && $notesModal.is(':visible') ) {
                     e.preventDefault();
                     closeNotesModal();
+                }
+                if ( 27 === e.which && $infoModal.is(':visible') ) {
+                    e.preventDefault();
+                    closeInfoModal();
                 }
                 if ( e.key === 'Enter' && $(e.target).is($searchInput) ) {
                     e.preventDefault();
@@ -3159,7 +3267,7 @@ function sop_render_goods_in_page() {
                 $productModalLocation.text( locationText );
                 $productModalStock.text( stockText ).removeClass('is-hidden');
                 $productModalQtyOrdered.text( qtyOrderedText );
-                $productModalQtyValue.text( qtyReceivedText );
+                $productModalQtyValue.val( qtyReceivedText );
                 $productModalAdded.text( '<?php echo esc_js( __( 'Added to stock:', 'sop' ) ); ?> ' + addedVal );
                 $productModalOutstanding.text( '<?php echo esc_js( __( 'Outstanding:', 'sop' ) ); ?> ' + outstandingVal );
 
@@ -3312,16 +3420,50 @@ function sop_render_goods_in_page() {
                 }
                 $productModal.data('sopBound', '1');
 
+                var getModalQtyMax = function() {
+                    if ( ! activeProductRow || ! activeProductRow.length ) {
+                        return 0;
+                    }
+                    var ordered = parseFloat( activeProductRow.data('sop-ordered') );
+                    if ( isNaN( ordered ) ) {
+                        ordered = 0;
+                    }
+                    var missing = parseFloat( activeProductRow.find('.sop-goodsin-missing').val() );
+                    if ( isNaN( missing ) ) {
+                        missing = 0;
+                    }
+                    var reject = parseFloat( activeProductRow.find('.sop-goodsin-reject').val() );
+                    if ( isNaN( reject ) ) {
+                        reject = 0;
+                    }
+                    return Math.max( 0, ordered - missing - reject );
+                };
+
+                var applyModalQtyValue = function(nextVal) {
+                    if ( ! activeProductRow || ! activeProductRow.length ) {
+                        return;
+                    }
+                    var maxVal = getModalQtyMax();
+                    var value = parseInt( nextVal, 10 );
+                    if ( isNaN( value ) || value < 0 ) {
+                        value = 0;
+                    }
+                    if ( maxVal >= 0 && value > maxVal ) {
+                        value = maxVal;
+                    }
+                    var $rowInput = activeProductRow.find('.sop-goodsin-received');
+                    $productModalQtyValue.val( value );
+                    $rowInput.val( value ).trigger('input').trigger('change');
+                    sopGoodsinRenderProductModal( sopGoodsinGetRowModalData( activeProductRow ) );
+                };
+
                 $productModalBtnMinus.on('click', function(e){
                     e.preventDefault();
                     if ( ! activeProductRow || ! activeProductRow.length ) {
                         return;
                     }
-                    var $input = activeProductRow.find('.sop-goodsin-received');
-                    var current = parseFloat($input.val()) || 0;
-                    var next = Math.max(0, current - 1);
-                    $input.val(next).trigger('input').trigger('change');
-                    sopGoodsinRenderProductModal( sopGoodsinGetRowModalData( activeProductRow ) );
+                    var current = parseFloat( $productModalQtyValue.val() ) || 0;
+                    applyModalQtyValue( Math.max( 0, current - 1 ) );
                 });
 
                 $productModalBtnPlus.on('click', function(e){
@@ -3329,11 +3471,15 @@ function sop_render_goods_in_page() {
                     if ( ! activeProductRow || ! activeProductRow.length ) {
                         return;
                     }
-                    var $input = activeProductRow.find('.sop-goodsin-received');
-                    var current = parseFloat($input.val()) || 0;
-                    var next = Math.max(0, current + 1);
-                    $input.val(next).trigger('input').trigger('change');
-                    sopGoodsinRenderProductModal( sopGoodsinGetRowModalData( activeProductRow ) );
+                    var current = parseFloat( $productModalQtyValue.val() ) || 0;
+                    applyModalQtyValue( current + 1 );
+                });
+
+                $productModalQtyValue.on('input change', function(){
+                    if ( ! activeProductRow || ! activeProductRow.length ) {
+                        return;
+                    }
+                    applyModalQtyValue( $(this).val() );
                 });
 
                 $productModalBtnConfirm.on('click', function(e){
@@ -3352,7 +3498,7 @@ function sop_render_goods_in_page() {
                     if ( ! noteText ) {
                         return;
                     }
-                    window.alert(noteText);
+                    openInfoModal('<?php echo esc_js( __( 'Product notes', 'sop' ) ); ?>', noteText);
                 });
 
                 $productModalNotesOrderView.on('click', function(e){
@@ -3361,7 +3507,7 @@ function sop_render_goods_in_page() {
                     if ( ! noteText ) {
                         return;
                     }
-                    window.alert(noteText);
+                    openInfoModal('<?php echo esc_js( __( 'Order notes', 'sop' ) ); ?>', noteText);
                 });
             }
 
@@ -3369,6 +3515,7 @@ function sop_render_goods_in_page() {
                 if ( ! $productModal.length ) {
                     return;
                 }
+                closeInfoModal();
                 activeProductRow = null;
                 window.sopGoodsinModalCurrentRow = null;
                 sopScanLock = false;
@@ -3382,7 +3529,7 @@ function sop_render_goods_in_page() {
                 $productModalCarton.text('');
                 $productModalStock.text('').addClass('is-hidden');
                 $productModalQtyOrdered.text('');
-                $productModalQtyValue.text('0');
+                $productModalQtyValue.val('0');
                 $productModalAdded.text('');
                 $productModalOutstanding.text('');
                 $productModalNotesProductStatus.removeClass('is-yes is-no');
