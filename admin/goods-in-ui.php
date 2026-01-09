@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.96
+ * File version: 1.0.97
  *
+ * - 1.0.97 - UI: desktop center +/- icons in qty stepper buttons.
  * - 1.0.96 - Mobile: modal height uses visual viewport var to remove bottom gap.
  * - 1.0.95 - Mobile: hide WP admin bar during Goods-In modals; remove top gap.
  * - 1.0.94 - UI: Goods-In modals respect WP adminbar height + reduce mobile bounce.
@@ -1764,6 +1765,15 @@ function sop_render_goods_in_page() {
             .sop-goodsin-product-modal__inner {
                 height: 100%;
                 max-height: none;
+            }
+        }
+        @media (min-width: 783px) {
+            .sop-goodsin-product-modal__qty-btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                line-height: 1;
+                padding: 0;
             }
         }
         @media (max-width: 480px) {
