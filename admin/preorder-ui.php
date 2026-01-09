@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.58 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.59 *
+ * - V12.59 - Fix: SKU search icon click triggers filtering.
  * - V12.58 - Persist column visibility per supplier.
  * - V12.57 - Saved sheets: overlay per-line order notes + carton no displays correctly after reload.
  * - V12.56 - PO holiday period selects overlapping supplier range (multi-period safe) and avoids mutating supplier holiday list.
@@ -1303,7 +1304,7 @@ function sop_preorder_render_admin_page() {
                                                value="<?php echo esc_attr( $sku_filter ); ?>"
                                                placeholder="<?php esc_attr_e( 'Search SKU', 'stock-order-plugin' ); ?>"
                                                class="regular-text sop-preorder-sku-input" />
-                                        <span class="dashicons dashicons-search sop-preorder-sku-icon" aria-hidden="true"></span>
+                                        <button type="button" id="sop_sku_filter_btn" class="dashicons dashicons-search sop-preorder-sku-icon" aria-label="<?php esc_attr_e( 'Search SKU', 'sop' ); ?>"></button>
                                     </div>
                                 </div>
                             </div>
@@ -2546,7 +2547,12 @@ function sop_preorder_render_admin_page() {
             width: 18px;
             height: 18px;
             color: #000;
-            pointer-events: none;
+            pointer-events: auto;
+            background: transparent;
+            border: 0;
+            padding: 0;
+            margin: 0;
+            cursor: pointer;
         }
 
         .sop-preorder-header select[name="sop_supplier_id"] {
@@ -4450,9 +4456,15 @@ function sop_preorder_render_admin_page() {
                     }
                 } );
 
-                $( '.sop-preorder-sku-icon' ).on( 'click', function( e ) {
+                $( '.sop-preorder-sku-icon, #sop_sku_filter_btn' ).on( 'click', function( e ) {
                     e.preventDefault();
-                    scrollToSku( $skuInput.val() );
+                    e.stopPropagation();
+                    var skuVal = $skuInput.val();
+                    if ( ! skuVal ) {
+                        $skuInput.trigger( 'focus' );
+                        return;
+                    }
+                    scrollToSku( skuVal );
                 } );
             })();
 
