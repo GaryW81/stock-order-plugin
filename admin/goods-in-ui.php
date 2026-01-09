@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.93
+ * File version: 1.0.94
  *
+ * - 1.0.94 - UI: Goods-In modals respect WP adminbar height + reduce mobile bounce.
  * - 1.0.93 - UI: Goods-In product modal full-screen on mobile/tablet + full-height desktop.
  * - 1.0.92 - Goods-In: notes title/centering + typed qty input in product modal.
  * - 1.0.91 - Goods-In: use carton text for search/filter/modal after input removal.
@@ -1112,6 +1113,11 @@ function sop_render_goods_in_page() {
             word-break: break-word;
             line-height: 1.2;
         }
+        html.sop-goodsin-modal-open,
+        body.sop-goodsin-modal-open {
+            overflow: hidden !important;
+            height: 100%;
+        }
         /* Notes columns */
         .sop-goodsin-table th[data-column="product_notes"],
         .sop-goodsin-table td[data-column="product_notes"],
@@ -1417,25 +1423,17 @@ function sop_render_goods_in_page() {
         :root {
             --sop-wpadminbar-h: 0px;
         }
-        body.wp-admin {
-            --sop-wpadminbar-h: 46px;
-        }
-        body.admin-bar {
-            --sop-wpadminbar-h: 46px;
-        }
-        @media (min-width: 783px) {
-            body.wp-admin {
-                --sop-wpadminbar-h: 32px;
-            }
-            body.admin-bar {
-                --sop-wpadminbar-h: 32px;
-            }
-        }
         .sop-goodsin-product-modal {
             position: fixed;
-            inset: 0;
+            left: 0;
+            right: 0;
+            top: var(--sop-wpadminbar-h);
+            height: calc(100vh - var(--sop-wpadminbar-h));
+            height: calc(100dvh - var(--sop-wpadminbar-h));
+            height: calc(100svh - var(--sop-wpadminbar-h));
             display: none;
             z-index: 10002;
+            overscroll-behavior: none;
         }
         .sop-goodsin-product-modal.is-open {
             display: block;
@@ -1447,16 +1445,17 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-product-modal__inner {
             position: absolute;
-            top: 50%;
+            top: 0;
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translateX(-50%);
             background: #fff;
             border-radius: 10px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.25);
             padding: 16px 18px 20px;
             max-width: 520px;
             width: 95vw;
-            max-height: 90vh;
+            height: 100%;
+            max-height: none;
             overflow: hidden;
             box-sizing: border-box;
             display: flex;
@@ -1521,6 +1520,7 @@ function sop_render_goods_in_page() {
             overflow-y: auto;
             -ms-overflow-style: none;
             scrollbar-width: none;
+            overscroll-behavior: contain;
         }
         .sop-goodsin-product-modal__card::-webkit-scrollbar {
             width: 0;
@@ -1717,13 +1717,13 @@ function sop_render_goods_in_page() {
         }
         @media (max-width: 782px) {
             .sop-goodsin-product-modal__inner {
-                top: calc(var(--sop-wpadminbar-h) + 12px);
+                top: 0;
                 left: 0;
                 transform: none;
                 width: 100%;
                 max-width: 100%;
-                height: auto;
-                max-height: calc(100vh - var(--sop-wpadminbar-h) - 24px);
+                height: 100%;
+                max-height: none;
                 overflow: hidden;
                 border-radius: 0;
             }
@@ -1733,9 +1733,8 @@ function sop_render_goods_in_page() {
                 top: 0;
                 left: 0;
                 transform: none;
-                width: 100vw;
-                height: 100vh;
-                height: 100dvh;
+                width: 100%;
+                height: 100%;
                 max-width: none;
                 max-height: none;
                 border-radius: 0;
@@ -1744,8 +1743,8 @@ function sop_render_goods_in_page() {
         }
         @media (min-width: 1025px) {
             .sop-goodsin-product-modal__inner {
-                height: calc(100vh - 32px);
-                max-height: calc(100vh - 32px);
+                height: 100%;
+                max-height: none;
             }
         }
         @media (max-width: 480px) {
@@ -1915,14 +1914,19 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-notes-modal-backdrop {
             position: fixed;
-            inset: 0;
+            left: 0;
+            right: 0;
+            top: var(--sop-wpadminbar-h);
+            height: calc(100vh - var(--sop-wpadminbar-h));
+            height: calc(100dvh - var(--sop-wpadminbar-h));
+            height: calc(100svh - var(--sop-wpadminbar-h));
             background: rgba(0, 0, 0, 0.4);
             z-index: 100000;
             display: none;
         }
         .sop-goodsin-notes-modal {
             position: fixed;
-            top: 10%;
+            top: calc(var(--sop-wpadminbar-h) + 10px);
             left: 50%;
             transform: translateX(-50%);
             background: #fff;
@@ -1940,14 +1944,19 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-info-modal-backdrop {
             position: fixed;
-            inset: 0;
+            left: 0;
+            right: 0;
+            top: var(--sop-wpadminbar-h);
+            height: calc(100vh - var(--sop-wpadminbar-h));
+            height: calc(100dvh - var(--sop-wpadminbar-h));
+            height: calc(100svh - var(--sop-wpadminbar-h));
             background: rgba(0, 0, 0, 0.4);
             z-index: 100000;
             display: none;
         }
         .sop-goodsin-info-modal {
             position: fixed;
-            top: 10%;
+            top: calc(var(--sop-wpadminbar-h) + 10px);
             left: 50%;
             transform: translateX(-50%);
             background: #fff;
@@ -1984,7 +1993,7 @@ function sop_render_goods_in_page() {
         @media (min-width: 783px) {
             .sop-goodsin-notes-modal,
             .sop-goodsin-info-modal {
-                top: 50%;
+                top: calc(var(--sop-wpadminbar-h) + 50%);
                 transform: translate(-50%, -50%);
                 max-height: 80vh;
                 overflow: auto;
@@ -2286,6 +2295,15 @@ function sop_render_goods_in_page() {
 
     <script>
         (function($){
+            function sopGoodsinSyncAdminbarHeightVar() {
+                var bar = document.getElementById('wpadminbar');
+                var h = 0;
+                if ( bar && bar.getBoundingClientRect ) {
+                    h = Math.round( bar.getBoundingClientRect().height || 0 );
+                }
+                document.documentElement.style.setProperty('--sop-wpadminbar-h', h + 'px');
+            }
+
             var $form = $('#sop-goodsin-form');
             var $payload = $('#sop-goodsin-payload-json');
             var $actionField = $('#sop-goodsin-action');
@@ -2350,6 +2368,12 @@ function sop_render_goods_in_page() {
             if ( typeof window.__sop_goodsin_scan_from_product_modal === 'undefined' ) {
                 window.__sop_goodsin_scan_from_product_modal = false;
             }
+
+            sopGoodsinSyncAdminbarHeightVar();
+            $(window).on('resize orientationchange', function(){
+                clearTimeout(window.__sopGoodsinAdminbarTimer);
+                window.__sopGoodsinAdminbarTimer = setTimeout(sopGoodsinSyncAdminbarHeightVar, 100);
+            });
 
             function markDirty() {
                 dirty = true;
@@ -2854,12 +2878,18 @@ function sop_render_goods_in_page() {
                 $notesModalBackdrop.show().attr('aria-hidden', 'false');
                 $notesModal.show().attr('aria-hidden', 'false');
                 $notesModalEditor.focus();
+                document.documentElement.classList.add('sop-goodsin-modal-open');
+                document.body.classList.add('sop-goodsin-modal-open');
             }
 
             function closeNotesModal() {
                 notesActiveRow = null;
                 $notesModal.hide().attr('aria-hidden', 'true');
                 $notesModalBackdrop.hide().attr('aria-hidden', 'true');
+                if ( ! $productModal.hasClass('is-open') && ! $infoModal.is(':visible') ) {
+                    document.documentElement.classList.remove('sop-goodsin-modal-open');
+                    document.body.classList.remove('sop-goodsin-modal-open');
+                }
             }
 
             function openInfoModal(titleText, bodyText) {
@@ -2870,6 +2900,8 @@ function sop_render_goods_in_page() {
                 $infoModalBody.text(bodyText || '');
                 $infoModalBackdrop.show().attr('aria-hidden', 'false');
                 $infoModal.show().attr('aria-hidden', 'false');
+                document.documentElement.classList.add('sop-goodsin-modal-open');
+                document.body.classList.add('sop-goodsin-modal-open');
             }
 
             function closeInfoModal() {
@@ -2880,6 +2912,10 @@ function sop_render_goods_in_page() {
                 $infoModalBackdrop.hide().attr('aria-hidden', 'true');
                 $infoModalTitle.text('');
                 $infoModalBody.text('');
+                if ( ! $productModal.hasClass('is-open') && ! $notesModal.is(':visible') ) {
+                    document.documentElement.classList.remove('sop-goodsin-modal-open');
+                    document.body.classList.remove('sop-goodsin-modal-open');
+                }
             }
 
             function saveNotesModal() {
@@ -3557,6 +3593,8 @@ function sop_render_goods_in_page() {
                 window.sopGoodsinModalCurrentRow = null;
                 sopScanLock = false;
                 $productModal.removeClass('is-open').attr('aria-hidden', 'true');
+                document.documentElement.classList.remove('sop-goodsin-modal-open');
+                document.body.classList.remove('sop-goodsin-modal-open');
                 $productModal.removeAttr('data-sop-current-sku');
                 $productModal.removeData('currentRowEl');
                 $productModal.removeData('currentLineId');
@@ -3583,6 +3621,8 @@ function sop_render_goods_in_page() {
                 if ( ! $row.length || ! $productModal.length ) {
                     return;
                 }
+                document.documentElement.classList.add('sop-goodsin-modal-open');
+                document.body.classList.add('sop-goodsin-modal-open');
                 activeProductRow = $row;
                 window.sopGoodsinModalCurrentRow = $row;
                 $productModal.data('currentRowEl', $row.get(0));
