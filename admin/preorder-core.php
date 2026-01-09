@@ -1,12 +1,13 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.57
+ * File version: 11.58
  * - Persist supplier preorder_hidden_columns.
  * - Persist preorder container planning values in PO payload for saved sheets.
  * - Saved sheets: include receiving/received, allow unlock for receiving, add Goods-In link.
  * - Enforce readonly for non-draft sheets (view-only actions and server-side guard).
  * - Saved sheets: default all suppliers and show status badges.
+ * - Saved sheets: glossy status pills for clearer visibility.
  * - Remove legacy XLS export endpoints (XLSX only).
  * - Remove Labels (CSV) export for saved Pre-Order sheets.
  * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
@@ -491,11 +492,36 @@ function sop_render_preorder_sheets_page() {
             <?php endif; ?>
         <?php else : ?>
             <style>
-                .sop-status-pill{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-weight:600;font-size:12px;line-height:1;border:1px solid rgba(0,0,0,.08);background:#f6f7f7;color:#1d2327}
-                .sop-status-draft{background:#f6f7f7;border-color:#dfe1e5;color:#1d2327}
-                .sop-status-locked{background:#e8f1ff;border-color:#b9d1ff;color:#1d3b6b}
-                .sop-status-receiving{background:#fff3e0;border-color:#f6c77b;color:#6a3c00}
-                .sop-status-received{background:#e7f6ed;border-color:#a8ddb5;color:#1c5c2c}
+                .sop-status-pill{
+                    display:inline-flex;
+                    align-items:center;
+                    padding:5px 12px;
+                    border-radius:999px;
+                    font-weight:700;
+                    font-size:12px;
+                    line-height:1;
+                    color:#fff;
+                    letter-spacing:.2px;
+                    text-shadow:0 1px 0 rgba(0,0,0,.35);
+                    box-shadow:inset 0 1px 0 rgba(255,255,255,.7), inset 0 -2px 6px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
+                    border:1px solid rgba(0,0,0,.25);
+                }
+                .sop-status-draft{
+                    background:linear-gradient(180deg,#5bb4ff 0%,#1a75ff 55%,#0f4fb6 100%);
+                    border-color:#0f4fb6;
+                }
+                .sop-status-locked{
+                    background:linear-gradient(180deg,#ff7a7a 0%,#ff2a2a 55%,#b50000 100%);
+                    border-color:#b50000;
+                }
+                .sop-status-receiving{
+                    background:linear-gradient(180deg,#ffd34d 0%,#ffb300 55%,#b86a00 100%);
+                    border-color:#b86a00;
+                }
+                .sop-status-received{
+                    background:linear-gradient(180deg,#7dff5b 0%,#29c324 55%,#0b6f1a 100%);
+                    border-color:#0b6f1a;
+                }
             </style>
             <table class="widefat striped">
                 <thead>
