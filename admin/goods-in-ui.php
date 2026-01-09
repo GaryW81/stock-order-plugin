@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.88
+ * File version: 1.0.89
  *
+ * - 1.0.89 - Goods-In: load carton_no from saved lines and render carton read-only.
  * - 1.0.88 - Scan input opens modal without altering search filter (prev/next stays active).
  * - 1.0.87 - Mobile: modal prev/next navigation respects visible Goods-In rows.
  * - 1.0.86 - Goods-In list: toggle completed sheets and preserve filter in links.
@@ -189,6 +190,15 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
         $tbl_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
     }
 
+    $select_carton = '';
+    try {
+        $carton_col = $wpdb->get_var( "SHOW COLUMNS FROM {$tbl_lines} LIKE 'carton_no'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        if ( ! empty( $carton_col ) ) {
+            $select_carton = ", l.carton_no";
+        }
+    } catch ( \Throwable $t ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+    }
+
     $sql = "SELECT
                 l.id AS line_id,
                 l.sheet_id,
@@ -205,7 +215,7 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
                 l.goods_in_reject_reason,
                 l.goods_in_notes,
                 l.goods_in_stock_added_qty,
-                p.post_title AS product_name
+                p.post_title AS product_name{$select_carton}
             FROM {$tbl_lines} l
             LEFT JOIN {$wpdb->posts} p ON p.ID = l.product_id
             LEFT JOIN {$wpdb->postmeta} pm ON pm.post_id = l.product_id AND pm.meta_key = %s
@@ -862,7 +872,7 @@ function sop_render_goods_in_page() {
                         </select>
                     </td>
                     <td class="sop-goodsin-carton sop-goodsin-cell-truncate" data-column="carton" title="<?php echo esc_attr( $carton ); ?>">
-                        <input type="text" class="sop-goodsin-carton-no" value="<?php echo esc_attr( $carton ); ?>" <?php echo $inputs_disabled_attr; ?> />
+                        <input type="text" class="sop-goodsin-carton-no sop-goodsin-carton-input sop-goodsin-carton-readonly" value="<?php echo esc_attr( $carton ); ?>" readonly="readonly" <?php echo $inputs_disabled_attr; ?> />
                     </td>
                     <td class="sop-goodsin-text-col" data-column="product_notes" title="<?php echo esc_attr( $product_notes ); ?>">
                         <div class="sop-goodsin-notes-wrap">
@@ -1067,6 +1077,14 @@ function sop_render_goods_in_page() {
         .sop-goodsin-table td[data-column="carton"] {
             width: 120px;
             min-width: 120px;
+        }
+        .sop-goodsin-carton-readonly {
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            padding: 0;
+            width: 100%;
+            line-height: 1.4;
         }
         /* Notes columns */
         .sop-goodsin-table th[data-column="product_notes"],
