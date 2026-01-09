@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.94
+ * File version: 1.0.95
  *
+ * - 1.0.95 - Mobile: hide WP admin bar during Goods-In modals; remove top gap.
  * - 1.0.94 - UI: Goods-In modals respect WP adminbar height + reduce mobile bounce.
  * - 1.0.93 - UI: Goods-In product modal full-screen on mobile/tablet + full-height desktop.
  * - 1.0.92 - Goods-In: notes title/centering + typed qty input in product modal.
@@ -1231,6 +1232,19 @@ function sop_render_goods_in_page() {
         }
         /* Mobile responsive tweaks */
         @media (max-width: 782px) {
+            html.sop-goodsin-modal-open #wpadminbar,
+            body.sop-goodsin-modal-open #wpadminbar {
+                display: none !important;
+            }
+            .sop-goodsin-product-modal,
+            .sop-goodsin-notes-modal-backdrop,
+            .sop-goodsin-info-modal-backdrop {
+                top: 0 !important;
+                height: 100vh;
+                height: 100dvh;
+                height: 100svh;
+                z-index: 1000000;
+            }
             .sop-goodsin-toolbar { gap: 8px; }
             .sop-goodsin-toolbar-actions {
                 width: 100%;
@@ -2300,6 +2314,9 @@ function sop_render_goods_in_page() {
                 var h = 0;
                 if ( bar && bar.getBoundingClientRect ) {
                     h = Math.round( bar.getBoundingClientRect().height || 0 );
+                }
+                if ( window.matchMedia && window.matchMedia('(max-width: 782px)').matches && document.documentElement.classList.contains('sop-goodsin-modal-open') ) {
+                    h = 0;
                 }
                 document.documentElement.style.setProperty('--sop-wpadminbar-h', h + 'px');
             }
