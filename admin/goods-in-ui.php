@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.92
+ * File version: 1.0.93
  *
+ * - 1.0.93 - UI: Goods-In product modal full-screen on mobile/tablet + full-height desktop.
  * - 1.0.92 - Goods-In: notes title/centering + typed qty input in product modal.
  * - 1.0.91 - Goods-In: use carton text for search/filter/modal after input removal.
  * - 1.0.90 - Goods-In: carton text display + numeric sort by first carton number.
@@ -1456,8 +1457,10 @@ function sop_render_goods_in_page() {
             max-width: 520px;
             width: 95vw;
             max-height: 90vh;
-            overflow: auto;
+            overflow: hidden;
             box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
         }
         .sop-goodsin-product-modal__header {
             display: grid;
@@ -1514,6 +1517,14 @@ function sop_render_goods_in_page() {
             display: flex;
             flex-direction: column;
             gap: 14px;
+            flex: 1 1 auto;
+            overflow-y: auto;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .sop-goodsin-product-modal__card::-webkit-scrollbar {
+            width: 0;
+            height: 0;
         }
         .sop-goodsin-product-modal__block {
             border: 1px solid #dcdcde;
@@ -1675,6 +1686,12 @@ function sop_render_goods_in_page() {
             display: flex;
             gap: 14px;
             margin-top: 6px;
+            position: sticky;
+            bottom: 0;
+            background: #fff;
+            padding-bottom: env(safe-area-inset-bottom);
+            border-top: 1px solid rgba(0,0,0,0.08);
+            z-index: 2;
         }
         .sop-goodsin-product-modal__action-btn {
             flex: 1 1 50%;
@@ -1707,8 +1724,28 @@ function sop_render_goods_in_page() {
                 max-width: 100%;
                 height: auto;
                 max-height: calc(100vh - var(--sop-wpadminbar-h) - 24px);
-                overflow-y: auto;
+                overflow: hidden;
                 border-radius: 0;
+            }
+        }
+        @media (max-width: 1024px) {
+            .sop-goodsin-product-modal__inner {
+                top: 0;
+                left: 0;
+                transform: none;
+                width: 100vw;
+                height: 100vh;
+                height: 100dvh;
+                max-width: none;
+                max-height: none;
+                border-radius: 0;
+                padding: 16px 18px 20px;
+            }
+        }
+        @media (min-width: 1025px) {
+            .sop-goodsin-product-modal__inner {
+                height: calc(100vh - 32px);
+                max-height: calc(100vh - 32px);
             }
         }
         @media (max-width: 480px) {
