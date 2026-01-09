@@ -4,6 +4,15 @@ You are working on a custom WordPress + WooCommerce plugin used ONLY on the
 parent multisite `wilson-organisation.com`. It is an internal ERP-style stock
 ordering system for Wilson-Organisation Ltd.
 
+---
+
+## Execution and response rules
+
+- Execute requested edits immediately; do not reply with plan-only responses.
+- Do not paste full file contents unless explicitly requested.
+- If blocked, reply with "BLOCKED:" and the exact missing file/anchor.
+- Finish notes must include: summary, files changed, static checks performed, commit message suggestion.
+
 The plugin’s job is to:
 - Forecast demand per SKU (typically over 6-month cycles).
 - Plan supplier purchase orders with lead times and China holidays.

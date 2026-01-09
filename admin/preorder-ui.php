@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.59 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.60 *
+ * - V12.60 - Restore saved sheet container planning values (allowance/pallet) on open.
  * - V12.59 - Fix: SKU search icon click triggers filtering.
  * - V12.58 - Persist column visibility per supplier.
  * - V12.57 - Saved sheets: overlay per-line order notes + carton no displays correctly after reload.
@@ -565,22 +566,39 @@ function sop_preorder_render_admin_page() {
         $allowance           = isset( $defaults['allowance'] ) ? (int) $defaults['allowance'] : 0;
     } else {
         // Existing sheets: keep current behaviour (sheet/header or prior defaults/GET).
+        $planning_payload = array();
+        if ( $current_sheet && ! empty( $current_sheet['header_notes_owner'] ) ) {
+            $planning_raw = $current_sheet['header_notes_owner'];
+            if ( is_string( $planning_raw ) && '' !== trim( $planning_raw ) ) {
+                $planning_decoded = json_decode( $planning_raw, true );
+                if ( is_array( $planning_decoded ) && isset( $planning_decoded['preorder_planning'] ) && is_array( $planning_decoded['preorder_planning'] ) ) {
+                    $planning_payload = $planning_decoded['preorder_planning'];
+                }
+            }
+        }
+
         if ( isset( $_GET['sop_container'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $container_selection = sanitize_text_field( wp_unslash( $_GET['sop_container'] ) );
+        } elseif ( ! empty( $current_sheet['container_type'] ) ) {
+            $container_selection = (string) $current_sheet['container_type'];
         } else {
-            $container_selection = $sop_default_container_type;
+            $container_selection = $default_container_type;
         }
 
         if ( isset( $_GET['sop_pallet_layer'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $pallet_layer = 1;
+        } elseif ( array_key_exists( 'pallet_layer', $planning_payload ) ) {
+            $pallet_layer = ! empty( $planning_payload['pallet_layer'] ) ? 1 : 0;
         } else {
-            $pallet_layer = (int) $sop_default_pallet_layer;
+            $pallet_layer = $default_pallet_layer ? 1 : 0;
         }
 
         if ( isset( $_GET['sop_allowance'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             $allowance = (float) $_GET['sop_allowance'];
+        } elseif ( isset( $planning_payload['allowance_percent'] ) && is_numeric( $planning_payload['allowance_percent'] ) ) {
+            $allowance = (float) $planning_payload['allowance_percent'];
         } else {
-            $allowance = (float) $sop_default_container_allowance;
+            $allowance = (float) $default_allowance;
         }
     }
 

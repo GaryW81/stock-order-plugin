@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.53
+ * File version: 11.54
  * - Persist supplier preorder_hidden_columns.
+ * - Persist preorder container planning values in PO payload for saved sheets.
  * - Remove legacy XLS export endpoints (XLSX only).
  * - Remove Labels (CSV) export for saved Pre-Order sheets.
  * - Hydrate saved sheet display/export lines with live product data (preserve saved stock snapshot).
@@ -370,6 +371,25 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
     if ( ! is_array( $payload ) ) {
         $payload = array();
     }
+
+    $planning_container = isset( $_POST['sop_container_type'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_container_type'] ) ) : '';
+    $allowed_containers = array( '', '20ft', '40ft', '40ft_hc' );
+    if ( ! in_array( $planning_container, $allowed_containers, true ) ) {
+        $planning_container = '';
+    }
+    $planning_allowance = isset( $_POST['sop_allowance_percent'] ) ? (float) wp_unslash( $_POST['sop_allowance_percent'] ) : 0.0;
+    if ( $planning_allowance < -50 ) {
+        $planning_allowance = -50;
+    } elseif ( $planning_allowance > 50 ) {
+        $planning_allowance = 50;
+    }
+    $planning_pallet = ! empty( $_POST['sop_pallet_layer'] ) ? 1 : 0;
+
+    $payload['preorder_planning'] = array(
+        'container_type'    => $planning_container,
+        'allowance_percent' => (float) $planning_allowance,
+        'pallet_layer'      => (int) $planning_pallet,
+    );
 
     // Ensure expected keys are present for consistent UI behaviour.
     $payload['order_date']     = $po_order_date;
