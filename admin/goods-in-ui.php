@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.98
+ * File version: 1.0.99
  *
+ * - 1.0.99 - Mobile: allow vertical scroll inside Goods-In table wrapper (portrait).
  * - 1.0.98 - Mobile: ensure scan overlay above product modal and lock interaction while scanning.
  * - 1.0.97 - UI: desktop center +/- icons in qty stepper buttons.
  * - 1.0.96 - Mobile: modal height uses visual viewport var to remove bottom gap.
@@ -1343,8 +1344,9 @@ function sop_render_goods_in_page() {
                 border-left: 0;
                 border-right: 0;
                 overflow-x: auto;
-                overflow-y: hidden;
+                overflow-y: auto;
                 -webkit-overflow-scrolling: touch;
+                overscroll-behavior: contain;
             }
             .sop-preorder-table-wrapper .sop-goodsin-table {
                 width: max-content;
