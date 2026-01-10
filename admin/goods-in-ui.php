@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.00
+ * File version: 1.1.01
  *
+ * - 1.1.01 - UI: consolidate scan overlay UI (remove legacy scan modal chrome).
  * - 1.1.00 - UI: scanner overlay frame/scan line + beep/vibrate on success.
  * - 1.0.99 - Mobile: allow vertical scroll inside Goods-In table wrapper (portrait).
  * - 1.0.98 - Mobile: ensure scan overlay above product modal and lock interaction while scanning.
@@ -1806,28 +1807,49 @@ function sop_render_goods_in_page() {
         }
         .sop-scan-modal__panel {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: #fff;
-            padding: 16px;
-            border-radius: 6px;
-            box-shadow: 0 6px 24px rgba(0,0,0,0.25);
-            min-width: 280px;
-            max-width: 520px;
-            max-height: 80vh;
+            inset: 0;
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            box-shadow: none;
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: none;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+        }
+        .sop-scan-modal__header,
+        .sop-scan-modal__footer {
+            position: absolute;
+            left: 0;
+            right: 0;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            color: #fff;
+            pointer-events: auto;
+        }
+        .sop-scan-modal__header {
+            top: 0;
+            background: linear-gradient(180deg, rgba(0,0,0,0.75), rgba(0,0,0,0));
+        }
+        .sop-scan-modal__footer {
+            bottom: 0;
+            justify-content: flex-end;
+            background: linear-gradient(0deg, rgba(0,0,0,0.75), rgba(0,0,0,0));
         }
         .sop-scan-modal__title {
             font-weight: 700;
             margin: 0;
+            color: #fff;
         }
         .sop-scan-modal__status {
             min-height: 18px;
             font-size: 13px;
-            color: #1d2327;
+            color: #dfe3e8;
         }
         .sop-goodsin-scan-viewport {
             position: relative;
@@ -1882,14 +1904,12 @@ function sop_render_goods_in_page() {
             text-align: right;
         }
         .sop-scan-modal__close {
-            position: absolute;
-            top: 6px;
-            right: 6px;
             background: transparent;
             border: 0;
             font-size: 18px;
             line-height: 1;
             cursor: pointer;
+            color: #fff;
         }
         html.sop-goodsin-scan-open .sop-goodsin-product-modal,
         body.sop-goodsin-scan-open .sop-goodsin-product-modal {
@@ -2360,16 +2380,20 @@ function sop_render_goods_in_page() {
     <div id="sop-goodsin-scan-modal" class="sop-scan-modal" aria-hidden="true">
         <div class="sop-scan-modal__backdrop" data-sop-scan-close="1"></div>
         <div class="sop-scan-modal__panel" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Scan barcode', 'sop' ); ?>">
-            <button type="button" class="sop-scan-modal__close" data-sop-scan-close="1" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">×</button>
-            <div class="sop-scan-modal__title"><?php esc_html_e( 'Scan barcode', 'sop' ); ?></div>
-            <div class="sop-scan-modal__status" id="sop-goodsin-scan-status"></div>
+            <div class="sop-scan-modal__header">
+                <div>
+                    <div class="sop-scan-modal__title"><?php esc_html_e( 'Scan barcode', 'sop' ); ?></div>
+                    <div class="sop-scan-modal__status" id="sop-goodsin-scan-status"></div>
+                </div>
+                <button type="button" class="sop-scan-modal__close" data-sop-scan-close="1" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">×</button>
+            </div>
             <div class="sop-goodsin-scan-viewport">
                 <video id="sop-goodsin-scan-video" autoplay playsinline class="sop-scan-modal__video"></video>
                 <div class="sop-goodsin-scan-frame" aria-hidden="true">
                     <div class="sop-goodsin-scan-line" aria-hidden="true"></div>
                 </div>
             </div>
-            <div class="sop-scan-modal__actions">
+            <div class="sop-scan-modal__footer">
                 <button type="button" class="button" data-sop-scan-close="1"><?php esc_html_e( 'Cancel', 'sop' ); ?></button>
             </div>
         </div>
