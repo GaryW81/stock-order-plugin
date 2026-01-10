@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.17
+ * File version: 1.0.18
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -20,6 +20,7 @@
  * - 1.0.15 - Derive non-RMB credit totals from RMB using balance FX + SOP rates.
  * - 1.0.16 - Align dispute summary FX/cost resolution with Issues XLSX (non-RMB from RMB via FX).
  * - 1.0.17 - Hydrate Issues export lines with supplier currency cost (GBP/EUR/USD) from RMB via balance FX/SOP rates.
+ * - 1.0.18 - Core: redirect with sheet_readonly for received Goods-In sheets.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -607,6 +608,10 @@ function sop_handle_goodsin_save() {
     }
 
     $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
+    if ( in_array( $status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
+        wp_safe_redirect( add_query_arg( 'sop_msg', 'sheet_readonly', $redirect ) );
+        exit;
+    }
     if ( 'locked' !== $status && 'receiving' !== $status ) {
         wp_safe_redirect( add_query_arg( 'sop_msg', 'sheet_not_lockable', $redirect ) );
         exit;
@@ -746,6 +751,10 @@ function sop_handle_goodsin_apply_stock() {
     }
 
     $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
+    if ( in_array( $status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
+        wp_safe_redirect( add_query_arg( 'sop_msg', 'sheet_readonly', $redirect ) );
+        exit;
+    }
     if ( 'locked' !== $status && 'receiving' !== $status ) {
         wp_safe_redirect( add_query_arg( 'sop_msg', 'sheet_not_lockable', $redirect ) );
         exit;
@@ -961,6 +970,10 @@ function sop_handle_goodsin_complete() {
     }
 
     $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
+    if ( in_array( $status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
+        wp_safe_redirect( add_query_arg( 'sop_msg', 'sheet_readonly', $redirect ) );
+        exit;
+    }
     if ( 'locked' !== $status && 'receiving' !== $status ) {
         wp_safe_redirect( add_query_arg( 'sop_msg', 'sheet_not_lockable', $redirect ) );
         exit;

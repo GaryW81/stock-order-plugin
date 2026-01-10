@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.01
+ * File version: 1.1.02
  *
+ * - 1.1.02 - UI: make received Goods-In sheets read-only (disable edits/actions).
  * - 1.1.01 - UI: consolidate scan overlay UI (remove legacy scan modal chrome).
  * - 1.1.00 - UI: scanner overlay frame/scan line + beep/vibrate on success.
  * - 1.0.99 - Mobile: allow vertical scroll inside Goods-In table wrapper (portrait).
@@ -350,6 +351,10 @@ function sop_render_goods_in_page() {
                 $notice_class = 'notice notice-error';
                 $text = __( 'Sheet must be locked or receiving to use Goods In.', 'sop' );
                 break;
+            case 'sheet_readonly':
+                $notice_class = 'notice notice-info';
+                $text = __( 'This sheet is received and is read-only.', 'sop' );
+                break;
             case 'no_lines':
                 $notice_class = 'notice notice-warning';
                 $text = __( 'No lines found for this sheet.', 'sop' );
@@ -457,6 +462,8 @@ function sop_render_goods_in_page() {
     }
 
     $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
+    $sop_gi_status = strtolower( $status );
+    $sop_gi_is_readonly = in_array( $sop_gi_status, array( 'received', 'completed', 'complete', 'closed' ), true );
 
     $lines = sop_goodsin_get_sheet_lines_for_ui( $sheet_id );
 
@@ -597,6 +604,18 @@ function sop_render_goods_in_page() {
         );
     }
 
+    if ( $sop_gi_is_readonly ) {
+        echo '<div class="notice notice-info"><p>' . esc_html__( 'This sheet is received and is read-only.', 'sop' ) . '</p></div>';
+    }
+
+    $show_row_select = ! $sop_gi_is_readonly;
+    $reason_labels = array(
+        'wrong_spec'   => __( 'Wrong spec', 'sop' ),
+        'wrong_colour' => __( 'Wrong colour', 'sop' ),
+        'damaged'      => __( 'Damaged', 'sop' ),
+        'other'        => __( 'Other', 'sop' ),
+    );
+
     ?>
     <form id="sop-goodsin-form" method="post" action="<?php echo esc_url( $form_action ); ?>">
         <?php wp_nonce_field( 'sop_goodsin_action', 'sop_goodsin_nonce' ); ?>
@@ -623,15 +642,21 @@ function sop_render_goods_in_page() {
             <div class="sop-goodsin-mg-sheet">
                 <strong><?php echo esc_html( sprintf( __( 'Sheet #%1$d (%2$s) - %3$s', 'sop' ), $sheet_id, $supplier_name, $status ) ); ?></strong>
             </div>
-            <div class="sop-goodsin-mg-save">
-                <button type="button" class="button button-primary sop-goodsin-submit" data-action="save"><?php esc_html_e( 'Save progress', 'sop' ); ?></button>
-            </div>
-            <div class="sop-goodsin-mg-add">
-                <button type="button" class="button sop-goodsin-submit" data-action="apply_stock"><?php esc_html_e( 'Add selected to stock', 'sop' ); ?></button>
-            </div>
-            <div class="sop-goodsin-mg-complete">
-                <button type="button" class="button button-primary sop-goodsin-submit" data-action="complete"><?php esc_html_e( 'Complete Goods-In', 'sop' ); ?></button>
-            </div>
+            <?php if ( ! $sop_gi_is_readonly ) : ?>
+                <div class="sop-goodsin-mg-save">
+                    <button type="button" class="button button-primary sop-goodsin-submit" data-action="save"><?php esc_html_e( 'Save progress', 'sop' ); ?></button>
+                </div>
+                <div class="sop-goodsin-mg-add">
+                    <button type="button" class="button sop-goodsin-submit" data-action="apply_stock"><?php esc_html_e( 'Add selected to stock', 'sop' ); ?></button>
+                </div>
+                <div class="sop-goodsin-mg-complete">
+                    <button type="button" class="button button-primary sop-goodsin-submit" data-action="complete"><?php esc_html_e( 'Complete Goods-In', 'sop' ); ?></button>
+                </div>
+            <?php else : ?>
+                <div class="sop-goodsin-mg-save">
+                    <span class="sop-goodsin-readonly-badge"><?php esc_html_e( 'View only', 'sop' ); ?></span>
+                </div>
+            <?php endif; ?>
             <div class="sop-goodsin-mg-columns">
                 <div class="sop-goodsin-columns" id="sop-goodsin-columns">
                     <button type="button" class="button sop-goodsin-columns-toggle" aria-expanded="false" aria-controls="sop-goodsin-columns-popover"><?php esc_html_e( 'Columns', 'sop' ); ?></button>
@@ -661,18 +686,22 @@ function sop_render_goods_in_page() {
                     <button type="button" class="button-link" id="sop-goodsin-carton-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
                 </div>
             </div>
-            <div class="sop-goodsin-mg-scan">
-                <div class="sop-goodsin-filter-row">
-                    <input type="text" id="sop-goodsin-scan" placeholder="<?php esc_attr_e( 'Scan SKU (Enter)', 'sop' ); ?>" autocomplete="off" />
+            <?php if ( ! $sop_gi_is_readonly ) : ?>
+                <div class="sop-goodsin-mg-scan">
+                    <div class="sop-goodsin-filter-row">
+                        <input type="text" id="sop-goodsin-scan" placeholder="<?php esc_attr_e( 'Scan SKU (Enter)', 'sop' ); ?>" autocomplete="off" />
+                    </div>
                 </div>
-            </div>
+            <?php endif; ?>
             <div class="sop-goodsin-mg-search">
                 <div class="sop-goodsin-mobile-searchrow">
                     <div class="sop-goodsin-filter-row">
                         <input type="text" id="sop-goodsin-search" placeholder="<?php esc_attr_e( 'Search SKU / Product / Carton / Location', 'sop' ); ?>" autocomplete="off" />
                         <button type="button" class="button-link" id="sop-goodsin-search-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
                     </div>
-                    <button type="button" class="button sop-goodsin-scan-btn" id="sop-goodsin-scan-btn"><?php esc_html_e( 'Scan', 'sop' ); ?></button>
+                    <?php if ( ! $sop_gi_is_readonly ) : ?>
+                        <button type="button" class="button sop-goodsin-scan-btn" id="sop-goodsin-scan-btn"><?php esc_html_e( 'Scan', 'sop' ); ?></button>
+                    <?php endif; ?>
                 </div>
                 <span id="sop-goodsin-filter-summary" aria-live="polite"></span>
             </div>
@@ -699,7 +728,9 @@ function sop_render_goods_in_page() {
         <table class="wp-list-table widefat fixed striped sop-preorder-table sop-goodsin-table" id="sop-goodsin-lines">
             <thead>
             <tr>
-                <th class="check-column" data-sortable="false"><input type="checkbox" id="sop-goodsin-select-all" /></th>
+                <?php if ( $show_row_select ) : ?>
+                    <th class="check-column" data-sortable="false"><input type="checkbox" id="sop-goodsin-select-all" /></th>
+                <?php endif; ?>
                 <th class="sop-goodsin-col-image" data-sortable="false" data-column="image"><?php esc_html_e( 'Image', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-location column-location" data-sort-key="location" data-sort-type="text" data-column="location"><?php esc_html_e( 'Location', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-sku" data-sort-key="sku" data-sort-type="text" data-column="sku"><?php esc_html_e( 'SKU', 'sop' ); ?></th>
@@ -736,6 +767,9 @@ function sop_render_goods_in_page() {
                 if ( $pid <= 0 ) {
                     $inputs_disabled_attr = ' disabled="disabled"';
                     $missing_pid_warning  = ' (' . esc_html__( 'missing product_id', 'sop' ) . ')';
+                }
+                if ( $sop_gi_is_readonly ) {
+                    $inputs_disabled_attr = ' disabled="disabled"';
                 }
                 $name     = isset( $line['product_name'] ) ? (string) $line['product_name'] : '';
                 $location = isset( $line['location'] ) ? (string) $line['location'] : '';
@@ -847,9 +881,11 @@ function sop_render_goods_in_page() {
                     data-sort-goodsin_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $notes ) ) ); ?>"
                     data-sort-stocked="<?php echo esc_attr( $stocked ); ?>"
                     data-sort-outstanding="<?php echo esc_attr( $outstanding ); ?>">
-                    <td class="check-column">
-                        <input type="checkbox" class="sop-goodsin-select" name="selected_lines[<?php echo esc_attr( $line_id ); ?>]" value="1" />
-                    </td>
+                    <?php if ( $show_row_select ) : ?>
+                        <td class="check-column">
+                            <input type="checkbox" class="sop-goodsin-select" name="selected_lines[<?php echo esc_attr( $line_id ); ?>]" value="1" />
+                        </td>
+                    <?php endif; ?>
                     <td class="sop-goodsin-col-image" data-column="image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
                     <td class="sop-goodsin-col-location column-location" data-column="location"><?php echo esc_html( $location ); ?></td>
                     <td class="sop-goodsin-col-sku" data-column="sku"><?php echo esc_html( $sku . $missing_pid_warning ); ?></td>
@@ -884,17 +920,45 @@ function sop_render_goods_in_page() {
                         </div>
                     </td>
                     <td data-column="ordered"><?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?></td>
-                    <td data-column="received"><input type="number" class="sop-goodsin-received sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" name="received_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
-                    <td data-column="missing"><input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" name="missing_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
-                    <td data-column="reject"><input type="number" class="sop-goodsin-reject sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $reject ); ?>" name="reject_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> /></td>
+                    <td data-column="received">
+                        <?php if ( $sop_gi_is_readonly ) : ?>
+                            <span class="sop-goodsin-readonly-val"><?php echo esc_html( number_format_i18n( $received, 0 ) ); ?></span>
+                        <?php else : ?>
+                            <input type="number" class="sop-goodsin-received sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" name="received_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> />
+                        <?php endif; ?>
+                    </td>
+                    <td data-column="missing">
+                        <?php if ( $sop_gi_is_readonly ) : ?>
+                            <span class="sop-goodsin-readonly-val"><?php echo esc_html( number_format_i18n( $missing, 0 ) ); ?></span>
+                        <?php else : ?>
+                            <input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" name="missing_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> />
+                        <?php endif; ?>
+                    </td>
+                    <td data-column="reject">
+                        <?php if ( $sop_gi_is_readonly ) : ?>
+                            <span class="sop-goodsin-readonly-val"><?php echo esc_html( number_format_i18n( $reject, 0 ) ); ?></span>
+                        <?php else : ?>
+                            <input type="number" class="sop-goodsin-reject sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $reject ); ?>" name="reject_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> />
+                        <?php endif; ?>
+                    </td>
                     <td data-column="reason">
-                        <select class="sop-goodsin-reject-reason" name="reject_reason[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?>>
-                            <option value=""><?php esc_html_e( '—', 'sop' ); ?></option>
-                            <option value="wrong_spec" <?php selected( $reason, 'wrong_spec' ); ?>><?php esc_html_e( 'Wrong spec', 'sop' ); ?></option>
-                            <option value="wrong_colour" <?php selected( $reason, 'wrong_colour' ); ?>><?php esc_html_e( 'Wrong colour', 'sop' ); ?></option>
-                            <option value="damaged" <?php selected( $reason, 'damaged' ); ?>><?php esc_html_e( 'Damaged', 'sop' ); ?></option>
-                            <option value="other" <?php selected( $reason, 'other' ); ?>><?php esc_html_e( 'Other', 'sop' ); ?></option>
-                        </select>
+                        <?php if ( $sop_gi_is_readonly ) : ?>
+                            <?php
+                            $reason_text = isset( $reason_labels[ $reason ] ) ? $reason_labels[ $reason ] : '';
+                            if ( '' === $reason_text ) {
+                                $reason_text = '—';
+                            }
+                            ?>
+                            <span class="sop-goodsin-readonly-val"><?php echo esc_html( $reason_text ); ?></span>
+                        <?php else : ?>
+                            <select class="sop-goodsin-reject-reason" name="reject_reason[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?>>
+                                <option value=""><?php esc_html_e( '—', 'sop' ); ?></option>
+                                <option value="wrong_spec" <?php selected( $reason, 'wrong_spec' ); ?>><?php esc_html_e( 'Wrong spec', 'sop' ); ?></option>
+                                <option value="wrong_colour" <?php selected( $reason, 'wrong_colour' ); ?>><?php esc_html_e( 'Wrong colour', 'sop' ); ?></option>
+                                <option value="damaged" <?php selected( $reason, 'damaged' ); ?>><?php esc_html_e( 'Damaged', 'sop' ); ?></option>
+                                <option value="other" <?php selected( $reason, 'other' ); ?>><?php esc_html_e( 'Other', 'sop' ); ?></option>
+                            </select>
+                        <?php endif; ?>
                     </td>
                     <td class="sop-goodsin-carton sop-goodsin-cell-truncate" data-column="carton" data-carton-sort="<?php echo esc_attr( $carton_sort_key ); ?>" title="<?php echo esc_attr( $carton ); ?>">
                         <div class="sop-goodsin-carton-text"><?php echo wp_kses_post( $carton_display ); ?></div>
@@ -1914,6 +1978,25 @@ function sop_render_goods_in_page() {
         html.sop-goodsin-scan-open .sop-goodsin-product-modal,
         body.sop-goodsin-scan-open .sop-goodsin-product-modal {
             pointer-events: none !important;
+        }
+        .sop-goodsin-readonly-val {
+            display: inline-block;
+            min-width: 44px;
+            padding: 6px 8px;
+            background: #f6f7f7;
+            border: 1px solid #dcdcde;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .sop-goodsin-readonly-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #f6f7f7;
+            border: 1px solid #dcdcde;
+            font-weight: 600;
         }
         .sop-goodsin-table td input[type="text"],
         .sop-goodsin-table td input[type="number"],
