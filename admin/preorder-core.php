@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.58
+ * File version: 11.59
+ * - Saved sheets: allow unlocking received sheets back to draft (with warning).
  * - Persist supplier preorder_hidden_columns.
  * - Persist preorder container planning values in PO payload for saved sheets.
  * - Saved sheets: include receiving/received, allow unlock for receiving, add Goods-In link.
@@ -550,7 +551,7 @@ function sop_render_preorder_sheets_page() {
                             <td><?php echo esc_html( isset( $sheet['updated_at'] ) ? $sheet['updated_at'] : '' ); ?></td>
                             <td>
                                 <?php
-                                $sheet_status = isset( $sheet['status'] ) ? $sheet['status'] : '';
+                                $sheet_status = strtolower( trim( (string) ( isset( $sheet['status'] ) ? $sheet['status'] : '' ) ) );
                                 $open_url = add_query_arg(
                                     array(
                                         'page'         => 'sop-preorder-sheet',
@@ -597,7 +598,7 @@ function sop_render_preorder_sheets_page() {
                                             <?php esc_html_e( 'Delete', 'sop' ); ?>
                                         </button>
                                     </form>
-                                <?php elseif ( 'locked' === $sheet_status || 'receiving' === $sheet_status ) : ?>
+                                <?php elseif ( in_array( $sheet_status, array( 'locked', 'receiving', 'received', 'completed', 'complete', 'closed' ), true ) ) : ?>
                                     <?php
                                     $unlock_url = wp_nonce_url(
                                         add_query_arg(
@@ -610,9 +611,13 @@ function sop_render_preorder_sheets_page() {
                                         ),
                                         'sop_preorder_unlock_sheet_' . ( isset( $sheet['id'] ) ? (int) $sheet['id'] : 0 )
                                     );
+                                    $unlock_confirm = __( 'Unlock this saved pre-order sheet to allow editing?', 'sop' );
+                                    if ( in_array( $sheet_status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
+                                        $unlock_confirm = __( "Revert this RECEIVED sheet back to DRAFT?\n\nStock already added will NOT be automatically reversed.\nContinue?", 'sop' );
+                                    }
                                     ?>
                                     <a class="button" href="<?php echo esc_url( $unlock_url ); ?>"
-                                       onclick="return confirm('<?php echo esc_js( __( 'Unlock this saved pre-order sheet to allow editing?', 'sop' ) ); ?>');">
+                                       onclick="return confirm('<?php echo esc_js( $unlock_confirm ); ?>');">
                                         <?php esc_html_e( 'Unlock', 'sop' ); ?>
                                     </a>
                                 <?php endif; ?>
@@ -1651,8 +1656,8 @@ function sop_preorder_handle_unlock_sheet() {
         wp_die( esc_html__( 'Pre-order sheet not found.', 'sop' ) );
     }
 
-    $status = isset( $sheet['status'] ) ? $sheet['status'] : '';
-    if ( 'locked' === $status || 'receiving' === $status ) {
+    $status = strtolower( trim( (string) ( isset( $sheet['status'] ) ? $sheet['status'] : '' ) ) );
+    if ( in_array( $status, array( 'locked', 'receiving', 'received', 'completed', 'complete', 'closed' ), true ) ) {
         $update_data = array(
             'status' => 'draft',
         );
