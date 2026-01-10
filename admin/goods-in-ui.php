@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.0.99
+ * File version: 1.1.00
  *
+ * - 1.1.00 - UI: scanner overlay frame/scan line + beep/vibrate on success.
  * - 1.0.99 - Mobile: allow vertical scroll inside Goods-In table wrapper (portrait).
  * - 1.0.98 - Mobile: ensure scan overlay above product modal and lock interaction while scanning.
  * - 1.0.97 - UI: desktop center +/- icons in qty stepper buttons.
@@ -1828,10 +1829,54 @@ function sop_render_goods_in_page() {
             font-size: 13px;
             color: #1d2327;
         }
-        .sop-scan-modal__video {
+        .sop-goodsin-scan-viewport {
+            position: relative;
             width: 100%;
+            flex: 1 1 auto;
+            min-height: 180px;
             max-height: 60vh;
             background: #000;
+        }
+        .sop-scan-modal__video {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            object-fit: cover;
+            display: block;
+        }
+        .sop-goodsin-scan-frame {
+            position: absolute;
+            left: 50%;
+            top: 40%;
+            transform: translate(-50%, -50%);
+            width: min(86vw, 560px);
+            aspect-ratio: 3.6 / 1;
+            border: 2px solid rgba(255,255,255,0.85);
+            border-radius: 14px;
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .sop-goodsin-scan-line {
+            position: absolute;
+            left: 8%;
+            right: 8%;
+            height: 3px;
+            top: 10%;
+            background: rgba(0, 255, 120, 0.35);
+            box-shadow: 0 0 10px rgba(0, 255, 120, 0.35);
+            animation: sopScanLineMove 1.2s linear infinite;
+        }
+        .sop-scan-modal.sop-goodsin-scan-hit .sop-goodsin-scan-frame {
+            border-color: rgba(0,255,120,0.95);
+        }
+        .sop-scan-modal.sop-goodsin-scan-hit .sop-goodsin-scan-line {
+            background: rgba(0,255,120,0.95);
+            box-shadow: 0 0 18px rgba(0,255,120,0.95);
+        }
+        @keyframes sopScanLineMove {
+            0% { top: 12%; }
+            100% { top: 88%; }
         }
         .sop-scan-modal__actions {
             text-align: right;
@@ -2318,7 +2363,12 @@ function sop_render_goods_in_page() {
             <button type="button" class="sop-scan-modal__close" data-sop-scan-close="1" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">×</button>
             <div class="sop-scan-modal__title"><?php esc_html_e( 'Scan barcode', 'sop' ); ?></div>
             <div class="sop-scan-modal__status" id="sop-goodsin-scan-status"></div>
-            <video id="sop-goodsin-scan-video" autoplay playsinline class="sop-scan-modal__video"></video>
+            <div class="sop-goodsin-scan-viewport">
+                <video id="sop-goodsin-scan-video" autoplay playsinline class="sop-scan-modal__video"></video>
+                <div class="sop-goodsin-scan-frame" aria-hidden="true">
+                    <div class="sop-goodsin-scan-line" aria-hidden="true"></div>
+                </div>
+            </div>
             <div class="sop-scan-modal__actions">
                 <button type="button" class="button" data-sop-scan-close="1"><?php esc_html_e( 'Cancel', 'sop' ); ?></button>
             </div>
@@ -2349,6 +2399,38 @@ function sop_render_goods_in_page() {
                 if ( h > 0 ) {
                     document.documentElement.style.setProperty('--sop-goodsin-vvh', h + 'px');
                 }
+            }
+
+            function sopGoodsinBeep() {
+                try {
+                    var now = Date.now();
+                    if ( window.__sop_goodsin_last_beep_at && ( now - window.__sop_goodsin_last_beep_at ) < 300 ) {
+                        return;
+                    }
+                    window.__sop_goodsin_last_beep_at = now;
+                    var Ctx = window.AudioContext || window.webkitAudioContext;
+                    if ( ! Ctx ) {
+                        return;
+                    }
+                    if ( ! window.__sop_goodsin_audio_ctx ) {
+                        window.__sop_goodsin_audio_ctx = new Ctx();
+                    }
+                    var ctx = window.__sop_goodsin_audio_ctx;
+                    var o = ctx.createOscillator();
+                    var g = ctx.createGain();
+                    o.type = 'sine';
+                    o.frequency.value = 880;
+                    g.gain.value = 0.08;
+                    o.connect(g);
+                    g.connect(ctx.destination);
+                    o.start();
+                    setTimeout(function(){ o.stop(); }, 90);
+                } catch (e) {}
+                try {
+                    if ( navigator.vibrate ) {
+                        navigator.vibrate(60);
+                    }
+                } catch (e) {}
             }
 
             var $form = $('#sop-goodsin-form');
@@ -2497,6 +2579,7 @@ function sop_render_goods_in_page() {
                     $scanStatus.text('');
                 }
                 if ( $scanModal && $scanModal.length ) {
+                    $scanModal.removeClass('sop-goodsin-scan-hit');
                     $scanModal.removeClass('is-open').attr('aria-hidden', 'true');
                 }
                 document.documentElement.classList.remove('sop-goodsin-scan-open');
@@ -2579,7 +2662,21 @@ function sop_render_goods_in_page() {
                         if ( barcodes && barcodes.length ) {
                             var raw = ( barcodes[0].rawValue || '' ).toString().trim();
                             var fromProductModal = !!window.__sop_goodsin_scan_from_product_modal;
-                            sopCloseScanModal();
+                            sopScanActive = false;
+                            sopStopScanLoop();
+                            sopStopScanStream();
+                            if ( $scanModal && $scanModal.length ) {
+                                $scanModal.addClass('sop-goodsin-scan-hit');
+                            }
+                            sopGoodsinBeep();
+                            setTimeout(function(){
+                                sopCloseScanModal();
+                            }, 180);
+                            setTimeout(function(){
+                                if ( $scanModal && $scanModal.length ) {
+                                    $scanModal.removeClass('sop-goodsin-scan-hit');
+                                }
+                            }, 300);
                             if ( fromProductModal ) {
                                 window.__sop_goodsin_scan_from_product_modal = false;
                             }
