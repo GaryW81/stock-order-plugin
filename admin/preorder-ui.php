@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.70 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.71 *
+ * - V12.71 - UI: gate header icon opacity on initial paint.
  * - V12.70 - UI: contain header SVG icons on initial paint.
  * - V12.69 - Fix header icon MIME type for SVG data URIs.
  * - V12.68 - Switch header icons to SVG assets.
@@ -2312,6 +2313,11 @@ function sop_preorder_render_admin_page() {
             background-position: center center;
             background-size: contain;
             overflow: hidden;
+            opacity: 0;
+        }
+
+        body.wp-admin .sop-preorder-card-icon {
+            opacity: 1;
         }
 
         .sop-preorder-card-main {
