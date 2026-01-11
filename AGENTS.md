@@ -13,6 +13,30 @@ ordering system for Wilson-Organisation Ltd.
 - If blocked, reply with "BLOCKED:" and the exact missing file/anchor.
 - Finish notes must include: summary, files changed, static checks performed, commit message suggestion.
 
+---
+
+## Output policy (chat bloat control)
+
+- DEFAULT RESPONSE FORMAT (for every task):
+  1) Summary (2–6 bullets)
+  2) Files changed (exact paths)
+  3) Static checks performed (explicit checklist)
+  4) Commit message suggestion (single line)
+
+- DO NOT paste full file contents by default.
+  - Never paste entire PHP files, JS files, or long templates into chat.
+  - Never say “preparing full updated file output” unless the user requested full file output.
+
+- ONLY paste complete file contents when the user explicitly requests it using wording like:
+  - “paste the full file”
+  - “output the complete file”
+  - “give me the entire file content”
+  Otherwise: do not.
+
+- For review, direct the user to rely on:
+  - VS Code diff view (Source Control / inline diff)
+  - or provide a short, focused snippet ONLY if it’s under ~50 lines and only when it clarifies a change.
+
 The plugin’s job is to:
 - Forecast demand per SKU (typically over 6-month cycles).
 - Plan supplier purchase orders with lead times and China holidays.
