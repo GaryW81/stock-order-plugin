@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.65 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.66 *
+ * - V12.66 - UI: enforce rounded indicator circle geometry.
  * - V12.65 - UI: rounded tick as green circle.
  * - V12.64 - UI: improve rounded tick visibility.
  * - V12.63 - UI: neon CBM fill thresholds + rounded tick indicator.
@@ -3186,30 +3187,33 @@ function sop_preorder_render_admin_page() {
         .sop-rounded-indicator {
             display: none;
             margin-left: 6px;
-            width: 18px;
-            height: 18px;
-            font-size: 13px;
-            font-weight: 900;
+            padding: 0;
             line-height: 1;
-            color: #ffffff;
-            background-color: #2EAD4A;
-            border: none;
-            border-radius: 50%;
-            box-shadow: none;
             cursor: help;
             vertical-align: middle;
+            box-sizing: border-box;
             user-select: none;
             white-space: nowrap;
-            text-align: center;
-            align-items: center;
-            justify-content: center;
             position: relative;
             top: -1px;
         }
 
         .sop-rounded-indicator[style*="display: inline"],
         .sop-rounded-indicator[style*="display:inline"] {
-            display: inline-flex;
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            min-width: 18px;
+            min-height: 18px;
+            border-radius: 50%;
+            background-color: #2EAD4A;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 900;
+            border: none;
+            box-shadow: none;
         }
 
 
