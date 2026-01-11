@@ -1,10 +1,11 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.26
+ * File version: 1.0.27
  *
  * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch labels, and in-house print label view.
  * Changelog:
+ * - 1.0.27 - UI: tweak label date size/padding.
  * - 1.0.26 - Remove BOM/leading bytes before PHP tag.
  * - 1.0.25 - Rename bulk label form button text.
  * - 1.0.24 - Fix bulk labels screen preview cropping (wrapper accounts for 2x preview scale; print unchanged).
@@ -241,8 +242,9 @@ if ( ! function_exists( 'sop_labels_get_label_css' ) ) {
                 right: 0;
                 top: 0;
                 font-weight: 700;
-                font-size: 1.8mm;
+                font-size: 9px;
                 line-height: 1;
+                padding-top: 2px;
             }
             .sop-label-title {
                 text-align: center;
