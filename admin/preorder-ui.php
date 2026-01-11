@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.69 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.70 *
+ * - V12.70 - UI: contain header SVG icons on initial paint.
  * - V12.69 - Fix header icon MIME type for SVG data URIs.
  * - V12.68 - Switch header icons to SVG assets.
  * - V12.67 - Bulk actions respect selected rows.
@@ -2305,6 +2306,12 @@ function sop_preorder_render_admin_page() {
             border-bottom-left-radius: 8px;
             min-width: 92px;
             min-height: 92px;
+            width: 92px;
+            height: 92px;
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-size: contain;
+            overflow: hidden;
         }
 
         .sop-preorder-card-main {
@@ -2442,9 +2449,7 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-card-icon.sop-has-custom-icon {
-            background-repeat: no-repeat;
             background-position: center;
-            background-size: 80px auto;
         }
 
         .sop-preorder-card-icon.sop-has-custom-icon .dashicons {
