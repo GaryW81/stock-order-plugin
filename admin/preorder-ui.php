@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.63 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.64 *
+ * - V12.64 - UI: improve rounded tick visibility.
  * - V12.63 - UI: neon CBM fill thresholds + rounded tick indicator.
  * - V12.62 - UI: use 3-stage labels (In Progress/Ordered/Completed) for saved sheet status.
  * - V12.61 - Enforce read-only view for non-draft sheets.
@@ -3184,10 +3185,21 @@ function sop_preorder_render_admin_page() {
         .sop-rounded-indicator {
             display: none;
             margin-left: 6px;
-            color: #39FF14;
-            font-weight: 700;
-            cursor: help;
+            padding: 1px 4px;
+            font-size: 14px;
+            font-weight: 900;
             line-height: 1;
+            color: #39FF14;
+            background: rgba(57, 255, 20, 0.15);
+            border: 1px solid rgba(57, 255, 20, 0.7);
+            border-radius: 4px;
+            box-shadow: 0 0 6px rgba(57, 255, 20, 0.35);
+            cursor: help;
+            vertical-align: middle;
+            user-select: none;
+            white-space: nowrap;
+            position: relative;
+            top: -1px;
         }
 
 
