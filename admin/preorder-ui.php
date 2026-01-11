@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.62 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.63 *
+ * - V12.63 - UI: neon CBM fill thresholds + rounded tick indicator.
  * - V12.62 - UI: use 3-stage labels (In Progress/Ordered/Completed) for saved sheet status.
  * - V12.61 - Enforce read-only view for non-draft sheets.
  * - V12.60 - Restore saved sheet container planning values (allowance/pallet) on open.
@@ -845,6 +846,15 @@ function sop_preorder_render_admin_page() {
             $used_cbm_bar = $used_cbm;
         }
     }
+    $cbm_bar_class = 'sop-cbm-bar--yellow';
+    if ( $used_cbm > 100.0 ) {
+        $cbm_bar_class = 'sop-cbm-bar--red';
+    } elseif ( $used_cbm >= 90.0 ) {
+        $cbm_bar_class = 'sop-cbm-bar--green';
+    } elseif ( $used_cbm >= 70.0 ) {
+        $cbm_bar_class = 'sop-cbm-bar--orange';
+    }
+
     $currency_symbol = 'GBP';
     switch ( $supplier_currency ) {
         case 'RMB':
@@ -1301,8 +1311,8 @@ function sop_preorder_render_admin_page() {
                         </div>
                         <div class="sop-preorder-fill">
                             <strong><?php esc_html_e( 'Container Fill', 'sop' ); ?>:</strong>
-                            <div class="sop-cbm-bar-wrapper" title="<?php echo esc_attr( $used_cbm ); ?>%">
-                                <div class="sop-cbm-bar" style="width: <?php echo esc_attr( $used_cbm ); ?>%;"></div>
+                            <div class="sop-cbm-bar-wrapper" title="<?php echo esc_attr( number_format_i18n( $used_cbm, 1 ) ); ?>%">
+                                <div class="sop-cbm-bar <?php echo esc_attr( $cbm_bar_class ); ?>" style="width: <?php echo esc_attr( $used_cbm_bar ); ?>%;"></div>
                             </div>
                             <span class="sop-cbm-label" id="sop-cbm-label"><?php echo esc_html( number_format_i18n( $used_cbm, 1 ) ); ?>%</span>
                         </div>
@@ -1788,8 +1798,9 @@ function sop_preorder_render_admin_page() {
                                         </span>
                                     </td>
                                     <td class="column-order-qty" data-column="order_qty" data-sort="order_qty">
-                                        <input type="number" name="sop_line_qty[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input sop-preorder-qty" <?php echo $inputs_disabled_attr; ?> />
-                                    </td>
+                                    <input type="number" name="sop_line_qty[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $order_qty ); ?>" step="1" min="0" class="sop-order-qty-input sop-preorder-qty" <?php echo $inputs_disabled_attr; ?> />
+                                    <span class="sop-rounded-indicator" title="<?php echo esc_attr__( 'Rounded', 'sop' ); ?>" aria-label="<?php echo esc_attr__( 'Rounded', 'sop' ); ?>" role="img">✔</span>
+                                </td>
                                     <td class="column-line-total-supplier" data-column="line_total">
                                         <span class="sop-line-total-gbp" data-cost-gbp="<?php echo esc_attr( $cost_gbp ); ?>" style="display:none;">
                                             <?php echo esc_html( number_format_i18n( $line_total_gbp, 2 ) ); ?>
@@ -2695,9 +2706,24 @@ function sop_preorder_render_admin_page() {
 
         .sop-cbm-bar {
             height: 100%;
-            background: #46b450;
             width: 0;
             transition: width 0.25s ease;
+        }
+
+        .sop-cbm-bar--yellow {
+            background: #FFF200;
+        }
+
+        .sop-cbm-bar--orange {
+            background: #FF7A00;
+        }
+
+        .sop-cbm-bar--green {
+            background: #39FF14;
+        }
+
+        .sop-cbm-bar--red {
+            background: #FF073A;
         }
 
         .sop-cbm-label {
@@ -3153,6 +3179,15 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-table input[type="number"],
         .sop-preorder-table textarea {
             font-size: inherit;
+        }
+
+        .sop-rounded-indicator {
+            display: none;
+            margin-left: 6px;
+            color: #39FF14;
+            font-weight: 700;
+            cursor: help;
+            line-height: 1;
         }
 
 
@@ -3889,16 +3924,36 @@ function sop_preorder_render_admin_page() {
                 var totalCbm = 0;
                 var totalRetailExcl = 0;
 
+                var roundStep = parseInt( $('.sop-round-step').val(), 10 ) || 0;
+                var roundTolerance = 1e-9;
+
                 $table.find('tbody tr').each(function() {
                     var $row = $(this);
                     var removedFlag = $row.find('.sop-preorder-removed-flag').val();
+                    var $roundedIndicator = $row.find( '.sop-rounded-indicator' );
                     if ( removedFlag === '1' ) {
+                        if ( $roundedIndicator.length ) {
+                            $roundedIndicator.hide();
+                        }
                         return;
                     }
 
                     var qty = parseFloat($row.find('.sop-order-qty-input').val()) || 0;
                     if ( qty <= 0 ) {
+                        if ( $roundedIndicator.length ) {
+                            $roundedIndicator.hide();
+                        }
                         return;
+                    }
+
+                    if ( $roundedIndicator.length ) {
+                        var ratio = roundStep > 0 ? ( qty / roundStep ) : 0;
+                        var isRounded = roundStep > 0 && qty > 0 && Math.abs( ratio - Math.round( ratio ) ) < roundTolerance;
+                        if ( isRounded ) {
+                            $roundedIndicator.show();
+                        } else {
+                            $roundedIndicator.hide();
+                        }
                     }
 
                     var costGbp = parseFloat($row.find('.sop-line-total-gbp').data('cost-gbp')) || 0;
@@ -3956,7 +4011,21 @@ function sop_preorder_render_admin_page() {
                     usedCbmBar = 100;
                 }
 
-                $('.sop-cbm-bar').css('width', usedCbmBar + '%');
+                var $cbmBar = $('.sop-cbm-bar');
+                var cbmStateClass = 'sop-cbm-bar--yellow';
+                if ( usedCbmPercent > 100 ) {
+                    cbmStateClass = 'sop-cbm-bar--red';
+                } else if ( usedCbmPercent >= 90 ) {
+                    cbmStateClass = 'sop-cbm-bar--green';
+                } else if ( usedCbmPercent >= 70 ) {
+                    cbmStateClass = 'sop-cbm-bar--orange';
+                }
+
+                $cbmBar
+                    .removeClass( 'sop-cbm-bar--yellow sop-cbm-bar--orange sop-cbm-bar--green sop-cbm-bar--red' )
+                    .addClass( cbmStateClass )
+                    .css('width', usedCbmBar + '%');
+                $('.sop-cbm-bar-wrapper').attr('title', usedCbmPercent.toFixed(1) + '%');
                 $('#sop-cbm-label').text(usedCbmPercent.toFixed(1) + '%');
             }
 
@@ -4246,6 +4315,10 @@ function sop_preorder_render_admin_page() {
             $table.on('input', '.sop-order-qty-input, .sop-cost-supplier-input', function() {
                 recalcTotals();
             });
+
+            $( document ).on( 'change', '.sop-round-step', function() {
+                recalcTotals();
+            } );
 
             function sopPreorderApplyRounding( direction ) {
                 var step = parseInt( $('.sop-round-step').val(), 10 ) || 0;
