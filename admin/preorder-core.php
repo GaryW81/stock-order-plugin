@@ -1,7 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.61
+ * File version: 11.63
+ * - 11.63 - Add top padding to status pill dashicons for vertical centering.
+ * - 11.62 - Align status pill dashicons vertically with label text.
  * - UI: 3-stage status labels (In Progress/Ordered/Completed) + GI started indicator.
  * - Migrate legacy receiving sheets to locked and keep Ordered/Completed wording.
  * - Persist supplier preorder_hidden_columns.
@@ -522,8 +524,20 @@ function sop_render_preorder_sheets_page() {
                 }
                 .sop-status-pill .dashicons{
                     margin-right:6px;
+                    width:14px;
+                    height:14px;
                     font-size:14px;
-                    line-height:1;
+                    line-height:14px;
+                    display:inline-flex;
+                    align-items:center;
+                    justify-content:center;
+                    flex:0 0 auto;
+                    padding-top:3px;
+                    box-sizing:border-box;
+                }
+                .sop-status-pill .dashicons:before{
+                    font-size:14px;
+                    line-height:14px;
                 }
                 .sop-status-gi{
                     margin-left:8px;
