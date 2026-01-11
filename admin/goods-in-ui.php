@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.02
+ * File version: 1.1.03
  *
+ * - 1.1.03 - Goods-In: add Issues XLSX export button + align export params.
  * - 1.1.02 - UI: make received Goods-In sheets read-only (disable edits/actions).
  * - 1.1.01 - UI: consolidate scan overlay UI (remove legacy scan modal chrome).
  * - 1.1.00 - UI: scanner overlay frame/scan line + beep/vibrate on success.
@@ -594,13 +595,13 @@ function sop_render_goods_in_page() {
         $issue_export_url = wp_nonce_url(
             add_query_arg(
                 array(
-                    'action'   => 'sop_export_goodsin_issues_xlsx',
-                    'sheet_id' => $sheet_id,
+                    'action'       => 'sop_export_goodsin_issues_xlsx',
+                    'sop_sheet_id' => $sheet_id,
                 ),
                 admin_url( 'admin-post.php' )
             ),
             'sop_export_goodsin_issues_xlsx',
-            'sop_export_goodsin_nonce'
+            'sop_goodsin_export_nonce'
         );
     }
 
@@ -1027,7 +1028,14 @@ function sop_render_goods_in_page() {
         </div>
 
         <?php if ( 'report' === $view || 'received' === $status ) : ?>
-            <h3><?php esc_html_e( 'Goods-In Report (Issues)', 'sop' ); ?></h3>
+            <div class="sop-goodsin-report-header">
+                <h3><?php esc_html_e( 'Goods-In Report (Issues)', 'sop' ); ?></h3>
+                <?php if ( $issue_export_url ) : ?>
+                    <a class="button button-secondary" href="<?php echo esc_url( $issue_export_url ); ?>">
+                        <?php esc_html_e( 'Download Issues XLSX', 'sop' ); ?>
+                    </a>
+                <?php endif; ?>
+            </div>
             <table class="widefat striped">
                 <thead>
                 <tr>
@@ -1997,6 +2005,13 @@ function sop_render_goods_in_page() {
             background: #f6f7f7;
             border: 1px solid #dcdcde;
             font-weight: 600;
+        }
+        .sop-goodsin-report-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
         }
         .sop-goodsin-table td input[type="text"],
         .sop-goodsin-table td input[type="number"],

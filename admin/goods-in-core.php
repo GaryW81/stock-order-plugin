@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.18
+ * File version: 1.0.19
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -21,6 +21,7 @@
  * - 1.0.16 - Align dispute summary FX/cost resolution with Issues XLSX (non-RMB from RMB via FX).
  * - 1.0.17 - Hydrate Issues export lines with supplier currency cost (GBP/EUR/USD) from RMB via balance FX/SOP rates.
  * - 1.0.18 - Core: redirect with sheet_readonly for received Goods-In sheets.
+ * - 1.0.19 - Core: accept legacy issues export params (sheet_id/nonce).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -1041,11 +1042,17 @@ function sop_handle_export_goodsin_issues_xlsx() {
     }
 
     $nonce = isset( $_REQUEST['sop_goodsin_export_nonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['sop_goodsin_export_nonce'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    if ( '' === $nonce && isset( $_REQUEST['sop_export_goodsin_nonce'] ) ) {
+        $nonce = sanitize_text_field( wp_unslash( $_REQUEST['sop_export_goodsin_nonce'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    }
     if ( ! wp_verify_nonce( $nonce, 'sop_export_goodsin_issues_xlsx' ) ) {
         wp_die( esc_html__( 'Invalid export request.', 'sop' ) );
     }
 
     $sheet_id = isset( $_REQUEST['sop_sheet_id'] ) ? (int) $_REQUEST['sop_sheet_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    if ( $sheet_id <= 0 && isset( $_REQUEST['sheet_id'] ) ) {
+        $sheet_id = (int) $_REQUEST['sheet_id']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    }
     if ( $sheet_id <= 0 ) {
         wp_die( esc_html__( 'Missing sheet ID.', 'sop' ) );
     }
