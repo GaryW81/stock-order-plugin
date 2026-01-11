@@ -1,9 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.04
+ * File version: 1.1.05
  *
- * - 1.1.04 - Goods-In: issues XLSX export button + export param alignment.
+ * - 1.1.05 - Version bump for Goods-In UI/core.
  * - 1.1.03 - Goods-In: add Issues XLSX export button + align export params.
  * - 1.1.02 - UI: make received Goods-In sheets read-only (disable edits/actions).
  * - 1.1.01 - UI: consolidate scan overlay UI (remove legacy scan modal chrome).

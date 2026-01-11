@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.20
+ * File version: 1.0.21
  *
  * - Receive against locked/receiving preorder sheets.
  * - Save receiving progress, apply stock increases, and complete goods-in.
@@ -22,7 +22,7 @@
  * - 1.0.17 - Hydrate Issues export lines with supplier currency cost (GBP/EUR/USD) from RMB via balance FX/SOP rates.
  * - 1.0.18 - Core: redirect with sheet_readonly for received Goods-In sheets.
  * - 1.0.19 - Core: accept legacy issues export params (sheet_id/nonce).
- * - 1.0.20 - Core: align Goods-In issues export param handling.
+ * - 1.0.21 - Version bump for Goods-In UI/core.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
