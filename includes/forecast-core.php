@@ -9,10 +9,11 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.25
+ * File version: 1.0.26
  * - Removed stray placeholder label in get_supplier_product_ids().
  * - Inbound: support inbound_map (locked sheet quantities) in stock_at_arrival and suggested_raw.
  * - Correct fallback SOQ to prefer monthly cap × buffer and treat MOQ as one-off pack size.
+ * - Canonicalise max_order_qty_per_month meta key.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -661,9 +662,7 @@ class Stock_Order_Plugin_Core_Engine {
         $suggested_raw = max( 0.0, $target_at_arrival - $stock_at_arrival );
 
         // Optional per-product max-per-month cap, read directly from product/parent meta.
-        // We support two keys:
-        // - 'max_order_qty_per_month' (primary)
-        // - 'max_qty_per_month'       (legacy)
+        // Key: 'max_order_qty_per_month'.
         $max_per_month = 0.0;
 
         if ( $product instanceof \WC_Product ) {
@@ -674,24 +673,16 @@ class Stock_Order_Plugin_Core_Engine {
                 $ids_to_check[] = $parent_id;
             }
 
-            $meta_keys = array(
-                'max_order_qty_per_month',   // canonical key
-                'max_qty_per_month',         // legacy key
-                'max_order_qty_per month',   // legacy key with space before "month"
-            );
-
             foreach ( $ids_to_check as $cap_post_id ) {
-                foreach ( $meta_keys as $meta_key ) {
-                    $raw = get_post_meta( $cap_post_id, $meta_key, true );
-                    if ( '' === $raw ) {
-                        continue;
-                    }
+                $raw = get_post_meta( $cap_post_id, 'max_order_qty_per_month', true );
+                if ( '' === $raw ) {
+                    continue;
+                }
 
-                    $val = (float) str_replace( ',', '.', (string) $raw );
-                    if ( $val > 0 ) {
-                        $max_per_month = $val;
-                        break 2; // break out of both loops.
-                    }
+                $val = (float) str_replace( ',', '.', (string) $raw );
+                if ( $val > 0 ) {
+                    $max_per_month = $val;
+                    break;
                 }
             }
         }
@@ -721,7 +712,7 @@ class Stock_Order_Plugin_Core_Engine {
 
         // Fallback when stock is zero and SOQ is zero or negative.
         // Behaviour:
-        // - If we have a per-product monthly figure (max_order_qty_per_month / max_qty_per_month / legacy spaced key),
+        // - If we have a per-product monthly figure (max_order_qty_per_month),
         //   use that as a monthly rate and order monthly * buffer_months.
         // - If we do NOT have a monthly figure but we DO have an MOQ, order exactly one MOQ (no buffer multiplier).
         // - If neither is available, default to 1 unit.

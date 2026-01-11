@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.29
+ * File version: 1.0.30
  * - Align handling-day helper with PO modal: order date is day 0, handling starts next day.
  * - Add holiday-aware handling days helper for forecast/PO parity.
  * - Prefer direct USDη'RMB base FX if provided in settings.
@@ -11,6 +11,7 @@
  * - Persist preorder carton_no when saving sheet lines.
  * - Add preorder sheet stage helper (In Progress/Ordered/Completed).
  * - Add Goods-In activity detector for "GI started" indicator.
+ * - Canonicalise max_order_qty_per_month meta key.
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -1472,8 +1473,7 @@ if ( ! function_exists( 'sop_get_supplier_label' ) ) {
  *
  * Priority:
  * 1. Product meta 'max_order_qty_per_month'.
- * 2. Product meta 'max_qty_per_month' (legacy alias).
- * 3. Parent product meta (same keys) if this is a variation.
+ * 2. Parent product meta (same key) if this is a variation.
  *
  * Returns a non-negative float; 0.0 means "no cap".
  *
@@ -1504,8 +1504,6 @@ function sop_get_product_max_order_qty_per_month( $product ) {
 
     $meta_keys = array(
         'max_order_qty_per_month',   // canonical
-        'max_qty_per_month',         // legacy without "order"
-        'max_order_qty_per month',   // legacy with space before "month"
     );
 
     foreach ( $meta_keys as $meta_key ) {
