@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.72 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.73 *
+ * - V12.73 - UI: consolidate deferred header SVG logic.
  * - V12.72 - UI: defer header SVG background to prevent first-paint splash.
  * - V12.71 - UI: gate header icon opacity on initial paint.
  * - V12.70 - UI: contain header SVG icons on initial paint.
@@ -3460,12 +3461,21 @@ function sop_preorder_render_admin_page() {
             }
             var $soqTooltip          = $('#sop-soq-tooltip');
 
-            $('.sop-preorder-card-icon[data-icon]').each( function() {
-                var dataIcon = $( this ).attr( 'data-icon' );
-                if ( dataIcon ) {
+            // IMPORTANT:
+            // SVG background-images must NOT be rendered inline.
+            // Browsers paint SVGs at intrinsic size before CSS loads, causing splash.
+            // Always defer background-image application via data-icon + DOM ready.
+            function sopApplyDeferredHeaderIcons() {
+                $('.sop-preorder-card-icon[data-icon]').each( function() {
+                    var dataIcon = $( this ).attr( 'data-icon' );
+                    if ( ! dataIcon || this.style.backgroundImage ) {
+                        return;
+                    }
                     this.style.backgroundImage = 'url(' + dataIcon + ')';
-                }
-            } );
+                } );
+            }
+
+            sopApplyDeferredHeaderIcons();
             var lastMouseClientX     = null;
             var lastMouseClientY     = null;
             var soqScrollTimer       = null;
