@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.68 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.69 *
+ * - V12.69 - Fix header icon MIME type for SVG data URIs.
  * - V12.68 - Switch header icons to SVG assets.
  * - V12.67 - Bulk actions respect selected rows.
  * - V12.66 - UI: enforce rounded indicator circle geometry.
@@ -124,7 +125,10 @@ if ( ! function_exists( 'sop_preorder_get_header_icon_data_uri' ) ) {
             return '';
         }
 
-        return 'data:image/png;base64,' . base64_encode( $bin );
+        $ext  = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
+        $mime = ( 'svg' === $ext ) ? 'image/svg+xml' : 'image/png';
+
+        return 'data:' . $mime . ';base64,' . base64_encode( $bin );
     }
 }
 
