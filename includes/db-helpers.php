@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 1 (DB + Helpers)
- * File version: 1.0.03
+ * File version: 1.0.04
  *
  * - Declares sop_DB class (schema + helpers).
  * - Defines all core Stock Order Plugin tables.
@@ -11,6 +11,7 @@
  * - 1.0.01 - Inbound stock helper: sum locked sheet qty per product.
  * - 1.0.02 - Goods-In v1: add goods-in columns to preorder lines and compute inbound as outstanding.
  * - 1.0.03 - Add carton_no to preorder sheet lines for per-line carton tracking.
+ * - 1.0.04 - Clarify inbound helper uses ordered/legacy receiving sheets.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -446,7 +447,7 @@ if ( ! class_exists( 'sop_DB' ) ) {
 /**
  * Get a map of inbound quantities per product from locked preorder sheets.
  *
- * Inbound = outstanding quantity across locked/receiving sheets:
+ * Inbound = outstanding quantity across locked (ordered) and legacy receiving sheets:
  * ordered - stocked - missing - rejected (clamped to zero).
  * Used to prevent reordering products already on the way.
  *
@@ -488,7 +489,7 @@ if ( ! function_exists( 'sop_db_get_inbound_qty_map' ) ) {
         // Exclude removed products (removed flag is stored on product meta).
         $where[] = "( pm.meta_value IS NULL OR pm.meta_value <> '1' )";
 
-        // Locked / ordered sheets only (include 'receiving' for goods-in progress).
+        // Locked / ordered sheets only (include legacy 'receiving' for goods-in progress).
         if ( $has_is_locked ) {
             $where[] = "( s.status IN ( 'locked', 'receiving' ) OR ( s.is_locked IS NOT NULL AND s.is_locked = 1 ) )";
         } else {

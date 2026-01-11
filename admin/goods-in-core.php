@@ -1,10 +1,10 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.21
+ * File version: 1.0.23
  *
- * - Receive against locked/receiving preorder sheets.
- * - Save receiving progress, apply stock increases, and complete goods-in.
+ * - Receive against ordered (locked) preorder sheets.
+ * - Save goods-in progress, apply stock increases, and complete goods-in.
  * - Uses JSON payload to avoid max_input_vars on large sheets.
  * - 1.0.02 - Add live display hydration helper for Goods-In lines (display only).
  * - 1.0.03 - Key Goods-In handlers by product_id (SKU fallback) and normalise POST maps.
@@ -23,6 +23,8 @@
  * - 1.0.18 - Core: redirect with sheet_readonly for received Goods-In sheets.
  * - 1.0.19 - Core: accept legacy issues export params (sheet_id/nonce).
  * - 1.0.21 - Version bump for Goods-In UI/core.
+ * - 1.0.22 - Stop setting receiving status; allow legacy receiving.
+ * - 1.0.23 - Keep goods-in on locked sheets; do not set receiving on save/apply.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -703,11 +705,6 @@ function sop_handle_goodsin_save() {
         }
     }
 
-    // Move sheet to receiving on first save.
-    if ( 'locked' === $status && function_exists( 'sop_update_preorder_sheet' ) ) {
-        sop_update_preorder_sheet( $sheet_id, array( 'status' => 'receiving' ) );
-    }
-
     wp_safe_redirect(
         add_query_arg(
             array(
@@ -906,11 +903,6 @@ function sop_handle_goodsin_apply_stock() {
 
         $applied_lines++;
         $applied_qty += $to_apply;
-    }
-
-    // Move sheet to receiving when applying stock.
-    if ( 'locked' === $status && function_exists( 'sop_update_preorder_sheet' ) ) {
-        sop_update_preorder_sheet( $sheet_id, array( 'status' => 'receiving' ) );
     }
 
     // Store last apply report for UI.

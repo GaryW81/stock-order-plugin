@@ -2,13 +2,15 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.27
+ * File version: 1.0.29
  * - Align handling-day helper with PO modal: order date is day 0, handling starts next day.
  * - Add holiday-aware handling days helper for forecast/PO parity.
  * - Prefer direct USDη'RMB base FX if provided in settings.
  * - Add helper to check Supplier SKUs column toggle.
  * - Add scan normaliser for barcode/picking.
  * - Persist preorder carton_no when saving sheet lines.
+ * - Add preorder sheet stage helper (In Progress/Ordered/Completed).
+ * - Add Goods-In activity detector for "GI started" indicator.
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -26,6 +28,83 @@ if ( ! class_exists( 'sop_DB' ) ) {
 /* -------------------------------------------------------------------------
  * Supplier helpers
  * ---------------------------------------------------------------------- */
+
+/**
+ * Resolve preorder sheet stage info for UI display.
+ *
+ * Internal statuses remain: draft/locked/received (legacy receiving allowed).
+ * UX stages are: In Progress / Ordered (Goods-In started indicator) / Completed.
+ *
+ * @param string $status Raw status.
+ * @return array{internal_status:string,stage_key:string,stage_label:string,is_editable:bool,goods_in_started:bool}
+ */
+function sop_get_preorder_sheet_stage_info( $status ) {
+    $internal = strtolower( trim( (string) $status ) );
+    $stage_key = 'in_progress';
+    $stage_label = __( 'In Progress', 'sop' );
+    $is_editable = true;
+    $goods_in_started = false;
+
+    if ( 'locked' === $internal || 'receiving' === $internal ) {
+        $stage_key = 'ordered';
+        $stage_label = __( 'Ordered', 'sop' );
+        $is_editable = false;
+        if ( 'receiving' === $internal ) {
+            $goods_in_started = true;
+        }
+    } elseif ( in_array( $internal, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
+        $stage_key = 'completed';
+        $stage_label = __( 'Completed', 'sop' );
+        $is_editable = false;
+    }
+
+    return array(
+        'internal_status'   => $internal,
+        'stage_key'         => $stage_key,
+        'stage_label'       => $stage_label,
+        'is_editable'       => $is_editable,
+        'goods_in_started'  => $goods_in_started,
+    );
+}
+
+/**
+ * Check whether Goods-In activity has started for a sheet.
+ *
+ * @param int $sheet_id Sheet ID.
+ * @return bool
+ */
+function sop_preorder_sheet_has_goodsin_activity( $sheet_id ) {
+    $sheet_id = (int) $sheet_id;
+    if ( $sheet_id <= 0 ) {
+        return false;
+    }
+
+    static $cache = array();
+    if ( isset( $cache[ $sheet_id ] ) ) {
+        return $cache[ $sheet_id ];
+    }
+
+    global $wpdb;
+    $table_lines = function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ? sop_get_preorder_sheet_lines_table_name() : '';
+    if ( '' === $table_lines ) {
+        $table_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
+    }
+
+    $sql = "SELECT 1
+        FROM {$table_lines}
+        WHERE sheet_id = %d
+          AND (
+              goods_in_updated_at IS NOT NULL
+              OR goods_in_received_qty > 0
+              OR goods_in_missing_qty > 0
+              OR goods_in_reject_qty > 0
+              OR goods_in_stock_added_qty > 0
+          )
+        LIMIT 1";
+    $found = $wpdb->get_var( $wpdb->prepare( $sql, $sheet_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+    $cache[ $sheet_id ] = ! empty( $found );
+    return $cache[ $sheet_id ];
+}
 
 /**
  * Normalize supplier holiday ranges (month/day) from settings.

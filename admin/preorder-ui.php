@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.61 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.62 *
+ * - V12.62 - UI: use 3-stage labels (In Progress/Ordered/Completed) for saved sheet status.
  * - V12.61 - Enforce read-only view for non-draft sheets.
  * - V12.60 - Restore saved sheet container planning values (allowance/pallet) on open.
  * - V12.59 - Fix: SKU search icon click triggers filtering.
@@ -861,15 +862,33 @@ function sop_preorder_render_admin_page() {
             break;
     }
 
-    $order_number_value = '';
-    $current_version    = 1;
-    $current_status     = '';
-    $current_updated    = '';
+    $order_number_value   = '';
+    $current_version      = 1;
+    $current_status       = '';
+    $current_updated      = '';
+    $current_stage_info   = array(
+        'stage_key'   => 'in_progress',
+        'stage_label' => __( 'In Progress', 'sop' ),
+    );
+    $current_stage_label  = __( 'In Progress', 'sop' );
+    $current_gi_started   = false;
     if ( $current_sheet && is_array( $current_sheet ) ) {
         $order_number_value = ! empty( $current_sheet['order_number_label'] ) ? $current_sheet['order_number_label'] : '';
         $current_version    = ! empty( $current_sheet['edit_version'] ) ? (int) $current_sheet['edit_version'] : 1;
         $current_status     = ! empty( $current_sheet['status'] ) ? $current_sheet['status'] : '';
         $current_updated    = ! empty( $current_sheet['updated_at'] ) ? $current_sheet['updated_at'] : '';
+        if ( function_exists( 'sop_get_preorder_sheet_stage_info' ) ) {
+            $current_stage_info = sop_get_preorder_sheet_stage_info( $current_status );
+        }
+        $current_stage_label = isset( $current_stage_info['stage_label'] ) ? (string) $current_stage_info['stage_label'] : $current_stage_label;
+        if ( 'locked' === $current_status && function_exists( 'sop_preorder_sheet_has_goodsin_activity' ) ) {
+            $current_gi_started = sop_preorder_sheet_has_goodsin_activity( $current_sheet_id );
+        } elseif ( 'receiving' === $current_status ) {
+            $current_gi_started = true;
+        }
+        if ( $current_gi_started && isset( $current_stage_info['stage_key'] ) && 'ordered' === $current_stage_info['stage_key'] ) {
+            $current_stage_label .= ' (' . __( 'Goods-In started', 'sop' ) . ')';
+        }
     }
     $sop_sheet_is_readonly = ( $current_sheet_id > 0 && $current_status && 'draft' !== $current_status );
     $sop_sheet_is_locked   = $sop_sheet_is_readonly;
@@ -1101,7 +1120,7 @@ function sop_preorder_render_admin_page() {
         if ( '1' === $sop_preorder_readonly ) {
             printf(
                 '<div class="notice notice-error"><p>%s</p></div>',
-                esc_html__( 'This sheet is not editable. Unlock it before saving changes.', 'sop' )
+                esc_html( sprintf( __( 'This sheet is %s and is read-only. Unlock to edit.', 'sop' ), $current_stage_label ) )
             );
         }
         ?>
@@ -1116,7 +1135,7 @@ function sop_preorder_render_admin_page() {
                         (int) $current_sheet_id,
                         $order_number_value ? esc_html( $order_number_value ) : esc_html__( 'N/A', 'sop' ),
                         (int) $current_version,
-                        esc_html( $current_status ? $current_status : 'draft' ),
+                        esc_html( $current_stage_label ? $current_stage_label : __( 'In Progress', 'sop' ) ),
                         esc_html( $current_updated )
                     );
                     ?>
@@ -1128,7 +1147,7 @@ function sop_preorder_render_admin_page() {
                         <?php
                         printf(
                             esc_html__( 'This saved pre-order sheet is %s. You can view and export it, but cannot edit until you unlock it from the Saved sheets list.', 'sop' ),
-                            esc_html( $current_status ? $current_status : 'locked' )
+                            esc_html( $current_stage_label ? $current_stage_label : __( 'Ordered', 'sop' ) )
                         );
                         ?>
                     </p>

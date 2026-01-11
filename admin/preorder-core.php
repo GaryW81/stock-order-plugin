@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.59
- * - Saved sheets: allow unlocking received sheets back to draft (with warning).
+ * File version: 11.61
+ * - UI: 3-stage status labels (In Progress/Ordered/Completed) + GI started indicator.
+ * - Migrate legacy receiving sheets to locked and keep Ordered/Completed wording.
  * - Persist supplier preorder_hidden_columns.
  * - Persist preorder container planning values in PO payload for saved sheets.
  * - Saved sheets: include receiving/received, allow unlock for receiving, add Goods-In link.
@@ -507,21 +508,31 @@ function sop_render_preorder_sheets_page() {
                     box-shadow:inset 0 1px 0 rgba(255,255,255,.7), inset 0 -2px 6px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
                     border:1px solid rgba(0,0,0,.25);
                 }
-                .sop-status-draft{
+                .sop-status-in-progress{
                     background:linear-gradient(180deg,#5bb4ff 0%,#1a75ff 55%,#0f4fb6 100%);
                     border-color:#0f4fb6;
                 }
-                .sop-status-locked{
+                .sop-status-ordered{
                     background:linear-gradient(180deg,#ff7a7a 0%,#ff2a2a 55%,#b50000 100%);
                     border-color:#b50000;
                 }
-                .sop-status-receiving{
-                    background:linear-gradient(180deg,#ffd34d 0%,#ffb300 55%,#b86a00 100%);
-                    border-color:#b86a00;
-                }
-                .sop-status-received{
+                .sop-status-completed{
                     background:linear-gradient(180deg,#7dff5b 0%,#29c324 55%,#0b6f1a 100%);
                     border-color:#0b6f1a;
+                }
+                .sop-status-pill .dashicons{
+                    margin-right:6px;
+                    font-size:14px;
+                    line-height:1;
+                }
+                .sop-status-gi{
+                    margin-left:8px;
+                    font-size:11px;
+                    font-weight:600;
+                    padding:2px 6px;
+                    border-radius:999px;
+                    background:rgba(255,255,255,0.25);
+                    border:1px solid rgba(255,255,255,0.35);
                 }
             </style>
             <table class="widefat striped">
@@ -540,10 +551,22 @@ function sop_render_preorder_sheets_page() {
                 </thead>
                 <tbody>
                     <?php foreach ( $sheets as $sheet ) : ?>
+                        <?php
+                        $sheet_status = strtolower( trim( (string) ( isset( $sheet['status'] ) ? $sheet['status'] : '' ) ) );
+                        $gi_started = false;
+                        if ( function_exists( 'sop_get_preorder_sheet_stage_info' ) ) {
+                            $stage_info = sop_get_preorder_sheet_stage_info( $sheet_status );
+                            if ( ! empty( $stage_info['goods_in_started'] ) ) {
+                                $gi_started = true;
+                            } elseif ( 'locked' === $sheet_status && function_exists( 'sop_preorder_sheet_has_goodsin_activity' ) ) {
+                                $gi_started = sop_preorder_sheet_has_goodsin_activity( (int) $sheet['id'] );
+                            }
+                        }
+                        ?>
                         <tr>
                             <td><?php echo esc_html( $sheet['id'] ); ?></td>
                             <td><?php echo esc_html( function_exists( 'sop_get_supplier_label' ) ? sop_get_supplier_label( $sheet['supplier_id'] ) : $sheet['supplier_id'] ); ?></td>
-                            <td><?php echo sop_preorder_render_status_pill( isset( $sheet['status'] ) ? (string) $sheet['status'] : '' ); ?></td>
+                            <td><?php echo sop_preorder_render_status_pill( $sheet_status, $gi_started ); ?></td>
                             <td><?php echo ! empty( $sheet['order_number_label'] ) ? esc_html( $sheet['order_number_label'] ) : '&mdash;'; ?></td>
                             <td><?php echo ! empty( $sheet['edit_version'] ) ? (int) $sheet['edit_version'] : 1; ?></td>
                             <td><?php echo esc_html( isset( $sheet['order_date_owner'] ) ? $sheet['order_date_owner'] : '' ); ?></td>
@@ -551,7 +574,6 @@ function sop_render_preorder_sheets_page() {
                             <td><?php echo esc_html( isset( $sheet['updated_at'] ) ? $sheet['updated_at'] : '' ); ?></td>
                             <td>
                                 <?php
-                                $sheet_status = strtolower( trim( (string) ( isset( $sheet['status'] ) ? $sheet['status'] : '' ) ) );
                                 $open_url = add_query_arg(
                                     array(
                                         'page'         => 'sop-preorder-sheet',
@@ -652,23 +674,34 @@ function sop_render_preorder_sheets_page() {
  * @param string $status Sheet status.
  * @return string
  */
-function sop_preorder_render_status_pill( $status ) {
+function sop_preorder_render_status_pill( $status, $goods_in_started = false ) {
     $status = (string) $status;
-    $slug   = sanitize_key( $status );
-    $labels = array(
-        'draft'     => __( 'Draft', 'sop' ),
-        'locked'    => __( 'Locked', 'sop' ),
-        'receiving' => __( 'Receiving', 'sop' ),
-        'received'  => __( 'Received', 'sop' ),
-    );
+    $info   = function_exists( 'sop_get_preorder_sheet_stage_info' )
+        ? sop_get_preorder_sheet_stage_info( $status )
+        : array(
+            'stage_key'        => 'in_progress',
+            'stage_label'      => __( 'In Progress', 'sop' ),
+            'goods_in_started' => false,
+        );
 
-    $label = isset( $labels[ $slug ] ) ? $labels[ $slug ] : ucfirst( $status );
-    $class = 'sop-status-pill';
-    if ( '' !== $slug ) {
-        $class .= ' sop-status-' . $slug;
+    $stage_key   = isset( $info['stage_key'] ) ? (string) $info['stage_key'] : 'in_progress';
+    $stage_label = isset( $info['stage_label'] ) ? (string) $info['stage_label'] : __( 'In Progress', 'sop' );
+    $gi_started  = ! empty( $goods_in_started ) || ! empty( $info['goods_in_started'] );
+
+    $icon = 'dashicons-unlock';
+    if ( 'completed' === $stage_key ) {
+        $icon = 'dashicons-yes';
+    } elseif ( 'ordered' === $stage_key ) {
+        $icon = 'dashicons-lock';
     }
 
-    return '<span class="' . esc_attr( $class ) . '">' . esc_html( $label ) . '</span>';
+    $class = 'sop-status-pill sop-status-' . sanitize_key( $stage_key );
+    $label_html = '<span class="dashicons ' . esc_attr( $icon ) . '" aria-hidden="true"></span>' . esc_html( $stage_label );
+    if ( $gi_started && 'ordered' === $stage_key ) {
+        $label_html .= '<span class="sop-status-gi" title="' . esc_attr__( 'Goods-In started', 'sop' ) . '">' . esc_html__( 'GI started', 'sop' ) . '</span>';
+    }
+
+    return '<span class="' . esc_attr( $class ) . '">' . $label_html . '</span>';
 }
 
 /**
@@ -2407,7 +2440,23 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
     return $rows;
 }
 
+add_action( 'admin_init', 'sop_preorder_migrate_receiving_to_locked' );
 add_action( 'admin_init', 'sop_preorder_handle_post' );
+function sop_preorder_migrate_receiving_to_locked() {
+    if ( get_option( 'sop_migrated_receiving_to_locked' ) ) {
+        return;
+    }
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        return;
+    }
+    global $wpdb;
+    $table_sheets = function_exists( 'sop_get_preorder_sheet_table_name' ) ? sop_get_preorder_sheet_table_name() : '';
+    if ( '' === $table_sheets ) {
+        $table_sheets = $wpdb->prefix . 'sop_preorder_sheet';
+    }
+    $wpdb->query( "UPDATE {$table_sheets} SET status = 'locked' WHERE status = 'receiving'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+    update_option( 'sop_migrated_receiving_to_locked', 1, false );
+}
 function sop_preorder_handle_post() {
     if ( ! is_admin() ) {
         return;

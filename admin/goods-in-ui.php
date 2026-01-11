@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.05
+ * File version: 1.1.06
  *
+ * - 1.1.06 - UI: 3-stage labels (In Progress/Ordered/Completed) + GI started indicator.
  * - 1.1.05 - Version bump for Goods-In UI/core.
  * - 1.1.03 - Goods-In: add Issues XLSX export button + align export params.
  * - 1.1.02 - UI: make received Goods-In sheets read-only (disable edits/actions).
@@ -124,7 +125,7 @@ function sop_goodsin_register_menu() {
 }
 
 /**
- * Get open goods-in sheets (locked/receiving) with outstanding totals.
+ * Get open goods-in sheets (locked/ordered, legacy receiving) with outstanding totals.
  *
  * @return array
  */
@@ -155,6 +156,18 @@ function sop_goodsin_get_open_sheets( $include_received = false ) {
                 s.order_number_label,
                 s.updated_at,
                 COUNT(l.id) AS total_lines,
+                MAX(
+                    CASE
+                        WHEN (
+                            l.goods_in_updated_at IS NOT NULL
+                            OR COALESCE(l.goods_in_received_qty, 0) > 0
+                            OR COALESCE(l.goods_in_missing_qty, 0) > 0
+                            OR COALESCE(l.goods_in_reject_qty, 0) > 0
+                            OR COALESCE(l.goods_in_stock_added_qty, 0) > 0
+                        ) THEN 1
+                        ELSE 0
+                    END
+                ) AS gi_started,
                 SUM(
                     CASE
                         WHEN l.qty_owner > 0 THEN
@@ -304,6 +317,48 @@ function sop_goodsin_format_supplier_skus_compact_html( $raw, $product_name = ''
     return $html;
 }
 
+/**
+ * Render a status pill for Goods-In list/header using 3-stage labels.
+ *
+ * @param string $status Raw status.
+ * @param bool   $goods_in_started Whether goods-in activity exists.
+ * @return string
+ */
+function sop_goodsin_render_stage_pill( $status, $goods_in_started = false ) {
+    if ( function_exists( 'sop_preorder_render_status_pill' ) ) {
+        return sop_preorder_render_status_pill( $status, $goods_in_started );
+    }
+
+    $stage_info = function_exists( 'sop_get_preorder_sheet_stage_info' )
+        ? sop_get_preorder_sheet_stage_info( $status )
+        : array(
+            'stage_key'        => 'in_progress',
+            'stage_label'      => __( 'In Progress', 'sop' ),
+            'goods_in_started' => false,
+        );
+
+    $stage_key   = isset( $stage_info['stage_key'] ) ? (string) $stage_info['stage_key'] : 'in_progress';
+    $label       = isset( $stage_info['stage_label'] ) ? (string) $stage_info['stage_label'] : __( 'In Progress', 'sop' );
+    $gi_started  = ( ! empty( $stage_info['goods_in_started'] ) || $goods_in_started );
+    $icon_class  = 'dashicons-unlock';
+    if ( 'ordered' === $stage_key ) {
+        $icon_class = 'dashicons-lock';
+    } elseif ( 'completed' === $stage_key ) {
+        $icon_class = 'dashicons-yes';
+    }
+
+    $class = 'sop-status-pill sop-status-' . sanitize_key( $stage_key );
+    $html  = '<span class="' . esc_attr( $class ) . '">';
+    $html .= '<span class="dashicons ' . esc_attr( $icon_class ) . '" aria-hidden="true"></span>';
+    $html .= esc_html( $label );
+    if ( $gi_started && 'ordered' === $stage_key ) {
+        $html .= '<span class="sop-status-gi" title="' . esc_attr__( 'Goods-In started', 'sop' ) . '">' . esc_html__( 'GI started', 'sop' ) . '</span>';
+    }
+    $html .= '</span>';
+
+    return $html;
+}
+
 function sop_render_goods_in_page() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to access Goods In.', 'sop' ) );
@@ -334,7 +389,7 @@ function sop_render_goods_in_page() {
                 break;
             case 'completed':
                 $notice_class = 'notice notice-success';
-                $text = __( 'Goods-in completed. Sheet marked received.', 'sop' );
+                $text = __( 'Goods-In completed. Sheet marked Completed.', 'sop' );
                 break;
             case 'cannot_complete':
                 $notice_class = 'notice notice-error';
@@ -351,11 +406,11 @@ function sop_render_goods_in_page() {
                 break;
             case 'sheet_not_lockable':
                 $notice_class = 'notice notice-error';
-                $text = __( 'Sheet must be locked or receiving to use Goods In.', 'sop' );
+                $text = __( 'Sheet must be Ordered to use Goods-In.', 'sop' );
                 break;
             case 'sheet_readonly':
                 $notice_class = 'notice notice-info';
-                $text = __( 'This sheet is received and is read-only.', 'sop' );
+                $text = __( 'This sheet is Completed and is read-only.', 'sop' );
                 break;
             case 'no_lines':
                 $notice_class = 'notice notice-warning';
@@ -374,9 +429,9 @@ function sop_render_goods_in_page() {
 
         echo '<h1>' . esc_html__( 'Goods In', 'sop' ) . '</h1>';
         if ( $show_completed ) {
-            echo '<p>' . esc_html__( 'Select a locked/receiving/received sheet to view or receive stock against it.', 'sop' ) . '</p>';
+            echo '<p>' . esc_html__( 'Select an Ordered or Completed sheet to view or receive stock against it.', 'sop' ) . '</p>';
         } else {
-            echo '<p>' . esc_html__( 'Select a locked/receiving sheet to receive stock against it.', 'sop' ) . '</p>';
+            echo '<p>' . esc_html__( 'Select an Ordered sheet to receive stock against it.', 'sop' ) . '</p>';
         }
         echo '<form method="get" action="" class="sop-goodsin-completed-filter">';
         echo '<input type="hidden" name="page" value="sop-goods-in" />';
@@ -396,9 +451,9 @@ function sop_render_goods_in_page() {
 
         if ( empty( $sheets ) ) {
             if ( $show_completed ) {
-                echo '<tr><td colspan="7">' . esc_html__( 'No locked/receiving/received sheets found.', 'sop' ) . '</td></tr>';
+                echo '<tr><td colspan="7">' . esc_html__( 'No Ordered/Completed sheets found.', 'sop' ) . '</td></tr>';
             } else {
-                echo '<tr><td colspan="7">' . esc_html__( 'No locked/receiving sheets found.', 'sop' ) . '</td></tr>';
+                echo '<tr><td colspan="7">' . esc_html__( 'No Ordered sheets found.', 'sop' ) . '</td></tr>';
             }
         } else {
             foreach ( $sheets as $sheet ) {
@@ -417,6 +472,10 @@ function sop_render_goods_in_page() {
                 $title = isset( $sheet['title'] ) ? (string) $sheet['title'] : '';
                 $order_label = isset( $sheet['order_number_label'] ) ? (string) $sheet['order_number_label'] : '';
                 $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
+                $gi_started = ! empty( $sheet['gi_started'] );
+                if ( 'receiving' === strtolower( $status ) ) {
+                    $gi_started = true;
+                }
                 $lines = isset( $sheet['total_lines'] ) ? (int) $sheet['total_lines'] : 0;
                 $outstanding = isset( $sheet['outstanding_qty'] ) ? (float) $sheet['outstanding_qty'] : 0.0;
 
@@ -433,7 +492,7 @@ function sop_render_goods_in_page() {
                 echo '<td>' . esc_html( $sid ) . '</td>';
                 echo '<td>' . esc_html( $supplier_name ) . '</td>';
                 echo '<td>' . esc_html( trim( $title . ' ' . $order_label ) ) . '</td>';
-                echo '<td>' . esc_html( $status ) . '</td>';
+                echo '<td>' . sop_goodsin_render_stage_pill( $status, $gi_started ) . '</td>';
                 echo '<td>' . esc_html( $lines ) . '</td>';
                 echo '<td>' . esc_html( number_format_i18n( $outstanding, 0 ) ) . '</td>';
                 echo '<td><a class="button" href="' . esc_url( $open_url ) . '">' . esc_html__( 'Open', 'sop' ) . '</a></td>';
@@ -480,13 +539,24 @@ function sop_render_goods_in_page() {
         $show_supplier_skus_column = sop_supplier_show_supplier_skus_column( $supplier_id );
     }
     $has_issue_lines = false;
+    $gi_started = false;
     foreach ( $lines as $line_check ) {
         $miss = isset( $line_check['goods_in_missing_qty_owner'] ) ? (float) $line_check['goods_in_missing_qty_owner'] : ( isset( $line_check['goods_in_missing_qty'] ) ? (float) $line_check['goods_in_missing_qty'] : ( isset( $line_check['missing_qty'] ) ? (float) $line_check['missing_qty'] : 0.0 ) );
         $rej  = isset( $line_check['goods_in_reject_qty_owner'] ) ? (float) $line_check['goods_in_reject_qty_owner'] : ( isset( $line_check['goods_in_reject_qty'] ) ? (float) $line_check['goods_in_reject_qty'] : ( isset( $line_check['reject_qty'] ) ? (float) $line_check['reject_qty'] : 0.0 ) );
+        $rec  = isset( $line_check['goods_in_received_qty_owner'] ) ? (float) $line_check['goods_in_received_qty_owner'] : ( isset( $line_check['goods_in_received_qty'] ) ? (float) $line_check['goods_in_received_qty'] : ( isset( $line_check['received_qty'] ) ? (float) $line_check['received_qty'] : 0.0 ) );
+        $stocked = isset( $line_check['goods_in_stock_added_qty'] ) ? (float) $line_check['goods_in_stock_added_qty'] : 0.0;
         if ( $miss > 0 || $rej > 0 ) {
             $has_issue_lines = true;
+        }
+        if ( $rec > 0 || $miss > 0 || $rej > 0 || $stocked > 0 ) {
+            $gi_started = true;
+        }
+        if ( $has_issue_lines && $gi_started ) {
             break;
         }
+    }
+    if ( 'receiving' === $sop_gi_status ) {
+        $gi_started = true;
     }
     $issue_summary = null;
     if ( function_exists( 'sop_goodsin_get_issues_summary_for_sheet' ) && function_exists( 'sop_get_preorder_sheet_lines' ) ) {
@@ -592,7 +662,7 @@ function sop_render_goods_in_page() {
     );
 
     $issue_export_url = '';
-    if ( $has_issue_lines && 'received' === $status ) {
+    if ( $has_issue_lines && in_array( $sop_gi_status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
         $issue_export_url = wp_nonce_url(
             add_query_arg(
                 array(
@@ -606,8 +676,19 @@ function sop_render_goods_in_page() {
         );
     }
 
+    $stage_info = function_exists( 'sop_get_preorder_sheet_stage_info' )
+        ? sop_get_preorder_sheet_stage_info( $status )
+        : array(
+            'stage_key'   => 'in_progress',
+            'stage_label' => __( 'In Progress', 'sop' ),
+        );
+    $stage_label = isset( $stage_info['stage_label'] ) ? (string) $stage_info['stage_label'] : __( 'In Progress', 'sop' );
+    if ( 'ordered' === ( isset( $stage_info['stage_key'] ) ? (string) $stage_info['stage_key'] : '' ) && $gi_started ) {
+        $stage_label .= ' (' . __( 'Goods-In started', 'sop' ) . ')';
+    }
+
     if ( $sop_gi_is_readonly ) {
-        echo '<div class="notice notice-info"><p>' . esc_html__( 'This sheet is received and is read-only.', 'sop' ) . '</p></div>';
+        echo '<div class="notice notice-info"><p>' . esc_html( sprintf( __( 'This sheet is %s and is read-only.', 'sop' ), $stage_label ) ) . '</p></div>';
     }
 
     $show_row_select = ! $sop_gi_is_readonly;
@@ -634,7 +715,7 @@ function sop_render_goods_in_page() {
                 $back_args = array( 'page' => 'sop-goods-in' );
                 if ( isset( $_GET['show_completed'] ) && '1' === sanitize_text_field( wp_unslash( $_GET['show_completed'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
                     $back_args['show_completed'] = '1';
-                } elseif ( 'received' === $status ) {
+                } elseif ( in_array( $sop_gi_status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
                     $back_args['show_completed'] = '1';
                 }
                 $back_url = add_query_arg( $back_args, admin_url( 'admin.php' ) );
@@ -642,7 +723,8 @@ function sop_render_goods_in_page() {
                 <a class="button" href="<?php echo esc_url( $back_url ); ?>"><?php esc_html_e( 'Back to list', 'sop' ); ?></a>
             </div>
             <div class="sop-goodsin-mg-sheet">
-                <strong><?php echo esc_html( sprintf( __( 'Sheet #%1$d (%2$s) - %3$s', 'sop' ), $sheet_id, $supplier_name, $status ) ); ?></strong>
+                <strong><?php echo esc_html( sprintf( __( 'Sheet #%1$d (%2$s)', 'sop' ), $sheet_id, $supplier_name ) ); ?></strong>
+                <span class="sop-goodsin-sheet-status"><?php echo sop_goodsin_render_stage_pill( $status, $gi_started ); ?></span>
             </div>
             <?php if ( ! $sop_gi_is_readonly ) : ?>
                 <div class="sop-goodsin-mg-save">
@@ -709,7 +791,7 @@ function sop_render_goods_in_page() {
             </div>
         </div>
 
-        <?php if ( $issue_summary && 'received' === $status && isset( $issue_summary['issue_line_count'] ) && $issue_summary['issue_line_count'] > 0 ) : ?>
+        <?php if ( $issue_summary && in_array( $sop_gi_status, array( 'received', 'completed', 'complete', 'closed' ), true ) && isset( $issue_summary['issue_line_count'] ) && $issue_summary['issue_line_count'] > 0 ) : ?>
             <div class="notice notice-info sop-goodsin-dispute-summary">
                 <p><strong><?php esc_html_e( 'Dispute summary', 'sop' ); ?></strong></p>
                 <ul>
@@ -1028,7 +1110,7 @@ function sop_render_goods_in_page() {
             <div class="sop-goodsin-info-modal-body" id="sop-goodsin-info-modal-body"></div>
         </div>
 
-        <?php if ( 'report' === $view || 'received' === $status ) : ?>
+        <?php if ( 'report' === $view || in_array( $sop_gi_status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) : ?>
             <div class="sop-goodsin-report-header">
                 <h3><?php esc_html_e( 'Goods-In Report (Issues)', 'sop' ); ?></h3>
                 <?php if ( $issue_export_url ) : ?>
@@ -1083,6 +1165,52 @@ function sop_render_goods_in_page() {
     <style>
         #sop-goodsin-lines th,
         #sop-goodsin-lines td {
+            vertical-align: middle;
+        }
+        .sop-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 12px;
+            line-height: 1;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            background: #f6f7f7;
+            color: #1d2327;
+        }
+        .sop-status-in-progress {
+            background: #f0f0f1;
+            border-color: #dcdcde;
+        }
+        .sop-status-ordered {
+            background: #e9f2ff;
+            border-color: #c6dbff;
+            color: #1d4ed8;
+        }
+        .sop-status-completed {
+            background: #e8f7ed;
+            border-color: #bfe6cc;
+            color: #116329;
+        }
+        .sop-status-pill .dashicons {
+            font-size: 14px;
+            width: 14px;
+            height: 14px;
+        }
+        .sop-status-gi {
+            margin-left: 6px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #fff3cd;
+            color: #8a5a00;
+            border: 1px solid #f3d48c;
+        }
+        .sop-goodsin-sheet-status {
+            margin-left: 8px;
             vertical-align: middle;
         }
         #sop-goodsin-lines .check-column {
