@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.66 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.67 *
+ * - V12.67 - Bulk actions respect selected rows.
  * - V12.66 - UI: enforce rounded indicator circle geometry.
  * - V12.65 - UI: rounded tick as green circle.
  * - V12.64 - UI: improve rounded tick visibility.
@@ -3657,6 +3658,14 @@ function sop_preorder_render_admin_page() {
                 return rows;
             }
 
+            function sopPreorderGetTargetRowsForBulkAction() {
+                var $checked = $table.find( 'tbody .sop-preorder-select-row:checked' );
+                if ( $checked.length ) {
+                    return $checked.closest( 'tr.sop-preorder-row' ).not( '.sop-preorder-row-removed' );
+                }
+                return $table.find( 'tbody tr.sop-preorder-row' ).not( '.sop-preorder-row-removed' );
+            }
+
             function sopPreorderHideSoqTooltip() {
                 if ( ! $soqTooltip.length ) {
                     return;
@@ -4352,20 +4361,19 @@ function sop_preorder_render_admin_page() {
                     return;
                 }
 
-                var selectedRows = sopPreorderGetSelectedRows();
-                var $qtyInputs;
+                var $rows = sopPreorderGetTargetRowsForBulkAction();
+                $rows.each(function() {
+                    var $row = $( this );
+                    if ( $row.hasClass( 'sop-preorder-row-removed' ) ) {
+                        return;
+                    }
 
-                if ( selectedRows.length > 0 ) {
-                    $qtyInputs = $();
-                    $.each( selectedRows, function( i, $row ) {
-                        $qtyInputs = $qtyInputs.add( $row.find( '.sop-order-qty-input' ) );
-                    } );
-                } else {
-                    $qtyInputs = $table.find( '.sop-order-qty-input' );
-                }
+                    var $qtyInput = $row.find( '.sop-order-qty-input' );
+                    if ( ! $qtyInput.length || $qtyInput.prop( 'disabled' ) ) {
+                        return;
+                    }
 
-                $qtyInputs.each(function() {
-                    var val = parseFloat($(this).val());
+                    var val = parseFloat( $qtyInput.val() );
                     if ( isNaN( val ) || val <= 0 ) {
                         return;
                     }
@@ -4382,9 +4390,9 @@ function sop_preorder_render_admin_page() {
                         rounded = 0;
                     }
 
-                    $(this).val(rounded);
+                    $qtyInput.val( rounded );
                     hasUnsavedChanges = true;
-                    $(this).trigger('change');
+                    $qtyInput.trigger('change');
                 });
 
                 recalcTotals();
@@ -4403,7 +4411,9 @@ function sop_preorder_render_admin_page() {
             $('#sop-apply-soq-to-qty').on('click', function(e) {
                 e.preventDefault();
 
-                $table.find('tbody tr').each(function() {
+                var $rows = sopPreorderGetTargetRowsForBulkAction();
+
+                $rows.each(function() {
                     var $row = $( this );
 
                     if ( $row.hasClass( 'sop-preorder-row-removed' ) ) {
@@ -4414,7 +4424,7 @@ function sop_preorder_render_admin_page() {
                     var $soqEl    = $row.find( '.sop-preorder-soq' );
                     var $moqInput = $row.find( 'input.sop-preorder-moq' );
 
-                    if ( ! $qtyInput.length || ! $soqEl.length ) {
+                    if ( ! $qtyInput.length || ! $soqEl.length || $qtyInput.prop( 'disabled' ) ) {
                         return;
                     }
 
