@@ -1,10 +1,11 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.27
+ * File version: 1.0.28
  *
  * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch labels, and in-house print label view.
  * Changelog:
+ * - 1.0.28 - Store barcode last SKU in user meta, not product meta.
  * - 1.0.27 - UI: tweak label date size/padding.
  * - 1.0.26 - Remove BOM/leading bytes before PHP tag.
  * - 1.0.25 - Rename bulk label form button text.
@@ -926,7 +927,10 @@ if ( ! function_exists( 'sop_barcode_maybe_cache_on_save' ) ) {
             $sku = trim( $sku_raw );
         }
 
-        $prev_raw = (string) get_post_meta( $post_id, '_sop_barcode_last_sku', true );
+        $user_id = get_current_user_id();
+        $last_map = $user_id ? get_user_meta( $user_id, 'sop_barcode_last_sku', true ) : array();
+        $last_map = is_array( $last_map ) ? $last_map : array();
+        $prev_raw = isset( $last_map[ $post_id ] ) ? (string) $last_map[ $post_id ] : '';
         if ( function_exists( 'sop_normalise_scan_input' ) ) {
             $prev_sku = sop_normalise_scan_input( $prev_raw );
         } else {
@@ -939,7 +943,10 @@ if ( ! function_exists( 'sop_barcode_maybe_cache_on_save' ) ) {
                 if ( ! $owner || (int) $owner === (int) $post_id ) {
                     sop_barcode_delete_cached_svgs_for_sku( $prev_sku );
                 }
-                delete_post_meta( $post_id, '_sop_barcode_last_sku' );
+                if ( $user_id ) {
+                    unset( $last_map[ $post_id ] );
+                    update_user_meta( $user_id, 'sop_barcode_last_sku', $last_map );
+                }
             }
             return;
         }
@@ -972,7 +979,10 @@ if ( ! function_exists( 'sop_barcode_maybe_cache_on_save' ) ) {
             }
         }
 
-        update_post_meta( $post_id, '_sop_barcode_last_sku', $sku );
+        if ( $user_id ) {
+            $last_map[ $post_id ] = $sku;
+            update_user_meta( $user_id, 'sop_barcode_last_sku', $last_map );
+        }
     }
 }
 
@@ -1015,6 +1025,10 @@ if ( ! function_exists( 'sop_handle_barcode_warm_cache' ) ) {
         $missing    = isset( $_GET['missing'] ) ? (int) $_GET['missing'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $errors_cnt = isset( $_GET['errors'] ) ? (int) $_GET['errors'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
+        $user_id = get_current_user_id();
+        $last_map = $user_id ? get_user_meta( $user_id, 'sop_barcode_last_sku', true ) : array();
+        $last_map = is_array( $last_map ) ? $last_map : array();
+
         foreach ( $ids as $id ) {
             $sku_raw = (string) get_post_meta( $id, '_sku', true );
             if ( function_exists( 'sop_normalise_scan_input' ) ) {
@@ -1028,7 +1042,9 @@ if ( ! function_exists( 'sop_handle_barcode_warm_cache' ) ) {
                 continue;
             }
 
-            update_post_meta( $id, '_sop_barcode_last_sku', $sku );
+            if ( $user_id ) {
+                $last_map[ $id ] = $sku;
+            }
 
             $has_cache = false;
             if ( function_exists( 'sop_barcode_read_cached_svg' ) ) {
@@ -1072,6 +1088,10 @@ if ( ! function_exists( 'sop_handle_barcode_warm_cache' ) ) {
             );
             wp_safe_redirect( $redirect );
             exit;
+        }
+
+        if ( $user_id ) {
+            update_user_meta( $user_id, 'sop_barcode_last_sku', $last_map );
         }
 
         $redirect_target = wp_get_referer();
@@ -1380,7 +1400,10 @@ if ( ! function_exists( 'sop_barcode_cleanup_on_delete' ) ) {
         }
 
         $sku_current = (string) get_post_meta( $post_id, '_sku', true );
-        $sku_prev    = (string) get_post_meta( $post_id, '_sop_barcode_last_sku', true );
+        $user_id = get_current_user_id();
+        $last_map = $user_id ? get_user_meta( $user_id, 'sop_barcode_last_sku', true ) : array();
+        $last_map = is_array( $last_map ) ? $last_map : array();
+        $sku_prev  = isset( $last_map[ $post_id ] ) ? (string) $last_map[ $post_id ] : '';
 
         if ( function_exists( 'sop_normalise_scan_input' ) ) {
             $sku_current = sop_normalise_scan_input( $sku_current );
@@ -1405,7 +1428,10 @@ if ( ! function_exists( 'sop_barcode_cleanup_on_delete' ) ) {
             }
         }
 
-        delete_post_meta( $post_id, '_sop_barcode_last_sku' );
+        if ( $user_id ) {
+            unset( $last_map[ $post_id ] );
+            update_user_meta( $user_id, 'sop_barcode_last_sku', $last_map );
+        }
     }
 }
 

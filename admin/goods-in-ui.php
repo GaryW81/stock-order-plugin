@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.06
+ * File version: 1.1.07
  *
+ * - 1.1.07 - Use per-sheet removed flag for Goods-In lines.
  * - 1.1.06 - UI: 3-stage labels (In Progress/Ordered/Completed) + GI started indicator.
  * - 1.1.05 - Version bump for Goods-In UI/core.
  * - 1.1.03 - Goods-In: add Issues XLSX export button + align export params.
@@ -246,13 +247,12 @@ function sop_goodsin_get_sheet_lines_for_ui( $sheet_id ) {
                 p.post_title AS product_name{$select_carton}
             FROM {$tbl_lines} l
             LEFT JOIN {$wpdb->posts} p ON p.ID = l.product_id
-            LEFT JOIN {$wpdb->postmeta} pm ON pm.post_id = l.product_id AND pm.meta_key = %s
             WHERE l.sheet_id = %d
               AND l.qty_owner > 0
-              AND ( pm.meta_value IS NULL OR pm.meta_value <> '1' )
+              AND ( l.is_removed_owner = 0 OR l.is_removed_owner IS NULL )
             ORDER BY l.sort_index ASC, l.id ASC";
 
-    $rows = $wpdb->get_results( $wpdb->prepare( $sql, '_sop_preorder_removed', $sheet_id ), ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+    $rows = $wpdb->get_results( $wpdb->prepare( $sql, $sheet_id ), ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
     $rows = is_array( $rows ) ? $rows : array();
 
     // Hydrate display fields with live product data (do not alter saved stock snapshots).

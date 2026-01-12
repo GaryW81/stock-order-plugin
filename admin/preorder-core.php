@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.63
+ * File version: 11.64
+ * - 11.64 - Store removed and qty state per sheet line (no product meta).
  * - 11.63 - Add top padding to status pill dashicons for vertical centering.
  * - 11.62 - Align status pill dashicons vertically with label text.
  * - UI: 3-stage status labels (In Progress/Ordered/Completed) + GI started indicator.
@@ -20,7 +21,6 @@
  * - Cleanup: remove sop_debug_costs tooling; keep minimal COGS key list.
  * - GBP suppliers: cost priority = COGS → RMB converted → blank.
  * - Export: exclude removed and zero-qty lines from order sheet XLS.
- * - Persist removed rows by updating _sop_preorder_removed from JSON payload (and legacy when provided).
  * - Carry container planning params (pallet/allowance) through save redirects and accept pallet layer from save form.
  * - Add SOQ forecast context for tooltip ("Why" trust SOQ) and accept sop_lines_json payload to avoid max_input_vars truncation on large sheets.
  * - Add PO XLS export handler (order sheet export unchanged).
@@ -42,7 +42,7 @@
  *      Order SKU (sheet-only) -> meta: _sop_preorder_order_sku
  *      Notes              -> meta: _sop_preorder_notes
  *      Min order qty      -> meta: _sop_min_order_qty
- *      Manual order qty   -> meta: _sop_preorder_order_qty
+ *      Manual order qty   -> sheet line qty_owner
  *      Cost per unit      -> meta: _sop_cost_rmb / _sop_cost_usd / _sop_cost_eur / _cogs_value
  */
 
@@ -930,7 +930,6 @@ function sop_handle_save_preorder_sheet() {
 
     $lines      = array();
     $sort_index = 0;
-    $removed_meta_updates = array();
 
     $lines_json_raw = isset( $_POST['sop_lines_json'] ) ? wp_unslash( $_POST['sop_lines_json'] ) : '';
     $has_lines_json = is_string( $lines_json_raw ) && '' !== trim( $lines_json_raw );
@@ -952,10 +951,13 @@ function sop_handle_save_preorder_sheet() {
                 continue;
             }
 
-            $has_removed_key = is_array( $line ) && array_key_exists( 'removed', $line );
-            if ( $has_removed_key ) {
-                $removed_val = ! empty( $line['removed'] ) ? 1 : 0;
-                $removed_meta_updates[ $product_id ] = $removed_val;
+            $removed_val = 0;
+            if ( is_array( $line ) ) {
+                if ( array_key_exists( 'is_removed_owner', $line ) ) {
+                    $removed_val = ! empty( $line['is_removed_owner'] ) ? 1 : 0;
+                } elseif ( array_key_exists( 'removed', $line ) ) {
+                    $removed_val = ! empty( $line['removed'] ) ? 1 : 0;
+                }
             }
 
             $sku       = isset( $line['sku'] ) ? sanitize_text_field( $line['sku'] ) : '';
@@ -983,6 +985,7 @@ function sop_handle_save_preorder_sheet() {
                 'product_notes_owner' => $p_notes,
                 'order_notes_owner'   => $o_notes,
                 'carton_no'           => $carton_no,
+                'is_removed_owner'    => $removed_val,
                 'image_id'            => $image_id,
                 'location'            => $location,
                 'cbm_per_unit'        => $cbm_unit,
@@ -1032,6 +1035,8 @@ function sop_handle_save_preorder_sheet() {
             $cbm_unit  = isset( $cbm_units[ $pid ] ) ? floatval( wp_unslash( $cbm_units[ $pid ] ) ) : 0;
             $cbm_total = isset( $cbm_totals[ $pid ] ) ? floatval( wp_unslash( $cbm_totals[ $pid ] ) ) : 0;
 
+            $removed_val = isset( $removed_flags[ $pid ] ) && ! empty( $removed_flags[ $pid ] ) ? 1 : 0;
+
             $lines[] = array(
                 'product_id'          => $product_id,
                 'sku_owner'           => $sku,
@@ -1041,16 +1046,13 @@ function sop_handle_save_preorder_sheet() {
                 'product_notes_owner' => $p_notes,
                 'order_notes_owner'   => $o_notes,
                 'carton_no'           => $carton_no,
+                'is_removed_owner'    => $removed_val,
                 'image_id'            => $image_id,
                 'location'            => $location,
                 'cbm_per_unit'        => $cbm_unit,
                 'cbm_total_owner'     => $cbm_total,
                 'sort_index'          => $sort_index++,
             );
-
-            if ( isset( $removed_flags[ $pid ] ) ) {
-                $removed_meta_updates[ $product_id ] = ! empty( $removed_flags[ $pid ] ) ? 1 : 0;
-            }
         }
     }
 
@@ -1168,15 +1170,6 @@ function sop_handle_save_preorder_sheet() {
         $redirect = add_query_arg( $redirect_args, admin_url( 'admin.php' ) );
         wp_safe_redirect( $redirect );
         exit;
-    }
-
-    if ( ! empty( $removed_meta_updates ) ) {
-        foreach ( $removed_meta_updates as $pid => $removed_val ) {
-            $pid = (int) $pid;
-            if ( $pid > 0 ) {
-                update_post_meta( $pid, '_sop_preorder_removed', $removed_val ? 1 : 0 );
-            }
-        }
     }
 
     $hidden_columns_raw = isset( $_POST['sop_preorder_hidden_columns'] ) ? wp_unslash( $_POST['sop_preorder_hidden_columns'] ) : '';
@@ -1458,12 +1451,8 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
             continue;
         }
 
-        $pid = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
-        if ( $pid > 0 ) {
-            $removed_meta = get_post_meta( $pid, '_sop_preorder_removed', true );
-            if ( '1' === (string) $removed_meta || 1 === (int) $removed_meta ) {
-                continue;
-            }
+        if ( ! empty( $line['is_removed_owner'] ) ) {
+            continue;
         }
 
         $filtered_lines[] = $line;
@@ -2248,15 +2237,13 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
 
         $notes = get_post_meta( $product_id, '_sop_preorder_notes', true );
         $min   = get_post_meta( $product_id, '_sop_min_order_qty', true );
-        $order = get_post_meta( $product_id, '_sop_preorder_order_qty', true );
+        $order = 0.0;
         $order_sku_override = get_post_meta( $product_id, '_sop_preorder_order_sku', true );
-        $removed_flag       = get_post_meta( $product_id, '_sop_preorder_removed', true );
 
         $notes = is_string( $notes ) ? $notes : '';
         $min   = $min !== '' ? (float) $min : 0.0;
-        $order = $order !== '' ? (float) $order : 0.0;
         $order_sku = ( '' !== $order_sku_override ) ? (string) $order_sku_override : $sku;
-        $removed   = ! empty( $removed_flag ) ? 1 : 0;
+        $removed   = 0;
 
         // Stock on hand via WC product object (wc_get_stock_quantity may not exist on this setup).
         $stock_on_hand = $product->get_stock_quantity();
@@ -2497,9 +2484,7 @@ function sop_preorder_handle_post() {
     $skus          = isset( $_POST['sop_sku'] ) && is_array( $_POST['sop_sku'] ) ? $_POST['sop_sku'] : [];
     $notes         = isset( $_POST['sop_notes'] ) && is_array( $_POST['sop_notes'] ) ? $_POST['sop_notes'] : [];
     $mins          = isset( $_POST['sop_min_order_qty'] ) && is_array( $_POST['sop_min_order_qty'] ) ? $_POST['sop_min_order_qty'] : [];
-    $orders        = isset( $_POST['sop_preorder_order_qty'] ) && is_array( $_POST['sop_preorder_order_qty'] ) ? $_POST['sop_preorder_order_qty'] : [];
     $costs         = isset( $_POST['sop_cost_unit_supplier'] ) && is_array( $_POST['sop_cost_unit_supplier'] ) ? $_POST['sop_cost_unit_supplier'] : [];
-    $removed_flags = isset( $_POST['sop_removed'] ) && is_array( $_POST['sop_removed'] ) ? $_POST['sop_removed'] : [];
     $product_ids   = isset( $_POST['sop_product_id'] ) && is_array( $_POST['sop_product_id'] ) ? $_POST['sop_product_id'] : [];
 
     foreach ( $product_ids as $index => $raw_product_id ) {
@@ -2511,9 +2496,7 @@ function sop_preorder_handle_post() {
         $sku_val     = isset( $skus[ $index ] ) ? wc_clean( wp_unslash( $skus[ $index ] ) ) : '';
         $note_val    = isset( $notes[ $index ] ) ? wp_kses_post( wp_unslash( $notes[ $index ] ) ) : '';
         $min_val     = isset( $mins[ $index ] ) ? (float) $mins[ $index ] : 0.0;
-        $order_val   = isset( $orders[ $index ] ) ? (float) $orders[ $index ] : 0.0;
         $cost_val    = isset( $costs[ $index ] ) ? (float) $costs[ $index ] : 0.0;
-        $removed_val = ! empty( $removed_flags[ $index ] ) ? 1 : 0;
 
         if ( '' !== $sku_val ) {
             update_post_meta( $product_id, '_sop_preorder_order_sku', $sku_val );
@@ -2523,8 +2506,6 @@ function sop_preorder_handle_post() {
 
         update_post_meta( $product_id, '_sop_preorder_notes', $note_val );
         update_post_meta( $product_id, '_sop_min_order_qty', $min_val );
-        update_post_meta( $product_id, '_sop_preorder_order_qty', $order_val );
-        update_post_meta( $product_id, '_sop_preorder_removed', $removed_val );
 
         $ctx      = sop_preorder_resolve_supplier_params( $supplier_id );
         $supplier = $ctx['supplier'];

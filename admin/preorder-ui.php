@@ -1,5 +1,7 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.73 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.75 *
+ * - V12.75 - Use sheet-line removed state (no product meta).
+ * - V12.74 - Store removed state per sheet line.
  * - V12.73 - UI: consolidate deferred header SVG logic.
  * - V12.72 - UI: defer header SVG background to prevent first-paint splash.
  * - V12.71 - UI: gate header icon opacity on initial paint.
@@ -80,7 +82,7 @@
  *      SKU                -> meta: _sku
  *      Notes              -> meta: _sop_preorder_notes
  *      Min order qty      -> meta: _sop_min_order_qty
- *      Manual order qty   -> meta: _sop_preorder_order_qty
+ *      Manual order qty   -> sheet line: qty_owner
  *      Cost per unit      -> meta: _sop_cost_rmb / _sop_cost_usd / _sop_cost_eur / _cogs_value
  */
 
@@ -734,6 +736,10 @@ function sop_preorder_render_admin_page() {
 
                     if ( isset( $line['order_notes_owner'] ) ) {
                         $row['order_notes'] = $line['order_notes_owner'];
+                    }
+
+                    if ( isset( $line['is_removed_owner'] ) ) {
+                        $row['removed'] = ! empty( $line['is_removed_owner'] );
                     }
 
                     if ( isset( $line['carton_no'] ) ) {
@@ -5517,7 +5523,7 @@ function sop_preorder_render_admin_page() {
                             carton_no: cartonNo,
                             cbm_per_unit: cubicCm,
                             cbm_total: cbmTotal,
-                            removed: removedVal
+                            is_removed_owner: removedVal
                         } );
                     } );
                         var payloadLines = {

@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 1 (DB + Helpers)
- * File version: 1.0.04
+ * File version: 1.0.05
  *
  * - Declares sop_DB class (schema + helpers).
  * - Defines all core Stock Order Plugin tables.
@@ -12,6 +12,7 @@
  * - 1.0.02 - Goods-In v1: add goods-in columns to preorder lines and compute inbound as outstanding.
  * - 1.0.03 - Add carton_no to preorder sheet lines for per-line carton tracking.
  * - 1.0.04 - Clarify inbound helper uses ordered/legacy receiving sheets.
+ * - 1.0.05 - Store removed state per preorder sheet line.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -29,7 +30,7 @@ if ( ! class_exists( 'sop_DB' ) ) {
          * Current schema version for this project.
          * Bump this when tables/columns change in future phases.
          */
-        const VERSION = '1.2.2';
+        const VERSION = '1.2.3';
 
         /**
          * Return list of logical table keys => physical table names.
@@ -278,6 +279,7 @@ if ( ! class_exists( 'sop_DB' ) ) {
                 product_notes_owner LONGTEXT NULL,
                 order_notes_owner LONGTEXT NULL,
                 carton_no VARCHAR(190) NOT NULL DEFAULT '',
+                is_removed_owner TINYINT(1) NOT NULL DEFAULT 0,
                 sku_supplier VARCHAR(190) NOT NULL DEFAULT '',
                 qty_supplier DECIMAL(14,3) NOT NULL DEFAULT 0,
                 cost_rmb_supplier DECIMAL(14,4) NOT NULL DEFAULT 0,
@@ -486,8 +488,8 @@ if ( ! function_exists( 'sop_db_get_inbound_qty_map' ) ) {
         // Only orderable (non-zero) quantities.
         $where[] = 'l.qty_owner > 0';
 
-        // Exclude removed products (removed flag is stored on product meta).
-        $where[] = "( pm.meta_value IS NULL OR pm.meta_value <> '1' )";
+        // Exclude removed lines (per-sheet flag).
+        $where[] = "( l.is_removed_owner = 0 OR l.is_removed_owner IS NULL )";
 
         // Locked / ordered sheets only (include legacy 'receiving' for goods-in progress).
         if ( $has_is_locked ) {
@@ -527,12 +529,10 @@ if ( ! function_exists( 'sop_db_get_inbound_qty_map' ) ) {
                     ) AS inbound_qty
                 FROM {$tbl_lines} l
                 INNER JOIN {$tbl_sheets} s ON s.id = l.sheet_id
-                LEFT JOIN {$wpdb->postmeta} pm ON pm.post_id = l.product_id AND pm.meta_key = %s
                 WHERE {$where_sql}
                 GROUP BY l.product_id";
 
-        $values = array_merge( array( '_sop_preorder_removed' ), $values );
-        $prepared = $wpdb->prepare( $sql, $values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $prepared = empty( $values ) ? $sql : $wpdb->prepare( $sql, $values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         $rows     = $wpdb->get_results( $prepared, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         if ( empty( $rows ) || ! is_array( $rows ) ) {
