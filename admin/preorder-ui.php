@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.80 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.81 *
+ * - V12.81 - UI: fix mobile rounding card overflow.
  * - V12.80 - UI: mobile rounding card spacing fix.
  * - V12.79 - UI: mobile layout fixes for header cards.
  * - V12.78 - UI: Supplier SKUs '+more' shown on 3rd line.
@@ -1406,7 +1407,7 @@ function sop_preorder_render_admin_page() {
                 </div>
             </div>
 
-            <div class="sop-preorder-card sop-preorder-card--tools">
+            <div class="sop-preorder-card sop-preorder-card--tools sop-preorder-card--rounding">
                 <?php
                 $sop_icon_rounding_class = $sop_icon_rounding_uri ? ' sop-has-custom-icon' : '';
                 $sop_icon_rounding_data = $sop_icon_rounding_uri ? ' data-icon="' . esc_attr( $sop_icon_rounding_uri ) . '"' : '';
@@ -3210,6 +3211,37 @@ function sop_preorder_render_admin_page() {
 
             .sop-preorder-card--tools .sop-preorder-toolbar-row--rounding {
                 margin-top: 0;
+            }
+
+            .sop-preorder-card--rounding {
+                max-width: 100%;
+                width: 100%;
+                box-sizing: border-box;
+                overflow-x: hidden;
+            }
+
+            .sop-preorder-card--rounding .sop-preorder-card-row,
+            .sop-preorder-card--rounding .sop-preorder-bottom-left,
+            .sop-preorder-card--rounding .sop-preorder-bottom-middle,
+            .sop-preorder-card--rounding .sop-preorder-bottom-right {
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            .sop-preorder-card--rounding .sop-preorder-card-row {
+                justify-content: flex-start;
+            }
+
+            .sop-preorder-card--rounding .sop-preorder-toolbar-row--rounding,
+            .sop-preorder-card--rounding .sop-preorder-toolbar-row--actions,
+            .sop-preorder-card--rounding .sop-preorder-toolbar-row--search {
+                min-width: 0;
+            }
+
+            .sop-preorder-card--rounding .button {
+                max-width: 100%;
+                box-sizing: border-box;
             }
         }
 
