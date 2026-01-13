@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.81 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.82 *
+ * - V12.82 - UI: mobile rounding card stack bulk actions (fix off-screen controls).
  * - V12.81 - UI: fix mobile rounding card overflow.
  * - V12.80 - UI: mobile rounding card spacing fix.
  * - V12.79 - UI: mobile layout fixes for header cards.
@@ -3217,7 +3218,7 @@ function sop_preorder_render_admin_page() {
                 max-width: 100%;
                 width: 100%;
                 box-sizing: border-box;
-                overflow-x: hidden;
+                overflow-x: visible;
             }
 
             .sop-preorder-card--rounding .sop-preorder-card-row,
@@ -3230,13 +3231,38 @@ function sop_preorder_render_admin_page() {
             }
 
             .sop-preorder-card--rounding .sop-preorder-card-row {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
                 justify-content: flex-start;
+                gap: 12px;
             }
 
             .sop-preorder-card--rounding .sop-preorder-toolbar-row--rounding,
             .sop-preorder-card--rounding .sop-preorder-toolbar-row--actions,
             .sop-preorder-card--rounding .sop-preorder-toolbar-row--search {
                 min-width: 0;
+            }
+
+            .sop-preorder-card--rounding .sop-preorder-bottom-middle {
+                width: 100%;
+                max-width: 100%;
+                margin-left: 0;
+                align-items: stretch;
+                justify-content: flex-start;
+            }
+
+            .sop-preorder-card--rounding .sop-preorder-bottom-middle .button {
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            .sop-preorder-card--rounding .sop-preorder-show-removed {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                width: 100%;
             }
 
             .sop-preorder-card--rounding .button {
