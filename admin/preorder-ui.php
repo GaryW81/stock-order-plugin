@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.76 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.77 *
+ * - V12.77 - UI: compact Supplier SKUs display + widen column.
  * - V12.76 - Use underscored supplier ID field name.
  * - V12.75 - Use sheet-line removed state (no product meta).
  * - V12.74 - Store removed state per sheet line.
@@ -136,6 +137,68 @@ if ( ! function_exists( 'sop_preorder_get_header_icon_data_uri' ) ) {
         $mime = ( 'svg' === $ext ) ? 'image/svg+xml' : 'image/png';
 
         return 'data:' . $mime . ';base64,' . base64_encode( $bin );
+    }
+}
+
+if ( ! function_exists( 'sop_preorder_parse_supplier_sku_entries' ) ) {
+    /**
+     * Normalize supplier SKU text into a list of displayable entries.
+     *
+     * @param mixed $raw Raw meta value.
+     * @return string[]
+     */
+    function sop_preorder_parse_supplier_sku_entries( $raw ) {
+        $lines = array();
+
+        if ( is_array( $raw ) ) {
+            foreach ( $raw as $item ) {
+                if ( is_string( $item ) ) {
+                    $lines[] = $item;
+                }
+            }
+        } elseif ( is_string( $raw ) ) {
+            $lines[] = $raw;
+        }
+
+        if ( empty( $lines ) ) {
+            return array();
+        }
+
+        $merged = implode( "\n", $lines );
+        $merged = str_ireplace( array( '<br />', '<br/>', '<br>' ), "\n", $merged );
+
+        $raw_lines = preg_split( "/\r\n|\r|\n/", $merged );
+        if ( ! is_array( $raw_lines ) ) {
+            return array();
+        }
+
+        $clean = array();
+        foreach ( $raw_lines as $line ) {
+            $line = trim( (string) $line );
+            if ( '' !== $line ) {
+                $clean[] = $line;
+            }
+        }
+
+        if ( empty( $clean ) ) {
+            return array();
+        }
+
+        $entries = array();
+        $count   = count( $clean );
+        for ( $i = 0; $i < $count; $i++ ) {
+            $sku_line = $clean[ $i ];
+            $next     = ( $i + 1 < $count ) ? $clean[ $i + 1 ] : '';
+
+            if ( '' !== $next && preg_match( '/^\s*\d+(?:\.\d+)?\s*(x|pcs|pc|qty|units)?\s*$/i', $next ) ) {
+                $entries[] = $sku_line . ' (' . trim( $next ) . ')';
+                $i++;
+            } else {
+                $entries[] = $sku_line;
+            }
+        }
+
+        return $entries;
     }
 }
 
@@ -1741,11 +1804,32 @@ function sop_preorder_render_admin_page() {
                                         $supplier_skus_val   = get_post_meta( $display_product_id, '_sop_supplier_skus', true );
                                         $supplier_skus_val   = is_string( $supplier_skus_val ) ? $supplier_skus_val : '';
                                         $supplier_skus_sort  = trim( str_replace( array( "\r\n", "\r", "\n" ), ' ', $supplier_skus_val ) );
+                                        $supplier_skus_list  = sop_preorder_parse_supplier_sku_entries( $supplier_skus_val );
+                                        $supplier_skus_count = count( $supplier_skus_list );
+                                        $supplier_skus_shown = array_slice( $supplier_skus_list, 0, 2 );
+                                        $supplier_skus_more  = max( 0, $supplier_skus_count - 2 );
+                                        $supplier_skus_full  = $supplier_skus_list ? implode( "\n", $supplier_skus_list ) : '';
+                                        $supplier_skus_line1 = isset( $supplier_skus_shown[0] ) ? $supplier_skus_shown[0] : '';
+                                        $supplier_skus_line2 = isset( $supplier_skus_shown[1] ) ? $supplier_skus_shown[1] : '';
+                                        if ( $supplier_skus_more > 0 ) {
+                                            $suffix = ' +' . $supplier_skus_more . ' more...';
+                                            $supplier_skus_line2 = '' !== $supplier_skus_line2 ? $supplier_skus_line2 . $suffix : $suffix;
+                                        }
                                         ?>
                                         <td class="column-supplier-skus" data-column="supplier_skus" data-sort-key="supplier_skus" data-sort-value="<?php echo esc_attr( $supplier_skus_sort ); ?>" data-sort-text="<?php echo esc_attr( $supplier_skus_sort ); ?>">
                                             <?php
-                                            if ( '' !== $supplier_skus_val ) {
-                                                echo wp_kses_post( nl2br( esc_html( $supplier_skus_val ) ) );
+                                            if ( ! empty( $supplier_skus_full ) ) {
+                                                ?>
+                                                <span class="sop-supplier-skus-compact" title="<?php echo esc_attr( $supplier_skus_full ); ?>">
+                                                    <?php if ( '' !== $supplier_skus_line1 ) : ?>
+                                                        <span class="sop-supplier-skus-line"><?php echo esc_html( $supplier_skus_line1 ); ?></span>
+                                                    <?php endif; ?>
+                                                    <?php if ( '' !== $supplier_skus_line2 ) : ?>
+                                                        <span class="sop-supplier-skus-line"><?php echo esc_html( $supplier_skus_line2 ); ?></span>
+                                                    <?php endif; ?>
+                                                </span>
+                                                <span class="sop-hidden"><?php echo esc_html( $supplier_skus_full ); ?></span>
+                                                <?php
                                             }
                                             ?>
                                         </td>
@@ -3168,6 +3252,29 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-table .column-sku {
             width: 120px;
             white-space: nowrap;
+        }
+
+        .sop-preorder-table th.column-supplier-skus,
+        .sop-preorder-table td.column-supplier-skus {
+            width: 90px;
+            min-width: 90px;
+            max-width: 90px;
+        }
+
+        .sop-supplier-skus-compact {
+            display: block;
+            cursor: help;
+        }
+
+        .sop-supplier-skus-line {
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sop-hidden {
+            display: none;
         }
 
         .sop-preorder-table td.column-sku textarea.sop-preorder-sku {
