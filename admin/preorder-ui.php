@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.77 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.78 *
+ * - V12.78 - UI: Supplier SKUs '+more' shown on 3rd line.
  * - V12.77 - UI: compact Supplier SKUs display + widen column.
  * - V12.76 - Use underscored supplier ID field name.
  * - V12.75 - Use sheet-line removed state (no product meta).
@@ -1811,10 +1812,6 @@ function sop_preorder_render_admin_page() {
                                         $supplier_skus_full  = $supplier_skus_list ? implode( "\n", $supplier_skus_list ) : '';
                                         $supplier_skus_line1 = isset( $supplier_skus_shown[0] ) ? $supplier_skus_shown[0] : '';
                                         $supplier_skus_line2 = isset( $supplier_skus_shown[1] ) ? $supplier_skus_shown[1] : '';
-                                        if ( $supplier_skus_more > 0 ) {
-                                            $suffix = ' +' . $supplier_skus_more . ' more...';
-                                            $supplier_skus_line2 = '' !== $supplier_skus_line2 ? $supplier_skus_line2 . $suffix : $suffix;
-                                        }
                                         ?>
                                         <td class="column-supplier-skus" data-column="supplier_skus" data-sort-key="supplier_skus" data-sort-value="<?php echo esc_attr( $supplier_skus_sort ); ?>" data-sort-text="<?php echo esc_attr( $supplier_skus_sort ); ?>">
                                             <?php
@@ -1826,6 +1823,9 @@ function sop_preorder_render_admin_page() {
                                                     <?php endif; ?>
                                                     <?php if ( '' !== $supplier_skus_line2 ) : ?>
                                                         <span class="sop-supplier-skus-line"><?php echo esc_html( $supplier_skus_line2 ); ?></span>
+                                                    <?php endif; ?>
+                                                    <?php if ( $supplier_skus_more > 0 ) : ?>
+                                                        <span class="sop-supplier-skus-more"><?php echo esc_html( '+' . $supplier_skus_more . ' more...' ); ?></span>
                                                     <?php endif; ?>
                                                 </span>
                                                 <span class="sop-hidden"><?php echo esc_html( $supplier_skus_full ); ?></span>
@@ -3262,7 +3262,9 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-supplier-skus-compact {
-            display: block;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
             cursor: help;
         }
 
@@ -3271,6 +3273,14 @@ function sop_preorder_render_admin_page() {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .sop-supplier-skus-more {
+            display: block;
+            white-space: nowrap;
+            overflow: visible;
+            text-overflow: clip;
+            font-size: 11px;
         }
 
         .sop-hidden {
