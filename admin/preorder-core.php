@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.65
+ * File version: 11.66
+ * - 11.66 - UI: improve In Progress status pill contrast.
  * - 11.65 - Use underscored supplier ID field name.
  * - 11.64 - Store removed and qty state per sheet line (no product meta).
  * - 11.63 - Add top padding to status pill dashicons for vertical centering.
@@ -512,8 +513,12 @@ function sop_render_preorder_sheets_page() {
                     border:1px solid rgba(0,0,0,.25);
                 }
                 .sop-status-in-progress{
-                    background:linear-gradient(180deg,#5bb4ff 0%,#1a75ff 55%,#0f4fb6 100%);
-                    border-color:#0f4fb6;
+                    background:linear-gradient(180deg,#2f6dd1 0%,#1f55b6 55%,#103a8a 100%);
+                    border-color:#103a8a;
+                    color:#fff;
+                }
+                .sop-status-in-progress .dashicons{
+                    color:#fff;
                 }
                 .sop-status-ordered{
                     background:linear-gradient(180deg,#ff7a7a 0%,#ff2a2a 55%,#b50000 100%);
