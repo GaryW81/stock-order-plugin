@@ -9,7 +9,7 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.26
+ * File version: 1.0.27
  * - Removed stray placeholder label in get_supplier_product_ids().
  * - Inbound: support inbound_map (locked sheet quantities) in stock_at_arrival and suggested_raw.
  * - Correct fallback SOQ to prefer monthly cap × buffer and treat MOQ as one-off pack size.
@@ -329,7 +329,6 @@ class Stock_Order_Plugin_Core_Engine {
     /**
      * Get product IDs for a supplier by simple ID meta:
      * - _sop_supplier_id = supplier ID
-     * - sop_supplier_id  = supplier ID
      *
      * @param int $supplier_id Supplier ID.
      * @return int[]
@@ -358,13 +357,10 @@ class Stock_Order_Plugin_Core_Engine {
                 ON pm.post_id = p.ID
             WHERE p.post_type IN ( 'product', 'product_variation' )
               AND p.post_status IN ( 'publish', 'private' )
-              AND (
-                    ( pm.meta_key = '_sop_supplier_id' AND pm.meta_value = %d )
-                 OR ( pm.meta_key = 'sop_supplier_id'  AND pm.meta_value = %d )
-                  )
+              AND ( pm.meta_key = '_sop_supplier_id' AND pm.meta_value = %d )
         ";
 
-        $prepared = $wpdb->prepare( $sql, $supplier_id, $supplier_id );
+        $prepared = $wpdb->prepare( $sql, $supplier_id );
         $ids      = $wpdb->get_col( $prepared );
 
         return array_map( 'absint', (array) $ids );

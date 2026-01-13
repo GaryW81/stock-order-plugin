@@ -2,12 +2,12 @@
 /**
  * Stock Order Plugin – Phase 2
  * Supplier Product Mapping Screen (paginated + totals)
- * File version: 1.0.03
- * - Support legacy sop_supplier_id alongside _sop_supplier_id in filters.
+ * File version: 1.0.04
+ * - Use underscored supplier meta key only.
  *
  * - Adds "Products by Supplier" submenu under Stock Order.
  * - Lets you select a supplier (or "Unassigned") and see products linked to it.
- * - Uses product meta _sop_supplier_id (primary) with legacy sop_supplier_id fallback.
+ * - Uses product meta _sop_supplier_id only.
  * - Paginated (200 per page by default) with total product count.
  */
 
@@ -32,9 +32,6 @@ if ( ! function_exists( 'sop_get_product_supplier_id' ) ) {
         }
 
         $meta = get_post_meta( $product_id, '_sop_supplier_id', true );
-        if ( '' === $meta ) {
-            $meta = get_post_meta( $product_id, 'sop_supplier_id', true );
-        }
 
         return ( '' === $meta ) ? 0 : (int) $meta;
     }
@@ -145,20 +142,15 @@ function sop_render_products_by_supplier_page() {
     );
 
     if ( $is_unassigned_view ) {
-        // Products with no supplier meta on either key.
+        // Products with no supplier meta.
         $query_args['meta_query'] = array(
-            'relation' => 'AND',
             array(
                 'key'     => '_sop_supplier_id',
-                'compare' => 'NOT EXISTS',
-            ),
-            array(
-                'key'     => 'sop_supplier_id',
                 'compare' => 'NOT EXISTS',
             ),
         );
     } else {
-        // Products explicitly assigned to this supplier via either key.
+        // Products explicitly assigned to this supplier.
         $query_args['meta_query'] = array(
             array(
                 'key'     => '_sop_supplier_id',
@@ -166,13 +158,6 @@ function sop_render_products_by_supplier_page() {
                 'compare' => '=',
                 'type'    => 'NUMERIC',
             ),
-            array(
-                'key'     => 'sop_supplier_id',
-                'value'   => $current_supplier_id,
-                'compare' => '=',
-                'type'    => 'NUMERIC',
-            ),
-            'relation' => 'OR',
         );
     }
 

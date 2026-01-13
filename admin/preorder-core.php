@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.64
+ * File version: 11.65
+ * - 11.65 - Use underscored supplier ID field name.
  * - 11.64 - Store removed and qty state per sheet line (no product meta).
  * - 11.63 - Add top padding to status pill dashicons for vertical centering.
  * - 11.62 - Align status pill dashicons vertically with label text.
@@ -766,7 +767,7 @@ function sop_handle_preorder_filter() {
 
     check_admin_referer( 'sop_preorder_filter', 'sop_preorder_filter_nonce' );
 
-    $supplier_id    = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
+    $supplier_id    = isset( $_POST['_sop_supplier_id'] ) ? (int) $_POST['_sop_supplier_id'] : 0;
     $sheet_id       = isset( $_POST['sop_preorder_sheet_id'] ) ? (int) $_POST['sop_preorder_sheet_id'] : 0;
     $container_type = isset( $_POST['sop_container'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_container'] ) ) : '';
     $pallet_layer   = ! empty( $_POST['sop_pallet_layer'] ) ? 1 : 0;
@@ -784,8 +785,8 @@ function sop_handle_preorder_filter() {
     }
 
     $redirect_args = array(
-        'page'            => 'sop-preorder-sheet',
-        'sop_supplier_id' => $supplier_id,
+        'page'             => 'sop-preorder-sheet',
+        '_sop_supplier_id' => $supplier_id,
         'sop_container'   => $container_type,
         'sop_allowance'   => $allowance,
     );
@@ -810,7 +811,7 @@ function sop_handle_preorder_filter() {
         if ( $existing_sheet && is_array( $existing_sheet ) ) {
             $sheet_supplier_id = isset( $existing_sheet['supplier_id'] ) ? (int) $existing_sheet['supplier_id'] : 0;
             if ( $sheet_supplier_id > 0 ) {
-                $redirect_args['sop_supplier_id'] = $sheet_supplier_id;
+                $redirect_args['_sop_supplier_id'] = $sheet_supplier_id;
             }
 
             $update_data = array(
@@ -851,7 +852,7 @@ function sop_handle_save_preorder_sheet() {
         wp_die( esc_html__( 'Security check failed while saving preorder sheet.', 'sop' ) );
     }
 
-    $supplier_id = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
+    $supplier_id = isset( $_POST['_sop_supplier_id'] ) ? (int) $_POST['_sop_supplier_id'] : 0;
     $sheet_id    = isset( $_POST['sop_sheet_id'] ) ? (int) $_POST['sop_sheet_id'] : 0;
 
     $existing_sheet = null;
@@ -906,7 +907,7 @@ function sop_handle_save_preorder_sheet() {
 
     $redirect_common = array(
         'page'            => 'sop-preorder-sheet',
-        'sop_supplier_id' => $supplier_id,
+        '_sop_supplier_id' => $supplier_id,
         'sop_container'   => $container_type,
         'sop_allowance'   => $allowance,
     );
@@ -1816,7 +1817,7 @@ function sop_preorder_resolve_supplier_params( $preferred_supplier_id = 0 ) {
 
     $requested_supplier_id = (int) $preferred_supplier_id;
     if ( $requested_supplier_id <= 0 ) {
-        $requested_supplier_id = isset( $_GET['sop_supplier_id'] ) ? (int) $_GET['sop_supplier_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $requested_supplier_id = isset( $_GET['_sop_supplier_id'] ) ? (int) $_GET['_sop_supplier_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
     }
 
     $supplier = null;
@@ -2475,7 +2476,7 @@ function sop_preorder_handle_post() {
         return;
     }
 
-    $supplier_id = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
+    $supplier_id = isset( $_POST['_sop_supplier_id'] ) ? (int) $_POST['_sop_supplier_id'] : 0;
 
     if ( $supplier_id <= 0 ) {
         return;

@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.31
+ * File version: 1.0.32
  * - Align handling-day helper with PO modal: order date is day 0, handling starts next day.
  * - Add holiday-aware handling days helper for forecast/PO parity.
  * - Prefer direct USDη'RMB base FX if provided in settings.
@@ -13,6 +13,7 @@
  * - Add Goods-In activity detector for "GI started" indicator.
  * - Canonicalise max_order_qty_per_month meta key.
  * - Store removed state per preorder sheet line.
+ * - Add one-time migration for legacy supplier meta key to underscored key.
  *
  * Requires:
  * - The main sop_DB class + generic CRUD helpers snippet to be active.
@@ -26,6 +27,65 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! class_exists( 'sop_DB' ) ) {
     return;
 }
+
+if ( ! function_exists( 'sop_migrate_supplier_id_meta_to_underscored' ) ) {
+    /**
+     * One-time migration: copy legacy supplier meta to underscored key.
+     *
+     * @return void
+     */
+    function sop_migrate_supplier_id_meta_to_underscored() {
+        if ( ! is_admin() ) {
+            return;
+        }
+
+        if ( '1' === get_option( 'sop_supplier_meta_migrated' ) ) {
+            return;
+        }
+
+        global $wpdb;
+
+        $posts_table    = $wpdb->posts;
+        $postmeta_table = $wpdb->postmeta;
+
+        $legacy_key = 'sop_' . 'supplier_id';
+        $new_key    = '_sop_supplier_id';
+
+        $insert_sql = "
+            INSERT INTO {$postmeta_table} (post_id, meta_key, meta_value)
+            SELECT pm.post_id, %s, pm.meta_value
+            FROM {$postmeta_table} pm
+            INNER JOIN {$posts_table} p
+                ON p.ID = pm.post_id
+            LEFT JOIN {$postmeta_table} pm_new
+                ON pm_new.post_id = pm.post_id
+               AND pm_new.meta_key = %s
+            WHERE pm.meta_key = %s
+              AND p.post_type IN ( 'product', 'product_variation' )
+              AND ( pm_new.meta_id IS NULL OR pm_new.meta_value IS NULL OR pm_new.meta_value = '' )
+        ";
+
+        $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->prepare( $insert_sql, $new_key, $new_key, $legacy_key )
+        );
+
+        $delete_sql = "
+            DELETE pm
+            FROM {$postmeta_table} pm
+            INNER JOIN {$posts_table} p
+                ON p.ID = pm.post_id
+            WHERE pm.meta_key = %s
+              AND p.post_type IN ( 'product', 'product_variation' )
+        ";
+
+        $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $wpdb->prepare( $delete_sql, $legacy_key )
+        );
+
+        update_option( 'sop_supplier_meta_migrated', '1' );
+    }
+}
+add_action( 'admin_init', 'sop_migrate_supplier_id_meta_to_underscored' );
 
 /* -------------------------------------------------------------------------
  * Supplier helpers

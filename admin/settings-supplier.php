@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.37
+ * File version: 1.5.38
  * - Add direct USD→RMB base FX and swap FX/lead time rows.
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
@@ -10,6 +10,7 @@
  * - Add Labels & Barcodes settings tab + supplier label size override.
  * - Remove supplier label size override fields (global labels only).
  * - Adds supplier holiday/shipping settings (multiple periods + units) for PO date suggestions.
+ * - Use underscored supplier ID field name for supplier actions.
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -1652,7 +1653,7 @@ class sop_Admin_Settings {
             return;
         }
 
-        $id              = isset( $_POST['sop_supplier_id'] ) ? (int) $_POST['sop_supplier_id'] : 0;
+        $id              = isset( $_POST['_sop_supplier_id'] ) ? (int) $_POST['_sop_supplier_id'] : 0;
         $name            = isset( $_POST['sop_supplier_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_name'] ) ) : '';
         $slug            = isset( $_POST['sop_supplier_slug'] ) ? sanitize_title( wp_unslash( $_POST['sop_supplier_slug'] ) ) : '';
         $currency = isset( $_POST['sop_supplier_currency'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_supplier_currency'] ) ) : 'GBP';
@@ -2215,7 +2216,7 @@ class sop_Admin_Settings {
             <form method="post">
                 <?php wp_nonce_field( 'sop_save_supplier', 'sop_supplier_nonce' ); ?>
                 <input type="hidden" name="sop_supplier_action" value="save" />
-                <input type="hidden" name="sop_supplier_id" value="<?php echo esc_attr( $editing_id_val ); ?>" />
+                <input type="hidden" name="_sop_supplier_id" value="<?php echo esc_attr( $editing_id_val ); ?>" />
 
                 <table class="form-table" role="presentation">
                     <tbody>

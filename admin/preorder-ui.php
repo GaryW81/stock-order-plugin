@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.75 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.76 *
+ * - V12.76 - Use underscored supplier ID field name.
  * - V12.75 - Use sheet-line removed state (no product meta).
  * - V12.74 - Store removed state per sheet line.
  * - V12.73 - UI: consolidate deferred header SVG logic.
@@ -167,8 +168,8 @@ function sop_preorder_render_admin_page() {
     } else {
         if ( isset( $_GET['supplier_id'] ) ) {
             $current_supplier_id = (int) $_GET['supplier_id']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-        } elseif ( isset( $_GET['sop_supplier_id'] ) ) {
-            $current_supplier_id = (int) $_GET['sop_supplier_id']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        } elseif ( isset( $_GET['_sop_supplier_id'] ) ) {
+            $current_supplier_id = (int) $_GET['_sop_supplier_id']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         }
         if ( $current_supplier_id <= 0 && ! empty( $suppliers ) ) {
             $first = reset( $suppliers );
@@ -1224,7 +1225,7 @@ function sop_preorder_render_admin_page() {
                                 <?php esc_html_e( 'Supplier:', 'sop' ); ?>
                                 <select
                                     id="sop-preorder-supplier"
-                                    name="sop_supplier_id"
+                                    name="_sop_supplier_id"
                                     form="sop-preorder-filter-form"
                                 >
                                     <?php foreach ( $suppliers as $row ) : ?>
@@ -1460,7 +1461,7 @@ function sop_preorder_render_admin_page() {
                 <?php wp_nonce_field( 'sop_save_preorder_sheet', 'sop_save_preorder_sheet_nonce' ); ?>
                 <input type="hidden" name="action" value="sop_save_preorder_sheet" />
                 <input type="hidden" name="sop_sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
-                <input type="hidden" name="sop_supplier_id" value="<?php echo esc_attr( $current_supplier_id ); ?>" />
+                <input type="hidden" name="_sop_supplier_id" value="<?php echo esc_attr( $current_supplier_id ); ?>" />
                 <input type="hidden" name="sop_supplier_name" value="<?php echo isset( $supplier['name'] ) ? esc_attr( $supplier['name'] ) : ''; ?>" />
                 <input type="hidden" name="sop_container_type" value="<?php echo esc_attr( $container_selection ); ?>" />
                 <input type="hidden" name="sop_allowance_percent" value="<?php echo esc_attr( $allowance ); ?>" />
@@ -2645,7 +2646,7 @@ function sop_preorder_render_admin_page() {
             cursor: pointer;
         }
 
-        .sop-preorder-header select[name="sop_supplier_id"] {
+        .sop-preorder-header select[name="_sop_supplier_id"] {
             min-width: 240px;
         }
 
