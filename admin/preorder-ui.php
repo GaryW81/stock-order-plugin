@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.79 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.80 *
+ * - V12.80 - UI: mobile rounding card spacing fix.
  * - V12.79 - UI: mobile layout fixes for header cards.
  * - V12.78 - UI: Supplier SKUs '+more' shown on 3rd line.
  * - V12.77 - UI: compact Supplier SKUs display + widen column.
@@ -3182,6 +3183,33 @@ function sop_preorder_render_admin_page() {
 
             .sop-preorder-bottom-middle .sop-preorder-show-removed {
                 width: 100%;
+            }
+
+            .sop-preorder-card--tools .sop-preorder-card-main,
+            .sop-preorder-card--tools .sop-preorder-card-main--tools {
+                justify-content: flex-start;
+                min-height: 0;
+                height: auto;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            .sop-preorder-card--tools .sop-preorder-bottom-row {
+                justify-content: flex-start;
+                align-items: stretch;
+                min-height: 0;
+                height: auto;
+                gap: 8px;
+            }
+
+            .sop-preorder-card--tools .sop-preorder-bottom-left {
+                align-items: flex-start;
+                justify-content: flex-start;
+                gap: 8px;
+            }
+
+            .sop-preorder-card--tools .sop-preorder-toolbar-row--rounding {
+                margin-top: 0;
             }
         }
 
