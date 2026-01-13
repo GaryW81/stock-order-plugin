@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.78 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.79 *
+ * - V12.79 - UI: mobile layout fixes for header cards.
  * - V12.78 - UI: Supplier SKUs '+more' shown on 3rd line.
  * - V12.77 - UI: compact Supplier SKUs display + widen column.
  * - V12.76 - Use underscored supplier ID field name.
@@ -3090,6 +3091,98 @@ function sop_preorder_render_admin_page() {
 
         .sop-po-values-grid {
             --sop-po-amount-width: 160px;
+        }
+
+        @media (max-width: 782px) {
+            .sop-preorder-card {
+                padding: 12px 12px 14px;
+            }
+
+            .sop-preorder-card-icon {
+                min-width: 64px;
+                min-height: 64px;
+                width: 64px;
+                height: 64px;
+                padding: 2px;
+            }
+
+            .sop-preorder-card-icon .dashicons,
+            .sop-preorder-header-icon-fallback {
+                font-size: 52px;
+                width: 52px;
+                height: 52px;
+                line-height: 52px;
+            }
+
+            .sop-preorder-card-main {
+                padding-left: 12px;
+            }
+
+            .sop-preorder-card__row--container-top {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .sop-preorder-card__row--container-top .sop-preorder-container-item,
+            .sop-preorder-card__row--container-top label {
+                width: 100%;
+            }
+
+            .sop-pallet-layer-label {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .sop-allowance-label {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+
+            .sop-allowance-label input[type="number"] {
+                flex: 1 1 0;
+                min-width: 80px;
+            }
+
+            .sop-preorder-container-item--button .button {
+                width: 100%;
+            }
+
+            .sop-preorder-bottom-row {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .sop-preorder-toolbar-row--rounding,
+            .sop-preorder-toolbar-row--actions,
+            .sop-preorder-toolbar-row--search {
+                width: 100%;
+            }
+
+            .sop-preorder-toolbar-row--rounding {
+                gap: 8px;
+            }
+
+            #sop-round-up,
+            #sop-round-down,
+            #sop-apply-soq-to-qty,
+            #sop-preorder-remove-selected {
+                flex: 1 1 calc(50% - 6px);
+            }
+
+            .sop-preorder-bottom-left,
+            .sop-preorder-bottom-middle {
+                gap: 8px;
+            }
+
+            .sop-preorder-bottom-middle .sop-preorder-show-removed {
+                width: 100%;
+            }
         }
 
         .sop-po-totals-panel {
