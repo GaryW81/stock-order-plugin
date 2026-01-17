@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.82 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.83 *
+ * - V12.83 - UI: fix mobile rounding toolbar overflow (disable column wrapping).
  * - V12.82 - UI: mobile rounding card stack bulk actions (fix off-screen controls).
  * - V12.81 - UI: fix mobile rounding card overflow.
  * - V12.80 - UI: mobile rounding card spacing fix.
@@ -3157,7 +3158,9 @@ function sop_preorder_render_admin_page() {
 
             .sop-preorder-bottom-row {
                 flex-direction: column;
+                flex-wrap: nowrap;
                 align-items: stretch;
+                align-content: stretch;
                 gap: 10px;
             }
 
@@ -3185,6 +3188,20 @@ function sop_preorder_render_admin_page() {
 
             .sop-preorder-bottom-middle .sop-preorder-show-removed {
                 width: 100%;
+            }
+
+            .sop-preorder-bottom-right,
+            .sop-preorder-toolbar-row--search {
+                margin-left: 0;
+            }
+
+            .sop-preorder-sku-search {
+                max-width: 100%;
+            }
+
+            .sop-preorder-columns-toggle {
+                width: 100%;
+                min-width: 0;
             }
 
             .sop-preorder-card--tools .sop-preorder-card-main,
