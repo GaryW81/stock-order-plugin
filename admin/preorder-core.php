@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.68
+ * File version: 11.69
+ * - 11.69 - Canonicalise product notes meta key to _sop_product_notes.
  * - 11.68 - Save internal product notes from preorder sheet.
  * - 11.67 - Fix In Progress status pill selector for contrast styles.
  * - 11.66 - UI: improve In Progress status pill contrast.
@@ -44,7 +45,7 @@
  *      _sop_cost_rmb, _sop_cost_usd, _sop_cost_eur, fallback _cogs_value for GBP.
  * - Editable & persisted per product:
  *      Order SKU (sheet-only) -> meta: _sop_preorder_order_sku
- *      Notes              -> meta: _sop_preorder_notes
+ *      Notes              -> meta: _sop_product_notes
  *      Min order qty      -> meta: _sop_min_order_qty
  *      Manual order qty   -> sheet line qty_owner
  *      Cost per unit      -> meta: _sop_cost_rmb / _sop_cost_usd / _sop_cost_eur / _cogs_value
@@ -2252,7 +2253,7 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
 
         $sku = $product->get_sku();
 
-        $notes = get_post_meta( $product_id, '_sop_preorder_notes', true );
+        $notes = get_post_meta( $product_id, '_sop_product_notes', true );
         $min   = get_post_meta( $product_id, '_sop_min_order_qty', true );
         $order = 0.0;
         $order_sku_override = get_post_meta( $product_id, '_sop_preorder_order_sku', true );
@@ -2521,7 +2522,7 @@ function sop_preorder_handle_post() {
             delete_post_meta( $product_id, '_sop_preorder_order_sku' );
         }
 
-        update_post_meta( $product_id, '_sop_preorder_notes', $note_val );
+        update_post_meta( $product_id, '_sop_product_notes', $note_val );
         update_post_meta( $product_id, '_sop_min_order_qty', $min_val );
 
         $ctx      = sop_preorder_resolve_supplier_params( $supplier_id );

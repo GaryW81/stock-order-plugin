@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.84 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.85 *
+ * - V12.85 - Canonicalise product notes meta key to _sop_product_notes.
  * - V12.84 - UI: add internal product notes column (preorder + goods-in).
  * - V12.83 - UI: fix mobile rounding toolbar overflow (disable column wrapping).
  * - V12.82 - UI: mobile rounding card stack bulk actions (fix off-screen controls).
@@ -89,7 +90,7 @@
  *      _sop_cost_rmb, _sop_cost_usd, _sop_cost_eur, fallback _cogs_value for GBP.
  * - Editable & persisted per product:
  *      SKU                -> meta: _sku
- *      Notes              -> meta: _sop_preorder_notes
+ *      Notes              -> meta: _sop_product_notes
  *      Min order qty      -> meta: _sop_min_order_qty
  *      Manual order qty   -> sheet line: qty_owner
  *      Cost per unit      -> meta: _sop_cost_rmb / _sop_cost_usd / _sop_cost_eur / _cogs_value

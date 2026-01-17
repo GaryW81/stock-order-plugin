@@ -2,8 +2,8 @@
 /**
  * Stock Order Plugin – Phase 2
  * Supplier Product Mapping Screen (paginated + totals)
- * File version: 1.0.04
- * - Use underscored supplier meta key only.
+ * File version: 1.0.05
+ * - Canonicalise product notes meta key to _sop_product_notes.
  *
  * - Adds "Products by Supplier" submenu under Stock Order.
  * - Lets you select a supplier (or "Unassigned") and see products linked to it.
@@ -341,7 +341,7 @@ function sop_get_live_product_display_fields( $product_id, $supplier_id = 0 ) {
     $location = is_string( $location ) ? $location : '';
 
     // Product notes.
-    $product_notes = get_post_meta( $product_id, '_sop_preorder_notes', true );
+    $product_notes = get_post_meta( $product_id, '_sop_product_notes', true );
     $product_notes = is_string( $product_notes ) ? $product_notes : '';
 
     // Brand from taxonomy.

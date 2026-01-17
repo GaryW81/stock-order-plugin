@@ -2,8 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.21
- * - Use underscored supplier meta key only.
+ * File version: 1.0.22
+ * - Canonicalise product notes meta key to _sop_product_notes.
  * - Allow max_order_qty_per_month to save decimals (2dp), accept comma, and never block product save.
  * - Add Supplier SKUs meta (multi-line) for optional Supplier SKUs column.
  * - Canonicalise max_order_qty_per_month meta key.
@@ -15,7 +15,7 @@
  *     - Location: _sop_bin_location (primary), mirrored to _product_location.
  *     - Supplier costs (per unit): _sop_cost_rmb, _sop_cost_usd, _sop_cost_eur.
  *     - Minimum order quantity: _sop_min_order_qty.
- *     - Pre-order notes: _sop_preorder_notes.
+ *     - Product notes: _sop_product_notes.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -108,8 +108,8 @@ function sop_render_product_supplier_metabox( $post ) {
         }
     }
 
-    $preorder_notes = get_post_meta( $post->ID, '_sop_preorder_notes', true );
-    $preorder_notes = is_string( $preorder_notes ) ? $preorder_notes : '';
+    $product_notes = get_post_meta( $post->ID, '_sop_product_notes', true );
+    $product_notes = is_string( $product_notes ) ? $product_notes : '';
 
     $supplier_skus = get_post_meta( $post->ID, '_sop_supplier_skus', true );
     $supplier_skus = is_string( $supplier_skus ) ? $supplier_skus : '';
@@ -221,13 +221,13 @@ function sop_render_product_supplier_metabox( $post ) {
     </p>
 
     <p>
-        <label for="sop_preorder_notes">
-            <?php esc_html_e( 'Pre-order notes (internal)', 'sop' ); ?>
+        <label for="sop_product_notes">
+            <?php esc_html_e( 'Product notes (internal)', 'sop' ); ?>
         </label>
-        <textarea name="sop_preorder_notes"
-                  id="sop_preorder_notes"
+        <textarea name="sop_product_notes"
+                  id="sop_product_notes"
                   rows="3"
-                  class="widefat"><?php echo esc_textarea( $preorder_notes ); ?></textarea>
+                  class="widefat"><?php echo esc_textarea( $product_notes ); ?></textarea>
     </p>
 
     <p style="font-size:11px;color:#666;">
@@ -376,13 +376,13 @@ function sop_save_product_supplier_meta( $post_id ) {
         }
     }
 
-    // SOP pre-order notes.
-    if ( isset( $_POST['sop_preorder_notes'] ) ) {
-        $notes = trim( (string) wp_unslash( $_POST['sop_preorder_notes'] ) );
+    // SOP product notes.
+    if ( isset( $_POST['sop_product_notes'] ) ) {
+        $notes = trim( (string) wp_unslash( $_POST['sop_product_notes'] ) );
         if ( '' === $notes ) {
-            delete_post_meta( $post_id, '_sop_preorder_notes' );
+            delete_post_meta( $post_id, '_sop_product_notes' );
         } else {
-            update_post_meta( $post_id, '_sop_preorder_notes', $notes );
+            update_post_meta( $post_id, '_sop_product_notes', $notes );
         }
     }
 
