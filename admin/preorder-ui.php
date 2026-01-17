@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.83 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.84 *
+ * - V12.84 - UI: add internal product notes column (preorder + goods-in).
  * - V12.83 - UI: fix mobile rounding toolbar overflow (disable column wrapping).
  * - V12.82 - UI: mobile rounding card stack bulk actions (fix off-screen controls).
  * - V12.81 - UI: fix mobile rounding card overflow.
@@ -1491,6 +1492,7 @@ function sop_preorder_render_admin_page() {
             'regular_unit'  => __( 'Price excl.', 'sop' ),
             'regular_line'  => __( 'Line excl.', 'sop' ),
             'notes'         => __( 'Product notes', 'sop' ),
+            'internal_product_notes' => __( 'Internal notes', 'sop' ),
             'order_notes'   => __( 'Order notes', 'sop' ),
             'carton_no'     => __( 'Carton no.', 'sop' ),
         );
@@ -1597,6 +1599,7 @@ function sop_preorder_render_admin_page() {
                             <th class="column-regular-unit" data-column="regular_unit" data-sort="price_ex" title="<?php esc_attr_e( 'Regular WooCommerce price per unit excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Price excl.', 'sop' ); ?></th>
                             <th class="column-regular-line" data-column="regular_line" data-sort="line_ex" title="<?php esc_attr_e( 'Regular WooCommerce line price excluding VAT', 'sop' ); ?>"><?php esc_html_e( 'Line excl.', 'sop' ); ?></th>
                             <th class="column-notes" data-column="notes" data-sort="notes" title="<?php esc_attr_e( 'Internal notes for this product.', 'sop' ); ?>"><?php esc_html_e( 'Product notes', 'sop' ); ?></th>
+                            <th class="column-internal-product-notes" data-column="internal_product_notes" data-sort="internal_product_notes" title="<?php esc_attr_e( 'Internal product notes.', 'sop' ); ?>"><?php esc_html_e( 'Internal notes', 'sop' ); ?></th>
                             <th class="column-order-notes" data-column="order_notes" data-sort="order_notes" title="<?php esc_attr_e( 'Order-specific notes', 'sop' ); ?>"><?php esc_html_e( 'Order notes', 'sop' ); ?></th>
                             <th class="column-carton-no"
                                 data-column="carton_no"
@@ -1610,7 +1613,7 @@ function sop_preorder_render_admin_page() {
                     <tbody>
                         <?php if ( empty( $rows ) ) : ?>
                             <tr>
-                                <td colspan="<?php echo ( 'RMB' === $supplier_currency ) ? '22' : '21'; ?>">
+                                <td colspan="<?php echo ( 'RMB' === $supplier_currency ) ? '23' : '22'; ?>">
                                     <?php esc_html_e( 'No products found for this supplier.', 'sop' ); ?>
                                 </td>
                             </tr>
@@ -1640,6 +1643,11 @@ function sop_preorder_render_admin_page() {
                                     $missing_pid_label = ' ' . esc_html__( '(missing product ID)', 'sop' );
                                 }
                                 $notes                = $row['notes'];
+                                $internal_product_notes = '';
+                                if ( $display_product_id > 0 ) {
+                                    $internal_product_notes = get_post_meta( $display_product_id, '_sop_internal_product_notes', true );
+                                    $internal_product_notes = is_string( $internal_product_notes ) ? $internal_product_notes : '';
+                                }
                                 $min_order_qty        = (float) $row['min_order_qty'];
                                 $order_qty            = (float) $row['manual_order_qty'];
                                 $stock_on_hand        = (float) $row['stock_on_hand'];
@@ -1962,6 +1970,30 @@ function sop_preorder_render_admin_page() {
                                             value="<?php echo ! empty( $row['removed'] ) ? '1' : '0'; ?>"
                                             class="sop-preorder-removed-flag"
                                         />
+                                    </td>
+                                    <td class="column-internal-product-notes" data-column="internal_product_notes">
+                                        <div class="sop-preorder-notes-wrapper">
+                                            <textarea
+                                                name="sop_line_internal_product_notes[<?php echo esc_attr( $display_product_id ); ?>]"
+                                                rows="3"
+                                                class="sop-preorder-notes sop-preorder-notes-internal"
+                                                style="width: 100%; resize: none;"
+                                                title="<?php echo esc_attr( $internal_product_notes ); ?>"
+                                                data-row-index="<?php echo esc_attr( $row_index ); ?>"
+                                                data-notes-type="internal"
+                                                <?php echo $inputs_disabled_attr; ?>
+                                            ><?php echo esc_textarea( $internal_product_notes ); ?></textarea>
+
+                                            <button type="button"
+                                                    class="sop-preorder-notes-edit-icon"
+                                                    data-row-key="<?php echo esc_attr( $row_key ); ?>"
+                                                    data-row-index="<?php echo esc_attr( $row_index ); ?>"
+                                                    data-notes-type="internal"
+                                                    aria-label="<?php esc_attr_e( 'Edit internal notes', 'sop' ); ?>"
+                                                    <?php echo $inputs_disabled_attr; ?>>
+                                                <span class="dashicons dashicons-edit"></span>
+                                            </button>
+                                        </div>
                                     </td>
                                     <td class="column-order-notes" data-column="order_notes">
                                         <div class="sop-preorder-notes-wrapper">
@@ -3678,6 +3710,8 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-table th.column-notes,
         .sop-preorder-table td.column-notes,
+        .sop-preorder-table th.column-internal-product-notes,
+        .sop-preorder-table td.column-internal-product-notes,
         .sop-preorder-table th.column-order-notes,
         .sop-preorder-table td.column-order-notes {
             min-width: 40ch;
@@ -4096,7 +4130,9 @@ function sop_preorder_render_admin_page() {
                 var type = notesType || 'product';
                 var $textarea = 'order' === type
                     ? $row.find( '.sop-preorder-notes-order' )
-                    : $row.find( '.sop-preorder-notes-product' );
+                    : ( 'internal' === type
+                        ? $row.find( '.sop-preorder-notes-internal' )
+                        : $row.find( '.sop-preorder-notes-product' ) );
                 if ( ! $textarea.length ) {
                     return;
                 }
@@ -4110,6 +4146,8 @@ function sop_preorder_render_admin_page() {
 
                 if ( 'order' === type ) {
                     $notesOverlayTitle.text( '<?php echo esc_js( __( 'Order notes', 'sop' ) ); ?>' );
+                } else if ( 'internal' === type ) {
+                    $notesOverlayTitle.text( '<?php echo esc_js( __( 'Internal notes', 'sop' ) ); ?>' );
                 } else {
                     $notesOverlayTitle.text( '<?php echo esc_js( __( 'Product notes', 'sop' ) ); ?>' );
                 }
@@ -4262,7 +4300,7 @@ function sop_preorder_render_admin_page() {
             $table.on( 'click', '.sop-preorder-notes, .sop-preorder-notes-edit-icon', function( e ) {
                 e.preventDefault();
                 var $row = $( this ).closest( 'tr.sop-preorder-row' );
-                var notesType = $( this ).data( 'notes-type' ) || ( $( this ).hasClass( 'sop-preorder-notes-order' ) ? 'order' : 'product' );
+                var notesType = $( this ).data( 'notes-type' ) || ( $( this ).hasClass( 'sop-preorder-notes-order' ) ? 'order' : ( $( this ).hasClass( 'sop-preorder-notes-internal' ) ? 'internal' : 'product' ) );
                 sopPreorderOpenNotesOverlayForRow( $row, notesType );
             } );
 
@@ -4625,6 +4663,8 @@ function sop_preorder_render_admin_page() {
                         return $row.find('.column-category').text() || '';
                     case 'notes':
                         return $row.find('.column-notes textarea').val() || '';
+                    case 'internal_product_notes':
+                        return $row.find('.column-internal-product-notes textarea').val() || '';
                     case 'order_notes':
                         return $row.find('.column-order-notes textarea').val() || '';
                     case 'cost':
@@ -5811,34 +5851,36 @@ function sop_preorder_render_admin_page() {
                             var costRmb = parseFloat( $row.find( 'input[name^="sop_line_cost_rmb"]' ).val() );
                             if ( isNaN( costRmb ) ) { costRmb = 0; }
                             var productNotes = $row.find( 'textarea[name^="sop_line_product_notes"]' ).val() || '';
-                        var orderNotes = $row.find( 'textarea[name^="sop_line_order_notes"]' ).val() || '';
-                        var cartonNo = $row.find( 'input[name^="sop_line_carton_no"]' ).val() || '';
-                        var cubicCm = parseFloat( $row.find( '.column-cubic-item' ).data( 'cubic-cm' ) );
-                        if ( isNaN( cubicCm ) ) { cubicCm = 0; }
-                        var cbmTotal = ( cubicCm * qty ) / 1000000;
-                        var removedVal = 0;
-                        var $removedInput = $row.find( '.sop-preorder-removed-flag' );
-                        if ( $removedInput.length && String( $removedInput.val() ) === '1' ) {
-                            removedVal = 1;
-                        } else if ( $row.hasClass( 'sop-preorder-row-removed' ) ) {
-                            removedVal = 1;
-                        }
+                            var internalNotes = $row.find( 'textarea[name^="sop_line_internal_product_notes"]' ).val() || '';
+                            var orderNotes = $row.find( 'textarea[name^="sop_line_order_notes"]' ).val() || '';
+                            var cartonNo = $row.find( 'input[name^="sop_line_carton_no"]' ).val() || '';
+                            var cubicCm = parseFloat( $row.find( '.column-cubic-item' ).data( 'cubic-cm' ) );
+                            if ( isNaN( cubicCm ) ) { cubicCm = 0; }
+                            var cbmTotal = ( cubicCm * qty ) / 1000000;
+                            var removedVal = 0;
+                            var $removedInput = $row.find( '.sop-preorder-removed-flag' );
+                            if ( $removedInput.length && String( $removedInput.val() ) === '1' ) {
+                                removedVal = 1;
+                            } else if ( $row.hasClass( 'sop-preorder-row-removed' ) ) {
+                                removedVal = 1;
+                            }
 
-                        lines.push( {
-                            product_id: productId,
-                            sku: sku,
-                            image_id: imageId,
+                            lines.push( {
+                                product_id: productId,
+                                sku: sku,
+                                image_id: imageId,
                                 location: location,
                                 qty: qty,
                                 moq: moq,
                                 cost_rmb: costRmb,
-                            product_notes: productNotes,
-                            order_notes: orderNotes,
-                            carton_no: cartonNo,
-                            cbm_per_unit: cubicCm,
-                            cbm_total: cbmTotal,
-                            is_removed_owner: removedVal
-                        } );
+                                product_notes: productNotes,
+                                internal_product_notes: internalNotes,
+                                order_notes: orderNotes,
+                                carton_no: cartonNo,
+                                cbm_per_unit: cubicCm,
+                                cbm_total: cbmTotal,
+                                is_removed_owner: removedVal
+                            } );
                     } );
                         var payloadLines = {
                             v: 1,

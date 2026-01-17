@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.67
+ * File version: 11.68
+ * - 11.68 - Save internal product notes from preorder sheet.
  * - 11.67 - Fix In Progress status pill selector for contrast styles.
  * - 11.66 - UI: improve In Progress status pill contrast.
  * - 11.65 - Use underscored supplier ID field name.
@@ -974,6 +975,7 @@ function sop_handle_save_preorder_sheet() {
             $moq       = isset( $line['moq'] ) ? floatval( $line['moq'] ) : 0;
             $cost_rmb  = isset( $line['cost_rmb'] ) ? floatval( $line['cost_rmb'] ) : 0;
             $p_notes   = isset( $line['product_notes'] ) ? wp_kses_post( $line['product_notes'] ) : '';
+            $i_notes   = isset( $line['internal_product_notes'] ) ? wp_kses_post( $line['internal_product_notes'] ) : '';
             $o_notes   = isset( $line['order_notes'] ) ? sanitize_textarea_field( $line['order_notes'] ) : '';
             $carton_no = isset( $line['carton_no'] ) ? sanitize_text_field( $line['carton_no'] ) : '';
             if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
@@ -984,6 +986,8 @@ function sop_handle_save_preorder_sheet() {
             $location  = isset( $line['location'] ) ? sanitize_text_field( $line['location'] ) : '';
             $cbm_unit  = isset( $line['cbm_per_unit'] ) ? floatval( $line['cbm_per_unit'] ) : 0;
             $cbm_total = isset( $line['cbm_total'] ) ? floatval( $line['cbm_total'] ) : 0;
+
+            update_post_meta( $product_id, '_sop_internal_product_notes', $i_notes );
 
             $lines[] = array(
                 'product_id'          => $product_id,
@@ -1010,6 +1014,7 @@ function sop_handle_save_preorder_sheet() {
         $moqs          = isset( $_POST['sop_line_moq'] ) ? (array) $_POST['sop_line_moq'] : array();
         $costs_rmb     = isset( $_POST['sop_line_cost_rmb'] ) ? (array) $_POST['sop_line_cost_rmb'] : array();
         $product_notes = isset( $_POST['sop_line_product_notes'] ) ? (array) $_POST['sop_line_product_notes'] : array();
+        $internal_notes = isset( $_POST['sop_line_internal_product_notes'] ) ? (array) $_POST['sop_line_internal_product_notes'] : array();
         $order_notes   = isset( $_POST['sop_line_order_notes'] ) ? (array) wp_unslash( $_POST['sop_line_order_notes'] ) : array();
         $carton_nos    = isset( $_POST['sop_line_carton_no'] ) ? (array) wp_unslash( $_POST['sop_line_carton_no'] ) : array();
         $image_ids     = isset( $_POST['sop_line_image_id'] ) ? (array) $_POST['sop_line_image_id'] : array();
@@ -1018,7 +1023,7 @@ function sop_handle_save_preorder_sheet() {
         $cbm_totals    = isset( $_POST['sop_line_cbm_total'] ) ? (array) $_POST['sop_line_cbm_total'] : array();
         $removed_flags = isset( $_POST['sop_removed'] ) ? (array) $_POST['sop_removed'] : array();
 
-        $all_keys = array_keys( $product_ids + $skus + $qtys + $moqs + $costs_rmb + $product_notes + $order_notes + $carton_nos + $image_ids + $locations + $cbm_units + $cbm_totals + $removed_flags );
+        $all_keys = array_keys( $product_ids + $skus + $qtys + $moqs + $costs_rmb + $product_notes + $internal_notes + $order_notes + $carton_nos + $image_ids + $locations + $cbm_units + $cbm_totals + $removed_flags );
         $all_keys = sop_preorder_normalize_pid_map( array_fill_keys( $all_keys, 1 ) );
         $all_keys = array_keys( $all_keys );
 
@@ -1033,6 +1038,7 @@ function sop_handle_save_preorder_sheet() {
             $moq       = isset( $moqs[ $pid ] ) ? floatval( wp_unslash( $moqs[ $pid ] ) ) : 0;
             $cost_rmb  = isset( $costs_rmb[ $pid ] ) ? floatval( wp_unslash( $costs_rmb[ $pid ] ) ) : 0;
             $p_notes   = isset( $product_notes[ $pid ] ) ? wp_kses_post( wp_unslash( $product_notes[ $pid ] ) ) : '';
+            $i_notes   = isset( $internal_notes[ $pid ] ) ? wp_kses_post( wp_unslash( $internal_notes[ $pid ] ) ) : '';
             $o_notes   = isset( $order_notes[ $pid ] ) ? sanitize_textarea_field( $order_notes[ $pid ] ) : '';
             $carton_no = isset( $carton_nos[ $pid ] ) ? sanitize_text_field( $carton_nos[ $pid ] ) : '';
             if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
@@ -1045,6 +1051,8 @@ function sop_handle_save_preorder_sheet() {
             $cbm_total = isset( $cbm_totals[ $pid ] ) ? floatval( wp_unslash( $cbm_totals[ $pid ] ) ) : 0;
 
             $removed_val = isset( $removed_flags[ $pid ] ) && ! empty( $removed_flags[ $pid ] ) ? 1 : 0;
+
+            update_post_meta( $product_id, '_sop_internal_product_notes', $i_notes );
 
             $lines[] = array(
                 'product_id'          => $product_id,

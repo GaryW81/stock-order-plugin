@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.07
+ * File version: 1.1.08
  *
+ * - 1.1.08 - UI: add internal product notes column.
  * - 1.1.07 - Use per-sheet removed flag for Goods-In lines.
  * - 1.1.06 - UI: 3-stage labels (In Progress/Ordered/Completed) + GI started indicator.
  * - 1.1.05 - Version bump for Goods-In UI/core.
@@ -639,6 +640,11 @@ function sop_render_goods_in_page() {
                 'visible' => true,
             ),
             array(
+                'key'     => 'internal_product_notes',
+                'label'   => __( 'Internal notes', 'sop' ),
+                'visible' => true,
+            ),
+            array(
                 'key'     => 'order_notes',
                 'label'   => __( 'Order notes', 'sop' ),
                 'visible' => true,
@@ -829,6 +835,7 @@ function sop_render_goods_in_page() {
                 <th class="sop-goodsin-sort" data-sort-key="reason" data-sort-type="text" data-column="reason"><?php esc_html_e( 'Reason', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="carton" data-sort-type="text" data-column="carton"><?php esc_html_e( 'Carton no.', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="product_notes" data-sort-type="text" data-column="product_notes"><?php esc_html_e( 'Product notes', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="internal_product_notes" data-sort-type="text" data-column="internal_product_notes"><?php esc_html_e( 'Internal notes', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="order_notes" data-sort-type="text" data-column="order_notes"><?php esc_html_e( 'Order notes', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="goodsin_notes" data-sort-type="text" data-column="goodsin_notes"><?php esc_html_e( 'Goods-In Notes', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="stocked" data-sort-type="number" data-column="stocked"><?php esc_html_e( 'Stocked', 'sop' ); ?></th>
@@ -866,6 +873,11 @@ function sop_render_goods_in_page() {
                 $stocked  = isset( $line['goods_in_stock_added_qty'] ) ? (float) $line['goods_in_stock_added_qty'] : 0.0;
                 $product_notes = isset( $line['product_notes_owner'] ) ? (string) $line['product_notes_owner'] : '';
                 $order_notes   = isset( $line['order_notes_owner'] ) ? (string) $line['order_notes_owner'] : '';
+                $internal_notes = '';
+                if ( $pid > 0 ) {
+                    $internal_notes = get_post_meta( $pid, '_sop_internal_product_notes', true );
+                    $internal_notes = is_string( $internal_notes ) ? $internal_notes : '';
+                }
                 $outstanding = max( 0.0, $ordered - $stocked - $missing - $reject );
                 $supplier_skus_val = '';
                 if ( $pid > 0 ) {
@@ -961,6 +973,7 @@ function sop_render_goods_in_page() {
                     data-sort-reason="<?php echo esc_attr( mb_strtolower( $reason ) ); ?>"
                     data-sort-carton="<?php echo esc_attr( mb_strtolower( $carton ) ); ?>"
                     data-sort-product_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $product_notes ) ) ); ?>"
+                    data-sort-internal_product_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $internal_notes ) ) ); ?>"
                     data-sort-order_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $order_notes ) ) ); ?>"
                     data-sort-goodsin_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $notes ) ) ); ?>"
                     data-sort-stocked="<?php echo esc_attr( $stocked ); ?>"
@@ -1050,6 +1063,11 @@ function sop_render_goods_in_page() {
                     <td class="sop-goodsin-text-col" data-column="product_notes" title="<?php echo esc_attr( $product_notes ); ?>">
                         <div class="sop-goodsin-notes-wrap">
                             <div class="sop-goodsin-notes-text"><?php echo esc_html( $product_notes ); ?></div>
+                        </div>
+                    </td>
+                    <td class="sop-goodsin-text-col" data-column="internal_product_notes" title="<?php echo esc_attr( $internal_notes ); ?>">
+                        <div class="sop-goodsin-notes-wrap">
+                            <div class="sop-goodsin-notes-text"><?php echo esc_html( $internal_notes ); ?></div>
                         </div>
                     </td>
                     <td class="sop-goodsin-text-col" data-column="order_notes" title="<?php echo esc_attr( $order_notes ); ?>">
@@ -1329,6 +1347,8 @@ function sop_render_goods_in_page() {
         /* Notes columns */
         .sop-goodsin-table th[data-column="product_notes"],
         .sop-goodsin-table td[data-column="product_notes"],
+        .sop-goodsin-table th[data-column="internal_product_notes"],
+        .sop-goodsin-table td[data-column="internal_product_notes"],
         .sop-goodsin-table th[data-column="order_notes"],
         .sop-goodsin-table td[data-column="order_notes"],
         .sop-goodsin-table th[data-column="goodsin_notes"],
