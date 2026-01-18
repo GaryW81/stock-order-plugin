@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.18
+ * File version: 1.1.19
  *
+ * - 1.1.19 - UI: Goods-In modal — grey missing-note pills + desktop name/SKU in one row.
  * - 1.1.18 - UI: center qty +/- glyphs on desktop (Goods-In modal).
  * - 1.1.17 - UI: fine-tune Goods-In header icon nudge for extreme zoom (desktop).
  * - 1.1.16 - UI: make Goods-In header icon alignment zoom-robust (em-based nudge).
@@ -1859,6 +1860,17 @@ function sop_render_goods_in_page() {
             font-size: 14px;
             color: #1d2327;
         }
+        @media (min-width: 783px) {
+            .sop-goodsin-product-modal__title-sku-row {
+                display: flex;
+                gap: 12px;
+                width: 100%;
+            }
+            .sop-goodsin-product-modal__title-sku-row > .sop-goodsin-product-modal__block {
+                flex: 1 1 0;
+                min-width: 0;
+            }
+        }
         .sop-goodsin-product-modal__media {
             display: flex;
             gap: 16px;
@@ -1944,9 +1956,10 @@ function sop_render_goods_in_page() {
             color: #fff;
         }
         .sop-goodsin-product-modal__note-chip.is-no {
-            background: linear-gradient(180deg, #ff7a7a 0%, #ff2a2a 55%, #b50000 100%);
-            border-color: #b50000;
-            opacity: 0.5;
+            background: linear-gradient(180deg, #b3b3b3 0%, #8d8d8d 55%, #707070 100%);
+            border-color: #8d8d8d;
+            opacity: 0.8;
+            cursor: default;
         }
         .sop-goodsin-product-modal__note-chip.is-yes {
             background: linear-gradient(180deg, #7dff5b 0%, #29c324 55%, #0b6f1a 100%);
@@ -2723,8 +2736,10 @@ function sop_render_goods_in_page() {
             </div>
         </div>
         <div class="sop-goodsin-product-modal__card">
-			<div id="sop-product-modal-name" class="sop-goodsin-product-modal__block sop-goodsin-product-modal__name"></div>
-			<div id="sop-product-modal-sku" class="sop-goodsin-product-modal__block sop-goodsin-product-modal__block--sku sop-goodsin-product-modal__sku"></div>
+			<div class="sop-goodsin-product-modal__title-sku-row">
+				<div id="sop-product-modal-name" class="sop-goodsin-product-modal__block sop-goodsin-product-modal__name"></div>
+				<div id="sop-product-modal-sku" class="sop-goodsin-product-modal__block sop-goodsin-product-modal__block--sku sop-goodsin-product-modal__sku"></div>
+			</div>
 
 			<div class="sop-goodsin-product-modal__media">
 				<div class="sop-goodsin-product-modal__image-wrap">
