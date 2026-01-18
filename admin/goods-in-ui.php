@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.17
+ * File version: 1.1.18
  *
+ * - 1.1.18 - UI: center qty +/- glyphs on desktop (Goods-In modal).
  * - 1.1.17 - UI: fine-tune Goods-In header icon nudge for extreme zoom (desktop).
  * - 1.1.16 - UI: make Goods-In header icon alignment zoom-robust (em-based nudge).
  * - 1.1.15 - UI: nudge Goods-In modal header icons further up on desktop.
@@ -2142,6 +2143,11 @@ function sop_render_goods_in_page() {
                 line-height: 1;
                 padding: 0;
             }
+            .sop-goodsin-product-modal__qty-btn .sop-goodsin-modal-qty-icon {
+                display: inline-block;
+                line-height: 1;
+                transform: translateY(-0.08em);
+            }
         }
         @media (max-width: 480px) {
             .sop-goodsin-product-modal__media {
@@ -2752,9 +2758,9 @@ function sop_render_goods_in_page() {
 
 			<div id="sop-product-modal-qty-ordered" class="sop-goodsin-product-modal__qty-ordered"></div>
 			<div class="sop-goodsin-product-modal__qty-control">
-				<button type="button" id="sop-product-modal-btn-minus" class="sop-goodsin-product-modal__qty-btn sop-goodsin-product-modal__qty-btn--minus" aria-label="<?php esc_attr_e( 'Decrease received quantity', 'sop' ); ?>">-</button>
+				<button type="button" id="sop-product-modal-btn-minus" class="sop-goodsin-product-modal__qty-btn sop-goodsin-product-modal__qty-btn--minus" aria-label="<?php esc_attr_e( 'Decrease received quantity', 'sop' ); ?>"><span class="sop-goodsin-modal-qty-icon" aria-hidden="true">−</span></button>
 				<input type="number" id="sop-product-modal-qty-value" class="sop-goodsin-product-modal__qty-value" inputmode="numeric" pattern="[0-9]*" step="1" min="0" value="0" />
-				<button type="button" id="sop-product-modal-btn-plus" class="sop-goodsin-product-modal__qty-btn sop-goodsin-product-modal__qty-btn--plus" aria-label="<?php esc_attr_e( 'Increase received quantity', 'sop' ); ?>">+</button>
+				<button type="button" id="sop-product-modal-btn-plus" class="sop-goodsin-product-modal__qty-btn sop-goodsin-product-modal__qty-btn--plus" aria-label="<?php esc_attr_e( 'Increase received quantity', 'sop' ); ?>"><span class="sop-goodsin-modal-qty-icon" aria-hidden="true">+</span></button>
 			</div>
 
 			<div class="sop-goodsin-product-modal__summary">
