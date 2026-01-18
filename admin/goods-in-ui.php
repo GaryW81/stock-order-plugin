@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.11
+ * File version: 1.1.12
  *
+ * - 1.1.12 - UI: refine Goods-In notes buttons (pill style + full-width row).
  * - 1.1.11 - UI: compress Goods-In modal notes into single button row (desktop), stacked on mobile.
  * - 1.1.10 - UI: show internal notes + current/buffer stock in Goods-In modal.
  * - 1.1.09 - UI: show internal notes + current/buffer stock in Goods-In modal.
@@ -1881,34 +1882,35 @@ function sop_render_goods_in_page() {
             margin-top: 4px;
         }
         .sop-goodsin-product-modal__notes--buttons {
-            flex-direction: row;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-        .sop-goodsin-product-modal__notes-label {
-            font-weight: 600;
-            color: #1d2327;
-            white-space: nowrap;
+            width: 100%;
+            gap: 8px;
         }
         .sop-goodsin-product-modal__notes-buttons {
             display: flex;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
+            width: 100%;
+            gap: 10px;
+            flex-wrap: nowrap;
         }
         .sop-goodsin-product-modal__note-chip {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            border: 1px solid #c3c4c7;
-            background: #fff;
-            color: #1d2327;
-            padding: 4px 10px;
+            justify-content: center;
+            gap: 8px;
+            border: 1px solid rgba(0, 0, 0, 0.25);
+            color: #fff;
+            padding: 6px 10px;
             border-radius: 999px;
-            font-size: 13px;
+            font-size: 12px;
+            font-weight: 700;
             line-height: 1.2;
             cursor: pointer;
+            flex: 1 1 0;
+            min-width: 0;
+            text-align: center;
+            text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -2px 6px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.25);
+            background: #c3c4c7;
         }
         .sop-goodsin-product-modal__note-chip.is-disabled {
             opacity: 0.45;
@@ -1918,12 +1920,16 @@ function sop_render_goods_in_page() {
             font-weight: 700;
             width: 14px;
             text-align: center;
+            color: #fff;
         }
-        .sop-goodsin-product-modal__note-chip.is-no .sop-goodsin-product-modal__note-chip-status {
-            color: #d63638;
+        .sop-goodsin-product-modal__note-chip.is-no {
+            background: linear-gradient(180deg, #ff7a7a 0%, #ff2a2a 55%, #b50000 100%);
+            border-color: #b50000;
+            opacity: 0.5;
         }
-        .sop-goodsin-product-modal__note-chip.is-yes .sop-goodsin-product-modal__note-chip-status {
-            color: #1f9d55;
+        .sop-goodsin-product-modal__note-chip.is-yes {
+            background: linear-gradient(180deg, #7dff5b 0%, #29c324 55%, #0b6f1a 100%);
+            border-color: #0b6f1a;
         }
         .sop-goodsin-product-modal__note-chip.is-no .sop-goodsin-product-modal__note-chip-status::before {
             content: "\2715";
@@ -2086,7 +2092,7 @@ function sop_render_goods_in_page() {
             }
             .sop-goodsin-product-modal__note-chip {
                 width: 100%;
-                justify-content: space-between;
+                justify-content: center;
             }
         }
         @media (max-width: 1024px) {
@@ -2708,18 +2714,17 @@ function sop_render_goods_in_page() {
 			</div>
 
 			<div class="sop-goodsin-product-modal__notes sop-goodsin-product-modal__notes--buttons">
-				<div class="sop-goodsin-product-modal__notes-label"><?php esc_html_e( 'Notes:', 'sop' ); ?></div>
 				<div class="sop-goodsin-product-modal__notes-buttons">
 					<button type="button" id="sop-product-modal-notes-product-btn" class="sop-goodsin-product-modal__note-chip">
-						<span class="sop-goodsin-product-modal__note-chip-text"><?php esc_html_e( 'Product', 'sop' ); ?></span>
+						<span class="sop-goodsin-product-modal__note-chip-text"><?php esc_html_e( 'Product notes', 'sop' ); ?></span>
 						<span class="sop-goodsin-product-modal__note-chip-status" aria-hidden="true"></span>
 					</button>
 					<button type="button" id="sop-product-modal-notes-internal-btn" class="sop-goodsin-product-modal__note-chip">
-						<span class="sop-goodsin-product-modal__note-chip-text"><?php esc_html_e( 'Internal', 'sop' ); ?></span>
+						<span class="sop-goodsin-product-modal__note-chip-text"><?php esc_html_e( 'Internal notes', 'sop' ); ?></span>
 						<span class="sop-goodsin-product-modal__note-chip-status" aria-hidden="true"></span>
 					</button>
 					<button type="button" id="sop-product-modal-notes-order-btn" class="sop-goodsin-product-modal__note-chip">
-						<span class="sop-goodsin-product-modal__note-chip-text"><?php esc_html_e( 'Order', 'sop' ); ?></span>
+						<span class="sop-goodsin-product-modal__note-chip-text"><?php esc_html_e( 'Order notes', 'sop' ); ?></span>
 						<span class="sop-goodsin-product-modal__note-chip-status" aria-hidden="true"></span>
 					</button>
 				</div>
