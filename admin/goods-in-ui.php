@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.15
+ * File version: 1.1.16
  *
+ * - 1.1.16 - UI: make Goods-In header icon alignment zoom-robust (em-based nudge).
  * - 1.1.15 - UI: nudge Goods-In modal header icons further up on desktop.
  * - 1.1.13 - UI: fix Goods-In modal header button icon vertical alignment (desktop).
  * - 1.1.12 - UI: refine Goods-In notes buttons (pill style + full-width row).
@@ -1814,9 +1815,10 @@ function sop_render_goods_in_page() {
             text-align: center;
         }
         @media (min-width: 783px) {
-            .sop-goodsin-product-modal__close,
-            .sop-goodsin-product-modal__nav-btn {
-                padding-bottom: 4px;
+            .sop-goodsin-product-modal__header-btn .sop-goodsin-modal-header-icon {
+                display: inline-block;
+                line-height: 1;
+                transform: translateY(-0.08em);
             }
         }
         .sop-goodsin-product-modal__nav-btn.is-disabled {
@@ -2703,11 +2705,11 @@ function sop_render_goods_in_page() {
 	<div class="sop-goodsin-product-modal__backdrop" data-sop-prod-close="1"></div>
     <div class="sop-modal__inner sop-goodsin-product-modal__inner" role="dialog" aria-modal="true" aria-label="<?php esc_attr_e( 'Product details', 'stock-order-plugin' ); ?>">
         <div class="sop-goodsin-product-modal__header">
-            <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__close" data-sop-prod-close="1" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">&times;</button>
+            <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__close" data-sop-prod-close="1" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>"><span class="sop-goodsin-modal-header-icon" aria-hidden="true">&times;</span></button>
             <div class="sop-goodsin-product-modal__header-title"><?php esc_html_e( 'Goods-In', 'sop' ); ?></div>
             <div class="sop-goodsin-product-modal__header-nav">
-                <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__nav-btn sop-goodsin-pm-nav-prev" id="sop-goodsin-modal-prev" aria-label="<?php esc_attr_e( 'Previous product', 'sop' ); ?>">&lsaquo;</button>
-                <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__nav-btn sop-goodsin-pm-nav-next" id="sop-goodsin-modal-next" aria-label="<?php esc_attr_e( 'Next product', 'sop' ); ?>">&rsaquo;</button>
+                <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__nav-btn sop-goodsin-pm-nav-prev" id="sop-goodsin-modal-prev" aria-label="<?php esc_attr_e( 'Previous product', 'sop' ); ?>"><span class="sop-goodsin-modal-header-icon" aria-hidden="true">&lsaquo;</span></button>
+                <button type="button" class="sop-goodsin-product-modal__header-btn sop-goodsin-product-modal__nav-btn sop-goodsin-pm-nav-next" id="sop-goodsin-modal-next" aria-label="<?php esc_attr_e( 'Next product', 'sop' ); ?>"><span class="sop-goodsin-modal-header-icon" aria-hidden="true">&rsaquo;</span></button>
             </div>
         </div>
         <div class="sop-goodsin-product-modal__card">
