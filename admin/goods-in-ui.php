@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.20
+ * File version: 1.1.21
  *
+ * - 1.1.21 - UI: force Goods-In notes popup true vertical centering on mobile.
  * - 1.1.20 - UI: center notes popup vertically on mobile (Goods-In modal).
  * - 1.1.19 - UI: Goods-In modal — grey missing-note pills + desktop name/SKU in one row.
  * - 1.1.18 - UI: center qty +/- glyphs on desktop (Goods-In modal).
@@ -1530,21 +1531,21 @@ function sop_render_goods_in_page() {
                 z-index: 1000000;
             }
             .sop-goodsin-info-modal-backdrop {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 16px;
+                position: fixed;
+                inset: 0;
+                width: 100vw;
+                height: 100vh;
                 box-sizing: border-box;
             }
             .sop-goodsin-info-modal {
-                position: relative;
-                top: auto;
-                left: auto;
-                transform: none;
-                width: 100%;
+                position: fixed !important;
+                left: 50% !important;
+                top: 50% !important;
+                transform: translate(-50%, -50%) !important;
+                width: calc(100vw - 32px);
                 max-width: 520px;
-                margin: 0;
-                max-height: calc(var(--sop-goodsin-vvh) - 32px);
+                margin: 0 !important;
+                max-height: calc(100vh - 32px);
                 overflow: auto;
                 box-sizing: border-box;
             }
