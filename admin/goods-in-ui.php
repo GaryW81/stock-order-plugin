@@ -1,8 +1,10 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.08
+ * File version: 1.1.10
  *
+ * - 1.1.10 - UI: show internal notes + current/buffer stock in Goods-In modal.
+ * - 1.1.09 - UI: show internal notes + current/buffer stock in Goods-In modal.
  * - 1.1.08 - UI: add internal product notes column.
  * - 1.1.07 - Use per-sheet removed flag for Goods-In lines.
  * - 1.1.06 - UI: 3-stage labels (In Progress/Ordered/Completed) + GI started indicator.
@@ -316,6 +318,46 @@ function sop_goodsin_format_supplier_skus_compact_html( $raw, $product_name = ''
     $html .= '</div>';
 
     return $html;
+}
+
+/**
+ * Get buffer target units for a product using the forecast engine.
+ *
+ * @param int $product_id  Product ID.
+ * @param int $supplier_id Supplier ID.
+ * @return float|null Buffer target units or null if unavailable.
+ */
+function sop_goodsin_get_buffer_target_units( $product_id, $supplier_id ) {
+    $product_id  = (int) $product_id;
+    $supplier_id = (int) $supplier_id;
+    if ( $product_id <= 0 || $supplier_id <= 0 ) {
+        return null;
+    }
+
+    if ( ! function_exists( 'sop_core_engine' ) ) {
+        return null;
+    }
+
+    $engine = sop_core_engine();
+    if ( ! $engine || ! method_exists( $engine, 'get_supplier_settings' ) || ! method_exists( $engine, 'get_product_forecast' ) ) {
+        return null;
+    }
+
+    $settings = $engine->get_supplier_settings( $supplier_id );
+    $row      = $engine->get_product_forecast( $product_id, $settings );
+    if ( ! is_array( $row ) ) {
+        return null;
+    }
+
+    if ( isset( $row['buffer_target_units'] ) ) {
+        return (float) $row['buffer_target_units'];
+    }
+
+    if ( isset( $row['buffer_days'] ) && isset( $row['demand_per_day'] ) ) {
+        return (float) $row['buffer_days'] * (float) $row['demand_per_day'];
+    }
+
+    return null;
 }
 
 /**
@@ -950,6 +992,13 @@ function sop_render_goods_in_page() {
                 if ( null === $stock_qty ) {
                     $stock_qty = '';
                 }
+                $buffer_target_units = '';
+                if ( $pid > 0 && $supplier_id > 0 ) {
+                    $buffer_target = sop_goodsin_get_buffer_target_units( $pid, $supplier_id );
+                    if ( null !== $buffer_target ) {
+                        $buffer_target_units = (string) $buffer_target;
+                    }
+                }
                                 ?>
                                 <tr data-line-id="<?php echo esc_attr( $line_id ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>" data-sop-row="1"
                                     data-sku="<?php echo esc_attr( trim( $sku ) ); ?>"
@@ -957,6 +1006,7 @@ function sop_render_goods_in_page() {
                                     data-location="<?php echo esc_attr( $location ); ?>"
                                     data-carton="<?php echo esc_attr( $carton ); ?>"
                                     data-stock-qty="<?php echo esc_attr( $stock_qty ); ?>"
+                                    data-buffer-target="<?php echo esc_attr( $buffer_target_units ); ?>"
                                     data-ordered="<?php echo esc_attr( $ordered ); ?>"
                                     data-edit-url="<?php echo esc_url( $product_link ); ?>"
                                     data-image-url="<?php echo esc_url( $image_url ); ?>"
@@ -2587,6 +2637,7 @@ function sop_render_goods_in_page() {
                     <div id="sop-product-modal-carton" class="sop-goodsin-product-modal__carton"></div>
                     <div id="sop-product-modal-location" class="sop-goodsin-product-modal__location"></div>
                     <div id="sop-product-modal-stock" class="sop-goodsin-product-modal__stock is-hidden"></div>
+                    <div id="sop-product-modal-buffer-stock" class="sop-goodsin-product-modal__stock sop-goodsin-product-modal__stock--buffer is-hidden"></div>
                     <a id="sop-product-modal-edit" class="sop-goodsin-product-modal__edit" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit product', 'sop' ); ?></a>
                 </div>
 			</div>
@@ -2596,6 +2647,11 @@ function sop_render_goods_in_page() {
 					<div class="sop-goodsin-product-modal__note-label"><?php esc_html_e( 'Product notes', 'sop' ); ?></div>
 					<span id="sop-product-modal-notes-product-status" class="sop-goodsin-product-modal__note-status" aria-hidden="true"></span>
 					<button type="button" id="sop-product-modal-notes-product-view" class="sop-goodsin-product-modal__note-view"><?php esc_html_e( 'View', 'sop' ); ?></button>
+				</div>
+				<div class="sop-goodsin-product-modal__note-row">
+					<div class="sop-goodsin-product-modal__note-label"><?php esc_html_e( 'Internal product notes', 'sop' ); ?></div>
+					<span id="sop-product-modal-notes-internal-status" class="sop-goodsin-product-modal__note-status" aria-hidden="true"></span>
+					<button type="button" id="sop-product-modal-notes-internal-view" class="sop-goodsin-product-modal__note-view"><?php esc_html_e( 'View', 'sop' ); ?></button>
 				</div>
 				<div class="sop-goodsin-product-modal__note-row">
 					<div class="sop-goodsin-product-modal__note-label"><?php esc_html_e( 'Order notes', 'sop' ); ?></div>
@@ -2740,6 +2796,7 @@ function sop_render_goods_in_page() {
             var $productModalLocation = $('#sop-product-modal-location');
             var $productModalCarton = $('#sop-product-modal-carton');
             var $productModalStock = $('#sop-product-modal-stock');
+            var $productModalBufferStock = $('#sop-product-modal-buffer-stock');
             var $productModalEdit = $('#sop-product-modal-edit');
             var $productModalImage = $('#sop-product-modal-image');
             var $productModalQtyOrdered = $('#sop-product-modal-qty-ordered');
@@ -2747,8 +2804,10 @@ function sop_render_goods_in_page() {
             var $productModalAdded = $('#sop-product-modal-added');
             var $productModalOutstanding = $('#sop-product-modal-outstanding');
             var $productModalNotesProductStatus = $('#sop-product-modal-notes-product-status');
+            var $productModalNotesInternalStatus = $('#sop-product-modal-notes-internal-status');
             var $productModalNotesOrderStatus = $('#sop-product-modal-notes-order-status');
             var $productModalNotesProductView = $('#sop-product-modal-notes-product-view');
+            var $productModalNotesInternalView = $('#sop-product-modal-notes-internal-view');
             var $productModalNotesOrderView = $('#sop-product-modal-notes-order-view');
             var $productModalBtnMinus = $('#sop-product-modal-btn-minus');
             var $productModalBtnPlus = $('#sop-product-modal-btn-plus');
@@ -3704,7 +3763,16 @@ function sop_render_goods_in_page() {
                 var stockedVal = parseFloat($tr.find('td[data-column="stocked"]').text()) || parseFloat($tr.data('sort-stocked')) || 0;
                 var outstandingVal = Math.max(0, orderedVal - receivedVal - missingVal - rejectVal);
                 var productNotes = ($tr.find('td[data-column="product_notes"] .sop-goodsin-notes-text').text() || '').toString().trim();
+                var internalNotes = ($tr.find('td[data-column="internal_product_notes"] .sop-goodsin-notes-text').text() || '').toString().trim();
                 var orderNotes = ($tr.find('td[data-column="order_notes"] .sop-goodsin-notes-text').text() || '').toString().trim();
+                var bufferRaw = $tr.attr('data-buffer-target');
+                var bufferTarget = null;
+                if ( typeof bufferRaw !== 'undefined' && bufferRaw !== '' ) {
+                    bufferTarget = parseFloat( bufferRaw );
+                    if ( isNaN( bufferTarget ) ) {
+                        bufferTarget = null;
+                    }
+                }
 
                 if ( ! name ) {
                     name = ($tr.find('.sop-goodsin-product-link').text() || '').toString().trim();
@@ -3729,6 +3797,8 @@ function sop_render_goods_in_page() {
                     added_to_stock: stockedVal,
                     outstanding: outstandingVal,
                     product_notes_text: productNotes,
+                    internal_notes_text: internalNotes,
+                    buffer_target: bufferTarget,
                     order_notes_text: orderNotes
                 };
             }
@@ -3753,7 +3823,15 @@ function sop_render_goods_in_page() {
                         stockLabel = parsedStock;
                     }
                 }
-                var stockText = '<?php echo esc_js( __( 'Stock:', 'sop' ) ); ?> ' + stockLabel;
+                var stockText = '<?php echo esc_js( __( 'Current stock:', 'sop' ) ); ?> ' + stockLabel;
+                var bufferText = '';
+                if ( data.buffer_target !== null && data.buffer_target !== '' && typeof data.buffer_target !== 'undefined' ) {
+                    var parsedBuffer = parseFloat( data.buffer_target );
+                    if ( ! isNaN( parsedBuffer ) ) {
+                        var bufferDisplay = Math.abs( parsedBuffer - Math.round( parsedBuffer ) ) < 0.01 ? Math.round( parsedBuffer ) : parsedBuffer.toFixed( 1 );
+                        bufferText = '<?php echo esc_js( __( 'Buffer stock:', 'sop' ) ); ?> ' + bufferDisplay;
+                    }
+                }
                 var qtyOrderedText = '<?php echo esc_js( __( 'Qty Ordered:', 'sop' ) ); ?> ' + ( Math.round( data.qty_ordered ) || 0 );
                 var qtyReceivedText = ( Math.round( data.qty_received ) || 0 );
                 var addedVal = ! isNaN( data.added_to_stock ) ? Math.round( data.added_to_stock ) : qtyReceivedText;
@@ -3764,6 +3842,11 @@ function sop_render_goods_in_page() {
                 $productModalCarton.text( cartonText );
                 $productModalLocation.text( locationText );
                 $productModalStock.text( stockText ).removeClass('is-hidden');
+                if ( bufferText ) {
+                    $productModalBufferStock.text( bufferText ).removeClass('is-hidden');
+                } else {
+                    $productModalBufferStock.text( '' ).addClass('is-hidden');
+                }
                 $productModalQtyOrdered.text( qtyOrderedText );
                 $productModalQtyValue.val( qtyReceivedText );
                 $productModalAdded.text( '<?php echo esc_js( __( 'Added to stock:', 'sop' ) ); ?> ' + addedVal );
@@ -3784,12 +3867,15 @@ function sop_render_goods_in_page() {
                 }
 
                 $productModalNotesProductStatus.removeClass('is-yes is-no').addClass( data.product_notes_text ? 'is-yes' : 'is-no' );
+                $productModalNotesInternalStatus.removeClass('is-yes is-no').addClass( data.internal_notes_text ? 'is-yes' : 'is-no' );
                 $productModalNotesOrderStatus.removeClass('is-yes is-no').addClass( data.order_notes_text ? 'is-yes' : 'is-no' );
 
                 $productModalNotesProductView.data('noteText', data.product_notes_text || '');
+                $productModalNotesInternalView.data('noteText', data.internal_notes_text || '');
                 $productModalNotesOrderView.data('noteText', data.order_notes_text || '');
 
                 $productModalNotesProductView.toggleClass('is-disabled', ! data.product_notes_text).prop('disabled', ! data.product_notes_text);
+                $productModalNotesInternalView.toggleClass('is-disabled', ! data.internal_notes_text).prop('disabled', ! data.internal_notes_text);
                 $productModalNotesOrderView.toggleClass('is-disabled', ! data.order_notes_text).prop('disabled', ! data.order_notes_text);
 
                 sopGoodsinProductModalUpdateNavButtons();
@@ -3999,6 +4085,15 @@ function sop_render_goods_in_page() {
                     openInfoModal('<?php echo esc_js( __( 'Product notes', 'sop' ) ); ?>', noteText);
                 });
 
+                $productModalNotesInternalView.on('click', function(e){
+                    e.preventDefault();
+                    var noteText = ($(this).data('noteText') || '').toString();
+                    if ( ! noteText ) {
+                        return;
+                    }
+                    openInfoModal('<?php echo esc_js( __( 'Internal product notes', 'sop' ) ); ?>', noteText);
+                });
+
                 $productModalNotesOrderView.on('click', function(e){
                     e.preventDefault();
                     var noteText = ($(this).data('noteText') || '').toString();
@@ -4028,13 +4123,16 @@ function sop_render_goods_in_page() {
                 $productModalLocation.text('');
                 $productModalCarton.text('');
                 $productModalStock.text('').addClass('is-hidden');
+                $productModalBufferStock.text('').addClass('is-hidden');
                 $productModalQtyOrdered.text('');
                 $productModalQtyValue.val('0');
                 $productModalAdded.text('');
                 $productModalOutstanding.text('');
                 $productModalNotesProductStatus.removeClass('is-yes is-no');
+                $productModalNotesInternalStatus.removeClass('is-yes is-no');
                 $productModalNotesOrderStatus.removeClass('is-yes is-no');
                 $productModalNotesProductView.data('noteText', '').removeClass('is-disabled').prop('disabled', false);
+                $productModalNotesInternalView.data('noteText', '').removeClass('is-disabled').prop('disabled', false);
                 $productModalNotesOrderView.data('noteText', '').removeClass('is-disabled').prop('disabled', false);
                 $productModalEdit.attr('href', '#').addClass('is-hidden');
                 $productModalImage.attr('src', '').addClass('is-hidden');
