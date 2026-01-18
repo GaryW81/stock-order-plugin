@@ -2,8 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.22
- * - Canonicalise product notes meta key to _sop_product_notes.
+ * File version: 1.0.23
+ * - UI: add internal product notes field on product edit screen.
  * - Allow max_order_qty_per_month to save decimals (2dp), accept comma, and never block product save.
  * - Add Supplier SKUs meta (multi-line) for optional Supplier SKUs column.
  * - Canonicalise max_order_qty_per_month meta key.
@@ -110,6 +110,9 @@ function sop_render_product_supplier_metabox( $post ) {
 
     $product_notes = get_post_meta( $post->ID, '_sop_product_notes', true );
     $product_notes = is_string( $product_notes ) ? $product_notes : '';
+
+    $internal_product_notes = get_post_meta( $post->ID, '_sop_internal_product_notes', true );
+    $internal_product_notes = is_string( $internal_product_notes ) ? $internal_product_notes : '';
 
     $supplier_skus = get_post_meta( $post->ID, '_sop_supplier_skus', true );
     $supplier_skus = is_string( $supplier_skus ) ? $supplier_skus : '';
@@ -222,12 +225,24 @@ function sop_render_product_supplier_metabox( $post ) {
 
     <p>
         <label for="sop_product_notes">
-            <?php esc_html_e( 'Product notes (internal)', 'sop' ); ?>
+            <?php esc_html_e( 'Product notes', 'sop' ); ?>
         </label>
         <textarea name="sop_product_notes"
                   id="sop_product_notes"
                   rows="3"
                   class="widefat"><?php echo esc_textarea( $product_notes ); ?></textarea>
+    </p>
+    <p>
+        <label for="sop_internal_product_notes">
+            <?php esc_html_e( 'Internal product notes', 'sop' ); ?>
+        </label>
+        <textarea name="sop_internal_product_notes"
+                  id="sop_internal_product_notes"
+                  rows="3"
+                  class="widefat"><?php echo esc_textarea( $internal_product_notes ); ?></textarea>
+        <span class="description" style="display:block;margin-top:2px;">
+            <?php esc_html_e( 'Private internal notes shown in Pre-Order / Goods-In.', 'sop' ); ?>
+        </span>
     </p>
 
     <p style="font-size:11px;color:#666;">
@@ -383,6 +398,16 @@ function sop_save_product_supplier_meta( $post_id ) {
             delete_post_meta( $post_id, '_sop_product_notes' );
         } else {
             update_post_meta( $post_id, '_sop_product_notes', $notes );
+        }
+    }
+
+    // SOP internal product notes.
+    if ( isset( $_POST['sop_internal_product_notes'] ) ) {
+        $notes = trim( (string) wp_unslash( $_POST['sop_internal_product_notes'] ) );
+        if ( '' === $notes ) {
+            delete_post_meta( $post_id, '_sop_internal_product_notes' );
+        } else {
+            update_post_meta( $post_id, '_sop_internal_product_notes', $notes );
         }
     }
 
