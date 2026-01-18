@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.38
+ * File version: 1.5.39
+ * - TEMP: add Shiny CSV importer submenu.
  * - Add direct USD→RMB base FX and swap FX/lead time rows.
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
@@ -88,6 +89,16 @@ class sop_Admin_Settings {
             $capability,
             'sop-preorder-sheet',
             'sop_preorder_render_admin_page'
+        );
+
+        // TEMP TOOL REGISTRATION - remove after use.
+        add_submenu_page(
+            $dashboard_slug,
+            __( 'TEMP: Import Shiny CSV', 'sop' ),
+            __( 'TEMP: Import Shiny CSV', 'sop' ),
+            $capability,
+            'sop-temp-shiny-csv-import',
+            'sop_render_temp_shiny_csv_import_page'
         );
 
         // General Settings (existing settings UI).
