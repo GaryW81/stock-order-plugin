@@ -9,10 +9,10 @@
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.03
+ * File version: 1.0.04
  * - Ensure sop_daily_maintenance cron is scheduled on activation and cleared on deactivation.
  * - Run sop_DB::maybe_install() on admin_init for safe schema upgrades.
- * - TEMP: include Shiny CSV import admin page.
+ * - Remove TEMP Shiny CSV importer tool.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -52,7 +52,6 @@ if ( is_admin() ) {
     require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';
     require_once SOP_PLUGIN_DIR . 'admin/goods-in-core.php';
     require_once SOP_PLUGIN_DIR . 'admin/goods-in-ui.php';
-    require_once SOP_PLUGIN_DIR . 'admin/temp-shiny-csv-import.php';
 
     /**
      * Register Saved sheets submenu.
