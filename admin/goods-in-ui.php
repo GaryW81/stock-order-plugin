@@ -1,9 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.14
+ * File version: 1.1.15
  *
- * - 1.1.14 - UI: nudge Goods-In modal header icons up on desktop.
+ * - 1.1.15 - UI: nudge Goods-In modal header icons further up on desktop.
  * - 1.1.13 - UI: fix Goods-In modal header button icon vertical alignment (desktop).
  * - 1.1.12 - UI: refine Goods-In notes buttons (pill style + full-width row).
  * - 1.1.11 - UI: compress Goods-In modal notes into single button row (desktop), stacked on mobile.
@@ -1816,7 +1816,7 @@ function sop_render_goods_in_page() {
         @media (min-width: 783px) {
             .sop-goodsin-product-modal__close,
             .sop-goodsin-product-modal__nav-btn {
-                padding-bottom: 2px;
+                padding-bottom: 4px;
             }
         }
         .sop-goodsin-product-modal__nav-btn.is-disabled {
