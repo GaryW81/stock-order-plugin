@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.10
+ * File version: 1.1.11
  *
+ * - 1.1.11 - UI: compress Goods-In modal notes into single button row (desktop), stacked on mobile.
  * - 1.1.10 - UI: show internal notes + current/buffer stock in Goods-In modal.
  * - 1.1.09 - UI: show internal notes + current/buffer stock in Goods-In modal.
  * - 1.1.08 - UI: add internal product notes column.
@@ -1879,6 +1880,57 @@ function sop_render_goods_in_page() {
             gap: 10px;
             margin-top: 4px;
         }
+        .sop-goodsin-product-modal__notes--buttons {
+            flex-direction: row;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .sop-goodsin-product-modal__notes-label {
+            font-weight: 600;
+            color: #1d2327;
+            white-space: nowrap;
+        }
+        .sop-goodsin-product-modal__notes-buttons {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .sop-goodsin-product-modal__note-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #c3c4c7;
+            background: #fff;
+            color: #1d2327;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 13px;
+            line-height: 1.2;
+            cursor: pointer;
+        }
+        .sop-goodsin-product-modal__note-chip.is-disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .sop-goodsin-product-modal__note-chip-status {
+            font-weight: 700;
+            width: 14px;
+            text-align: center;
+        }
+        .sop-goodsin-product-modal__note-chip.is-no .sop-goodsin-product-modal__note-chip-status {
+            color: #d63638;
+        }
+        .sop-goodsin-product-modal__note-chip.is-yes .sop-goodsin-product-modal__note-chip-status {
+            color: #1f9d55;
+        }
+        .sop-goodsin-product-modal__note-chip.is-no .sop-goodsin-product-modal__note-chip-status::before {
+            content: "\2715";
+        }
+        .sop-goodsin-product-modal__note-chip.is-yes .sop-goodsin-product-modal__note-chip-status::before {
+            content: "\2713";
+        }
         .sop-goodsin-product-modal__note-row {
             display: flex;
             align-items: center;
@@ -2022,6 +2074,19 @@ function sop_render_goods_in_page() {
                 max-height: none;
                 overflow: hidden;
                 border-radius: 0;
+            }
+            .sop-goodsin-product-modal__notes--buttons {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .sop-goodsin-product-modal__notes-buttons {
+                flex-direction: column;
+                align-items: stretch;
+                width: 100%;
+            }
+            .sop-goodsin-product-modal__note-chip {
+                width: 100%;
+                justify-content: space-between;
             }
         }
         @media (max-width: 1024px) {
@@ -2642,21 +2707,21 @@ function sop_render_goods_in_page() {
                 </div>
 			</div>
 
-			<div class="sop-goodsin-product-modal__notes">
-				<div class="sop-goodsin-product-modal__note-row">
-					<div class="sop-goodsin-product-modal__note-label"><?php esc_html_e( 'Product notes', 'sop' ); ?></div>
-					<span id="sop-product-modal-notes-product-status" class="sop-goodsin-product-modal__note-status" aria-hidden="true"></span>
-					<button type="button" id="sop-product-modal-notes-product-view" class="sop-goodsin-product-modal__note-view"><?php esc_html_e( 'View', 'sop' ); ?></button>
-				</div>
-				<div class="sop-goodsin-product-modal__note-row">
-					<div class="sop-goodsin-product-modal__note-label"><?php esc_html_e( 'Internal product notes', 'sop' ); ?></div>
-					<span id="sop-product-modal-notes-internal-status" class="sop-goodsin-product-modal__note-status" aria-hidden="true"></span>
-					<button type="button" id="sop-product-modal-notes-internal-view" class="sop-goodsin-product-modal__note-view"><?php esc_html_e( 'View', 'sop' ); ?></button>
-				</div>
-				<div class="sop-goodsin-product-modal__note-row">
-					<div class="sop-goodsin-product-modal__note-label"><?php esc_html_e( 'Order notes', 'sop' ); ?></div>
-					<span id="sop-product-modal-notes-order-status" class="sop-goodsin-product-modal__note-status" aria-hidden="true"></span>
-					<button type="button" id="sop-product-modal-notes-order-view" class="sop-goodsin-product-modal__note-view"><?php esc_html_e( 'View', 'sop' ); ?></button>
+			<div class="sop-goodsin-product-modal__notes sop-goodsin-product-modal__notes--buttons">
+				<div class="sop-goodsin-product-modal__notes-label"><?php esc_html_e( 'Notes:', 'sop' ); ?></div>
+				<div class="sop-goodsin-product-modal__notes-buttons">
+					<button type="button" id="sop-product-modal-notes-product-btn" class="sop-goodsin-product-modal__note-chip">
+						<span class="sop-goodsin-product-modal__note-chip-text"><?php esc_html_e( 'Product', 'sop' ); ?></span>
+						<span class="sop-goodsin-product-modal__note-chip-status" aria-hidden="true"></span>
+					</button>
+					<button type="button" id="sop-product-modal-notes-internal-btn" class="sop-goodsin-product-modal__note-chip">
+						<span class="sop-goodsin-product-modal__note-chip-text"><?php esc_html_e( 'Internal', 'sop' ); ?></span>
+						<span class="sop-goodsin-product-modal__note-chip-status" aria-hidden="true"></span>
+					</button>
+					<button type="button" id="sop-product-modal-notes-order-btn" class="sop-goodsin-product-modal__note-chip">
+						<span class="sop-goodsin-product-modal__note-chip-text"><?php esc_html_e( 'Order', 'sop' ); ?></span>
+						<span class="sop-goodsin-product-modal__note-chip-status" aria-hidden="true"></span>
+					</button>
 				</div>
 			</div>
 
@@ -2803,12 +2868,9 @@ function sop_render_goods_in_page() {
             var $productModalQtyValue = $('#sop-product-modal-qty-value');
             var $productModalAdded = $('#sop-product-modal-added');
             var $productModalOutstanding = $('#sop-product-modal-outstanding');
-            var $productModalNotesProductStatus = $('#sop-product-modal-notes-product-status');
-            var $productModalNotesInternalStatus = $('#sop-product-modal-notes-internal-status');
-            var $productModalNotesOrderStatus = $('#sop-product-modal-notes-order-status');
-            var $productModalNotesProductView = $('#sop-product-modal-notes-product-view');
-            var $productModalNotesInternalView = $('#sop-product-modal-notes-internal-view');
-            var $productModalNotesOrderView = $('#sop-product-modal-notes-order-view');
+            var $productModalNotesProductBtn = $('#sop-product-modal-notes-product-btn');
+            var $productModalNotesInternalBtn = $('#sop-product-modal-notes-internal-btn');
+            var $productModalNotesOrderBtn = $('#sop-product-modal-notes-order-btn');
             var $productModalBtnMinus = $('#sop-product-modal-btn-minus');
             var $productModalBtnPlus = $('#sop-product-modal-btn-plus');
             var $productModalBtnScanNext = $('#sop-product-modal-btn-scan-next');
@@ -3866,17 +3928,17 @@ function sop_render_goods_in_page() {
                     $productModalImage.attr('src', '').addClass('is-hidden');
                 }
 
-                $productModalNotesProductStatus.removeClass('is-yes is-no').addClass( data.product_notes_text ? 'is-yes' : 'is-no' );
-                $productModalNotesInternalStatus.removeClass('is-yes is-no').addClass( data.internal_notes_text ? 'is-yes' : 'is-no' );
-                $productModalNotesOrderStatus.removeClass('is-yes is-no').addClass( data.order_notes_text ? 'is-yes' : 'is-no' );
+                $productModalNotesProductBtn.removeClass('is-yes is-no').addClass( data.product_notes_text ? 'is-yes' : 'is-no' );
+                $productModalNotesInternalBtn.removeClass('is-yes is-no').addClass( data.internal_notes_text ? 'is-yes' : 'is-no' );
+                $productModalNotesOrderBtn.removeClass('is-yes is-no').addClass( data.order_notes_text ? 'is-yes' : 'is-no' );
 
-                $productModalNotesProductView.data('noteText', data.product_notes_text || '');
-                $productModalNotesInternalView.data('noteText', data.internal_notes_text || '');
-                $productModalNotesOrderView.data('noteText', data.order_notes_text || '');
+                $productModalNotesProductBtn.data('noteText', data.product_notes_text || '');
+                $productModalNotesInternalBtn.data('noteText', data.internal_notes_text || '');
+                $productModalNotesOrderBtn.data('noteText', data.order_notes_text || '');
 
-                $productModalNotesProductView.toggleClass('is-disabled', ! data.product_notes_text).prop('disabled', ! data.product_notes_text);
-                $productModalNotesInternalView.toggleClass('is-disabled', ! data.internal_notes_text).prop('disabled', ! data.internal_notes_text);
-                $productModalNotesOrderView.toggleClass('is-disabled', ! data.order_notes_text).prop('disabled', ! data.order_notes_text);
+                $productModalNotesProductBtn.toggleClass('is-disabled', ! data.product_notes_text).prop('disabled', ! data.product_notes_text);
+                $productModalNotesInternalBtn.toggleClass('is-disabled', ! data.internal_notes_text).prop('disabled', ! data.internal_notes_text);
+                $productModalNotesOrderBtn.toggleClass('is-disabled', ! data.order_notes_text).prop('disabled', ! data.order_notes_text);
 
                 sopGoodsinProductModalUpdateNavButtons();
             }
@@ -4076,7 +4138,7 @@ function sop_render_goods_in_page() {
                     sopGoodsinProductModalBeginScanNext();
                 });
 
-                $productModalNotesProductView.on('click', function(e){
+                $productModalNotesProductBtn.on('click', function(e){
                     e.preventDefault();
                     var noteText = ($(this).data('noteText') || '').toString();
                     if ( ! noteText ) {
@@ -4085,7 +4147,7 @@ function sop_render_goods_in_page() {
                     openInfoModal('<?php echo esc_js( __( 'Product notes', 'sop' ) ); ?>', noteText);
                 });
 
-                $productModalNotesInternalView.on('click', function(e){
+                $productModalNotesInternalBtn.on('click', function(e){
                     e.preventDefault();
                     var noteText = ($(this).data('noteText') || '').toString();
                     if ( ! noteText ) {
@@ -4094,7 +4156,7 @@ function sop_render_goods_in_page() {
                     openInfoModal('<?php echo esc_js( __( 'Internal product notes', 'sop' ) ); ?>', noteText);
                 });
 
-                $productModalNotesOrderView.on('click', function(e){
+                $productModalNotesOrderBtn.on('click', function(e){
                     e.preventDefault();
                     var noteText = ($(this).data('noteText') || '').toString();
                     if ( ! noteText ) {
@@ -4128,12 +4190,9 @@ function sop_render_goods_in_page() {
                 $productModalQtyValue.val('0');
                 $productModalAdded.text('');
                 $productModalOutstanding.text('');
-                $productModalNotesProductStatus.removeClass('is-yes is-no');
-                $productModalNotesInternalStatus.removeClass('is-yes is-no');
-                $productModalNotesOrderStatus.removeClass('is-yes is-no');
-                $productModalNotesProductView.data('noteText', '').removeClass('is-disabled').prop('disabled', false);
-                $productModalNotesInternalView.data('noteText', '').removeClass('is-disabled').prop('disabled', false);
-                $productModalNotesOrderView.data('noteText', '').removeClass('is-disabled').prop('disabled', false);
+                $productModalNotesProductBtn.removeClass('is-yes is-no is-disabled').data('noteText', '').prop('disabled', false);
+                $productModalNotesInternalBtn.removeClass('is-yes is-no is-disabled').data('noteText', '').prop('disabled', false);
+                $productModalNotesOrderBtn.removeClass('is-yes is-no is-disabled').data('noteText', '').prop('disabled', false);
                 $productModalEdit.attr('href', '#').addClass('is-hidden');
                 $productModalImage.attr('src', '').addClass('is-hidden');
                 sopGoodsinProductModalUpdateNavButtons();
