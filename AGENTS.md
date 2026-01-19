@@ -23,6 +23,16 @@ ordering system for Wilson-Organisation Ltd.
   3) Static checks performed (explicit checklist)
   4) Commit message suggestion (single line)
 
+- STRICT RESPONSE LENGTH (mandatory)
+  - Default: Max 10 lines TOTAL per response (including blanks).
+  - No internal reasoning, no step-by-step logs, no long diagnostics.
+  - Allowed format within 10 lines:
+    1) Summary (2–4 lines max)
+    2) Files changed (1 line)
+    3) Static checks performed (2–3 lines max)
+    4) Commit message suggestion (1 line, MUST be the final line)
+  - Exception: Only exceed 10 lines if the user explicitly requests verbose output/debug logs.
+
 - DO NOT paste full file contents by default.
   - Never paste entire PHP files, JS files, or long templates into chat.
   - Never say “preparing full updated file output” unless the user requested full file output.
