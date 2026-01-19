@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.82
+ * File version: 1.0.83
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.83 - Inline header notes in row 1 for SKU/order/carton; update SKU/carton widths.
  * - 1.0.82 - Slim ID column; add 2-row header notes; force 2dp for unit/total prices.
  * - 1.0.81 - Add Product ID column to Order Sheet XLSX; widen carton column; match order notes width to product notes.
  * - 1.0.80 - Version bump after Goods-In issues XLSX updates.
@@ -203,7 +204,7 @@ class SOP_Preorder_XLSX_Exporter {
         $images             = array();
         $media_files        = array();
         $image_index        = 1;
-        $row_index          = 3; // Data rows start at 3 (row 1-2 are header).
+        $row_index          = 2; // Data rows start at 2 (row 1 is header).
         $img_cx             = 742950; // 78px in EMUs.
         $img_cy             = 742950; // 78px in EMUs.
         $img_margin_emu     = 9525; // 1px in EMUs.
@@ -244,8 +245,7 @@ class SOP_Preorder_XLSX_Exporter {
         $columns        = self::get_order_sheet_base_columns( $supplier_currency, $show_usd_column, $include_supplier_skus );
 
         // Header row.
-        $sheet_rows_xml .= self::build_row_xml( 1, array_map( 'esc_html', $columns ), true, array(), $row_index - 3 );
-        $header_notes  = array_fill( 0, count( $columns ), '' );
+        $header_cells  = $columns;
         $header_styles = array_fill( 0, count( $columns ), null );
         $column_index  = array();
         foreach ( $columns as $idx => $label ) {
@@ -253,19 +253,37 @@ class SOP_Preorder_XLSX_Exporter {
         }
 
         if ( isset( $column_index['SKU'] ) ) {
-            $header_notes[ $column_index['SKU'] ]  = '(for barcode 128 sticker label)';
-            $header_styles[ $column_index['SKU'] ] = 9;
+            $header_cells[ $column_index['SKU'] ] = array(
+                'type' => 'rich',
+                'runs' => array(
+                    array( 'text' => 'SKU', 'bold' => true ),
+                    array( 'text' => "\n(for barcode 128 sticker label)", 'bold' => true, 'color' => 'FFFF0000' ),
+                ),
+            );
+            $header_styles[ $column_index['SKU'] ] = 6;
         }
         if ( isset( $column_index['Order notes'] ) ) {
-            $header_notes[ $column_index['Order notes'] ]  = '(for buyer and supplier notes)';
-            $header_styles[ $column_index['Order notes'] ] = 9;
+            $header_cells[ $column_index['Order notes'] ] = array(
+                'type' => 'rich',
+                'runs' => array(
+                    array( 'text' => 'Order notes', 'bold' => true ),
+                    array( 'text' => "\n(for buyer and supplier notes)", 'bold' => true, 'color' => 'FFFF0000' ),
+                ),
+            );
+            $header_styles[ $column_index['Order notes'] ] = 6;
         }
         if ( isset( $column_index['Carton no.'] ) ) {
-            $header_notes[ $column_index['Carton no.'] ]  = '(use e.g. 1-5,8,11-13)';
-            $header_styles[ $column_index['Carton no.'] ] = 9;
+            $header_cells[ $column_index['Carton no.'] ] = array(
+                'type' => 'rich',
+                'runs' => array(
+                    array( 'text' => 'Carton no.', 'bold' => true ),
+                    array( 'text' => "\n(use e.g. 1-5,8,11-13)", 'bold' => true, 'color' => 'FFFF0000' ),
+                ),
+            );
+            $header_styles[ $column_index['Carton no.'] ] = 6;
         }
 
-        $sheet_rows_xml .= self::build_row_xml( 2, $header_notes, true, $header_styles, 0 );
+        $sheet_rows_xml .= self::build_row_xml( 1, $header_cells, true, $header_styles, 0, array(), 30 );
 
         foreach ( $lines as $line ) {
             $balance_rate_for_row = $show_usd_column ? $sheet_fx_for_usd : $sheet_balance_fx_rate;
@@ -305,7 +323,7 @@ class SOP_Preorder_XLSX_Exporter {
         $styles        = self::build_styles_xml();
         $sheet_rels    = self::build_sheet_rels_xml( ! empty( $images ) );
         $max_row       = $row_index - 1;
-        $sheet_xml     = self::build_sheet_xml( $sheet_rows_xml, ! empty( $images ), $max_row, $show_usd_column, count( $columns ), $include_supplier_skus, 2 );
+        $sheet_xml     = self::build_sheet_xml( $sheet_rows_xml, ! empty( $images ), $max_row, $show_usd_column, count( $columns ), $include_supplier_skus, 1 );
         $drawing_xml   = ! empty( $images ) ? self::build_drawing_xml( $images ) : '';
         $drawing_rels  = ! empty( $images ) ? self::build_drawing_rels_xml( $images ) : '';
         $app_xml       = self::build_app_xml();
@@ -1724,9 +1742,12 @@ class SOP_Preorder_XLSX_Exporter {
         return $letter;
     }
 
-    private static function build_row_xml( $row_num, $cells, $is_header = false, $styles = array(), $row_offset_for_height = 0, $force_inline_cols = array() ) {
+    private static function build_row_xml( $row_num, $cells, $is_header = false, $styles = array(), $row_offset_for_height = 0, $force_inline_cols = array(), $row_height_override = 0 ) {
         $row_style_attr  = ' s="4" customFormat="1"';
         $row_height_attr = $is_header ? '' : ' ht="60" customHeight="1"';
+        if ( $row_height_override > 0 ) {
+            $row_height_attr = ' ht="' . (float) $row_height_override . '" customHeight="1"';
+        }
         $xml             = '<row r="' . (int) $row_num . '"' . $row_style_attr . $row_height_attr . '>';
         $col_index       = 0;
 
@@ -1741,13 +1762,35 @@ class SOP_Preorder_XLSX_Exporter {
             }
 
             $force_inline = in_array( (int) $col_index, (array) $force_inline_cols, true );
+            $is_rich      = is_array( $cell_value ) && isset( $cell_value['type'] ) && 'rich' === $cell_value['type'];
 
             $is_text_style = in_array( $style_idx, array( 1, 3 ), true );
 
-            if ( ! $force_inline && ! $is_text_style && is_numeric( $cell_value ) ) {
+            if ( ! $is_rich && ! $force_inline && ! $is_text_style && is_numeric( $cell_value ) ) {
                 $xml .= '<c r="' . $col_letter . '" s="' . $style_idx . '"><v>' . $cell_value . '</v></c>';
             } else {
-                $xml .= '<c r="' . $col_letter . '" t="inlineStr" s="' . $style_idx . '"><is><t xml:space="preserve">' . self::sanitize_xml_text( $cell_value ) . '</t></is></c>';
+                $xml .= '<c r="' . $col_letter . '" t="inlineStr" s="' . $style_idx . '">';
+                if ( $is_rich ) {
+                    $xml .= '<is>';
+                    $runs = isset( $cell_value['runs'] ) && is_array( $cell_value['runs'] ) ? $cell_value['runs'] : array();
+                    foreach ( $runs as $run ) {
+                        $text  = isset( $run['text'] ) ? (string) $run['text'] : '';
+                        $bold  = ! empty( $run['bold'] );
+                        $color = isset( $run['color'] ) ? (string) $run['color'] : '';
+                        $xml  .= '<r><rPr>';
+                        if ( $bold ) {
+                            $xml .= '<b/>';
+                        }
+                        if ( '' !== $color ) {
+                            $xml .= '<color rgb="' . self::esc_xml( $color ) . '"/>';
+                        }
+                        $xml .= '</rPr><t xml:space="preserve">' . self::sanitize_xml_text( $text ) . '</t></r>';
+                    }
+                    $xml .= '</is>';
+                } else {
+                    $xml .= '<is><t xml:space="preserve">' . self::sanitize_xml_text( $cell_value ) . '</t></is>';
+                }
+                $xml .= '</c>';
             }
 
             $col_index++;
@@ -1927,7 +1970,7 @@ class SOP_Preorder_XLSX_Exporter {
         $xml  = '<cols>';
         $xml .= '<col min="1" max="1" width="6.15" customWidth="1"/>'; // ID (A).
         $xml .= '<col min="2" max="2" width="11.5" customWidth="1"/>'; // Image (B).
-        $xml .= '<col min="3" max="3" width="16" customWidth="1"/>'; // SKU (C).
+        $xml .= '<col min="3" max="3" width="27" customWidth="1"/>'; // SKU (C).
         $current_col = 4;
         if ( $include_supplier_skus ) {
             $xml         .= '<col min="' . $current_col . '" max="' . $current_col . '" width="16" customWidth="1"/>'; // Supplier SKUs.
@@ -1942,7 +1985,7 @@ class SOP_Preorder_XLSX_Exporter {
         $carton_col        = $product_notes_col + 2;
         $xml .= '<col min="' . (int) $product_notes_col . '" max="' . (int) $product_notes_col . '" width="60" customWidth="1"/>'; // Product notes.
         $xml .= '<col min="' . (int) $order_notes_col . '" max="' . (int) $order_notes_col . '" width="60" customWidth="1"/>'; // Order notes.
-        $xml .= '<col min="' . (int) $carton_col . '" max="' . (int) $carton_col . '" width="12.7" customWidth="1"/>'; // Carton no. (+50%).
+        $xml .= '<col min="' . (int) $carton_col . '" max="' . (int) $carton_col . '" width="19.22" customWidth="1"/>'; // Carton no. (180px).
         if ( $column_count > 0 ) {
             $base_count = count( self::get_order_sheet_base_columns( 'GBP', $show_usd_column, $include_supplier_skus ) );
             if ( $column_count > $base_count ) {
