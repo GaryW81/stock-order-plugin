@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.81
+ * File version: 1.0.82
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.82 - Slim ID column; add 2-row header notes; force 2dp for unit/total prices.
  * - 1.0.81 - Add Product ID column to Order Sheet XLSX; widen carton column; match order notes width to product notes.
  * - 1.0.80 - Version bump after Goods-In issues XLSX updates.
  */
@@ -202,7 +203,7 @@ class SOP_Preorder_XLSX_Exporter {
         $images             = array();
         $media_files        = array();
         $image_index        = 1;
-        $row_index          = 2; // Data rows start at 2 (row 1 is header).
+        $row_index          = 3; // Data rows start at 3 (row 1-2 are header).
         $img_cx             = 742950; // 78px in EMUs.
         $img_cy             = 742950; // 78px in EMUs.
         $img_margin_emu     = 9525; // 1px in EMUs.
@@ -243,7 +244,28 @@ class SOP_Preorder_XLSX_Exporter {
         $columns        = self::get_order_sheet_base_columns( $supplier_currency, $show_usd_column, $include_supplier_skus );
 
         // Header row.
-        $sheet_rows_xml .= self::build_row_xml( 1, array_map( 'esc_html', $columns ), true, array(), $row_index - 2 );
+        $sheet_rows_xml .= self::build_row_xml( 1, array_map( 'esc_html', $columns ), true, array(), $row_index - 3 );
+        $header_notes  = array_fill( 0, count( $columns ), '' );
+        $header_styles = array_fill( 0, count( $columns ), null );
+        $column_index  = array();
+        foreach ( $columns as $idx => $label ) {
+            $column_index[ $label ] = $idx;
+        }
+
+        if ( isset( $column_index['SKU'] ) ) {
+            $header_notes[ $column_index['SKU'] ]  = '(for barcode 128 sticker label)';
+            $header_styles[ $column_index['SKU'] ] = 9;
+        }
+        if ( isset( $column_index['Order notes'] ) ) {
+            $header_notes[ $column_index['Order notes'] ]  = '(for buyer and supplier notes)';
+            $header_styles[ $column_index['Order notes'] ] = 9;
+        }
+        if ( isset( $column_index['Carton no.'] ) ) {
+            $header_notes[ $column_index['Carton no.'] ]  = '(use e.g. 1-5,8,11-13)';
+            $header_styles[ $column_index['Carton no.'] ] = 9;
+        }
+
+        $sheet_rows_xml .= self::build_row_xml( 2, $header_notes, true, $header_styles, 0 );
 
         foreach ( $lines as $line ) {
             $balance_rate_for_row = $show_usd_column ? $sheet_fx_for_usd : $sheet_balance_fx_rate;
@@ -283,7 +305,7 @@ class SOP_Preorder_XLSX_Exporter {
         $styles        = self::build_styles_xml();
         $sheet_rels    = self::build_sheet_rels_xml( ! empty( $images ) );
         $max_row       = $row_index - 1;
-        $sheet_xml     = self::build_sheet_xml( $sheet_rows_xml, ! empty( $images ), $max_row, $show_usd_column, count( $columns ), $include_supplier_skus );
+        $sheet_xml     = self::build_sheet_xml( $sheet_rows_xml, ! empty( $images ), $max_row, $show_usd_column, count( $columns ), $include_supplier_skus, 2 );
         $drawing_xml   = ! empty( $images ) ? self::build_drawing_xml( $images ) : '';
         $drawing_rels  = ! empty( $images ) ? self::build_drawing_rels_xml( $images ) : '';
         $app_xml       = self::build_app_xml();
@@ -645,11 +667,11 @@ class SOP_Preorder_XLSX_Exporter {
         $row_cells[] = $categories;
         $row_cells[] = self::format_number_cell( $moq );
         $row_cells[] = self::format_number_cell( $qty );
-        $row_cells[] = self::format_number_cell( $unit_cost, 4 );
+        $row_cells[] = self::format_number_cell( $unit_cost, 2 );
         if ( $show_usd_column ) {
-            $row_cells[] = self::format_number_cell( $cost_usd, 4 );
+            $row_cells[] = self::format_number_cell( $cost_usd, 2 );
         }
-        $row_cells[] = self::format_number_cell( $line_total_supplier, 4 );
+        $row_cells[] = self::format_number_cell( $line_total_supplier, 2 );
         $row_cells[] = $product_notes;
         $row_cells[] = $order_notes;
         $row_cells[] = $carton_number;
@@ -669,11 +691,11 @@ class SOP_Preorder_XLSX_Exporter {
         $row_styles[] = 2;    // Categories wrap.
         $row_styles[] = 7;    // MOQ right.
         $row_styles[] = 7;    // Qty right.
-        $row_styles[] = 7;    // Unit price (supplier currency) right.
+        $row_styles[] = 8;    // Unit price (supplier currency) 2dp.
         if ( $show_usd_column ) {
-            $row_styles[] = 7; // Unit price USD right.
+            $row_styles[] = 8; // Unit price USD 2dp.
         }
-        $row_styles[] = 7; // Total (supplier currency) right.
+        $row_styles[] = 8; // Total (supplier currency) 2dp.
         $row_styles[] = 6; // Product notes left.
         $row_styles[] = 6; // Order notes left.
         $row_styles[] = 6; // Carton left.
@@ -980,7 +1002,7 @@ class SOP_Preorder_XLSX_Exporter {
         }
 
         $has_images = ! empty( $images );
-        $sheet_xml  = self::build_sheet_xml( $sheet_rows_xml, $has_images, $row_index - 1, $show_usd_column, count( $columns ), $include_supplier_skus );
+        $sheet_xml  = self::build_sheet_xml( $sheet_rows_xml, $has_images, $row_index - 1, $show_usd_column, count( $columns ), $include_supplier_skus, 1 );
         $sheet_rels = self::build_sheet_rels_xml( $has_images );
         $drawing_xml = '';
         $drawing_rels = '';
@@ -1903,7 +1925,7 @@ class SOP_Preorder_XLSX_Exporter {
 
     private static function build_cols_xml( $show_usd_column = true, $include_supplier_skus = false, $column_count = 0 ) {
         $xml  = '<cols>';
-        $xml .= '<col min="1" max="1" width="10" customWidth="1"/>'; // ID (A).
+        $xml .= '<col min="1" max="1" width="6.15" customWidth="1"/>'; // ID (A).
         $xml .= '<col min="2" max="2" width="11.5" customWidth="1"/>'; // Image (B).
         $xml .= '<col min="3" max="3" width="16" customWidth="1"/>'; // SKU (C).
         $current_col = 4;
@@ -1948,14 +1970,16 @@ class SOP_Preorder_XLSX_Exporter {
         return $xml;
     }
 
-    private static function build_sheet_xml( $rows_xml, $has_drawing, $max_row, $show_usd_column = true, $column_count = 0, $include_supplier_skus = false ) {
+    private static function build_sheet_xml( $rows_xml, $has_drawing, $max_row, $show_usd_column = true, $column_count = 0, $include_supplier_skus = false, $header_rows = 1 ) {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">';
         $last_col_index  = $column_count > 0 ? ( $column_count - 1 ) : ( $show_usd_column ? 14 : 13 );
         $last_col_letter = self::column_letter( max( 0, $last_col_index ) );
         $max_row         = max( 1, (int) $max_row );
+        $header_rows     = max( 1, (int) $header_rows );
+        $top_left_row    = $header_rows + 1;
         $xml .= '<dimension ref="A1:' . $last_col_letter . $max_row . '"/>';
-        $xml .= '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews>';
+        $xml .= '<sheetViews><sheetView workbookViewId="0"><pane ySplit="' . $header_rows . '" topLeftCell="A' . $top_left_row . '" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A' . $top_left_row . '" sqref="A' . $top_left_row . '"/></sheetView></sheetViews>';
         $xml .= '<sheetFormatPr defaultRowHeight="60" customHeight="1"/>';
         $xml .= self::build_cols_xml( $show_usd_column, $include_supplier_skus, $column_count );
         $xml .= '<sheetData>' . $rows_xml . '</sheetData>';
@@ -1970,11 +1994,12 @@ class SOP_Preorder_XLSX_Exporter {
     private static function build_styles_xml() {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
-        $xml .= '<fonts count="1"><font/></fonts>';
+        $xml .= '<fonts count="2"><font/><font><b/><color rgb="FFFF0000"/></font></fonts>';
         $xml .= '<fills count="1"><fill/></fills>';
         $xml .= '<borders count="1"><border/></borders>';
+        $xml .= '<numFmts count="1"><numFmt numFmtId="164" formatCode="0.00"/></numFmts>';
         $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
-        $xml .= '<cellXfs count="8">';
+        $xml .= '<cellXfs count="10">';
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf>';
         $xml .= '<xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf>'; // Text format.
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="center"/></xf>';
@@ -1983,6 +2008,8 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'; // Center horizontal + vertical.
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>'; // Left align.
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>'; // Right align.
+        $xml .= '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>'; // Right align 2dp.
+        $xml .= '<xf numFmtId="49" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment wrapText="1" horizontal="center" vertical="center"/></xf>'; // Header note (red bold).
         $xml .= '</cellXfs>';
         $xml .= '</styleSheet>';
         return $xml;
