@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Stock Order Plugin - Phase 4.1 - Carton CSV Importer (admin only)
  * File version: 1.0.0
