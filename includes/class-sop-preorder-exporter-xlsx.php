@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.83
+ * File version: 1.0.84
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.84 - XLSX: fix styles.xml to prevent Excel repair prompt.
  * - 1.0.83 - Inline header notes in row 1 for SKU/order/carton; update SKU/carton widths.
  * - 1.0.82 - Slim ID column; add 2-row header notes; force 2dp for unit/total prices.
  * - 1.0.81 - Add Product ID column to Order Sheet XLSX; widen carton column; match order notes width to product notes.
@@ -2037,9 +2038,9 @@ class SOP_Preorder_XLSX_Exporter {
     private static function build_styles_xml() {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
-        $xml .= '<fonts count="2"><font/><font><b/><color rgb="FFFF0000"/></font></fonts>';
-        $xml .= '<fills count="1"><fill/></fills>';
-        $xml .= '<borders count="1"><border/></borders>';
+        $xml .= '<fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font><font><b/><color rgb="FFFF0000"/><sz val="11"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font></fonts>';
+        $xml .= '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>';
+        $xml .= '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>';
         $xml .= '<numFmts count="1"><numFmt numFmtId="164" formatCode="0.00"/></numFmts>';
         $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
         $xml .= '<cellXfs count="10">';
@@ -2054,6 +2055,9 @@ class SOP_Preorder_XLSX_Exporter {
         $xml .= '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>'; // Right align 2dp.
         $xml .= '<xf numFmtId="49" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment wrapText="1" horizontal="center" vertical="center"/></xf>'; // Header note (red bold).
         $xml .= '</cellXfs>';
+        $xml .= '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>';
+        $xml .= '<dxfs count="0"/>';
+        $xml .= '<tableStyles count="0" defaultTableStyle="TableStyleMedium9" defaultPivotStyle="PivotStyleLight16"/>';
         $xml .= '</styleSheet>';
         return $xml;
     }
