@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.87
+ * File version: 1.0.88
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.88 - Fix: Enable wrapText for multi-line header cells so Excel renders red notes on a new line.
  * - 1.0.87 - Fix: Header red notes now break onto a new line in XLSX (rich text newline handling).
  * - 1.0.86 - Fix: Preserve newlines in rich header text so red notes wrap to next line in Excel.
  * - 1.0.85 - Fix: XLSX styles.xml schema order to prevent Excel repair prompt.
@@ -264,7 +265,7 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'text' => '(for barcode 128 sticker label)', 'bold' => true, 'color' => 'FFFF0000' ),
                 ),
             );
-            $header_styles[ $column_index['SKU'] ] = 6;
+            $header_styles[ $column_index['SKU'] ] = 3;
         }
         if ( isset( $column_index['Order notes'] ) ) {
             $header_cells[ $column_index['Order notes'] ] = array(
@@ -274,7 +275,7 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'text' => '(for buyer and supplier notes)', 'bold' => true, 'color' => 'FFFF0000' ),
                 ),
             );
-            $header_styles[ $column_index['Order notes'] ] = 6;
+            $header_styles[ $column_index['Order notes'] ] = 3;
         }
         if ( isset( $column_index['Carton no.'] ) ) {
             $header_cells[ $column_index['Carton no.'] ] = array(
@@ -284,7 +285,7 @@ class SOP_Preorder_XLSX_Exporter {
                     array( 'text' => '(use e.g. 1-5,8,11-13)', 'bold' => true, 'color' => 'FFFF0000' ),
                 ),
             );
-            $header_styles[ $column_index['Carton no.'] ] = 6;
+            $header_styles[ $column_index['Carton no.'] ] = 3;
         }
 
         $sheet_rows_xml .= self::build_row_xml( 1, $header_cells, true, $header_styles, 0, array(), 45 );
