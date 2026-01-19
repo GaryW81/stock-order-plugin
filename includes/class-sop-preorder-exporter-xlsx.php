@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.84
+ * File version: 1.0.85
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.85 - Fix: XLSX styles.xml schema order to prevent Excel repair prompt.
  * - 1.0.84 - XLSX: fix styles.xml to prevent Excel repair prompt.
  * - 1.0.83 - Inline header notes in row 1 for SKU/order/carton; update SKU/carton widths.
  * - 1.0.82 - Slim ID column; add 2-row header notes; force 2dp for unit/total prices.
@@ -2038,10 +2039,10 @@ class SOP_Preorder_XLSX_Exporter {
     private static function build_styles_xml() {
         $xml  = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
         $xml .= '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+        $xml .= '<numFmts count="1"><numFmt numFmtId="164" formatCode="0.00"/></numFmts>';
         $xml .= '<fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font><font><b/><color rgb="FFFF0000"/><sz val="11"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font></fonts>';
         $xml .= '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>';
         $xml .= '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>';
-        $xml .= '<numFmts count="1"><numFmt numFmtId="164" formatCode="0.00"/></numFmts>';
         $xml .= '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
         $xml .= '<cellXfs count="10">';
         $xml .= '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf>';
