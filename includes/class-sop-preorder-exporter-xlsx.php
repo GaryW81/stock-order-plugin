@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.86
+ * File version: 1.0.87
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.87 - Fix: Header red notes now break onto a new line in XLSX (rich text newline handling).
  * - 1.0.86 - Fix: Preserve newlines in rich header text so red notes wrap to next line in Excel.
  * - 1.0.85 - Fix: XLSX styles.xml schema order to prevent Excel repair prompt.
  * - 1.0.84 - XLSX: fix styles.xml to prevent Excel repair prompt.
@@ -259,8 +260,8 @@ class SOP_Preorder_XLSX_Exporter {
             $header_cells[ $column_index['SKU'] ] = array(
                 'type' => 'rich',
                 'runs' => array(
-                    array( 'text' => 'SKU', 'bold' => true ),
-                    array( 'text' => "\n(for barcode 128 sticker label)", 'bold' => true, 'color' => 'FFFF0000' ),
+                    array( 'text' => "SKU\n", 'bold' => true ),
+                    array( 'text' => '(for barcode 128 sticker label)', 'bold' => true, 'color' => 'FFFF0000' ),
                 ),
             );
             $header_styles[ $column_index['SKU'] ] = 6;
@@ -269,8 +270,8 @@ class SOP_Preorder_XLSX_Exporter {
             $header_cells[ $column_index['Order notes'] ] = array(
                 'type' => 'rich',
                 'runs' => array(
-                    array( 'text' => 'Order notes', 'bold' => true ),
-                    array( 'text' => "\n(for buyer and supplier notes)", 'bold' => true, 'color' => 'FFFF0000' ),
+                    array( 'text' => "Order notes\n", 'bold' => true ),
+                    array( 'text' => '(for buyer and supplier notes)', 'bold' => true, 'color' => 'FFFF0000' ),
                 ),
             );
             $header_styles[ $column_index['Order notes'] ] = 6;
@@ -279,14 +280,14 @@ class SOP_Preorder_XLSX_Exporter {
             $header_cells[ $column_index['Carton no.'] ] = array(
                 'type' => 'rich',
                 'runs' => array(
-                    array( 'text' => 'Carton no.', 'bold' => true ),
-                    array( 'text' => "\n(use e.g. 1-5,8,11-13)", 'bold' => true, 'color' => 'FFFF0000' ),
+                    array( 'text' => "Carton no.\n", 'bold' => true ),
+                    array( 'text' => '(use e.g. 1-5,8,11-13)', 'bold' => true, 'color' => 'FFFF0000' ),
                 ),
             );
             $header_styles[ $column_index['Carton no.'] ] = 6;
         }
 
-        $sheet_rows_xml .= self::build_row_xml( 1, $header_cells, true, $header_styles, 0, array(), 30 );
+        $sheet_rows_xml .= self::build_row_xml( 1, $header_cells, true, $header_styles, 0, array(), 45 );
 
         foreach ( $lines as $line ) {
             $balance_rate_for_row = $show_usd_column ? $sheet_fx_for_usd : $sheet_balance_fx_rate;
