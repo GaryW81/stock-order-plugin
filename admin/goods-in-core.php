@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.23
+ * File version: 1.0.24
  *
  * - Receive against ordered (locked) preorder sheets.
  * - Save goods-in progress, apply stock increases, and complete goods-in.
@@ -24,6 +24,7 @@
  * - 1.0.19 - Core: accept legacy issues export params (sheet_id/nonce).
  * - 1.0.21 - Version bump for Goods-In UI/core.
  * - 1.0.22 - Stop setting receiving status; allow legacy receiving.
+ * - 1.0.24 - Harden Issues XLSX download streaming (clear output buffers) to prevent Excel repair warnings.
  * - 1.0.23 - Keep goods-in on locked sheets; do not set receiving on save/apply.
  */
 
@@ -1241,6 +1242,14 @@ function sop_handle_export_goodsin_issues_xlsx() {
     }
 
     $filename = sprintf( 'goods-in-issues-%s-%d.xlsx', $supplier_slug, (int) $sheet_id );
+
+    if ( function_exists( 'sop_export_send_file_and_exit' ) ) {
+        sop_export_send_file_and_exit(
+            $xlsx_path,
+            $filename,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        );
+    }
 
     header( 'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' );
     header( 'Content-Disposition: attachment; filename="' . $filename . '"' );

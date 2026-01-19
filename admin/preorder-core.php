@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.69
+ * File version: 11.70
+ * - 11.70 - Harden XLSX download streaming (clear output buffers) to prevent Excel repair warnings.
  * - 11.69 - Canonicalise product notes meta key to _sop_product_notes.
  * - 11.68 - Save internal product notes from preorder sheet.
  * - 11.67 - Fix In Progress status pill selector for contrast styles.
@@ -1288,6 +1289,55 @@ function sop_handle_save_preorder_sheet() {
 }
 
 add_action( 'admin_post_sop_export_preorder_sheet_xlsx', 'sop_handle_export_preorder_sheet_xlsx' );
+if ( ! function_exists( 'sop_export_clean_output_buffers' ) ) {
+    function sop_export_clean_output_buffers() {
+        if ( function_exists( 'ini_set' ) ) {
+            @ini_set( 'zlib.output_compression', 'Off' );
+        }
+        if ( function_exists( 'session_write_close' ) ) {
+            @session_write_close();
+        }
+        while ( ob_get_level() > 0 ) {
+            ob_end_clean();
+        }
+    }
+}
+
+if ( ! function_exists( 'sop_export_send_file_and_exit' ) ) {
+    function sop_export_send_file_and_exit( $file_path, $download_name, $content_type ) {
+        $file_path = (string) $file_path;
+        if ( '' === $file_path || ! file_exists( $file_path ) || ! is_readable( $file_path ) ) {
+            wp_die( esc_html__( 'Export file not found.', 'sop' ) );
+        }
+
+        if ( headers_sent() ) {
+            wp_die( esc_html__( 'Export headers already sent.', 'sop' ) );
+        }
+
+        $download_name = (string) $download_name;
+        if ( '' === $download_name ) {
+            $download_name = basename( $file_path );
+        }
+
+        sop_export_clean_output_buffers();
+        nocache_headers();
+
+        header( 'Content-Type: ' . $content_type );
+        header( 'Content-Disposition: attachment; filename="' . sanitize_file_name( $download_name ) . '"' );
+        header( 'X-Content-Type-Options: nosniff' );
+        header( 'Content-Transfer-Encoding: binary' );
+
+        $length = filesize( $file_path );
+        if ( $length && $length > 0 ) {
+            header( 'Content-Length: ' . $length );
+        }
+
+        readfile( $file_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_read_readfile
+        @unlink( $file_path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+        exit;
+    }
+}
+
 function sop_handle_export_preorder_sheet_xlsx() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You are not allowed to export pre-order sheets.', 'sop' ) );
@@ -1347,15 +1397,11 @@ function sop_handle_export_preorder_sheet_xlsx() {
         );
     }
 
-    nocache_headers();
-    header( 'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' );
-    header( 'Content-Disposition: attachment; filename="' . sanitize_file_name( $filename ) . '"' );
-    header( 'Pragma: no-cache' );
-    header( 'Expires: 0' );
-
-    readfile( $xlsx_path );
-    @unlink( $xlsx_path );
-    exit;
+    sop_export_send_file_and_exit(
+        $xlsx_path,
+        $filename,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
 }
 
 add_action( 'admin_post_sop_export_purchase_order_xlsx', 'sop_handle_export_purchase_order_xlsx' );
@@ -1406,15 +1452,11 @@ function sop_handle_export_purchase_order_xlsx() {
 
     $filename = sanitize_file_name( sprintf( 'purchase-order-%s-%d.xlsx', $supplier_slug, (int) $sheet_id ) );
 
-    nocache_headers();
-    header( 'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' );
-    header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
-    header( 'Pragma: no-cache' );
-    header( 'Expires: 0' );
-
-    readfile( $xlsx_path );
-    @unlink( $xlsx_path );
-    exit;
+    sop_export_send_file_and_exit(
+        $xlsx_path,
+        $filename,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
 }
 
 /**
