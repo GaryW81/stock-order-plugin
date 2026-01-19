@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.80
+ * File version: 1.0.81
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.81 - Add Product ID column to Order Sheet XLSX; widen carton column; match order notes width to product notes.
  * - 1.0.80 - Version bump after Goods-In issues XLSX updates.
  */
 
@@ -247,7 +248,7 @@ class SOP_Preorder_XLSX_Exporter {
         foreach ( $lines as $line ) {
             $balance_rate_for_row = $show_usd_column ? $sheet_fx_for_usd : $sheet_balance_fx_rate;
             $base = self::build_order_sheet_row_base_cells( $line, $supplier_currency, $balance_rate_for_row, $show_usd_column, $include_supplier_skus );
-            $sheet_rows_xml .= self::build_row_xml( $row_index, $base['cells'], false, $base['styles'], 0, array( 1 ) );
+            $sheet_rows_xml .= self::build_row_xml( $row_index, $base['cells'], false, $base['styles'], 0, array( 2 ) );
 
             if ( ! empty( $base['image_path'] ) ) {
                 $media_name     = 'image' . $image_index;
@@ -261,7 +262,7 @@ class SOP_Preorder_XLSX_Exporter {
                 $images[] = array(
                     'rel_id'  => 'rId' . $image_index,
                     'row'     => $row_index - 1, // zero-index for anchor.
-                    'col'     => 0, // Image column A.
+                    'col'     => 1, // Image column B.
                     'cx'      => $img_cx,
                     'cy'      => $img_cy,
                     'col_off' => $img_margin_emu,
@@ -333,6 +334,7 @@ class SOP_Preorder_XLSX_Exporter {
      */
     private static function get_order_sheet_base_columns( $supplier_currency, $show_usd_column, $include_supplier_skus = false ) {
         $columns = array(
+            'ID',
             'Image',
             'SKU',
         );
@@ -582,6 +584,15 @@ class SOP_Preorder_XLSX_Exporter {
     private static function build_order_sheet_row_base_cells( array $line, $supplier_currency, $balance_fx_rate, $show_usd_column, $include_supplier_skus = false ) {
         $product_id    = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
         $sku_to_output = isset( $line['sku'] ) ? (string) $line['sku'] : '';
+        if ( '' === $sku_to_output && isset( $line['sku_owner'] ) ) {
+            $sku_to_output = (string) $line['sku_owner'];
+        }
+        if ( $product_id <= 0 && '' !== $sku_to_output && function_exists( 'wc_get_product_id_by_sku' ) ) {
+            $resolved_id = (int) wc_get_product_id_by_sku( $sku_to_output );
+            if ( $resolved_id > 0 ) {
+                $product_id = $resolved_id;
+            }
+        }
         $brand         = isset( $line['brand'] ) ? $line['brand'] : ( isset( $line['brand_name'] ) ? $line['brand_name'] : '' );
         $name          = isset( $line['product_name'] ) ? $line['product_name'] : ( isset( $line['name'] ) ? $line['name'] : ( isset( $line['title'] ) ? $line['title'] : ( isset( $line['product'] ) ? $line['product'] : '' ) ) );
         $categories    = isset( $line['categories'] ) ? $line['categories'] : ( isset( $line['category'] ) ? $line['category'] : ( isset( $line['category_names'] ) ? $line['category_names'] : '' ) );
@@ -617,6 +628,7 @@ class SOP_Preorder_XLSX_Exporter {
         $line_total_supplier = $qty * $unit_cost;
 
         $row_cells = array(
+            $product_id,
             '', // Image placeholder.
             $sku_to_output,
         );
@@ -645,6 +657,7 @@ class SOP_Preorder_XLSX_Exporter {
         $row_cells[] = self::format_number_cell( $line_cbm, 6 );
 
         $row_styles = array(
+            7,    // ID right.
             0,    // Image placeholder.
             3,    // SKU text + wrap.
         );
@@ -881,7 +894,7 @@ class SOP_Preorder_XLSX_Exporter {
                 $row_styles[] = 7;
             }
 
-            $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles, 0, array( 1 ) );
+            $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles, 0, array( 2 ) );
 
             if ( ! empty( $base['image_path'] ) ) {
                 $media_name     = 'image' . $image_index;
@@ -895,7 +908,7 @@ class SOP_Preorder_XLSX_Exporter {
                 $images[] = array(
                     'rel_id'  => 'rId' . $image_index,
                     'row'     => $row_index - 1, // zero-index for anchor.
-                    'col'     => 0, // Image column A.
+                    'col'     => 1, // Image column B.
                     'cx'      => $img_cx,
                     'cy'      => $img_cy,
                     'col_off' => $img_margin_emu,
@@ -962,7 +975,7 @@ class SOP_Preorder_XLSX_Exporter {
                 $totals_styles[ $column_index['FX used (RMB/USD)'] ] = 7;
             }
 
-            $sheet_rows_xml .= self::build_row_xml( $row_index, $totals_cells, false, $totals_styles, 0, array( 1 ) );
+            $sheet_rows_xml .= self::build_row_xml( $row_index, $totals_cells, false, $totals_styles, 0, array( 2 ) );
             $row_index++;
         }
 
@@ -1890,9 +1903,10 @@ class SOP_Preorder_XLSX_Exporter {
 
     private static function build_cols_xml( $show_usd_column = true, $include_supplier_skus = false, $column_count = 0 ) {
         $xml  = '<cols>';
-        $xml .= '<col min="1" max="1" width="11.5" customWidth="1"/>';  // Image (A).
-        $xml .= '<col min="2" max="2" width="16" customWidth="1"/>'; // SKU (B).
-        $current_col = 3;
+        $xml .= '<col min="1" max="1" width="10" customWidth="1"/>'; // ID (A).
+        $xml .= '<col min="2" max="2" width="11.5" customWidth="1"/>'; // Image (B).
+        $xml .= '<col min="3" max="3" width="16" customWidth="1"/>'; // SKU (C).
+        $current_col = 4;
         if ( $include_supplier_skus ) {
             $xml         .= '<col min="' . $current_col . '" max="' . $current_col . '" width="16" customWidth="1"/>'; // Supplier SKUs.
             $current_col++;
@@ -1901,8 +1915,12 @@ class SOP_Preorder_XLSX_Exporter {
         $categories_col   = $current_col + 2;
         $xml             .= '<col min="' . $product_name_col . '" max="' . $product_name_col . '" width="40" customWidth="1"/>';
         $xml             .= '<col min="' . $categories_col . '" max="' . $categories_col . '" width="30" customWidth="1"/>';
-        $product_notes_col = ( $show_usd_column ? 11 : 10 ) + ( $include_supplier_skus ? 1 : 0 );
+        $product_notes_col = ( $show_usd_column ? 12 : 11 ) + ( $include_supplier_skus ? 1 : 0 );
+        $order_notes_col   = $product_notes_col + 1;
+        $carton_col        = $product_notes_col + 2;
         $xml .= '<col min="' . (int) $product_notes_col . '" max="' . (int) $product_notes_col . '" width="60" customWidth="1"/>'; // Product notes.
+        $xml .= '<col min="' . (int) $order_notes_col . '" max="' . (int) $order_notes_col . '" width="60" customWidth="1"/>'; // Order notes.
+        $xml .= '<col min="' . (int) $carton_col . '" max="' . (int) $carton_col . '" width="12.7" customWidth="1"/>'; // Carton no. (+50%).
         if ( $column_count > 0 ) {
             $base_count = count( self::get_order_sheet_base_columns( 'GBP', $show_usd_column, $include_supplier_skus ) );
             if ( $column_count > $base_count ) {
