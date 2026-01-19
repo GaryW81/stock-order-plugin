@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.85
+ * File version: 1.0.86
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.86 - Fix: Preserve newlines in rich header text so red notes wrap to next line in Excel.
  * - 1.0.85 - Fix: XLSX styles.xml schema order to prevent Excel repair prompt.
  * - 1.0.84 - XLSX: fix styles.xml to prevent Excel repair prompt.
  * - 1.0.83 - Inline header notes in row 1 for SKU/order/carton; update SKU/carton widths.
@@ -1734,6 +1735,14 @@ class SOP_Preorder_XLSX_Exporter {
         return str_replace( "\n", '&#10;', $value );
     }
 
+    private static function sanitize_xml_text_preserve_newlines( $value ) {
+        $value = (string) $value;
+        $value = str_replace( array( "\r\n", "\r" ), "\n", $value );
+        $value = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $value );
+        $value = htmlspecialchars( $value, ENT_XML1 | ENT_COMPAT, 'UTF-8' );
+        return str_replace( "\n", '&#10;', $value );
+    }
+
     private static function column_letter( $index ) {
         $index  = (int) $index;
         $letter = '';
@@ -1786,7 +1795,7 @@ class SOP_Preorder_XLSX_Exporter {
                         if ( '' !== $color ) {
                             $xml .= '<color rgb="' . self::esc_xml( $color ) . '"/>';
                         }
-                        $xml .= '</rPr><t xml:space="preserve">' . self::sanitize_xml_text( $text ) . '</t></r>';
+                        $xml .= '</rPr><t xml:space="preserve">' . self::sanitize_xml_text_preserve_newlines( $text ) . '</t></r>';
                     }
                     $xml .= '</is>';
                 } else {
