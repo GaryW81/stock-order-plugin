@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.90
+ * File version: 1.0.91
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.91 - Tweak: Increase SKU column width to 28.
  * - 1.0.90 - Tweak: Widen key MOQ/Qty/price/CBM columns by 10%.
  * - 1.0.89 - Tweak: Order Sheet header height + column widths (MOQ/Qty/prices/CBM fields).
  * - 1.0.88 - Fix: Enable wrapText for multi-line header cells so Excel renders red notes on a new line.
@@ -1985,7 +1986,7 @@ class SOP_Preorder_XLSX_Exporter {
         $xml  = '<cols>';
         $xml .= '<col min="1" max="1" width="6.15" customWidth="1"/>'; // ID (A).
         $xml .= '<col min="2" max="2" width="11.5" customWidth="1"/>'; // Image (B).
-        $xml .= '<col min="3" max="3" width="27" customWidth="1"/>'; // SKU (C).
+        $xml .= '<col min="3" max="3" width="28" customWidth="1"/>'; // SKU (C).
         $current_col = 4;
         if ( $include_supplier_skus ) {
             $xml         .= '<col min="' . $current_col . '" max="' . $current_col . '" width="16" customWidth="1"/>'; // Supplier SKUs.
