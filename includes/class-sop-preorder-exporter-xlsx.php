@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.88
+ * File version: 1.0.89
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.89 - Tweak: Order Sheet header height + column widths (MOQ/Qty/prices/CBM fields).
  * - 1.0.88 - Fix: Enable wrapText for multi-line header cells so Excel renders red notes on a new line.
  * - 1.0.87 - Fix: Header red notes now break onto a new line in XLSX (rich text newline handling).
  * - 1.0.86 - Fix: Preserve newlines in rich header text so red notes wrap to next line in Excel.
@@ -288,7 +289,7 @@ class SOP_Preorder_XLSX_Exporter {
             $header_styles[ $column_index['Carton no.'] ] = 3;
         }
 
-        $sheet_rows_xml .= self::build_row_xml( 1, $header_cells, true, $header_styles, 0, array(), 45 );
+        $sheet_rows_xml .= self::build_row_xml( 1, $header_cells, true, $header_styles, 0, array(), 30 );
 
         foreach ( $lines as $line ) {
             $balance_rate_for_row = $show_usd_column ? $sheet_fx_for_usd : $sheet_balance_fx_rate;
@@ -1993,12 +1994,28 @@ class SOP_Preorder_XLSX_Exporter {
         $categories_col   = $current_col + 2;
         $xml             .= '<col min="' . $product_name_col . '" max="' . $product_name_col . '" width="40" customWidth="1"/>';
         $xml             .= '<col min="' . $categories_col . '" max="' . $categories_col . '" width="30" customWidth="1"/>';
+        $moq_col          = $categories_col + 1;
+        $qty_col          = $moq_col + 1;
+        $unit_price_col   = $moq_col + 2;
+        $usd_col          = $show_usd_column ? ( $unit_price_col + 1 ) : 0;
+        $total_col        = $show_usd_column ? ( $unit_price_col + 2 ) : ( $unit_price_col + 1 );
+        $xml             .= '<col min="' . (int) $moq_col . '" max="' . (int) $moq_col . '" width="6.44" customWidth="1"/>'; // MOQ.
+        $xml             .= '<col min="' . (int) $qty_col . '" max="' . (int) $qty_col . '" width="5.94" customWidth="1"/>'; // Qty.
+        $xml             .= '<col min="' . (int) $unit_price_col . '" max="' . (int) $unit_price_col . '" width="12.88" customWidth="1"/>'; // Unit price (supplier).
+        if ( $show_usd_column ) {
+            $xml         .= '<col min="' . (int) $usd_col . '" max="' . (int) $usd_col . '" width="12.88" customWidth="1"/>'; // Unit price (USD).
+        }
+        $xml             .= '<col min="' . (int) $total_col . '" max="' . (int) $total_col . '" width="12.88" customWidth="1"/>'; // Total (supplier).
         $product_notes_col = ( $show_usd_column ? 12 : 11 ) + ( $include_supplier_skus ? 1 : 0 );
         $order_notes_col   = $product_notes_col + 1;
         $carton_col        = $product_notes_col + 2;
         $xml .= '<col min="' . (int) $product_notes_col . '" max="' . (int) $product_notes_col . '" width="60" customWidth="1"/>'; // Product notes.
         $xml .= '<col min="' . (int) $order_notes_col . '" max="' . (int) $order_notes_col . '" width="60" customWidth="1"/>'; // Order notes.
-        $xml .= '<col min="' . (int) $carton_col . '" max="' . (int) $carton_col . '" width="19.22" customWidth="1"/>'; // Carton no. (180px).
+        $xml .= '<col min="' . (int) $carton_col . '" max="' . (int) $carton_col . '" width="18.82" customWidth="1"/>'; // Carton no. (190px).
+        $cm3_col = $carton_col + 1;
+        $cbm_col = $carton_col + 2;
+        $xml .= '<col min="' . (int) $cm3_col . '" max="' . (int) $cm3_col . '" width="9.91" customWidth="1"/>'; // cm3 per unit.
+        $xml .= '<col min="' . (int) $cbm_col . '" max="' . (int) $cbm_col . '" width="9.91" customWidth="1"/>'; // Line CBM.
         if ( $column_count > 0 ) {
             $base_count = count( self::get_order_sheet_base_columns( 'GBP', $show_usd_column, $include_supplier_skus ) );
             if ( $column_count > $base_count ) {
