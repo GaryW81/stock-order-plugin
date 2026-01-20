@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.94
+ * File version: 1.0.95
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.95 - Tweak: Right-align summary amounts; fill Balance USD/FX when deposit FX is locked.
  * - 1.0.94 - Fix: Order Summary currency symbols/2dp, preserve TBC when unlocked, correct PO # value.
  * - 1.0.93 - Fix: Order Summary XLSX mapping updated for new template rows (extras/total/deposit/terms).
  * - 1.0.92 - Update PO template mapping for 4-column (A-D) layouts.
@@ -1417,8 +1418,7 @@ class SOP_Preorder_XLSX_Exporter {
 
         $result = $set_inline( 'A24', $summary_label );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $style_d24 = $get_style( 'D24' );
-        $result = $set_inline( 'D24', self::format_money_string( $base_total, $currency_label ), $style_d24 );
+        $result = self::set_inline_preserve_style( $doc, $xpath, 'D24', self::format_money_string( $base_total, $currency_label ) );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         if ( $is_new_template_layout ) {
             $extras_start_row = 25;
@@ -1432,24 +1432,20 @@ class SOP_Preorder_XLSX_Exporter {
                 }
                 $result = $set_inline( 'A' . $extras_row, $extra['label'] );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-                $style_dx = $get_style( 'D' . $extras_row );
-                $result = $set_inline( 'D' . $extras_row, self::format_money_string( $extra['amount'], $currency_label ), $style_dx );
+                $result = self::set_inline_preserve_style( $doc, $xpath, 'D' . $extras_row, self::format_money_string( $extra['amount'], $currency_label ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
                 $extras_row++;
             }
             if ( $extras_remaining > 0 ) {
                 $result = $set_inline( 'A' . $extras_end_row, __( 'Other extras', 'sop' ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-                $style_dend = $get_style( 'D' . $extras_end_row );
-                $result = $set_inline( 'D' . $extras_end_row, self::format_money_string( $extras_remaining, $currency_label ), $style_dend );
+                $result = self::set_inline_preserve_style( $doc, $xpath, 'D' . $extras_end_row, self::format_money_string( $extras_remaining, $currency_label ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             }
-            $style_d34 = $get_style( 'D34' );
-            $result = $set_inline( 'D34', self::format_money_string( $total_with_extras, $currency_label ), $style_d34 );
+            $result = self::set_inline_preserve_style( $doc, $xpath, 'D34', self::format_money_string( $total_with_extras, $currency_label ) );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         } else {
-            $style_d25 = $get_style( 'D25' );
-            $result = $set_inline( 'D25', self::format_money_string( $total_with_extras, $currency_label ), $style_d25 );
+            $result = self::set_inline_preserve_style( $doc, $xpath, 'D25', self::format_money_string( $total_with_extras, $currency_label ) );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         }
 
@@ -1466,21 +1462,17 @@ class SOP_Preorder_XLSX_Exporter {
             $fx_display = ( $deposit_fx > 0 ) ? $format_fx( $deposit_fx ) : '';
             if ( $is_new_template_layout ) {
                 if ( $deposit_usd > 0 ) {
-                    $style_b37 = $get_style( 'B37' );
-                    $set_inline( 'B37', self::format_money_string( $deposit_usd, 'USD' ), $style_b37 );
+                    self::set_inline_preserve_style( $doc, $xpath, 'B37', self::format_money_string( $deposit_usd, 'USD' ) );
                 }
                 if ( $deposit_fx > 0 ) {
                     $set_inline( 'C37', sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ), '' );
                 }
-                $style_d37 = $get_style( 'D37' );
-                $result = $set_inline( 'D37', self::format_money_string( $deposit_rmb, 'RMB' ), $style_d37 );
+                $result = self::set_inline_preserve_style( $doc, $xpath, 'D37', self::format_money_string( $deposit_rmb, 'RMB' ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             } else {
-                $style_b28 = $get_style( 'B28' );
-                $set_inline( 'B28', self::format_money_string( $deposit_usd, 'USD' ), $style_b28 );
+                self::set_inline_preserve_style( $doc, $xpath, 'B28', self::format_money_string( $deposit_usd, 'USD' ) );
                 $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', '' );
-                $style_d28 = $get_style( 'D28' );
-                $result = $set_inline( 'D28', self::format_money_string( $deposit_rmb, 'RMB' ), $style_d28 );
+                $result = self::set_inline_preserve_style( $doc, $xpath, 'D28', self::format_money_string( $deposit_rmb, 'RMB' ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             }
 
@@ -1489,20 +1481,22 @@ class SOP_Preorder_XLSX_Exporter {
             if ( $is_new_template_layout ) {
                 if ( $balance_fx_locked ) {
                     if ( $balance_usd_for_export > 0 ) {
-                        $style_b38 = $get_style( 'B38' );
-                        $set_inline( 'B38', self::format_money_string( $balance_usd_for_export, 'USD' ), $style_b38 );
+                        self::set_inline_preserve_style( $doc, $xpath, 'B38', self::format_money_string( $balance_usd_for_export, 'USD' ) );
                     }
                     if ( $effective_balance_fx_for_export > 0 ) {
                         $set_inline( 'C38', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), '' );
                     }
+                } elseif ( $deposit_fx > 0 && $deposit_fx_locked ) {
+                    if ( $balance_usd_for_export > 0 ) {
+                        self::set_inline_preserve_style( $doc, $xpath, 'B38', self::format_money_string( $balance_usd_for_export, 'USD' ) );
+                    }
+                    $set_inline( 'C38', sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ), '' );
                 }
-                $style_d38 = $get_style( 'D38' );
-                $result = $set_inline( 'D38', self::format_money_string( $balance_rmb, 'RMB' ), $style_d38 );
+                $result = self::set_inline_preserve_style( $doc, $xpath, 'D38', self::format_money_string( $balance_rmb, 'RMB' ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             } else {
                 if ( $balance_usd_for_export > 0 ) {
-                    $style_b29 = $get_style( 'B29' );
-                    $set_inline( 'B29', self::format_money_string( $balance_usd_for_export, 'USD' ), $style_b29 );
+                    self::set_inline_preserve_style( $doc, $xpath, 'B29', self::format_money_string( $balance_usd_for_export, 'USD' ) );
                 } else {
                     $set_inline( 'B29', '', '' );
                 }
@@ -1511,8 +1505,7 @@ class SOP_Preorder_XLSX_Exporter {
                 } else {
                     $set_inline( 'C29', '', '' );
                 }
-                $style_d29 = $get_style( 'D29' );
-                $result = $set_inline( 'D29', self::format_money_string( $balance_rmb, 'RMB' ), $style_d29 );
+                $result = self::set_inline_preserve_style( $doc, $xpath, 'D29', self::format_money_string( $balance_rmb, 'RMB' ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             }
         } else {
@@ -1523,18 +1516,14 @@ class SOP_Preorder_XLSX_Exporter {
                 $balance_simple = 0.0;
             }
             if ( $is_new_template_layout && null !== $get_style( 'D37' ) && null !== $get_style( 'D38' ) ) {
-                $style_d37 = $get_style( 'D37' );
-                $result = $set_inline( 'D37', self::format_money_string( $deposit_simple, $currency_label ), $style_d37 );
+                $result = self::set_inline_preserve_style( $doc, $xpath, 'D37', self::format_money_string( $deposit_simple, $currency_label ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-                $style_d38 = $get_style( 'D38' );
-                $result = $set_inline( 'D38', self::format_money_string( $balance_simple, $currency_label ), $style_d38 );
+                $result = self::set_inline_preserve_style( $doc, $xpath, 'D38', self::format_money_string( $balance_simple, $currency_label ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             } else {
-                $style_d27 = $get_style( 'D27' );
-                $result = $set_inline( 'D27', self::format_money_string( $deposit_simple, $currency_label ), $style_d27 );
+                $result = self::set_inline_preserve_style( $doc, $xpath, 'D27', self::format_money_string( $deposit_simple, $currency_label ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-                $style_d28 = $get_style( 'D28' );
-                $result = $set_inline( 'D28', self::format_money_string( $balance_simple, $currency_label ), $style_d28 );
+                $result = self::set_inline_preserve_style( $doc, $xpath, 'D28', self::format_money_string( $balance_simple, $currency_label ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             }
         }
@@ -1924,6 +1913,11 @@ class SOP_Preorder_XLSX_Exporter {
         $symbol = isset( $symbol_map[ $currency_label ] ) ? $symbol_map[ $currency_label ] : '';
         $value  = number_format( (float) $amount, 2, '.', ',' );
         return $symbol . $value;
+    }
+
+    private static function set_inline_preserve_style( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $text ) {
+        $style_index = self::po_template_get_style_index( $xpath, $cell_ref );
+        return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, '' !== $style_index ? $style_index : '' );
     }
 
     private static function format_po_date_display( $value ) {
