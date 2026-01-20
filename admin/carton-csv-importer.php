@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Carton CSV Importer (admin only)
- * File version: 1.1.0
+ * File version: 1.1.1
+ * - 1.1.1 - Improve column guessing + preview UX; default annotation append off.
  * - 1.1.0 - Add dry run/undo support and safer carton parsing for supplier format.
  * - 1.0.0 - Initial carton CSV importer for saved preorder sheets.
  */
@@ -147,6 +148,7 @@ if ( ! function_exists( 'sop_carton_csv_importer_normalize_header' ) ) {
         $value = strtolower( trim( (string) $value ) );
         $value = preg_replace( '/\s+/', ' ', $value );
         $value = str_replace( array( '_', '-', ' ' ), '', $value );
+        $value = preg_replace( '/[^a-z0-9]/', '', $value );
         return $value;
     }
 }
@@ -514,7 +516,7 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                         }
                     }
                 }
-            } elseif ( 'import' === $action ) {
+            } elseif ( 'import' === $action || 'preview' === $action ) {
                 $sheet_id = isset( $_POST['sop_carton_sheet_id'] ) ? (int) $_POST['sop_carton_sheet_id'] : 0;
                 $state['sheet_id'] = $sheet_id;
 
@@ -656,7 +658,14 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                 }
 
                                 if ( empty( $errors ) ) {
-                                    if ( $dry_run ) {
+                                    if ( 'preview' === $action ) {
+                                        $state['step'] = 'map';
+                                        $state['file_path'] = $file_path;
+                                        $state['headers'] = $parsed['headers'];
+                                        $state['rows'] = $parsed['rows'];
+                                        $state['has_header'] = $parsed['has_header'];
+                                        $notices[] = __( 'Preview updated. No changes were saved.', 'sop' );
+                                    } elseif ( $dry_run ) {
                                         $results = array(
                                             'processed'     => $processed_rows,
                                             'updated_carton'=> $updated_carton,
@@ -711,7 +720,7 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                         }
                     }
 
-                    if ( '' !== $file_path && file_exists( $file_path ) ) {
+                    if ( 'preview' !== $action && '' !== $file_path && file_exists( $file_path ) ) {
                         @unlink( $file_path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
                     }
                 }
@@ -849,24 +858,31 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                 echo '<h2>' . esc_html__( 'Step 2 - Map columns and import', 'sop' ) . '</h2>';
                 echo '<form method="post">';
                 wp_nonce_field( 'sop_carton_csv_import', 'sop_carton_csv_nonce' );
-                echo '<input type="hidden" name="sop_carton_csv_action" value="import" />';
                 echo '<input type="hidden" name="sop_carton_sheet_id" value="' . esc_attr( $selected_sheet_id ) . '" />';
                 echo '<input type="hidden" name="sop_carton_csv_file_path" value="' . esc_attr( $file_path ) . '" />';
 
                 echo '<table class="form-table"><tbody>';
                 echo '<tr><th scope="row">' . esc_html__( 'Product ID column', 'sop' ) . '</th><td>';
-                echo sop_carton_csv_importer_render_column_select( 'sop_map_product_id', $headers, $guess['product_id'], false );
+                $preview_product_col = isset( $_POST['sop_map_product_id'] ) ? (int) $_POST['sop_map_product_id'] : $guess['product_id'];
+                $preview_carton_col  = isset( $_POST['sop_map_carton_no'] ) ? (int) $_POST['sop_map_carton_no'] : $guess['carton_no'];
+                $preview_notes_col   = isset( $_POST['sop_map_order_notes'] ) ? (int) $_POST['sop_map_order_notes'] : $guess['notes'];
+                $preview_append_annotations = ! empty( $_POST['sop_carton_append_notes'] );
+                $preview_dry_run = array_key_exists( 'sop_carton_dry_run', $_POST ) ? ! empty( $_POST['sop_carton_dry_run'] ) : true;
+                echo sop_carton_csv_importer_render_column_select( 'sop_map_product_id', $headers, $preview_product_col, false );
                 echo '</td></tr>';
                 echo '<tr><th scope="row">' . esc_html__( 'Carton no. column', 'sop' ) . '</th><td>';
-                echo sop_carton_csv_importer_render_column_select( 'sop_map_carton_no', $headers, $guess['carton_no'], true );
+                echo sop_carton_csv_importer_render_column_select( 'sop_map_carton_no', $headers, $preview_carton_col, true );
                 echo '</td></tr>';
                 echo '<tr><th scope="row">' . esc_html__( 'Order notes column', 'sop' ) . '</th><td>';
-                echo sop_carton_csv_importer_render_column_select( 'sop_map_order_notes', $headers, $guess['notes'], true );
+                echo sop_carton_csv_importer_render_column_select( 'sop_map_order_notes', $headers, $preview_notes_col, true );
                 echo '</td></tr>';
                 echo '<tr><th scope="row">' . esc_html__( 'Options', 'sop' ) . '</th><td>';
                 echo '<label><input type="checkbox" name="sop_carton_overwrite" value="1" /> ' . esc_html__( 'Overwrite existing carton values', 'sop' ) . '</label><br />';
-                echo '<label><input type="checkbox" name="sop_carton_append_notes" value="1" checked /> ' . esc_html__( 'Append carton annotations into Order notes', 'sop' ) . '</label>';
-                echo '<br /><label><input type="checkbox" name="sop_carton_dry_run" value="1" checked /> ' . esc_html__( 'Dry run (no changes saved)', 'sop' ) . '</label>';
+                $append_checked = $preview_append_annotations ? 'checked' : '';
+                $dry_run_checked = $preview_dry_run ? 'checked' : '';
+                echo '<label><input type="checkbox" name="sop_carton_append_notes" value="1" ' . $append_checked . ' /> ' . esc_html__( 'Append carton annotations into Order notes', 'sop' ) . '</label>';
+                echo '<p class="description">' . esc_html__( 'If your Carton no. column contains extra info (e.g. “1555 = 40pcs”, “10 EACH”, “Handlebar”), this will append that extra text into Order notes. Leave this OFF if you already mapped an Order notes column or you only want carton numbers saved.', 'sop' ) . '</p>';
+                echo '<label><input type="checkbox" name="sop_carton_dry_run" value="1" ' . $dry_run_checked . ' /> ' . esc_html__( 'Dry run (no changes saved)', 'sop' ) . '</label>';
                 echo '</td></tr>';
                 echo '</tbody></table>';
 
@@ -880,16 +896,16 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
 
                 $preview_rows = array_slice( $rows, 0, 10 );
                 foreach ( $preview_rows as $row ) {
-                    $product_id = sop_carton_csv_importer_extract_cell( $row, $guess['product_id'] );
-                    $carton_raw = sop_carton_csv_importer_extract_cell( $row, $guess['carton_no'] );
-                    $notes_raw  = sop_carton_csv_importer_extract_cell( $row, $guess['notes'] );
+                    $product_id = sop_carton_csv_importer_extract_cell( $row, $preview_product_col );
+                    $carton_raw = sop_carton_csv_importer_extract_cell( $row, $preview_carton_col );
+                    $notes_raw  = sop_carton_csv_importer_extract_cell( $row, $preview_notes_col );
 
                     $normalized = sop_normalize_carton_and_annotation( $carton_raw );
                     $notes_parts = array();
                     if ( '' !== $notes_raw ) {
                         $notes_parts[] = sanitize_textarea_field( $notes_raw );
                     }
-                    if ( '' !== $normalized['annotation'] ) {
+                    if ( $preview_append_annotations && '' !== $normalized['annotation'] ) {
                         $notes_parts[] = $normalized['annotation'];
                     }
                     $notes_to_append = trim( implode( "\n", array_filter( $notes_parts ) ) );
@@ -907,7 +923,8 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                 }
 
                 echo '</tbody></table>';
-                submit_button( __( 'Import cartons', 'sop' ) );
+                echo '<button type="submit" class="button" name="sop_carton_csv_action" value="preview">' . esc_html__( 'Update preview', 'sop' ) . '</button> ';
+                echo '<button type="submit" class="button button-primary" name="sop_carton_csv_action" value="import">' . esc_html__( 'Import cartons', 'sop' ) . '</button>';
                 echo '</form>';
             }
         }
