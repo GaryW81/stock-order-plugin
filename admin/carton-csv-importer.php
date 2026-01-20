@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Carton CSV Importer (admin only)
- * File version: 1.1.1
+ * File version: 1.2.0
+ * - 1.2.0 - Improve carton import reporting (notes preview, details table, CSV report download, clearer undo/dry-run flow).
  * - 1.1.1 - Improve column guessing + preview UX; default annotation append off.
  * - 1.1.0 - Add dry run/undo support and safer carton parsing for supplier format.
  * - 1.0.0 - Initial carton CSV importer for saved preorder sheets.
@@ -572,6 +573,7 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                 $not_found      = array();
                                 $invalid_carton = array();
                                 $backup_changes = array();
+                                $details        = array();
 
                                 foreach ( $rows as $row ) {
                                     $processed_rows++;
@@ -583,19 +585,28 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                         continue;
                                     }
 
-                                    if ( ! isset( $line_index[ $product_id ] ) ) {
-                                        $not_found[] = $product_id;
-                                        continue;
-                                    }
-
                                     $carton_raw = sop_carton_csv_importer_extract_cell( $row, $carton_col );
                                     $notes_raw  = sop_carton_csv_importer_extract_cell( $row, $notes_col );
+
+                                    if ( ! isset( $line_index[ $product_id ] ) ) {
+                                        $not_found[] = $product_id;
+                                        $details[] = array(
+                                            'product_id'        => $product_id,
+                                            'raw_carton'        => $carton_raw,
+                                            'normalized_carton' => '',
+                                            'notes_to_append'   => '',
+                                            'status'            => 'not_found',
+                                            'dry_run'           => $dry_run,
+                                        );
+                                        continue;
+                                    }
 
                                     $notes_raw  = sanitize_textarea_field( $notes_raw );
                                     $carton_raw = trim( (string) $carton_raw );
 
                                     $normalized = sop_normalize_carton_and_annotation( $carton_raw );
-                                    if ( ! empty( $normalized['invalid'] ) ) {
+                                    $is_invalid = ! empty( $normalized['invalid'] );
+                                    if ( $is_invalid ) {
                                         $invalid_carton[] = array(
                                             'product_id' => $product_id,
                                             'raw'        => $carton_raw,
@@ -619,6 +630,7 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
 
                                     $changed = false;
 
+                                    $would_update_carton = false;
                                     if ( '' !== $carton ) {
                                         $existing_carton = isset( $line['carton_no'] ) ? (string) $line['carton_no'] : '';
                                         if ( $overwrite_carton || '' === $existing_carton ) {
@@ -630,10 +642,12 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                             }
                                             $line['carton_no'] = $carton;
                                             $updated_carton++;
+                                            $would_update_carton = true;
                                             $changed = true;
                                         }
                                     }
 
+                                    $would_append_notes = false;
                                     if ( '' !== $notes_to_append ) {
                                         $existing_notes = isset( $line['order_notes_owner'] ) ? (string) $line['order_notes_owner'] : '';
                                         $append_result  = sop_carton_csv_importer_append_notes( $existing_notes, $notes_to_append );
@@ -646,8 +660,30 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                                 );
                                             }
                                             $notes_appended++;
+                                            $would_append_notes = true;
                                             $changed = true;
                                         }
+                                    }
+
+                                    if ( $is_invalid || $would_update_carton || $would_append_notes ) {
+                                        $status = 'skipped';
+                                        if ( $is_invalid ) {
+                                            $status = 'invalid';
+                                        } elseif ( $would_update_carton && $would_append_notes ) {
+                                            $status = 'updated+notes';
+                                        } elseif ( $would_update_carton ) {
+                                            $status = 'updated';
+                                        } elseif ( $would_append_notes ) {
+                                            $status = 'notes';
+                                        }
+                                        $details[] = array(
+                                            'product_id'        => $product_id,
+                                            'raw_carton'        => $carton_raw,
+                                            'normalized_carton' => $carton,
+                                            'notes_to_append'   => $notes_to_append,
+                                            'status'            => $status,
+                                            'dry_run'           => $dry_run,
+                                        );
                                     }
 
                                     if ( $changed ) {
@@ -673,8 +709,14 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                             'skipped'       => $skipped_rows,
                                             'not_found'     => $not_found,
                                             'invalid'       => $invalid_carton,
+                                            'dry_run'       => true,
                                         );
                                         $notices[] = __( 'Dry run complete. No changes were saved.', 'sop' );
+                                        $state['step'] = 'map';
+                                        $state['file_path'] = $file_path;
+                                        $state['headers'] = $parsed['headers'];
+                                        $state['rows'] = $parsed['rows'];
+                                        $state['has_header'] = $parsed['has_header'];
                                     } elseif ( function_exists( 'sop_insert_preorder_sheet_lines' ) ) {
                                         $save = sop_insert_preorder_sheet_lines( $sheet_id, $lines );
                                         if ( is_wp_error( $save ) ) {
@@ -696,6 +738,7 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                                 'skipped'       => $skipped_rows,
                                                 'not_found'     => $not_found,
                                                 'invalid'       => $invalid_carton,
+                                                'dry_run'       => false,
                                             );
                                             $notices[] = __( 'Import complete.', 'sop' );
                                             if ( ! empty( $backup_changes ) ) {
@@ -716,11 +759,25 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                         $errors[] = __( 'Sheet line helper is unavailable.', 'sop' );
                                     }
                                 }
+
+                                if ( empty( $errors ) ) {
+                                    $report_key = 'sop_carton_import_report_' . get_current_user_id() . '_' . $sheet_id;
+                                    set_transient(
+                                        $report_key,
+                                        array(
+                                            'created_at' => current_time( 'mysql', true ),
+                                            'sheet_id'   => $sheet_id,
+                                            'dry_run'    => $dry_run,
+                                            'details'    => $details,
+                                        ),
+                                        2 * HOUR_IN_SECONDS
+                                    );
+                                }
                             }
                         }
                     }
 
-                    if ( 'preview' !== $action && '' !== $file_path && file_exists( $file_path ) ) {
+                    if ( 'preview' !== $action && ! $dry_run && '' !== $file_path && file_exists( $file_path ) ) {
                         @unlink( $file_path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
                     }
                 }
@@ -813,6 +870,63 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
         $sheet_options = $sheets;
         $selected_sheet_id = (int) $state['sheet_id'];
         $undo_backup = $selected_sheet_id ? get_option( 'sop_carton_import_backup_' . $selected_sheet_id ) : null;
+        $report_key = $selected_sheet_id ? 'sop_carton_import_report_' . get_current_user_id() . '_' . $selected_sheet_id : '';
+        $report = $report_key ? get_transient( $report_key ) : null;
+
+        if ( ! empty( $results ) ) {
+            $is_dry_run = ! empty( $results['dry_run'] );
+            if ( $is_dry_run ) {
+                echo '<p>' . esc_html__( 'Dry run only. No changes were saved, so there is nothing to undo. Review details below, then uncheck Dry run and click Import cartons.', 'sop' ) . '</p>';
+            } else {
+                echo '<p>' . esc_html__( 'Import complete. You can undo this import using the button below.', 'sop' ) . '</p>';
+            }
+
+            if ( $report_key ) {
+                $report_url = add_query_arg(
+                    array(
+                        'action'   => 'sop_carton_csv_report',
+                        'sheet_id' => $selected_sheet_id,
+                        'nonce'    => wp_create_nonce( 'sop_carton_csv_report_' . $selected_sheet_id ),
+                    ),
+                    admin_url( 'admin-post.php' )
+                );
+                echo '<p><a class="button" href="' . esc_url( $report_url ) . '">' . esc_html__( 'Download report CSV', 'sop' ) . '</a></p>';
+            }
+
+            if ( ! $is_dry_run && $selected_sheet_id && ! empty( $undo_backup['changes'] ) ) {
+                echo '<form method="post">';
+                wp_nonce_field( 'sop_carton_csv_import', 'sop_carton_csv_nonce' );
+                echo '<input type="hidden" name="sop_carton_csv_action" value="undo" />';
+                echo '<input type="hidden" name="sop_carton_sheet_id" value="' . esc_attr( $selected_sheet_id ) . '" />';
+                submit_button( __( 'Undo last import', 'sop' ), 'secondary' );
+                echo '</form>';
+            }
+
+            if ( ! empty( $report['details'] ) && is_array( $report['details'] ) ) {
+                $detail_rows = array_slice( $report['details'], 0, 1000 );
+                echo '<h3>' . esc_html__( 'Import details', 'sop' ) . '</h3>';
+                if ( count( $report['details'] ) > 1000 ) {
+                    echo '<p>' . esc_html__( 'Showing first 1000 rows. Download the report CSV for the full list.', 'sop' ) . '</p>';
+                }
+                echo '<table class="widefat striped"><thead><tr>';
+                echo '<th>' . esc_html__( 'Product ID', 'sop' ) . '</th>';
+                echo '<th>' . esc_html__( 'Status', 'sop' ) . '</th>';
+                echo '<th>' . esc_html__( 'Raw carton', 'sop' ) . '</th>';
+                echo '<th>' . esc_html__( 'Normalized carton', 'sop' ) . '</th>';
+                echo '<th>' . esc_html__( 'Notes to append', 'sop' ) . '</th>';
+                echo '</tr></thead><tbody>';
+                foreach ( $detail_rows as $detail ) {
+                    echo '<tr>';
+                    echo '<td>' . esc_html( isset( $detail['product_id'] ) ? $detail['product_id'] : '' ) . '</td>';
+                    echo '<td>' . esc_html( isset( $detail['status'] ) ? $detail['status'] : '' ) . '</td>';
+                    echo '<td>' . esc_html( isset( $detail['raw_carton'] ) ? $detail['raw_carton'] : '' ) . '</td>';
+                    echo '<td>' . esc_html( isset( $detail['normalized_carton'] ) ? $detail['normalized_carton'] : '' ) . '</td>';
+                    echo '<td>' . esc_html( isset( $detail['notes_to_append'] ) ? $detail['notes_to_append'] : '' ) . '</td>';
+                    echo '</tr>';
+                }
+                echo '</tbody></table>';
+            }
+        }
 
         echo '<h2>' . esc_html__( 'Step 1 - Select sheet and upload CSV', 'sop' ) . '</h2>';
         echo '<form method="post" enctype="multipart/form-data">';
@@ -923,6 +1037,56 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                 }
 
                 echo '</tbody></table>';
+
+                $notes_preview_rows = array();
+                foreach ( $rows as $row ) {
+                    $product_id = sop_carton_csv_importer_extract_cell( $row, $preview_product_col );
+                    $carton_raw = sop_carton_csv_importer_extract_cell( $row, $preview_carton_col );
+                    $notes_raw  = sop_carton_csv_importer_extract_cell( $row, $preview_notes_col );
+
+                    $normalized = sop_normalize_carton_and_annotation( $carton_raw );
+                    $notes_parts = array();
+                    if ( '' !== $notes_raw ) {
+                        $notes_parts[] = sanitize_textarea_field( $notes_raw );
+                    }
+                    if ( $preview_append_annotations && '' !== $normalized['annotation'] ) {
+                        $notes_parts[] = $normalized['annotation'];
+                    }
+                    $notes_to_append = trim( implode( "\n", array_filter( $notes_parts ) ) );
+                    if ( '' !== $notes_to_append ) {
+                        $notes_preview_rows[] = array(
+                            'product_id' => $product_id,
+                            'carton_raw' => $carton_raw,
+                            'carton'     => $normalized['carton'],
+                            'notes'      => $notes_to_append,
+                        );
+                        if ( count( $notes_preview_rows ) >= 10 ) {
+                            break;
+                        }
+                    }
+                }
+
+                echo '<h3>' . esc_html__( 'Preview (first 10 rows with notes)', 'sop' ) . '</h3>';
+                if ( empty( $notes_preview_rows ) ) {
+                    echo '<p>' . esc_html__( 'No rows with notes found in CSV.', 'sop' ) . '</p>';
+                } else {
+                    echo '<table class="widefat striped"><thead><tr>';
+                    echo '<th>' . esc_html__( 'Product ID', 'sop' ) . '</th>';
+                    echo '<th>' . esc_html__( 'Raw carton', 'sop' ) . '</th>';
+                    echo '<th>' . esc_html__( 'Normalized carton', 'sop' ) . '</th>';
+                    echo '<th>' . esc_html__( 'Notes to append', 'sop' ) . '</th>';
+                    echo '</tr></thead><tbody>';
+                    foreach ( $notes_preview_rows as $row ) {
+                        echo '<tr>';
+                        echo '<td>' . esc_html( $row['product_id'] ) . '</td>';
+                        echo '<td>' . esc_html( $row['carton_raw'] ) . '</td>';
+                        echo '<td>' . esc_html( $row['carton'] ) . '</td>';
+                        echo '<td>' . esc_html( $row['notes'] ) . '</td>';
+                        echo '</tr>';
+                    }
+                    echo '</tbody></table>';
+                }
+
                 echo '<button type="submit" class="button" name="sop_carton_csv_action" value="preview">' . esc_html__( 'Update preview', 'sop' ) . '</button> ';
                 echo '<button type="submit" class="button button-primary" name="sop_carton_csv_action" value="import">' . esc_html__( 'Import cartons', 'sop' ) . '</button>';
                 echo '</form>';
@@ -951,5 +1115,56 @@ if ( ! function_exists( 'sop_carton_csv_importer_render_column_select' ) ) {
         $html .= '</select>';
         return $html;
     }
+}
+
+if ( ! function_exists( 'sop_carton_csv_importer_download_report' ) ) {
+    function sop_carton_csv_importer_download_report() {
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_die( esc_html__( 'You do not have permission to access this report.', 'sop' ) );
+        }
+
+        $sheet_id = isset( $_GET['sheet_id'] ) ? (int) $_GET['sheet_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $nonce    = isset( $_GET['nonce'] ) ? sanitize_text_field( wp_unslash( $_GET['nonce'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( ! wp_verify_nonce( $nonce, 'sop_carton_csv_report_' . $sheet_id ) ) {
+            wp_die( esc_html__( 'Security check failed.', 'sop' ) );
+        }
+
+        $key    = 'sop_carton_import_report_' . get_current_user_id() . '_' . $sheet_id;
+        $report = get_transient( $key );
+        if ( empty( $report['details'] ) || ! is_array( $report['details'] ) ) {
+            wp_die( esc_html__( 'Report data not found.', 'sop' ) );
+        }
+
+        $filename = sprintf( 'carton-import-report-%d-%s.csv', $sheet_id, gmdate( 'Ymd-His' ) );
+        nocache_headers();
+        header( 'Content-Type: text/csv; charset=utf-8' );
+        header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+
+        $out = fopen( 'php://output', 'w' );
+        if ( $out ) {
+            fputcsv( $out, array( 'product_id', 'status', 'raw_carton', 'normalized_carton', 'notes_to_append' ) );
+            foreach ( $report['details'] as $row ) {
+                fputcsv(
+                    $out,
+                    array(
+                        isset( $row['product_id'] ) ? $row['product_id'] : '',
+                        isset( $row['status'] ) ? $row['status'] : '',
+                        isset( $row['raw_carton'] ) ? $row['raw_carton'] : '',
+                        isset( $row['normalized_carton'] ) ? $row['normalized_carton'] : '',
+                        isset( $row['notes_to_append'] ) ? $row['notes_to_append'] : '',
+                    )
+                );
+            }
+            fclose( $out );
+        }
+        exit;
+    }
+}
+
+if ( ! function_exists( 'sop_carton_csv_importer_register_report_download' ) ) {
+    function sop_carton_csv_importer_register_report_download() {
+        add_action( 'admin_post_sop_carton_csv_report', 'sop_carton_csv_importer_download_report' );
+    }
+    add_action( 'admin_init', 'sop_carton_csv_importer_register_report_download' );
 }
 
