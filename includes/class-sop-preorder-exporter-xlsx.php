@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.96
+ * File version: 1.0.97
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.97 - Tweak: Template controls alignment for Total/Deposit/Balance RMB in Order Summary (no style overrides).
  * - 1.0.96 - Fix: Detect updated template Terms row (A38/A39) for new layouts.
  * - 1.0.95 - Tweak: Right-align summary amounts; fill Balance USD/FX when deposit FX is locked.
  * - 1.0.94 - Fix: Order Summary currency symbols/2dp, preserve TBC when unlocked, correct PO # value.
@@ -1443,7 +1444,7 @@ class SOP_Preorder_XLSX_Exporter {
                 $result = self::set_inline_preserve_style( $doc, $xpath, 'D' . $extras_end_row, self::format_money_string( $extras_remaining, $currency_label ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             }
-            $result = self::set_inline_preserve_style( $doc, $xpath, 'D34', self::format_money_string( $total_with_extras, $currency_label ) );
+            $result = self::update_cell_text_preserve_node( $xpath, $doc, 'D34', self::format_money_string( $total_with_extras, $currency_label ) );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         } else {
             $result = self::set_inline_preserve_style( $doc, $xpath, 'D25', self::format_money_string( $total_with_extras, $currency_label ) );
@@ -1468,7 +1469,7 @@ class SOP_Preorder_XLSX_Exporter {
                 if ( $deposit_fx > 0 ) {
                     $set_inline( 'C37', sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ), '' );
                 }
-                $result = self::set_inline_preserve_style( $doc, $xpath, 'D37', self::format_money_string( $deposit_rmb, 'RMB' ) );
+                $result = self::update_cell_text_preserve_node( $xpath, $doc, 'D37', self::format_money_string( $deposit_rmb, 'RMB' ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             } else {
                 self::set_inline_preserve_style( $doc, $xpath, 'B28', self::format_money_string( $deposit_usd, 'USD' ) );
@@ -1493,7 +1494,7 @@ class SOP_Preorder_XLSX_Exporter {
                     }
                     $set_inline( 'C38', sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ), '' );
                 }
-                $result = self::set_inline_preserve_style( $doc, $xpath, 'D38', self::format_money_string( $balance_rmb, 'RMB' ) );
+                $result = self::update_cell_text_preserve_node( $xpath, $doc, 'D38', self::format_money_string( $balance_rmb, 'RMB' ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             } else {
                 if ( $balance_usd_for_export > 0 ) {
@@ -1923,6 +1924,48 @@ class SOP_Preorder_XLSX_Exporter {
     private static function set_inline_preserve_style( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $text ) {
         $style_index = self::po_template_get_style_index( $xpath, $cell_ref );
         return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, '' !== $style_index ? $style_index : '' );
+    }
+
+    private static function update_cell_text_preserve_node( DOMXPath $xpath, DOMDocument $doc, $cell_ref, $text ) {
+        $cell_ref = strtoupper( (string) $cell_ref );
+        if ( '' === $cell_ref ) {
+            return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, '' );
+        }
+        $cell_nodes = $xpath->query( '//*[local-name()="c" and @r="' . $cell_ref . '"]' );
+        if ( ! $cell_nodes || $cell_nodes->length < 1 ) {
+            return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, '' );
+        }
+        $cell = $cell_nodes->item( 0 );
+        if ( ! $cell ) {
+            return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, '' );
+        }
+
+        $children = array();
+        foreach ( $cell->childNodes as $child ) {
+            if ( XML_ELEMENT_NODE === $child->nodeType ) {
+                $children[] = $child;
+            }
+        }
+        foreach ( $children as $child ) {
+            $local = $child->localName;
+            if ( 'v' === $local || 'is' === $local ) {
+                $cell->removeChild( $child );
+            }
+        }
+
+        if ( ! $cell->hasAttribute( 't' ) ) {
+            $cell->setAttribute( 't', 'inlineStr' );
+        }
+
+        $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+        $is = $doc->createElementNS( $ns, 'is' );
+        $t  = $doc->createElementNS( $ns, 't' );
+        $t->setAttribute( 'xml:space', 'preserve' );
+        $t->appendChild( $doc->createTextNode( self::sanitize_xml_text( $text ) ) );
+        $is->appendChild( $t );
+        $cell->appendChild( $is );
+
+        return $cell;
     }
 
     private static function format_po_date_display( $value ) {
