@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.99
+ * File version: 1.1.00
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.1.00 - Fix: Non-RMB PO Summary writes Deposit/Balance to correct rows in new template (D36/D37).
  * - 1.0.99 - Fix: Preserve numeric cell type for non-RMB D37/D38 to keep template alignment.
  * - 1.0.98 - Fix: Preserve numeric cell type for RMB totals to keep template alignment.
  * - 1.0.97 - Tweak: Template controls alignment for Total/Deposit/Balance RMB in Order Summary (no style overrides).
@@ -1519,11 +1520,28 @@ class SOP_Preorder_XLSX_Exporter {
             if ( $balance_simple < 0 ) {
                 $balance_simple = 0.0;
             }
-            if ( $is_new_template_layout && null !== $get_style( 'D37' ) && null !== $get_style( 'D38' ) ) {
-                $result = self::update_cell_number_preserve_node( $xpath, $doc, 'D37', $deposit_simple );
-                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-                $result = self::update_cell_number_preserve_node( $xpath, $doc, 'D38', $balance_simple );
-                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+            if ( $is_new_template_layout ) {
+                if ( null !== $get_style( 'D36' ) && null !== $get_style( 'D37' ) ) {
+                    $deposit_cell = 'D36';
+                    $balance_cell = 'D37';
+                } elseif ( null !== $get_style( 'D37' ) && null !== $get_style( 'D38' ) ) {
+                    $deposit_cell = 'D37';
+                    $balance_cell = 'D38';
+                } else {
+                    $deposit_cell = '';
+                    $balance_cell = '';
+                }
+                if ( $deposit_cell && $balance_cell ) {
+                    $result = self::update_cell_number_preserve_node( $xpath, $doc, $deposit_cell, $deposit_simple );
+                    if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                    $result = self::update_cell_number_preserve_node( $xpath, $doc, $balance_cell, $balance_simple );
+                    if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                } else {
+                    $result = self::set_inline_preserve_style( $doc, $xpath, 'D27', self::format_money_string( $deposit_simple, $currency_label ) );
+                    if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                    $result = self::set_inline_preserve_style( $doc, $xpath, 'D28', self::format_money_string( $balance_simple, $currency_label ) );
+                    if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                }
             } else {
                 $result = self::set_inline_preserve_style( $doc, $xpath, 'D27', self::format_money_string( $deposit_simple, $currency_label ) );
                 if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
