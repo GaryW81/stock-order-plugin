@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.92
+ * File version: 1.0.93
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.93 - Fix: Order Summary XLSX mapping updated for new template rows (extras/total/deposit/terms).
  * - 1.0.92 - Update PO template mapping for 4-column (A-D) layouts.
  * - 1.0.91 - Tweak: Increase SKU column width to 28.
  * - 1.0.90 - Tweak: Widen key MOQ/Qty/price/CBM columns by 10%.
@@ -1343,6 +1344,7 @@ class SOP_Preorder_XLSX_Exporter {
         $get_style = function( $cell_ref ) use ( $xpath ) {
             return self::po_template_get_style_index( $xpath, $cell_ref );
         };
+        $is_new_template_layout = ( null !== $get_style( 'D34' ) && null !== $get_style( 'A40' ) );
 
         $style_a4 = $get_style( 'A4' );
         if ( null === $style_a4 ) {
@@ -1408,8 +1410,34 @@ class SOP_Preorder_XLSX_Exporter {
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         $result = $set_number( 'D24', $base_total );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $result = $set_number( 'D25', $total_with_extras );
-        if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        if ( $is_new_template_layout ) {
+            $extras_start_row = 25;
+            $extras_end_row   = 33;
+            $extras_row       = $extras_start_row;
+            $extras_remaining = 0.0;
+            foreach ( $extras_rows as $extra ) {
+                if ( $extras_row > $extras_end_row ) {
+                    $extras_remaining += (float) $extra['amount'];
+                    continue;
+                }
+                $result = $set_inline( 'A' . $extras_row, $extra['label'] );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                $result = $set_number( 'D' . $extras_row, $extra['amount'] );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                $extras_row++;
+            }
+            if ( $extras_remaining > 0 ) {
+                $result = $set_inline( 'A' . $extras_end_row, __( 'Other extras', 'sop' ) );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                $result = $set_number( 'D' . $extras_end_row, $extras_remaining );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+            }
+            $result = $set_number( 'D34', $total_with_extras );
+            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        } else {
+            $result = $set_number( 'D25', $total_with_extras );
+            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+        }
 
         if ( 'RMB' === $currency_label ) {
             // RMB template mapping (no structural changes).
@@ -1422,25 +1450,47 @@ class SOP_Preorder_XLSX_Exporter {
 
             // Deposit row (template defines layout).
             $fx_display = ( $deposit_fx > 0 ) ? $format_fx( $deposit_fx ) : '';
-            $set_number( 'B28', $deposit_usd );
-            $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', '' );
-            $result = $set_number( 'D28', $deposit_rmb );
-            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+            if ( $is_new_template_layout ) {
+                if ( $deposit_usd > 0 ) {
+                    $set_number( 'B37', $deposit_usd );
+                }
+                if ( $deposit_fx > 0 ) {
+                    $set_inline( 'C37', sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ), '' );
+                }
+                $result = $set_number( 'D37', $deposit_rmb );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+            } else {
+                $set_number( 'B28', $deposit_usd );
+                $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', '' );
+                $result = $set_number( 'D28', $deposit_rmb );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+            }
 
             // Balance row (template defines layout). Only show USD/FX when FX rate provided.
             $balance_fx_display = ( $effective_balance_fx_for_export > 0 ) ? $format_fx( $effective_balance_fx_for_export ) : '';
-            if ( $balance_usd_for_export > 0 ) {
-                $set_number( 'B29', $balance_usd_for_export );
+            if ( $is_new_template_layout ) {
+                if ( $balance_usd_for_export > 0 ) {
+                    $set_number( 'B38', $balance_usd_for_export );
+                }
+                if ( $effective_balance_fx_for_export > 0 ) {
+                    $set_inline( 'C38', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), '' );
+                }
+                $result = $set_number( 'D38', $balance_rmb );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             } else {
-                $set_inline( 'B29', '', '' );
+                if ( $balance_usd_for_export > 0 ) {
+                    $set_number( 'B29', $balance_usd_for_export );
+                } else {
+                    $set_inline( 'B29', '', '' );
+                }
+                if ( $effective_balance_fx_for_export > 0 ) {
+                    $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), '' );
+                } else {
+                    $set_inline( 'C29', '', '' );
+                }
+                $result = $set_number( 'D29', $balance_rmb );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
             }
-            if ( $effective_balance_fx_for_export > 0 ) {
-                $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), '' );
-            } else {
-                $set_inline( 'C29', '', '' );
-            }
-            $result = $set_number( 'D29', $balance_rmb );
-            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         } else {
             // Non-RMB template values: deposit and balance in supplier currency.
             $deposit_simple = $deposit_usd;
@@ -1448,15 +1498,28 @@ class SOP_Preorder_XLSX_Exporter {
             if ( $balance_simple < 0 ) {
                 $balance_simple = 0.0;
             }
-            $result = $set_number( 'D27', $deposit_simple );
-            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-            $result = $set_number( 'D28', $balance_simple );
-            if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+            if ( $is_new_template_layout && null !== $get_style( 'D37' ) && null !== $get_style( 'D38' ) ) {
+                $result = $set_number( 'D37', $deposit_simple );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                $result = $set_number( 'D38', $balance_simple );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+            } else {
+                $result = $set_number( 'D27', $deposit_simple );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                $result = $set_number( 'D28', $balance_simple );
+                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+            }
         }
 
         // Terms: single multiline block into one cell (prefer A31 if present, else A30).
         $terms_text  = trim( self::po_normalize_multiline_block( $payment_terms ) );
-        $terms_cell  = ( null !== $get_style( 'A31' ) ) ? 'A31' : 'A30';
+        if ( null !== $get_style( 'A40' ) ) {
+            $terms_cell = 'A40';
+        } elseif ( null !== $get_style( 'A31' ) ) {
+            $terms_cell = 'A31';
+        } else {
+            $terms_cell = 'A30';
+        }
         $terms_style = $get_style( $terms_cell );
         $set_inline( $terms_cell, $terms_text, $terms_style ? $terms_style : $style_terms_wrapped );
 
