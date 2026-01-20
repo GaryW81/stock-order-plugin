@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Carton CSV Importer (admin only)
- * File version: 1.0.0
+ * File version: 1.1.0
+ * - 1.1.0 - Add dry run/undo support and safer carton parsing for supplier format.
  * - 1.0.0 - Initial carton CSV importer for saved preorder sheets.
  */
 
@@ -329,6 +330,24 @@ if ( ! function_exists( 'sop_normalize_carton_and_annotation' ) ) {
         $ranges  = array();
         $annotation_parts = array();
 
+        if ( preg_match_all( '/(\d+)\s*each\b/i', $working, $each_matches, PREG_SET_ORDER ) ) {
+            foreach ( $each_matches as $match ) {
+                $annotation_parts[] = trim( $match[0] );
+            }
+            $working = preg_replace( '/(\d+)\s*each\b/i', '', $working );
+        }
+
+        if ( preg_match_all( '/(\d{3,})\s+(\d{1,3})(?=\D|$)/', $working, $qty_matches, PREG_SET_ORDER ) ) {
+            foreach ( $qty_matches as $match ) {
+                $carton_num = (int) $match[1];
+                $qty_count  = (int) $match[2];
+                if ( $carton_num > 0 && $qty_count > 0 ) {
+                    $annotation_parts[] = $carton_num . ' = ' . $qty_count . 'pcs';
+                }
+            }
+            $working = preg_replace( '/(\d{3,})\s+(\d{1,3})(?=\D|$)/', '$1', $working );
+        }
+
         if ( preg_match_all( '/(\d+)\s*(\d+)\s*pcs\b/i', $working, $pcs_matches, PREG_SET_ORDER ) ) {
             foreach ( $pcs_matches as $match ) {
                 $carton_num = (int) $match[1];
@@ -526,6 +545,7 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
 
                             $overwrite_carton = ! empty( $_POST['sop_carton_overwrite'] );
                             $append_notes     = ! empty( $_POST['sop_carton_append_notes'] );
+                            $dry_run          = ! empty( $_POST['sop_carton_dry_run'] );
 
                             if ( $product_col < 0 ) {
                                 $errors[] = __( 'Please map the Product ID column before importing.', 'sop' );
@@ -549,6 +569,7 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                 $skipped_rows   = 0;
                                 $not_found      = array();
                                 $invalid_carton = array();
+                                $backup_changes = array();
 
                                 foreach ( $rows as $row ) {
                                     $processed_rows++;
@@ -599,6 +620,12 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                     if ( '' !== $carton ) {
                                         $existing_carton = isset( $line['carton_no'] ) ? (string) $line['carton_no'] : '';
                                         if ( $overwrite_carton || '' === $existing_carton ) {
+                                            if ( ! isset( $backup_changes[ $product_id ] ) ) {
+                                                $backup_changes[ $product_id ] = array(
+                                                    'carton_no'         => $existing_carton,
+                                                    'order_notes_owner' => isset( $line['order_notes_owner'] ) ? (string) $line['order_notes_owner'] : '',
+                                                );
+                                            }
                                             $line['carton_no'] = $carton;
                                             $updated_carton++;
                                             $changed = true;
@@ -610,6 +637,12 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                         $append_result  = sop_carton_csv_importer_append_notes( $existing_notes, $notes_to_append );
                                         $line['order_notes_owner'] = $append_result['notes'];
                                         if ( $append_result['appended'] ) {
+                                            if ( ! isset( $backup_changes[ $product_id ] ) ) {
+                                                $backup_changes[ $product_id ] = array(
+                                                    'carton_no'         => isset( $line['carton_no'] ) ? (string) $line['carton_no'] : '',
+                                                    'order_notes_owner' => $existing_notes,
+                                                );
+                                            }
                                             $notes_appended++;
                                             $changed = true;
                                         }
@@ -623,7 +656,17 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                 }
 
                                 if ( empty( $errors ) ) {
-                                    if ( function_exists( 'sop_insert_preorder_sheet_lines' ) ) {
+                                    if ( $dry_run ) {
+                                        $results = array(
+                                            'processed'     => $processed_rows,
+                                            'updated_carton'=> $updated_carton,
+                                            'notes_appended'=> $notes_appended,
+                                            'skipped'       => $skipped_rows,
+                                            'not_found'     => $not_found,
+                                            'invalid'       => $invalid_carton,
+                                        );
+                                        $notices[] = __( 'Dry run complete. No changes were saved.', 'sop' );
+                                    } elseif ( function_exists( 'sop_insert_preorder_sheet_lines' ) ) {
                                         $save = sop_insert_preorder_sheet_lines( $sheet_id, $lines );
                                         if ( is_wp_error( $save ) ) {
                                             $errors[] = $save->get_error_message();
@@ -646,6 +689,19 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                                                 'invalid'       => $invalid_carton,
                                             );
                                             $notices[] = __( 'Import complete.', 'sop' );
+                                            if ( ! empty( $backup_changes ) ) {
+                                                update_option(
+                                                    'sop_carton_import_backup_' . $sheet_id,
+                                                    array(
+                                                        'created_at' => current_time( 'mysql', true ),
+                                                        'user_id'    => get_current_user_id(),
+                                                        'changes'    => $backup_changes,
+                                                    ),
+                                                    false
+                                                );
+                                            } else {
+                                                delete_option( 'sop_carton_import_backup_' . $sheet_id );
+                                            }
                                         }
                                     } else {
                                         $errors[] = __( 'Sheet line helper is unavailable.', 'sop' );
@@ -658,6 +714,51 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                     if ( '' !== $file_path && file_exists( $file_path ) ) {
                         @unlink( $file_path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
                     }
+                }
+            } elseif ( 'undo' === $action ) {
+                $sheet_id = isset( $_POST['sop_carton_sheet_id'] ) ? (int) $_POST['sop_carton_sheet_id'] : 0;
+                $state['sheet_id'] = $sheet_id;
+                $backup = get_option( 'sop_carton_import_backup_' . $sheet_id );
+                if ( empty( $backup['changes'] ) || ! is_array( $backup['changes'] ) ) {
+                    $errors[] = __( 'No backup data found to undo.', 'sop' );
+                } elseif ( function_exists( 'sop_get_preorder_sheet_lines' ) ) {
+                    $lines = sop_get_preorder_sheet_lines( $sheet_id );
+                    $lines = is_array( $lines ) ? $lines : array();
+                    $line_index = array();
+                    foreach ( $lines as $idx => $line ) {
+                        $pid = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+                        if ( $pid > 0 ) {
+                            $line_index[ $pid ] = $idx;
+                        }
+                    }
+                    foreach ( $backup['changes'] as $pid => $original ) {
+                        $pid = (int) $pid;
+                        if ( $pid <= 0 || ! isset( $line_index[ $pid ] ) ) {
+                            continue;
+                        }
+                        $line_idx = $line_index[ $pid ];
+                        $lines[ $line_idx ]['carton_no'] = isset( $original['carton_no'] ) ? (string) $original['carton_no'] : '';
+                        $lines[ $line_idx ]['order_notes_owner'] = isset( $original['order_notes_owner'] ) ? (string) $original['order_notes_owner'] : '';
+                    }
+                    if ( function_exists( 'sop_insert_preorder_sheet_lines' ) ) {
+                        $save = sop_insert_preorder_sheet_lines( $sheet_id, $lines );
+                        if ( is_wp_error( $save ) ) {
+                            $errors[] = $save->get_error_message();
+                        } else {
+                            if ( function_exists( 'sop_update_preorder_sheet' ) ) {
+                                sop_update_preorder_sheet(
+                                    $sheet_id,
+                                    array(
+                                        'updated_at' => current_time( 'mysql', true ),
+                                    )
+                                );
+                            }
+                            delete_option( 'sop_carton_import_backup_' . $sheet_id );
+                            $notices[] = __( 'Undo complete.', 'sop' );
+                        }
+                    }
+                } else {
+                    $errors[] = __( 'Sheet line helper is unavailable.', 'sop' );
                 }
             }
         }
@@ -702,6 +803,7 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
 
         $sheet_options = $sheets;
         $selected_sheet_id = (int) $state['sheet_id'];
+        $undo_backup = $selected_sheet_id ? get_option( 'sop_carton_import_backup_' . $selected_sheet_id ) : null;
 
         echo '<h2>' . esc_html__( 'Step 1 - Select sheet and upload CSV', 'sop' ) . '</h2>';
         echo '<form method="post" enctype="multipart/form-data">';
@@ -723,6 +825,16 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
         echo '</tbody></table>';
         submit_button( __( 'Load file', 'sop' ) );
         echo '</form>';
+
+        if ( $selected_sheet_id && ! empty( $undo_backup['changes'] ) ) {
+            echo '<h2>' . esc_html__( 'Undo last import', 'sop' ) . '</h2>';
+            echo '<form method="post">';
+            wp_nonce_field( 'sop_carton_csv_import', 'sop_carton_csv_nonce' );
+            echo '<input type="hidden" name="sop_carton_csv_action" value="undo" />';
+            echo '<input type="hidden" name="sop_carton_sheet_id" value="' . esc_attr( $selected_sheet_id ) . '" />';
+            submit_button( __( 'Undo last import', 'sop' ), 'secondary' );
+            echo '</form>';
+        }
 
         if ( 'map' === $state['step'] && ! empty( $state['file_path'] ) ) {
             $file_path = $state['file_path'];
@@ -754,6 +866,7 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
                 echo '<tr><th scope="row">' . esc_html__( 'Options', 'sop' ) . '</th><td>';
                 echo '<label><input type="checkbox" name="sop_carton_overwrite" value="1" /> ' . esc_html__( 'Overwrite existing carton values', 'sop' ) . '</label><br />';
                 echo '<label><input type="checkbox" name="sop_carton_append_notes" value="1" checked /> ' . esc_html__( 'Append carton annotations into Order notes', 'sop' ) . '</label>';
+                echo '<br /><label><input type="checkbox" name="sop_carton_dry_run" value="1" checked /> ' . esc_html__( 'Dry run (no changes saved)', 'sop' ) . '</label>';
                 echo '</td></tr>';
                 echo '</tbody></table>';
 
