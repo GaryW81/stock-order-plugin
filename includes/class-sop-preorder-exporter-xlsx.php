@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.95
+ * File version: 1.0.96
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.96 - Fix: Detect updated template Terms row (A38/A39) for new layouts.
  * - 1.0.95 - Tweak: Right-align summary amounts; fill Balance USD/FX when deposit FX is locked.
  * - 1.0.94 - Fix: Order Summary currency symbols/2dp, preserve TBC when unlocked, correct PO # value.
  * - 1.0.93 - Fix: Order Summary XLSX mapping updated for new template rows (extras/total/deposit/terms).
@@ -1346,7 +1347,7 @@ class SOP_Preorder_XLSX_Exporter {
         $get_style = function( $cell_ref ) use ( $xpath ) {
             return self::po_template_get_style_index( $xpath, $cell_ref );
         };
-        $is_new_template_layout = ( null !== $get_style( 'D34' ) && null !== $get_style( 'A40' ) );
+        $is_new_template_layout = ( null !== $get_style( 'D34' ) && ( null !== $get_style( 'A38' ) || null !== $get_style( 'A39' ) || null !== $get_style( 'A40' ) ) );
 
         $style_a4 = $get_style( 'A4' );
         if ( null === $style_a4 ) {
@@ -1532,6 +1533,10 @@ class SOP_Preorder_XLSX_Exporter {
         $terms_text  = trim( self::po_normalize_multiline_block( $payment_terms ) );
         if ( null !== $get_style( 'A40' ) ) {
             $terms_cell = 'A40';
+        } elseif ( null !== $get_style( 'A39' ) ) {
+            $terms_cell = 'A39';
+        } elseif ( null !== $get_style( 'A38' ) ) {
+            $terms_cell = 'A38';
         } elseif ( null !== $get_style( 'A31' ) ) {
             $terms_cell = 'A31';
         } else {
