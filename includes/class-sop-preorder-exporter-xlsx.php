@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.0.91
+ * File version: 1.0.92
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.0.92 - Update PO template mapping for 4-column (A-D) layouts.
  * - 1.0.91 - Tweak: Increase SKU column width to 28.
  * - 1.0.90 - Tweak: Widen key MOQ/Qty/price/CBM columns by 10%.
  * - 1.0.89 - Tweak: Order Sheet header height + column widths (MOQ/Qty/prices/CBM fields).
@@ -1324,10 +1325,10 @@ class SOP_Preorder_XLSX_Exporter {
         $xpath = new DOMXPath( $doc );
         $xpath->registerNamespace( 's', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main' );
 
-        // Ensure dimension covers A1:E31 (terms row may move for RMB).
+        // Ensure dimension covers A1:D40 (terms row may move for RMB).
         $dimension = $xpath->query( '/s:worksheet/s:dimension' )->item( 0 );
         if ( $dimension ) {
-            $dimension->setAttribute( 'ref', 'A1:E31' );
+            $dimension->setAttribute( 'ref', 'A1:D40' );
         }
 
         // Ensure sheetData exists.
@@ -1392,22 +1393,22 @@ class SOP_Preorder_XLSX_Exporter {
 
         $result = $set_inline( 'B19', isset( $sheet_header['id'] ) ? $sheet_header['id'] : '' );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $result = $set_inline( 'E19', $safe_order );
+        $result = $set_inline( 'D19', $safe_order );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         $result = $set_inline( 'B20', $safe_hol_from );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $result = $set_inline( 'E20', $safe_hol_to );
+        $result = $set_inline( 'D20', $safe_hol_to );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         $result = $set_inline( 'B21', $safe_load );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $result = $set_inline( 'E21', $safe_eta );
+        $result = $set_inline( 'D21', $safe_eta );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
         $result = $set_inline( 'A24', $summary_label );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $result = $set_number( 'E24', $base_total );
+        $result = $set_number( 'D24', $base_total );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-        $result = $set_number( 'E25', $total_with_extras );
+        $result = $set_number( 'D25', $total_with_extras );
         if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
         if ( 'RMB' === $currency_label ) {
@@ -1423,8 +1424,7 @@ class SOP_Preorder_XLSX_Exporter {
             $fx_display = ( $deposit_fx > 0 ) ? $format_fx( $deposit_fx ) : '';
             $set_number( 'B28', $deposit_usd );
             $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', '' );
-            $set_inline( 'D28', $fx_display, '' );
-            $result = $set_number( 'E28', $deposit_rmb );
+            $result = $set_number( 'D28', $deposit_rmb );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
 
             // Balance row (template defines layout). Only show USD/FX when FX rate provided.
@@ -1436,14 +1436,10 @@ class SOP_Preorder_XLSX_Exporter {
             }
             if ( $effective_balance_fx_for_export > 0 ) {
                 $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), '' );
-                $style_d29 = $get_style( 'D29' );
-                $set_inline( 'D29', $balance_fx_display, $style_d29 );
             } else {
-                $style_d29 = $get_style( 'D29' );
                 $set_inline( 'C29', '', '' );
-                $set_inline( 'D29', '', $style_d29 );
             }
-            $result = $set_number( 'E29', $balance_rmb );
+            $result = $set_number( 'D29', $balance_rmb );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         } else {
             // Non-RMB template values: deposit and balance in supplier currency.
@@ -1452,9 +1448,9 @@ class SOP_Preorder_XLSX_Exporter {
             if ( $balance_simple < 0 ) {
                 $balance_simple = 0.0;
             }
-            $result = $set_number( 'E27', $deposit_simple );
+            $result = $set_number( 'D27', $deposit_simple );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
-            $result = $set_number( 'E28', $balance_simple );
+            $result = $set_number( 'D28', $balance_simple );
             if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
         }
 
