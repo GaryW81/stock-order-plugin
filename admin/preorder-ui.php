@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.85 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.86 *
+ * - V12.86 - Persist table sort state across reload/update (per saved sheet).
  * - V12.85 - Canonicalise product notes meta key to _sop_product_notes.
  * - V12.84 - UI: add internal product notes column (preorder + goods-in).
  * - V12.83 - UI: fix mobile rounding toolbar overflow (disable column wrapping).
@@ -4876,10 +4877,51 @@ function sop_preorder_render_admin_page() {
                 cost_usd: true
             };
 
-            $table.find('th[data-sort]').on('click', function() {
-                var $th = $(this);
-                var sortKey = $th.data('sort-key') || $th.data('sort');
-                var isAsc = !$th.hasClass('sorted-asc');
+            function sopPreorderGetSortStorageKey() {
+                var sheetId = parseInt( $('input[name="sop_sheet_id"]').first().val(), 10 ) || 0;
+                var supplierId = parseInt( $('#sop-preorder-supplier').val(), 10 )
+                    || parseInt( $('input[name="_sop_supplier_id"]').first().val(), 10 )
+                    || 0;
+                if ( sheetId > 0 ) {
+                    return 'sop_preorder_sort_sheet_' + sheetId;
+                }
+                if ( supplierId > 0 ) {
+                    return 'sop_preorder_sort_supplier_' + supplierId;
+                }
+                return 'sop_preorder_sort';
+            }
+
+            function sopPreorderSaveSortState(sortKey, isAsc) {
+                if ( ! sortKey ) {
+                    return;
+                }
+                try {
+                    var payload = JSON.stringify({ key: sortKey, dir: isAsc ? 'asc' : 'desc' });
+                    localStorage.setItem(sopPreorderGetSortStorageKey(), payload);
+                } catch (e) {
+                }
+            }
+
+            function sopPreorderLoadSortState() {
+                try {
+                    var raw = localStorage.getItem(sopPreorderGetSortStorageKey());
+                    if ( ! raw ) {
+                        return null;
+                    }
+                    var parsed = JSON.parse(raw);
+                    if ( ! parsed || ! parsed.key ) {
+                        return null;
+                    }
+                    return parsed;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function sopPreorderApplySort($th, sortKey, isAsc) {
+                if ( ! sortKey || ! $th || ! $th.length ) {
+                    return;
+                }
                 var columnIndex = $th.index();
 
                 $table.find('th[data-sort]').removeClass('sorted-asc sorted-desc');
@@ -4918,7 +4960,26 @@ function sop_preorder_render_admin_page() {
                 $.each(rows, function(index, row) {
                     $table.find('tbody').append(row);
                 });
+            }
+
+            $table.find('th[data-sort]').on('click', function() {
+                var $th = $(this);
+                var sortKey = $th.data('sort-key') || $th.data('sort');
+                var isAsc = !$th.hasClass('sorted-asc');
+
+                sopPreorderApplySort($th, sortKey, isAsc);
+                sopPreorderSaveSortState(sortKey, isAsc);
             });
+
+            if ( $table.length ) {
+                var savedSort = sopPreorderLoadSortState();
+                if ( savedSort && savedSort.key ) {
+                    var $savedTh = $table.find('th[data-sort-key="' + savedSort.key + '"], th[data-sort="' + savedSort.key + '"]').first();
+                    if ( $savedTh.length ) {
+                        sopPreorderApplySort($savedTh, savedSort.key, savedSort.dir === 'asc');
+                    }
+                }
+            }
 
             // ------------------------------------------------------------------
             // Quick SKU finder: behave like Ctrl+F on the current table
