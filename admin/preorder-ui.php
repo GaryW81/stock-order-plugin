@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.86 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.87 *
+ * - V12.87 - Readonly saved sheets now hide removed/zero-qty rows to preserve sheet memory.
  * - V12.86 - Persist table sort state across reload/update (per saved sheet).
  * - V12.85 - Canonicalise product notes meta key to _sop_product_notes.
  * - V12.84 - UI: add internal product notes column (preorder + goods-in).
@@ -1652,6 +1653,9 @@ function sop_preorder_render_admin_page() {
                                 }
                                 $min_order_qty        = (float) $row['min_order_qty'];
                                 $order_qty            = (float) $row['manual_order_qty'];
+                                if ( $sop_sheet_is_readonly && ( ! empty( $row['removed'] ) || $order_qty <= 0 ) ) {
+                                    continue;
+                                }
                                 $stock_on_hand        = (float) $row['stock_on_hand'];
                                 $inbound_qty          = (float) $row['inbound_qty'];
                                 $cost_gbp = isset( $row['cost_gbp'] ) ? (float) $row['cost_gbp'] : 0.0;
