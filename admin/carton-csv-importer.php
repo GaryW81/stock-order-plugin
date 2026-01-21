@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Carton CSV Importer (admin only)
- * File version: 1.2.0
+ * File version: 1.2.1
+ * - 1.2.1 - Fix: Report CSV export is Excel-safe for multi-carton lists; flatten multiline fields.
  * - 1.2.0 - Improve carton import reporting (notes preview, details table, CSV report download, clearer undo/dry-run flow).
  * - 1.1.1 - Improve column guessing + preview UX; default annotation append off.
  * - 1.1.0 - Add dry run/undo support and safer carton parsing for supplier format.
@@ -1117,6 +1118,15 @@ if ( ! function_exists( 'sop_carton_csv_importer_render_column_select' ) ) {
     }
 }
 
+if ( ! function_exists( 'sop_carton_csv_importer_report_flatten_cell' ) ) {
+    function sop_carton_csv_importer_report_flatten_cell( $value ) {
+        $value = (string) $value;
+        $value = str_replace( array( "\r\n", "\r", "\n" ), ' | ', $value );
+        $value = preg_replace( '/\s*\|\s*/', ' | ', $value );
+        return trim( $value );
+    }
+}
+
 if ( ! function_exists( 'sop_carton_csv_importer_download_report' ) ) {
     function sop_carton_csv_importer_download_report() {
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
@@ -1144,14 +1154,22 @@ if ( ! function_exists( 'sop_carton_csv_importer_download_report' ) ) {
         if ( $out ) {
             fputcsv( $out, array( 'product_id', 'status', 'raw_carton', 'normalized_carton', 'notes_to_append' ) );
             foreach ( $report['details'] as $row ) {
+                $raw_carton = sop_carton_csv_importer_report_flatten_cell( isset( $row['raw_carton'] ) ? $row['raw_carton'] : '' );
+                $notes      = sop_carton_csv_importer_report_flatten_cell( isset( $row['notes_to_append'] ) ? $row['notes_to_append'] : '' );
+                $normalized = (string) ( isset( $row['normalized_carton'] ) ? $row['normalized_carton'] : '' );
+                if ( false !== strpos( $normalized, ',' ) ) {
+                    $normalized = str_replace( ',', ', ', $normalized );
+                    $normalized = preg_replace( '/,\s+/', ', ', $normalized );
+                    $normalized = trim( $normalized );
+                }
                 fputcsv(
                     $out,
                     array(
                         isset( $row['product_id'] ) ? $row['product_id'] : '',
                         isset( $row['status'] ) ? $row['status'] : '',
-                        isset( $row['raw_carton'] ) ? $row['raw_carton'] : '',
-                        isset( $row['normalized_carton'] ) ? $row['normalized_carton'] : '',
-                        isset( $row['notes_to_append'] ) ? $row['notes_to_append'] : '',
+                        $raw_carton,
+                        $normalized,
+                        $notes,
                     )
                 );
             }
