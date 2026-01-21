@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.21
+ * File version: 1.1.22
  *
+ * - 1.1.22 - Persist Goods-In table sort state across reload (per sheet/session).
  * - 1.1.21 - UI: force Goods-In notes popup true vertical centering on mobile.
  * - 1.1.20 - UI: center notes popup vertically on mobile (Goods-In modal).
  * - 1.1.19 - UI: Goods-In modal — grey missing-note pills + desktop name/SKU in one row.
@@ -3732,13 +3733,55 @@ function sop_render_goods_in_page() {
                 }
             });
 
-            function sortTable($th) {
-                var sortKey = $th.data('sort-key');
-                var sortType = $th.data('sort-type') || 'text';
-                if (!sortKey) { return; }
+            function sopGoodsinGetSortStorageKey() {
+                var sheetId = parseInt( $('input[name="sop_sheet_id"]').first().val(), 10 ) || 0;
+                var params = new URLSearchParams(window.location.search || '');
+                if ( ! sheetId ) {
+                    sheetId = parseInt(params.get('sheet_id'), 10) || 0;
+                }
+                var sessionId = parseInt(params.get('session_id'), 10) || 0;
+                if ( sheetId > 0 ) {
+                    return 'sop_goodsin_sort_sheet_' + sheetId;
+                }
+                if ( sessionId > 0 ) {
+                    return 'sop_goodsin_sort_session_' + sessionId;
+                }
+                return 'sop_goodsin_sort';
+            }
 
-                var currentDir = $th.hasClass('sorted-asc') ? 'asc' : ($th.hasClass('sorted-desc') ? 'desc' : '');
-                var newDir = currentDir === 'asc' ? 'desc' : 'asc';
+            function sopGoodsinSaveSortState(sortKey, isAsc) {
+                if ( ! sortKey ) {
+                    return;
+                }
+                try {
+                    var payload = JSON.stringify({ key: sortKey, dir: isAsc ? 'asc' : 'desc' });
+                    localStorage.setItem(sopGoodsinGetSortStorageKey(), payload);
+                } catch (e) {
+                }
+            }
+
+            function sopGoodsinLoadSortState() {
+                try {
+                    var raw = localStorage.getItem(sopGoodsinGetSortStorageKey());
+                    if ( ! raw ) {
+                        return null;
+                    }
+                    var parsed = JSON.parse(raw);
+                    if ( ! parsed || ! parsed.key ) {
+                        return null;
+                    }
+                    return parsed;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function sopGoodsinApplySort($th, sortKey, isAsc) {
+                if ( ! sortKey || ! $th || ! $th.length ) {
+                    return;
+                }
+                var sortType = $th.data('sort-type') || 'text';
+                var newDir = isAsc ? 'asc' : 'desc';
 
                 $('.sop-goodsin-sort').removeClass('sorted-asc sorted-desc');
                 $th.addClass(newDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
@@ -3782,8 +3825,22 @@ function sop_render_goods_in_page() {
             }
 
             $('#sop-goodsin-lines').on('click', '.sop-goodsin-sort', function(){
-                sortTable($(this));
+                var $th = $(this);
+                var sortKey = $th.data('sort-key') || $th.data('sort');
+                var isAsc = !$th.hasClass('sorted-asc');
+                sopGoodsinApplySort($th, sortKey, isAsc);
+                sopGoodsinSaveSortState(sortKey, isAsc);
             });
+
+            if ( $('#sop-goodsin-lines').length ) {
+                var savedSort = sopGoodsinLoadSortState();
+                if ( savedSort && savedSort.key ) {
+                    var $savedTh = $('#sop-goodsin-lines').find('th[data-sort-key="' + savedSort.key + '"], th[data-sort="' + savedSort.key + '"]').first();
+                    if ( $savedTh.length ) {
+                        sopGoodsinApplySort($savedTh, savedSort.key, savedSort.dir === 'asc');
+                    }
+                }
+            }
 
             function sopGoodsinUpdateColumnsToggleLabel() {
                 if (!$columnsToggle.length || !$columnCheckboxes.length) {
