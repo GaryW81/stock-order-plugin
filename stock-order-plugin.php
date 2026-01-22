@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Stock Order Plugin (SOP)
  * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control.
- * Version: 5.9.59
+ * Version: 5.9.60
  * Author: Wilson Organisation Ltd
  */
 
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.08
+ * File version: 1.0.09
  * - Ensure sop_daily_maintenance cron is scheduled on activation and cleared on deactivation.
  * - Run sop_DB::maybe_install() on admin_init for safe schema upgrades.
  * - Remove TEMP Shiny CSV importer tool.
@@ -17,6 +17,7 @@
  * - Add admin tabs grouping and hide secondary submenu items.
  * - Enforce Stock Order submenu layout and hide Stockout Log (Debug).
  * - Render grouped admin tabs on Stock Order screens.
+ * - Hide submenu children after access check so tab links remain accessible.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -24,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.59' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.60' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -84,6 +85,7 @@ if ( is_admin() ) {
     add_action( 'admin_notices', 'sop_admin_tabs_render_if_sop_screen', 1 );
     add_action( 'admin_menu', 'sop_admin_menu_register_group_links', 95 );
     add_action( 'admin_menu', 'sop_admin_menu_hide_group_children', 10000 );
+    add_action( 'admin_head', 'sop_admin_menu_hide_group_children_late', 0 );
     add_filter( 'submenu_file', 'sop_admin_tabs_fix_submenu_highlight', 10, 2 );
 }
 
@@ -227,11 +229,6 @@ if ( ! function_exists( 'sop_admin_menu_hide_group_children' ) ) {
             ? sop_preorder_get_stock_order_parent_slug()
             : 'sop_stock_order_dashboard';
 
-        remove_submenu_page( $parent_slug, 'sop_products_by_supplier' );
-        remove_submenu_page( $parent_slug, 'sop-preorder-sheets' );
-        remove_submenu_page( $parent_slug, 'sop-carton-csv-import' );
-        remove_submenu_page( $parent_slug, 'sop_stockout_log_debug' );
-
         global $submenu;
         if ( empty( $submenu[ $parent_slug ] ) || ! is_array( $submenu[ $parent_slug ] ) ) {
             return;
@@ -290,15 +287,49 @@ if ( ! function_exists( 'sop_admin_menu_hide_group_children' ) ) {
             if ( isset( $used[ $item[2] ] ) ) {
                 continue;
             }
-            if ( false !== strpos( $item[2], 'debug' ) ) {
-                continue;
-            }
             $ordered[] = $item;
         }
 
         if ( ! empty( $ordered ) ) {
             $submenu[ $parent_slug ] = $ordered;
         }
+    }
+}
+
+if ( ! function_exists( 'sop_admin_menu_hide_group_children_late' ) ) {
+    /**
+     * Hide submenu children after access checks run.
+     *
+     * @return void
+     */
+    function sop_admin_menu_hide_group_children_late() {
+        $parent_slug = function_exists( 'sop_preorder_get_stock_order_parent_slug' )
+            ? sop_preorder_get_stock_order_parent_slug()
+            : 'sop_stock_order_dashboard';
+
+        global $submenu;
+        if ( empty( $submenu[ $parent_slug ] ) || ! is_array( $submenu[ $parent_slug ] ) ) {
+            return;
+        }
+
+        $hidden = array(
+            'sop_products_by_supplier',
+            'sop-preorder-sheets',
+            'sop-carton-csv-import',
+            'sop_stockout_log_debug',
+        );
+
+        $submenu[ $parent_slug ] = array_values(
+            array_filter(
+                $submenu[ $parent_slug ],
+                function ( $item ) use ( $hidden ) {
+                    if ( ! isset( $item[2] ) ) {
+                        return true;
+                    }
+                    return ! in_array( $item[2], $hidden, true );
+                }
+            )
+        );
     }
 }
 
