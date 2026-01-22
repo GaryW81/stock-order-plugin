@@ -3,8 +3,8 @@
  * Stock Order Plugin - Phase 2
  * Admin tab navigation + submenu highlight helpers
  *
- * File version: 1.0.2
- * - Add render-once guard and sheet_id preservation for Purchase Orders tabs.
+ * File version: 1.0.3
+ * - Wire Purchase Orders tabs (Saved POs + Carton Import) to group + menu highlight.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
