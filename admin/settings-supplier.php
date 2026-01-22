@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.41
+ * File version: 1.5.42
  * - Remove TEMP Shiny CSV importer tool.
  * - Add Carton CSV importer submenu.
  * - Add direct USD→RMB base FX and swap FX/lead time rows.
@@ -13,6 +13,7 @@
  * - Remove supplier label size override fields (global labels only).
  * - Adds supplier holiday/shipping settings (multiple periods + units) for PO date suggestions.
  * - Use underscored supplier ID field name for supplier actions.
+ * - Remove legacy settings heading/tabs (use grouped admin tabs only).
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -237,31 +238,6 @@ class sop_Admin_Settings {
         }
 
         echo '<div class="wrap sop-wrap">';
-        echo '<h1>' . esc_html__( 'Stock Order Plugin', 'sop' ) . '</h1>';
-
-        // Render tabs.
-        echo '<h2 class="nav-tab-wrapper">';
-        printf(
-            '<a href="%s" class="nav-tab %s">%s</a>',
-            esc_url( admin_url( 'admin.php?page=sop_stock_order&tab=general' ) ),
-            ( 'general' === $active_tab ? 'nav-tab-active' : '' ),
-            esc_html__( 'General Settings', 'sop' )
-        );
-        printf(
-            '<a href="%s" class="nav-tab %s">%s</a>',
-            esc_url( admin_url( 'admin.php?page=sop_stock_order&tab=suppliers' ) ),
-            ( 'suppliers' === $active_tab ? 'nav-tab-active' : '' ),
-            esc_html__( 'Suppliers', 'sop' )
-        );
-        if ( function_exists( 'sop_labels_render_settings_tab' ) ) {
-            printf(
-                '<a href="%s" class="nav-tab %s">%s</a>',
-                esc_url( admin_url( 'admin.php?page=sop_stock_order&tab=labels' ) ),
-                ( 'labels' === $active_tab ? 'nav-tab-active' : '' ),
-                esc_html__( 'Labels & Barcodes', 'sop' )
-            );
-        }
-        echo '</h2>';
 
         // Tab content.
         if ( 'suppliers' === $active_tab ) {
