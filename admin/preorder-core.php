@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.70
+ * File version: 11.71
+ * - 11.71 - Add PO Details admin page registration.
  * - 11.70 - Harden XLSX download streaming (clear output buffers) to prevent Excel repair warnings.
  * - 11.69 - Canonicalise product notes meta key to _sop_product_notes.
  * - 11.68 - Save internal product notes from preorder sheet.
@@ -186,6 +187,15 @@ function sop_preorder_register_admin_menu() {
         'manage_woocommerce',
         'sop-preorder-sheet',
         'sop_preorder_render_admin_page'
+    );
+
+    add_submenu_page(
+        $parent_slug,
+        __( 'PO Details', 'sop' ),
+        __( 'PO Details', 'sop' ),
+        'manage_woocommerce',
+        'sop-po-details',
+        'sop_render_po_details_page'
     );
 }
 

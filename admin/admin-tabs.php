@@ -3,8 +3,8 @@
  * Stock Order Plugin - Phase 2
  * Admin tab navigation + submenu highlight helpers
  *
- * File version: 1.0.3
- * - Wire Purchase Orders tabs (Saved POs + Carton Import) to group + menu highlight.
+ * File version: 1.0.4
+ * - Add PO Details tab to Purchase Orders group.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -62,6 +62,10 @@ if ( ! function_exists( 'sop_admin_tabs_get_groups' ) ) {
                     array(
                         'slug' => 'sop-carton-csv-import',
                         'label' => __( 'Carton Import', 'sop' ),
+                    ),
+                    array(
+                        'slug' => 'sop-po-details',
+                        'label' => __( 'PO Details', 'sop' ),
                     ),
                 ),
             ),
@@ -196,7 +200,7 @@ if ( ! function_exists( 'sop_admin_tabs_get_visible_parent_slug_for_page' ) ) {
             return 'sop_stock_order_suppliers';
         }
 
-        if ( in_array( $page_slug, array( 'sop-preorder-sheets', 'sop-carton-csv-import', 'sop-preorder-sheet' ), true ) ) {
+        if ( in_array( $page_slug, array( 'sop-preorder-sheets', 'sop-carton-csv-import', 'sop-po-details', 'sop-preorder-sheet' ), true ) ) {
             return 'sop-preorder-sheet';
         }
 

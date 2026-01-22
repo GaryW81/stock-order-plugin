@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Stock Order Plugin (SOP)
  * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control.
- * Version: 5.9.60
+ * Version: 5.9.61
  * Author: Wilson Organisation Ltd
  */
 
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.09
+ * File version: 1.0.10
  * - Ensure sop_daily_maintenance cron is scheduled on activation and cleared on deactivation.
  * - Run sop_DB::maybe_install() on admin_init for safe schema upgrades.
  * - Remove TEMP Shiny CSV importer tool.
@@ -18,6 +18,7 @@
  * - Enforce Stock Order submenu layout and hide Stockout Log (Debug).
  * - Render grouped admin tabs on Stock Order screens.
  * - Hide submenu children after access check so tab links remain accessible.
+ * - Add PO Details admin page include + hide from submenu list.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -25,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.60' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.61' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -55,6 +56,7 @@ if ( is_admin() ) {
     require_once SOP_PLUGIN_DIR . 'admin/product-mapping.php';
     require_once SOP_PLUGIN_DIR . 'admin/preorder-core.php';
     require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';
+    require_once SOP_PLUGIN_DIR . 'admin/po-details.php';
     require_once SOP_PLUGIN_DIR . 'admin/goods-in-core.php';
     require_once SOP_PLUGIN_DIR . 'admin/goods-in-ui.php';
     require_once SOP_PLUGIN_DIR . 'admin/carton-csv-importer.php';
@@ -316,6 +318,7 @@ if ( ! function_exists( 'sop_admin_menu_hide_group_children_late' ) ) {
             'sop_products_by_supplier',
             'sop-preorder-sheets',
             'sop-carton-csv-import',
+            'sop-po-details',
             'sop_stockout_log_debug',
         );
 
