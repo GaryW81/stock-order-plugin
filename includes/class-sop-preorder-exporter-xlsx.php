@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.1.00
+ * File version: 1.1.01
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.1.01 - Fix: Non-RMB Order Sheet unit costs use cost_rmb_owner without RMB conversion.
  * - 1.1.00 - Fix: Non-RMB PO Summary writes Deposit/Balance to correct rows in new template (D36/D37).
  * - 1.0.99 - Fix: Preserve numeric cell type for non-RMB D37/D38 to keep template alignment.
  * - 1.0.98 - Fix: Preserve numeric cell type for RMB totals to keep template alignment.
@@ -504,8 +505,9 @@ class SOP_Preorder_XLSX_Exporter {
      * @return array
      */
     private static function resolve_unit_costs_for_export( array $line, $supplier_currency, $balance_fx_rate ) {
-        $currency_upper = strtoupper( trim( (string) $supplier_currency ) );
-        $unit_cost_rmb  = self::get_line_positive_float( $line, array( 'cost_rmb_owner', 'cost_rmb', 'cost_per_unit_rmb', 'cost_rmb_per_unit' ) );
+        $currency_upper        = strtoupper( trim( (string) $supplier_currency ) );
+        $unit_cost_from_rmb_owner = self::get_line_positive_float( $line, array( 'cost_rmb_owner' ) );
+        $unit_cost_rmb         = self::get_line_positive_float( $line, array( 'cost_rmb', 'cost_per_unit_rmb', 'cost_rmb_per_unit' ) );
 
         // Supplier currency specific keys.
         $supplier_keys = array(
@@ -541,6 +543,8 @@ class SOP_Preorder_XLSX_Exporter {
         } else {
             if ( $unit_cost_supplier_raw > 0 ) {
                 $unit_cost_supplier = $unit_cost_supplier_raw;
+            } elseif ( $unit_cost_from_rmb_owner > 0 ) {
+                $unit_cost_supplier = $unit_cost_from_rmb_owner;
             } elseif ( $unit_cost_rmb > 0 ) {
                 $converted = self::sop_convert_rmb_to_currency( $unit_cost_rmb, $currency_upper, $balance_fx_rate, $rates );
                 if ( $converted > 0 ) {
