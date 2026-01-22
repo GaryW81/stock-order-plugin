@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.43
+ * File version: 1.5.44
  * - Remove TEMP Shiny CSV importer tool.
  * - Add Carton CSV importer submenu.
  * - Add direct USD→RMB base FX and swap FX/lead time rows.
@@ -15,6 +15,7 @@
  * - Use underscored supplier ID field name for supplier actions.
  * - Remove legacy settings heading/tabs (use grouped admin tabs only).
  * - Remove Company details block from General Settings (moved to PO Details).
+ * - Register PO Details submenu so tab URL is accessible.
  *
  * - Adds "Stock Order" top-level admin menu.
  * - General Settings tab stores global options in `sop_settings`.
@@ -102,6 +103,16 @@ class sop_Admin_Settings {
             $capability,
             'sop-carton-csv-import',
             'sop_render_carton_csv_import_page'
+        );
+
+        // PO Details.
+        add_submenu_page(
+            $dashboard_slug,
+            __( 'PO Details', 'sop' ),
+            __( 'PO Details', 'sop' ),
+            $capability,
+            'sop-po-details',
+            'sop_render_po_details_page'
         );
 
         // General Settings (existing settings UI).
