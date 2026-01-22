@@ -2,19 +2,20 @@
 /**
  * Plugin Name: Stock Order Plugin (SOP)
  * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control.
- * Version: 5.9.57
+ * Version: 5.9.58
  * Author: Wilson Organisation Ltd
  */
 
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.06
+ * File version: 1.0.07
  * - Ensure sop_daily_maintenance cron is scheduled on activation and cleared on deactivation.
  * - Run sop_DB::maybe_install() on admin_init for safe schema upgrades.
  * - Remove TEMP Shiny CSV importer tool.
  * - Add Carton CSV importer admin page include.
  * - Add admin tabs grouping and hide secondary submenu items.
+ * - Enforce Stock Order submenu layout and hide Stockout Log (Debug).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -22,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.57' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.58' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -206,6 +207,7 @@ if ( ! function_exists( 'sop_admin_menu_hide_group_children' ) ) {
         remove_submenu_page( $parent_slug, 'sop_products_by_supplier' );
         remove_submenu_page( $parent_slug, 'sop-preorder-sheets' );
         remove_submenu_page( $parent_slug, 'sop-carton-csv-import' );
+        remove_submenu_page( $parent_slug, 'sop_stockout_log_debug' );
 
         global $submenu;
         if ( empty( $submenu[ $parent_slug ] ) || ! is_array( $submenu[ $parent_slug ] ) ) {
@@ -224,6 +226,9 @@ if ( ! function_exists( 'sop_admin_menu_hide_group_children' ) ) {
                 case 'sop_stock_order':
                     $submenu[ $parent_slug ][ $index ][0] = __( 'Settings', 'sop' );
                     break;
+                case 'sop_stock_order_suppliers':
+                    $submenu[ $parent_slug ][ $index ][0] = __( 'Suppliers', 'sop' );
+                    break;
                 case 'sop-preorder-sheet':
                     $submenu[ $parent_slug ][ $index ][0] = __( 'Purchase Orders', 'sop' );
                     break;
@@ -231,6 +236,45 @@ if ( ! function_exists( 'sop_admin_menu_hide_group_children' ) ) {
                     $submenu[ $parent_slug ][ $index ][0] = __( 'Forecasting', 'sop' );
                     break;
             }
+        }
+
+        $desired_order = array(
+            $parent_slug,
+            'sop_stock_order',
+            'sop_stock_order_suppliers',
+            'sop-preorder-sheet',
+            'sop-goods-in',
+            'sop-forecast-debug',
+        );
+
+        $ordered = array();
+        $used    = array();
+
+        foreach ( $desired_order as $slug ) {
+            foreach ( $submenu[ $parent_slug ] as $item ) {
+                if ( isset( $item[2] ) && $item[2] === $slug ) {
+                    $ordered[]     = $item;
+                    $used[ $slug ] = true;
+                    break;
+                }
+            }
+        }
+
+        foreach ( $submenu[ $parent_slug ] as $item ) {
+            if ( empty( $item[2] ) ) {
+                continue;
+            }
+            if ( isset( $used[ $item[2] ] ) ) {
+                continue;
+            }
+            if ( false !== strpos( $item[2], 'debug' ) ) {
+                continue;
+            }
+            $ordered[] = $item;
+        }
+
+        if ( ! empty( $ordered ) ) {
+            $submenu[ $parent_slug ] = $ordered;
         }
     }
 }

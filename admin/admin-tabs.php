@@ -3,8 +3,8 @@
  * Stock Order Plugin - Phase 2
  * Admin tab navigation + submenu highlight helpers
  *
- * File version: 1.0.0
- * - Add grouped admin tabs and submenu highlight helpers.
+ * File version: 1.0.1
+ * - Add Stock Log tab under Forecasting group.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -71,6 +71,10 @@ if ( ! function_exists( 'sop_admin_tabs_get_groups' ) ) {
                     array(
                         'slug' => 'sop-forecast-debug',
                         'label' => __( 'Forecast', 'sop' ),
+                    ),
+                    array(
+                        'slug' => 'sop_stockout_log_debug',
+                        'label' => __( 'Stock Log', 'sop' ),
                     ),
                 ),
             ),
@@ -182,6 +186,10 @@ if ( ! function_exists( 'sop_admin_tabs_get_visible_parent_slug_for_page' ) ) {
         }
 
         if ( 'sop-forecast-debug' === $page_slug ) {
+            return 'sop-forecast-debug';
+        }
+
+        if ( 'sop_stockout_log_debug' === $page_slug ) {
             return 'sop-forecast-debug';
         }
 
