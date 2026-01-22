@@ -2,20 +2,21 @@
 /**
  * Plugin Name: Stock Order Plugin (SOP)
  * Description: Internal tool for supplier management, forecasting, pre-order sheets, and stock control.
- * Version: 5.9.58
+ * Version: 5.9.59
  * Author: Wilson Organisation Ltd
  */
 
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.07
+ * File version: 1.0.08
  * - Ensure sop_daily_maintenance cron is scheduled on activation and cleared on deactivation.
  * - Run sop_DB::maybe_install() on admin_init for safe schema upgrades.
  * - Remove TEMP Shiny CSV importer tool.
  * - Add Carton CSV importer admin page include.
  * - Add admin tabs grouping and hide secondary submenu items.
  * - Enforce Stock Order submenu layout and hide Stockout Log (Debug).
+ * - Render grouped admin tabs on Stock Order screens.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -23,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '5.9.58' );
+    define( 'SOP_PLUGIN_VERSION', '5.9.59' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -80,7 +81,7 @@ if ( is_admin() ) {
         100
     );
 
-    add_action( 'admin_notices', 'sop_admin_tabs_render_for_current_page', 5 );
+    add_action( 'admin_notices', 'sop_admin_tabs_render_if_sop_screen', 1 );
     add_action( 'admin_menu', 'sop_admin_menu_register_group_links', 95 );
     add_action( 'admin_menu', 'sop_admin_menu_hide_group_children', 10000 );
     add_filter( 'submenu_file', 'sop_admin_tabs_fix_submenu_highlight', 10, 2 );
@@ -168,6 +169,28 @@ if ( ! function_exists( 'sop_should_hide_footer_for_screen' ) ) {
         }
 
         return false;
+    }
+}
+
+if ( ! function_exists( 'sop_admin_tabs_render_if_sop_screen' ) ) {
+    /**
+     * Render grouped admin tabs only on Stock Order screens.
+     *
+     * @return void
+     */
+    function sop_admin_tabs_render_if_sop_screen() {
+        if ( ! function_exists( 'get_current_screen' ) || ! function_exists( 'sop_should_hide_footer_for_screen' ) ) {
+            return;
+        }
+
+        $screen = get_current_screen();
+        if ( ! sop_should_hide_footer_for_screen( $screen ) ) {
+            return;
+        }
+
+        if ( function_exists( 'sop_admin_tabs_render_for_current_page' ) ) {
+            sop_admin_tabs_render_for_current_page();
+        }
     }
 }
 

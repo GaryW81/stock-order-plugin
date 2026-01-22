@@ -3,8 +3,8 @@
  * Stock Order Plugin - Phase 2
  * Admin tab navigation + submenu highlight helpers
  *
- * File version: 1.0.1
- * - Add Stock Log tab under Forecasting group.
+ * File version: 1.0.2
+ * - Add render-once guard and sheet_id preservation for Purchase Orders tabs.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -89,6 +89,11 @@ if ( ! function_exists( 'sop_admin_tabs_render_for_current_page' ) ) {
      * @return void
      */
     function sop_admin_tabs_render_for_current_page() {
+        static $rendered = false;
+        if ( $rendered ) {
+            return;
+        }
+
         if ( ! is_admin() ) {
             return;
         }
@@ -142,12 +147,22 @@ if ( ! function_exists( 'sop_admin_tabs_render_for_current_page' ) ) {
             return;
         }
 
+        $rendered = true;
+
+        $sheet_id_arg = '';
+        if ( 'purchase_orders' === $active && ! empty( $_GET['sheet_id'] ) && is_numeric( $_GET['sheet_id'] ) ) {
+            $sheet_id_arg = (string) (int) $_GET['sheet_id'];
+        }
+
         echo '<div class="sop-admin-tabs">';
         echo '<h2 class="nav-tab-wrapper">';
         foreach ( $tabs as $tab ) {
             $url = admin_url( 'admin.php?page=' . $tab['slug'] );
             if ( ! empty( $tab['args'] ) ) {
                 $url = add_query_arg( $tab['args'], $url );
+            }
+            if ( '' !== $sheet_id_arg && 'purchase_orders' === $active ) {
+                $url = add_query_arg( array( 'sheet_id' => $sheet_id_arg ), $url );
             }
 
             $is_active = ( $tab['slug'] === $page );
