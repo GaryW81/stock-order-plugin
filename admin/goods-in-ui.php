@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.22
+ * File version: 1.1.23
  *
+ * - 1.1.23 - Apply stock via AJAX batches with progress UI to prevent timeouts.
  * - 1.1.22 - Persist Goods-In table sort state across reload (per sheet/session).
  * - 1.1.21 - UI: force Goods-In notes popup true vertical centering on mobile.
  * - 1.1.20 - UI: center notes popup vertically on mobile (Goods-In modal).
@@ -439,7 +440,12 @@ function sop_render_goods_in_page() {
                 $notice_class = 'notice notice-success';
                 $applied = isset( $_GET['sop_applied'] ) ? (int) $_GET['sop_applied'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
                 $skipped = isset( $_GET['sop_skipped'] ) ? (int) $_GET['sop_skipped'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-                $text    = sprintf( __( 'Stock applied for %1$d lines (%2$d skipped).', 'sop' ), $applied, $skipped );
+                $errors  = isset( $_GET['sop_errors'] ) ? (int) $_GET['sop_errors'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                if ( $errors > 0 ) {
+                    $text = sprintf( __( 'Stock applied for %1$d lines (%2$d skipped, %3$d errors).', 'sop' ), $applied, $skipped, $errors );
+                } else {
+                    $text = sprintf( __( 'Stock applied for %1$d lines (%2$d skipped).', 'sop' ), $applied, $skipped );
+                }
                 break;
             case 'completed':
                 $notice_class = 'notice notice-success';
@@ -791,6 +797,15 @@ function sop_render_goods_in_page() {
                 </div>
                 <div class="sop-goodsin-mg-add">
                     <button type="button" class="button sop-goodsin-submit" data-action="apply_stock"><?php esc_html_e( 'Add selected to stock', 'sop' ); ?></button>
+                </div>
+                <div class="sop-goodsin-mg-progress">
+                    <div id="sop-goodsin-apply-progress" class="sop-goodsin-apply-progress" style="display:none;">
+                        <div class="sop-goodsin-apply-progress-text"><?php esc_html_e( 'Applying stock: 0 of 0', 'sop' ); ?></div>
+                        <div class="sop-goodsin-apply-progress-bar">
+                            <div class="sop-goodsin-apply-progress-bar-inner"></div>
+                        </div>
+                        <div class="sop-goodsin-apply-progress-status" aria-live="polite"></div>
+                    </div>
                 </div>
                 <div class="sop-goodsin-mg-complete">
                     <button type="button" class="button button-primary sop-goodsin-submit" data-action="complete"><?php esc_html_e( 'Complete Goods-In', 'sop' ); ?></button>
@@ -1245,6 +1260,42 @@ function sop_render_goods_in_page() {
         #sop-goodsin-lines th,
         #sop-goodsin-lines td {
             vertical-align: middle;
+        }
+        .sop-goodsin-apply-progress {
+            margin-top: 6px;
+            max-width: 360px;
+        }
+        .sop-goodsin-apply-progress-text {
+            font-size: 12px;
+            margin-bottom: 6px;
+            color: #1d2327;
+        }
+        .sop-goodsin-apply-progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e4e7;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .sop-goodsin-apply-progress-bar-inner {
+            width: 0%;
+            height: 100%;
+            background: #2271b1;
+            transition: width 0.2s ease-in-out;
+        }
+        .sop-goodsin-apply-progress-status {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #3c434a;
+        }
+        .sop-goodsin-row-applied {
+            background-color: #e8f7ed;
+        }
+        .sop-goodsin-row-skipped {
+            background-color: #fff4e5;
+        }
+        .sop-goodsin-row-error {
+            background-color: #fde8e8;
         }
         .sop-status-pill {
             display: inline-flex;
@@ -3414,6 +3465,13 @@ function sop_render_goods_in_page() {
                 };
             }
 
+            var goodsinAjaxUrl = '<?php echo esc_js( admin_url( 'admin-ajax.php' ) ); ?>';
+            var goodsinAjaxNonce = '<?php echo esc_js( wp_create_nonce( 'sop_goodsin_ajax' ) ); ?>';
+            var $progressWrap = $('#sop-goodsin-apply-progress');
+            var $progressText = $progressWrap.find('.sop-goodsin-apply-progress-text');
+            var $progressBar = $progressWrap.find('.sop-goodsin-apply-progress-bar-inner');
+            var $progressStatus = $progressWrap.find('.sop-goodsin-apply-progress-status');
+
             function setAction(actionType) {
                 if (actionType === 'save') {
                     $actionField.val('sop_goodsin_save');
@@ -3424,8 +3482,115 @@ function sop_render_goods_in_page() {
                 }
             }
 
+            function sopGoodsinApplyStockSequential(payloadObj) {
+                var selectedLines = payloadObj.lines.filter(function(line) {
+                    return !!line.selected;
+                });
+
+                if (!selectedLines.length) {
+                    alert('<?php echo esc_js( __( 'Select at least one line to apply stock.', 'sop' ) ); ?>');
+                    return;
+                }
+
+                var total = selectedLines.length;
+                var applied = 0;
+                var skipped = 0;
+                var errors = 0;
+
+                $('.sop-goodsin-submit').prop('disabled', true);
+
+                $progressWrap.show();
+                $progressText.text('Applying stock: 0 of ' + total);
+                $progressBar.css('width', '0%');
+                $progressStatus.text('');
+
+                selectedLines.forEach(function(line) {
+                    $('#sop-goodsin-lines tr[data-line-id="' + line.line_id + '"]')
+                        .removeClass('sop-goodsin-row-applied sop-goodsin-row-skipped sop-goodsin-row-error');
+                });
+
+                function updateProgress(done) {
+                    var percent = total > 0 ? Math.round((done / total) * 100) : 0;
+                    $progressText.text('Applying stock: ' + done + ' of ' + total);
+                    $progressBar.css('width', percent + '%');
+                }
+
+                function finishApply() {
+                    $('.sop-goodsin-submit').prop('disabled', false);
+                    var url = new URL(window.location.href);
+                    url.searchParams.set('sop_msg', 'applied');
+                    url.searchParams.set('sop_applied', applied);
+                    url.searchParams.set('sop_skipped', skipped);
+                    if (errors > 0) {
+                        url.searchParams.set('sop_errors', errors);
+                    } else {
+                        url.searchParams.delete('sop_errors');
+                    }
+                    window.location.href = url.toString();
+                }
+
+                function applyNext(index) {
+                    if (index >= total) {
+                        finishApply();
+                        return;
+                    }
+
+                    var line = selectedLines[index];
+                    $.ajax({
+                        url: goodsinAjaxUrl,
+                        method: 'POST',
+                        dataType: 'json',
+                        data: {
+                            action: 'sop_goodsin_apply_stock_line',
+                            nonce: goodsinAjaxNonce,
+                            sheet_id: payloadObj.sheet_id,
+                            reset_report: index === 0 ? 1 : 0,
+                            line_json: JSON.stringify(line)
+                        }
+                    }).done(function(resp) {
+                        var status = 'error';
+                        var appliedQty = 0;
+                        if (resp && resp.success && resp.data && resp.data.result) {
+                            status = resp.data.result.status || 'noop';
+                            appliedQty = parseFloat(resp.data.result.applied_qty) || 0;
+                        } else {
+                            errors++;
+                        }
+
+                        var $row = $('#sop-goodsin-lines tr[data-line-id="' + line.line_id + '"]');
+                        if (status === 'applied') {
+                            applied++;
+                            $row.addClass('sop-goodsin-row-applied');
+                            $progressStatus.text('Line ' + line.line_id + ' applied (+' + appliedQty + ').');
+                        } else if (status === 'noop' || status === 'skipped') {
+                            skipped++;
+                            $row.addClass('sop-goodsin-row-skipped');
+                            $progressStatus.text('Line ' + line.line_id + ' skipped.');
+                        } else {
+                            errors++;
+                            $row.addClass('sop-goodsin-row-error');
+                            $progressStatus.text('Line ' + line.line_id + ' error.');
+                        }
+                    }).fail(function() {
+                        errors++;
+                        $('#sop-goodsin-lines tr[data-line-id="' + line.line_id + '"]').addClass('sop-goodsin-row-error');
+                        $progressStatus.text('Line ' + line.line_id + ' error.');
+                    }).always(function() {
+                        updateProgress(index + 1);
+                        applyNext(index + 1);
+                    });
+                }
+
+                applyNext(0);
+            }
+
             $('.sop-goodsin-submit').on('click', function(){
                 var actionType = $(this).data('action') || 'save';
+                if (actionType === 'apply_stock') {
+                    var payloadObj = buildPayload(actionType);
+                    sopGoodsinApplyStockSequential(payloadObj);
+                    return;
+                }
                 setAction(actionType);
                 var payloadObj = buildPayload(actionType);
                 $payload.val(JSON.stringify(payloadObj));

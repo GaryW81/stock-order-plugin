@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.24
+ * File version: 1.0.25
  *
  * - Receive against ordered (locked) preorder sheets.
  * - Save goods-in progress, apply stock increases, and complete goods-in.
@@ -24,6 +24,7 @@
  * - 1.0.19 - Core: accept legacy issues export params (sheet_id/nonce).
  * - 1.0.21 - Version bump for Goods-In UI/core.
  * - 1.0.22 - Stop setting receiving status; allow legacy receiving.
+ * - 1.0.25 - Add AJAX apply-stock endpoint for sequential Goods-In updates.
  * - 1.0.24 - Harden Issues XLSX download streaming (clear output buffers) to prevent Excel repair warnings.
  * - 1.0.23 - Keep goods-in on locked sheets; do not set receiving on save/apply.
  */
@@ -1026,10 +1027,188 @@ function sop_handle_goodsin_complete() {
     exit;
 }
 
+/**
+ * AJAX: Apply stock for a single Goods-In line.
+ */
+function sop_ajax_goodsin_apply_stock_line() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_send_json_error( array( 'message' => __( 'You do not have permission to apply stock.', 'sop' ) ), 403 );
+    }
+
+    check_ajax_referer( 'sop_goodsin_ajax', 'nonce' );
+
+    $sheet_id   = isset( $_POST['sheet_id'] ) ? (int) $_POST['sheet_id'] : 0;
+    $line_json  = isset( $_POST['line_json'] ) ? wp_unslash( $_POST['line_json'] ) : '';
+    $reset_report = ! empty( $_POST['reset_report'] );
+
+    if ( $sheet_id <= 0 || '' === $line_json ) {
+        wp_send_json_error( array( 'message' => __( 'Invalid payload.', 'sop' ) ), 400 );
+    }
+
+    $sheet = sop_goodsin_get_sheet( $sheet_id );
+    if ( ! $sheet ) {
+        wp_send_json_error( array( 'message' => __( 'Sheet not found.', 'sop' ) ), 404 );
+    }
+
+    $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
+    if ( in_array( $status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
+        wp_send_json_error( array( 'message' => __( 'Sheet is read-only.', 'sop' ) ), 400 );
+    }
+    if ( 'locked' !== $status && 'receiving' !== $status ) {
+        wp_send_json_error( array( 'message' => __( 'Sheet must be Ordered to apply stock.', 'sop' ) ), 400 );
+    }
+
+    $line_in = json_decode( $line_json, true );
+    if ( ! is_array( $line_in ) ) {
+        wp_send_json_error( array( 'message' => __( 'Invalid line payload.', 'sop' ) ), 400 );
+    }
+
+    $line_id    = isset( $line_in['line_id'] ) ? (int) $line_in['line_id'] : 0;
+    $product_id = isset( $line_in['product_id'] ) ? (int) $line_in['product_id'] : 0;
+    if ( $line_id <= 0 ) {
+        wp_send_json_error( array( 'message' => __( 'Missing line ID.', 'sop' ) ), 400 );
+    }
+
+    $lines_map = sop_goodsin_get_sheet_lines_map( $sheet_id );
+    if ( ! empty( $lines_map ) && function_exists( 'sop_goodsin_migrate_lines_map_to_pid' ) ) {
+        list( $lines_map ) = sop_goodsin_migrate_lines_map_to_pid( $lines_map );
+    }
+    if ( empty( $lines_map ) || ! isset( $lines_map[ $line_id ] ) ) {
+        wp_send_json_error( array( 'message' => __( 'Line not found for sheet.', 'sop' ) ), 404 );
+    }
+
+    $db_row = $lines_map[ $line_id ];
+    $db_pid = isset( $db_row['product_id'] ) ? (int) $db_row['product_id'] : 0;
+    if ( $product_id <= 0 && $db_pid > 0 ) {
+        $product_id = $db_pid;
+    } elseif ( $product_id > 0 && $db_pid > 0 && $db_pid !== $product_id ) {
+        wp_send_json_error( array( 'message' => __( 'Product mismatch for line.', 'sop' ) ), 400 );
+    }
+
+    $norm         = sop_goodsin_normalize_line_payload( $line_in, $db_row );
+    $ordered_qty  = $norm['ordered_qty'];
+    $received_qty = $norm['received_qty'];
+    $missing_qty  = $norm['missing_qty'];
+    $reject_qty   = $norm['reject_qty'];
+    $stock_added  = $norm['stock_added'];
+
+    global $wpdb;
+    $tbl_lines = function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ? sop_get_preorder_sheet_lines_table_name() : '';
+    if ( '' === $tbl_lines ) {
+        $tbl_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
+    }
+
+    $wpdb->update(
+        $tbl_lines,
+        $norm['update'],
+        array( 'id' => $line_id, 'sheet_id' => $sheet_id ),
+        array( '%f', '%f', '%f', '%s', '%s', '%s' ),
+        array( '%d', '%d' )
+    );
+
+    $result_data = array(
+        'line_id'     => $line_id,
+        'product_id'  => $product_id,
+        'status'      => 'noop',
+        'applied_qty' => 0.0,
+    );
+
+    if ( $ordered_qty <= 0 || $product_id <= 0 ) {
+        $result_data['status'] = 'skipped';
+        $result_data['reason'] = 'invalid_qty_or_product';
+    } else {
+        $accepted_qty        = max( 0.0, $received_qty - $reject_qty );
+        $to_apply            = max( 0.0, $accepted_qty - $stock_added );
+        $remaining_for_apply = max( 0.0, $ordered_qty - $stock_added - $missing_qty - $reject_qty );
+        if ( $to_apply > $remaining_for_apply ) {
+            $to_apply = $remaining_for_apply;
+        }
+
+        if ( $to_apply <= 0 ) {
+            $result_data['status'] = 'noop';
+        } else {
+            $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+            if ( ! $product ) {
+                $result_data['status']  = 'skipped';
+                $result_data['reason']  = 'missing_product';
+            } elseif ( method_exists( $product, 'managing_stock' ) && ! $product->managing_stock() ) {
+                $result_data['status']  = 'skipped';
+                $result_data['reason']  = 'not_managing_stock';
+            } elseif ( ! function_exists( 'wc_update_product_stock' ) ) {
+                $result_data['status']  = 'skipped';
+                $result_data['reason']  = 'stock_api_missing';
+            } else {
+                $result = wc_update_product_stock( $product, $to_apply, 'increase' );
+                if ( is_wp_error( $result ) ) {
+                    $result_data['status']  = 'skipped';
+                    $result_data['reason']  = 'stock_update_failed';
+                    $result_data['message'] = $result->get_error_message();
+                } else {
+                    $new_stock_added = $stock_added + $to_apply;
+                    $wpdb->update(
+                        $tbl_lines,
+                        array(
+                            'goods_in_stock_added_qty' => $new_stock_added,
+                            'goods_in_updated_at'      => current_time( 'mysql', true ),
+                        ),
+                        array( 'id' => $line_id, 'sheet_id' => $sheet_id ),
+                        array( '%f', '%s' ),
+                        array( '%d', '%d' )
+                    );
+                    $result_data['status']      = 'applied';
+                    $result_data['applied_qty'] = $to_apply;
+                }
+            }
+        }
+    }
+
+    $transient_key = 'sop_goodsin_last_apply_' . get_current_user_id() . '_' . $sheet_id;
+    $report = array(
+        'applied_lines' => 0,
+        'applied_qty'   => 0.0,
+        'skipped'       => array(),
+    );
+    if ( ! $reset_report ) {
+        $existing = get_transient( $transient_key );
+        if ( is_array( $existing ) ) {
+            $report = array_merge( $report, $existing );
+            if ( empty( $report['skipped'] ) ) {
+                $report['skipped'] = array();
+            }
+        }
+    }
+
+    if ( 'applied' === $result_data['status'] ) {
+        $report['applied_lines'] = isset( $report['applied_lines'] ) ? (int) $report['applied_lines'] + 1 : 1;
+        $report['applied_qty']   = isset( $report['applied_qty'] ) ? (float) $report['applied_qty'] + (float) $result_data['applied_qty'] : (float) $result_data['applied_qty'];
+    } elseif ( 'noop' !== $result_data['status'] ) {
+        $report['skipped'][] = array(
+            'line_id'    => $line_id,
+            'product_id' => $product_id,
+            'reason'     => isset( $result_data['reason'] ) ? $result_data['reason'] : 'skipped',
+            'message'    => isset( $result_data['message'] ) ? $result_data['message'] : '',
+        );
+    }
+
+    set_transient( $transient_key, $report, HOUR_IN_SECONDS );
+
+    wp_send_json_success(
+        array(
+            'result' => $result_data,
+            'report' => array(
+                'applied_lines' => isset( $report['applied_lines'] ) ? (int) $report['applied_lines'] : 0,
+                'applied_qty'   => isset( $report['applied_qty'] ) ? (float) $report['applied_qty'] : 0.0,
+                'skipped_count' => isset( $report['skipped'] ) && is_array( $report['skipped'] ) ? count( $report['skipped'] ) : 0,
+            ),
+        )
+    );
+}
+
 add_action( 'admin_post_sop_goodsin_save', 'sop_handle_goodsin_save' );
 add_action( 'admin_post_sop_goodsin_apply_stock', 'sop_handle_goodsin_apply_stock' );
 add_action( 'admin_post_sop_goodsin_complete', 'sop_handle_goodsin_complete' );
 add_action( 'admin_post_sop_export_goodsin_issues_xlsx', 'sop_handle_export_goodsin_issues_xlsx' );
+add_action( 'wp_ajax_sop_goodsin_apply_stock_line', 'sop_ajax_goodsin_apply_stock_line' );
 function sop_handle_export_goodsin_issues_xlsx() {
     if ( ! current_user_can( 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You are not allowed to export goods-in issues.', 'sop' ) );
