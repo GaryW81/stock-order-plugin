@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.1.01
+ * File version: 1.1.02
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.1.02 - Fix: Non-RMB Order Sheet unit costs avoid double RMB conversion.
  * - 1.1.01 - Fix: Non-RMB Order Sheet unit costs use cost_rmb_owner without RMB conversion.
  * - 1.1.00 - Fix: Non-RMB PO Summary writes Deposit/Balance to correct rows in new template (D36/D37).
  * - 1.0.99 - Fix: Preserve numeric cell type for non-RMB D37/D38 to keep template alignment.
@@ -536,8 +537,6 @@ class SOP_Preorder_XLSX_Exporter {
         $unit_cost_supplier_raw = self::get_line_positive_float( $line, $supplier_keys );
         $unit_cost_supplier     = 0.0;
 
-        $rates = self::sop_get_sop_settings_fx_rates();
-
         if ( 'RMB' === $currency_upper ) {
             $unit_cost_supplier = ( $unit_cost_rmb > 0 ) ? $unit_cost_rmb : $unit_cost_supplier_raw;
         } else {
@@ -545,10 +544,23 @@ class SOP_Preorder_XLSX_Exporter {
                 $unit_cost_supplier = $unit_cost_supplier_raw;
             } elseif ( $unit_cost_from_rmb_owner > 0 ) {
                 $unit_cost_supplier = $unit_cost_from_rmb_owner;
-            } elseif ( $unit_cost_rmb > 0 ) {
-                $converted = self::sop_convert_rmb_to_currency( $unit_cost_rmb, $currency_upper, $balance_fx_rate, $rates );
-                if ( $converted > 0 ) {
-                    $unit_cost_supplier = $converted;
+            } else {
+                $product_id = 0;
+                if ( isset( $line['product_id'] ) ) {
+                    $product_id = (int) $line['product_id'];
+                } elseif ( isset( $line['id'] ) ) {
+                    $product_id = (int) $line['id'];
+                }
+
+                if ( $product_id > 0 && function_exists( 'sop_preorder_get_cost_for_supplier_currency' ) ) {
+                    $fallback = sop_preorder_get_cost_for_supplier_currency( $product_id, $currency_upper );
+                    if ( is_numeric( $fallback ) && (float) $fallback > 0 ) {
+                        $unit_cost_supplier = (float) $fallback;
+                    }
+                }
+
+                if ( $unit_cost_supplier <= 0 && $unit_cost_rmb > 0 ) {
+                    $unit_cost_supplier = $unit_cost_rmb;
                 }
             }
         }
