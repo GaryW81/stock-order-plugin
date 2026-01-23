@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.24
+ * File version: 1.1.25
  *
+ * - 1.1.25 - Show per-line completion tick for ordered lines (AJAX + server render).
  * - 1.1.24 - Keep Goods-In apply stock results in-page (no redirect) to avoid beforeunload prompt.
  * - 1.1.23 - Apply stock via AJAX batches with progress UI to prevent timeouts.
  * - 1.1.22 - Persist Goods-In table sort state across reload (per sheet/session).
@@ -948,6 +949,7 @@ function sop_render_goods_in_page() {
                     $internal_notes = is_string( $internal_notes ) ? $internal_notes : '';
                 }
                 $outstanding = max( 0.0, $ordered - $stocked - $missing - $reject );
+                $is_complete = ( $outstanding <= 0.0001 );
                 $supplier_skus_val = '';
                 if ( $pid > 0 ) {
                     $supplier_skus_val = get_post_meta( $pid, '_sop_supplier_skus', true );
@@ -1028,6 +1030,7 @@ function sop_render_goods_in_page() {
                 }
                                 ?>
                                 <tr data-line-id="<?php echo esc_attr( $line_id ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>" data-sop-row="1"
+                                    class="<?php echo $is_complete ? 'sop-goodsin-line-complete' : ''; ?>"
                                     data-sku="<?php echo esc_attr( trim( $sku ) ); ?>"
                                     data-product-name="<?php echo esc_attr( $name ); ?>"
                                     data-location="<?php echo esc_attr( $location ); ?>"
@@ -1093,7 +1096,10 @@ function sop_render_goods_in_page() {
                             ?>
                         </div>
                     </td>
-                    <td data-column="ordered"><?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?></td>
+                    <td data-column="ordered">
+                        <?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?>
+                        <span class="sop-goodsin-stockdone" aria-hidden="true"></span>
+                    </td>
                     <td data-column="received">
                         <?php if ( $sop_gi_is_readonly ) : ?>
                             <span class="sop-goodsin-readonly-val"><?php echo esc_html( number_format_i18n( $received, 0 ) ); ?></span>
@@ -1297,6 +1303,27 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-row-error {
             background-color: #fde8e8;
+        }
+        .sop-goodsin-stockdone {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            margin-left: 6px;
+            border-radius: 50%;
+            background: #2e8b57;
+            color: #fff;
+            font-size: 12px;
+            line-height: 1;
+            font-weight: 700;
+            vertical-align: middle;
+        }
+        .sop-goodsin-stockdone::before {
+            content: "✓";
+        }
+        tr.sop-goodsin-line-complete .sop-goodsin-stockdone {
+            display: inline-flex;
         }
         .sop-status-pill {
             display: inline-flex;
@@ -3543,14 +3570,32 @@ function sop_render_goods_in_page() {
                     }).done(function(resp) {
                         var status = 'error';
                         var appliedQty = 0;
+                        var isComplete = false;
+                        var outstanding = null;
                         if (resp && resp.success && resp.data && resp.data.result) {
                             status = resp.data.result.status || 'noop';
                             appliedQty = parseFloat(resp.data.result.applied_qty) || 0;
+                            if (typeof resp.data.result.is_complete !== 'undefined') {
+                                isComplete = !!resp.data.result.is_complete;
+                            }
+                            if (typeof resp.data.result.outstanding_qty !== 'undefined') {
+                                outstanding = parseFloat(resp.data.result.outstanding_qty);
+                                if (!isNaN(outstanding)) {
+                                    isComplete = outstanding <= 0.0001;
+                                }
+                            }
                         } else {
                             errors++;
                         }
 
                         var $row = $('#sop-goodsin-lines tr[data-line-id="' + line.line_id + '"]');
+                        if ($row.length) {
+                            if (isComplete) {
+                                $row.addClass('sop-goodsin-line-complete');
+                            } else {
+                                $row.removeClass('sop-goodsin-line-complete');
+                            }
+                        }
                         if (status === 'applied') {
                             applied++;
                             $row.addClass('sop-goodsin-row-applied');

@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.25
+ * File version: 1.0.26
  *
  * - Receive against ordered (locked) preorder sheets.
  * - Save goods-in progress, apply stock increases, and complete goods-in.
@@ -24,6 +24,7 @@
  * - 1.0.19 - Core: accept legacy issues export params (sheet_id/nonce).
  * - 1.0.21 - Version bump for Goods-In UI/core.
  * - 1.0.22 - Stop setting receiving status; allow legacy receiving.
+ * - 1.0.26 - AJAX apply-stock returns outstanding/is_complete for row UI.
  * - 1.0.25 - Add AJAX apply-stock endpoint for sequential Goods-In updates.
  * - 1.0.24 - Harden Issues XLSX download streaming (clear output buffers) to prevent Excel repair warnings.
  * - 1.0.23 - Keep goods-in on locked sheets; do not set receiving on save/apply.
@@ -1106,11 +1107,15 @@ function sop_ajax_goodsin_apply_stock_line() {
         array( '%d', '%d' )
     );
 
+    $stock_added_qty = $stock_added;
     $result_data = array(
         'line_id'     => $line_id,
         'product_id'  => $product_id,
         'status'      => 'noop',
         'applied_qty' => 0.0,
+        'stock_added_qty' => $stock_added_qty,
+        'outstanding_qty' => 0.0,
+        'is_complete' => false,
     );
 
     if ( $ordered_qty <= 0 || $product_id <= 0 ) {
@@ -1144,11 +1149,11 @@ function sop_ajax_goodsin_apply_stock_line() {
                     $result_data['reason']  = 'stock_update_failed';
                     $result_data['message'] = $result->get_error_message();
                 } else {
-                    $new_stock_added = $stock_added + $to_apply;
+                    $stock_added_qty = $stock_added + $to_apply;
                     $wpdb->update(
                         $tbl_lines,
                         array(
-                            'goods_in_stock_added_qty' => $new_stock_added,
+                            'goods_in_stock_added_qty' => $stock_added_qty,
                             'goods_in_updated_at'      => current_time( 'mysql', true ),
                         ),
                         array( 'id' => $line_id, 'sheet_id' => $sheet_id ),
@@ -1161,6 +1166,11 @@ function sop_ajax_goodsin_apply_stock_line() {
             }
         }
     }
+
+    $outstanding_qty = max( 0.0, $ordered_qty - $stock_added_qty - $missing_qty - $reject_qty );
+    $result_data['stock_added_qty'] = $stock_added_qty;
+    $result_data['outstanding_qty'] = $outstanding_qty;
+    $result_data['is_complete']     = ( $outstanding_qty <= 0.0001 );
 
     $transient_key = 'sop_goodsin_last_apply_' . get_current_user_id() . '_' . $sheet_id;
     $report = array(
