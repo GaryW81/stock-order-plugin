@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.71
+ * File version: 11.72
+ * - 11.72 - Export dataset includes supplier-currency unit costs for non-RMB XLSX.
  * - 11.71 - Add PO Details admin page registration.
  * - 11.70 - Harden XLSX download streaming (clear output buffers) to prevent Excel repair warnings.
  * - 11.69 - Canonicalise product notes meta key to _sop_product_notes.
@@ -1566,6 +1567,24 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
         'header_payment_terms_owner' => isset( $sheet['header_payment_terms_owner'] ) ? $sheet['header_payment_terms_owner'] : '',
     );
 
+    $sheet_supplier_id = isset( $sheet['supplier_id'] ) ? (int) $sheet['supplier_id'] : 0;
+    $supplier_currency = 'GBP';
+    if ( $sheet_supplier_id > 0 && function_exists( 'sop_preorder_resolve_supplier_params' ) ) {
+        $params = sop_preorder_resolve_supplier_params( $sheet_supplier_id );
+        if ( is_array( $params ) && ! empty( $params['currency_code'] ) ) {
+            $supplier_currency = $params['currency_code'];
+        }
+    }
+    if ( function_exists( 'sop_preorder_normalise_currency' ) ) {
+        $supplier_currency = sop_preorder_normalise_currency( $supplier_currency );
+    } else {
+        $supplier_currency = strtoupper( trim( (string) $supplier_currency ) );
+        if ( ! in_array( $supplier_currency, array( 'GBP', 'RMB', 'USD', 'EUR' ), true ) ) {
+            $supplier_currency = 'GBP';
+        }
+    }
+    $settings = function_exists( 'sop_preorder_get_settings' ) ? sop_preorder_get_settings() : array();
+
     $line_rows = array();
     foreach ( $lines as $line ) {
         $product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
@@ -1605,6 +1624,17 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
             }
         }
 
+        $qty_owner = isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0.0;
+        $cost_saved = isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0.0;
+        $cost_supplier = $cost_saved;
+        if ( $cost_supplier <= 0 && $product_id > 0 && function_exists( 'sop_preorder_get_cost_for_supplier_currency' ) ) {
+            $fallback = sop_preorder_get_cost_for_supplier_currency( $product_id, $supplier_currency, $settings );
+            if ( is_numeric( $fallback ) && (float) $fallback > 0 ) {
+                $cost_supplier = (float) $fallback;
+            }
+        }
+        $cost_export = $cost_saved > 0 ? $cost_saved : $cost_supplier;
+
         $line_rows[] = array(
             'product_id'    => $product_id,
             'sku'           => isset( $line['sku_owner'] ) ? $line['sku_owner'] : '',
@@ -1614,9 +1644,11 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
             'location'      => isset( $line['location'] ) ? $line['location'] : '',
             'moq'           => isset( $line['moq_owner'] ) ? (float) $line['moq_owner'] : 0,
             'soq'           => isset( $line['suggested_qty_owner'] ) ? (float) $line['suggested_qty_owner'] : 0,
-            'qty'           => isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0,
-            'cost_rmb'      => isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0,
-            'line_total_rmb'=> ( isset( $line['qty_owner'] ) ? (float) $line['qty_owner'] : 0 ) * ( isset( $line['cost_rmb_owner'] ) ? (float) $line['cost_rmb_owner'] : 0 ),
+            'qty'           => $qty_owner,
+            'cost_rmb'      => $cost_export,
+            'line_total_rmb'=> $qty_owner * $cost_export,
+            'cost_supplier' => $cost_supplier,
+            'line_total_supplier' => $qty_owner * $cost_supplier,
             'product_notes' => isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : '',
             'order_notes'   => isset( $line['order_notes_owner'] ) ? $line['order_notes_owner'] : '',
             'carton_no'     => $carton_no,
