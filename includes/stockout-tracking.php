@@ -2,8 +2,8 @@
 /**
  * Stock Order Plugin - Phase 4
  * Stockout tracking + maintenance hooks
- * File version: 1.0.3
- * - Schedule sop_daily_maintenance cron on init.
+ * File version: 1.0.4
+ * - Add tooltips for Stockout Log header columns.
  *
  * - Hooks WooCommerce stock changes to stockout open/close helpers.
  * - Ensures a daily maintenance cron runs to prune old stockout logs.
@@ -194,11 +194,11 @@ function sop_render_stockout_log_debug_page() {
                         <th><?php esc_html_e( 'Product ID', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'SKU', 'sop' ); ?></th>
                         <th><?php esc_html_e( 'Product', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Date start', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Date end', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Duration (days)', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Source', 'sop' ); ?></th>
-                        <th><?php esc_html_e( 'Notes', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Datetime when the stockout interval started (sop_stockout_log.date_start).', 'sop' ); ?>"><?php esc_html_e( 'Date start', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Datetime when the stockout interval ended (sop_stockout_log.date_end). Blank means the interval is still open.', 'sop' ); ?>"><?php esc_html_e( 'Date end', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Calculated as (Date end or now) minus Date start, shown in days (2dp).', 'sop' ); ?>"><?php esc_html_e( 'Duration (days)', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Internal source identifier saved on the log row (sop_stockout_log.source).', 'sop' ); ?>"><?php esc_html_e( 'Source', 'sop' ); ?></th>
+                        <th title="<?php echo esc_attr__( 'Extra details saved on the log row (sop_stockout_log.notes).', 'sop' ); ?>"><?php esc_html_e( 'Notes', 'sop' ); ?></th>
                     </tr>
                 </thead>
                 <tbody>
