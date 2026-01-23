@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.26
+ * File version: 1.0.27
  *
  * - Receive against ordered (locked) preorder sheets.
  * - Save goods-in progress, apply stock increases, and complete goods-in.
@@ -24,6 +24,7 @@
  * - 1.0.19 - Core: accept legacy issues export params (sheet_id/nonce).
  * - 1.0.21 - Version bump for Goods-In UI/core.
  * - 1.0.22 - Stop setting receiving status; allow legacy receiving.
+ * - 1.0.27 - AJAX apply-stock adds SKU/reason labels + retry on stock update failure.
  * - 1.0.26 - AJAX apply-stock returns outstanding/is_complete for row UI.
  * - 1.0.25 - Add AJAX apply-stock endpoint for sequential Goods-In updates.
  * - 1.0.24 - Harden Issues XLSX download streaming (clear output buffers) to prevent Excel repair warnings.
@@ -1079,6 +1080,12 @@ function sop_ajax_goodsin_apply_stock_line() {
     }
 
     $db_row = $lines_map[ $line_id ];
+    $sku    = '';
+    if ( ! empty( $db_row['sku_owner'] ) ) {
+        $sku = (string) $db_row['sku_owner'];
+    } elseif ( ! empty( $line_in['sku'] ) ) {
+        $sku = (string) $line_in['sku'];
+    }
     $db_pid = isset( $db_row['product_id'] ) ? (int) $db_row['product_id'] : 0;
     if ( $product_id <= 0 && $db_pid > 0 ) {
         $product_id = $db_pid;
@@ -1116,6 +1123,7 @@ function sop_ajax_goodsin_apply_stock_line() {
         'stock_added_qty' => $stock_added_qty,
         'outstanding_qty' => 0.0,
         'is_complete' => false,
+        'sku'         => $sku,
     );
 
     if ( $ordered_qty <= 0 || $product_id <= 0 ) {
@@ -1145,6 +1153,12 @@ function sop_ajax_goodsin_apply_stock_line() {
             } else {
                 $result = wc_update_product_stock( $product, $to_apply, 'increase' );
                 if ( is_wp_error( $result ) ) {
+                    $product_retry = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+                    if ( $product_retry && function_exists( 'wc_update_product_stock' ) ) {
+                        $result = wc_update_product_stock( $product_retry, $to_apply, 'increase' );
+                    }
+                }
+                if ( is_wp_error( $result ) ) {
                     $result_data['status']  = 'skipped';
                     $result_data['reason']  = 'stock_update_failed';
                     $result_data['message'] = $result->get_error_message();
@@ -1171,6 +1185,16 @@ function sop_ajax_goodsin_apply_stock_line() {
     $result_data['stock_added_qty'] = $stock_added_qty;
     $result_data['outstanding_qty'] = $outstanding_qty;
     $result_data['is_complete']     = ( $outstanding_qty <= 0.0001 );
+    $reason_labels = array(
+        'invalid_qty_or_product' => __( 'Invalid qty / product', 'sop' ),
+        'missing_product'        => __( 'Missing product', 'sop' ),
+        'not_managing_stock'     => __( 'Stock management disabled', 'sop' ),
+        'stock_api_missing'      => __( 'Woo stock API missing', 'sop' ),
+        'stock_update_failed'    => __( 'Woo stock update failed', 'sop' ),
+    );
+    if ( ! empty( $result_data['reason'] ) && isset( $reason_labels[ $result_data['reason'] ] ) ) {
+        $result_data['reason_label'] = $reason_labels[ $result_data['reason'] ];
+    }
 
     $transient_key = 'sop_goodsin_last_apply_' . get_current_user_id() . '_' . $sheet_id;
     $report = array(
@@ -1195,6 +1219,7 @@ function sop_ajax_goodsin_apply_stock_line() {
         $report['skipped'][] = array(
             'line_id'    => $line_id,
             'product_id' => $product_id,
+            'sku'        => $sku,
             'reason'     => isset( $result_data['reason'] ) ? $result_data['reason'] : 'skipped',
             'message'    => isset( $result_data['message'] ) ? $result_data['message'] : '',
         );

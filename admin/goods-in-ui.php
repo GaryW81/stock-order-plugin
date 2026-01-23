@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.25
+ * File version: 1.1.26
  *
+ * - 1.1.26 - Add skipped-line badges + summary for AJAX apply stock.
  * - 1.1.25 - Show per-line completion tick for ordered lines (AJAX + server render).
  * - 1.1.24 - Keep Goods-In apply stock results in-page (no redirect) to avoid beforeunload prompt.
  * - 1.1.23 - Apply stock via AJAX batches with progress UI to prevent timeouts.
@@ -807,6 +808,7 @@ function sop_render_goods_in_page() {
                             <div class="sop-goodsin-apply-progress-bar-inner"></div>
                         </div>
                         <div class="sop-goodsin-apply-progress-status" aria-live="polite"></div>
+                        <div class="sop-goodsin-apply-progress-skipped"></div>
                     </div>
                 </div>
                 <div class="sop-goodsin-mg-complete">
@@ -1099,6 +1101,7 @@ function sop_render_goods_in_page() {
                     <td data-column="ordered">
                         <?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?>
                         <span class="sop-goodsin-stockdone" aria-hidden="true"></span>
+                        <span class="sop-goodsin-skip-badge" aria-hidden="true"></span>
                     </td>
                     <td data-column="received">
                         <?php if ( $sop_gi_is_readonly ) : ?>
@@ -1303,6 +1306,27 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-row-error {
             background-color: #fde8e8;
+        }
+        .sop-goodsin-skip-badge {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            margin-left: 6px;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+            background: #f0b429;
+            color: #1d2327;
+            vertical-align: middle;
+        }
+        .sop-goodsin-skip-badge::before {
+            content: "!";
+        }
+        .sop-goodsin-row-skipped .sop-goodsin-skip-badge {
+            display: inline-flex;
         }
         .sop-goodsin-stockdone {
             display: none;
@@ -3499,6 +3523,7 @@ function sop_render_goods_in_page() {
             var $progressText = $progressWrap.find('.sop-goodsin-apply-progress-text');
             var $progressBar = $progressWrap.find('.sop-goodsin-apply-progress-bar-inner');
             var $progressStatus = $progressWrap.find('.sop-goodsin-apply-progress-status');
+            var $progressSkipped = $progressWrap.find('.sop-goodsin-apply-progress-skipped');
 
             function setAction(actionType) {
                 if (actionType === 'save') {
@@ -3524,6 +3549,7 @@ function sop_render_goods_in_page() {
                 var applied = 0;
                 var skipped = 0;
                 var errors = 0;
+                var skippedItems = [];
 
                 $('.sop-goodsin-submit').prop('disabled', true);
 
@@ -3531,6 +3557,7 @@ function sop_render_goods_in_page() {
                 $progressText.text('Applying stock: 0 of ' + total);
                 $progressBar.css('width', '0%');
                 $progressStatus.text('');
+                $progressSkipped.empty();
 
                 selectedLines.forEach(function(line) {
                     $('#sop-goodsin-lines tr[data-line-id="' + line.line_id + '"]')
@@ -3547,6 +3574,17 @@ function sop_render_goods_in_page() {
                     $('.sop-goodsin-submit').prop('disabled', false);
                     updateProgress(total);
                     $progressStatus.text('Done. Applied: ' + applied + ', Skipped: ' + skipped + ', Errors: ' + errors + '.');
+                    if (skippedItems.length) {
+                        var html = '<strong>Skipped lines</strong><br />';
+                        skippedItems.forEach(function(item) {
+                            html += (item.sku || 'Unknown SKU') + ' — ' + item.reason;
+                            if (item.message) {
+                                html += ' (' + item.message + ')';
+                            }
+                            html += '<br />';
+                        });
+                        $progressSkipped.html(html);
+                    }
                 }
 
                 function applyNext(index) {
@@ -3575,6 +3613,9 @@ function sop_render_goods_in_page() {
                         if (resp && resp.success && resp.data && resp.data.result) {
                             status = resp.data.result.status || 'noop';
                             appliedQty = parseFloat(resp.data.result.applied_qty) || 0;
+                            if (resp.data.result.sku) {
+                                line.sku = resp.data.result.sku;
+                            }
                             if (typeof resp.data.result.is_complete !== 'undefined') {
                                 isComplete = !!resp.data.result.is_complete;
                             }
@@ -3603,6 +3644,16 @@ function sop_render_goods_in_page() {
                         } else if (status === 'noop' || status === 'skipped') {
                             skipped++;
                             $row.addClass('sop-goodsin-row-skipped');
+                            var reasonLabel = (resp && resp.data && resp.data.result && resp.data.result.reason_label) ? resp.data.result.reason_label : (resp && resp.data && resp.data.result && resp.data.result.reason ? resp.data.result.reason : 'Skipped');
+                            var message = (resp && resp.data && resp.data.result && resp.data.result.message) ? resp.data.result.message : '';
+                            var skuText = line.sku || $row.data('sku') || '';
+                            skippedItems.push({
+                                line_id: line.line_id,
+                                sku: skuText,
+                                reason: reasonLabel,
+                                message: message
+                            });
+                            $row.find('.sop-goodsin-skip-badge').attr('title', 'Skipped: ' + skuText + ' — ' + reasonLabel + (message ? ': ' + message : ''));
                             $progressStatus.text('Line ' + line.line_id + ' skipped.');
                         } else {
                             errors++;
