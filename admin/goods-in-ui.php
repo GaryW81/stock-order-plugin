@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.23
+ * File version: 1.1.24
  *
+ * - 1.1.24 - Keep Goods-In apply stock results in-page (no redirect) to avoid beforeunload prompt.
  * - 1.1.23 - Apply stock via AJAX batches with progress UI to prevent timeouts.
  * - 1.1.22 - Persist Goods-In table sort state across reload (per sheet/session).
  * - 1.1.21 - UI: force Goods-In notes popup true vertical centering on mobile.
@@ -3517,16 +3518,8 @@ function sop_render_goods_in_page() {
 
                 function finishApply() {
                     $('.sop-goodsin-submit').prop('disabled', false);
-                    var url = new URL(window.location.href);
-                    url.searchParams.set('sop_msg', 'applied');
-                    url.searchParams.set('sop_applied', applied);
-                    url.searchParams.set('sop_skipped', skipped);
-                    if (errors > 0) {
-                        url.searchParams.set('sop_errors', errors);
-                    } else {
-                        url.searchParams.delete('sop_errors');
-                    }
-                    window.location.href = url.toString();
+                    updateProgress(total);
+                    $progressStatus.text('Done. Applied: ' + applied + ', Skipped: ' + skipped + ', Errors: ' + errors + '.');
                 }
 
                 function applyNext(index) {
