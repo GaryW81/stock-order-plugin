@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.88 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.89 *
+ * - V12.89 - Wire inbound_qty to open/locked/GI sheets via inbound qty map.
  * - V12.88 - UI: raise Columns button z-index so full area is clickable.
  * - V12.87 - Readonly saved sheets now hide removed/zero-qty rows to preserve sheet memory.
  * - V12.86 - Persist table sort state across reload/update (per saved sheet).
@@ -746,6 +747,24 @@ function sop_preorder_render_admin_page() {
                 }
             )
         );
+    }
+
+    $inbound_map = array();
+    if ( $current_supplier_id > 0 && function_exists( 'sop_db_get_inbound_qty_map' ) ) {
+        $exclude_sheet_id = ( $current_sheet_id > 0 ) ? (int) $current_sheet_id : 0;
+        $inbound_map      = sop_db_get_inbound_qty_map( (int) $current_supplier_id, $exclude_sheet_id );
+        if ( ! is_array( $inbound_map ) ) {
+            $inbound_map = array();
+        }
+    }
+
+    if ( ! empty( $rows ) ) {
+        foreach ( $rows as $row_index => $row ) {
+            $pid = isset( $row['product_id'] ) ? (int) $row['product_id'] : 0;
+            $rows[ $row_index ]['inbound_qty'] = ( $pid > 0 && isset( $inbound_map[ $pid ] ) )
+                ? (float) $inbound_map[ $pid ]
+                : 0.0;
+        }
     }
 
     // Overlay saved sheet data if present.
