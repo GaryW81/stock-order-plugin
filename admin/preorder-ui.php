@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.87 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.88 *
+ * - V12.88 - UI: raise Columns button z-index so full area is clickable.
  * - V12.87 - Readonly saved sheets now hide removed/zero-qty rows to preserve sheet memory.
  * - V12.86 - Persist table sort state across reload/update (per saved sheet).
  * - V12.85 - Canonicalise product notes meta key to _sop_product_notes.
@@ -2678,6 +2679,7 @@ function sop_preorder_render_admin_page() {
         .sop-preorder-columns {
             position: relative;
             display: inline-block;
+            z-index: 10;
         }
 
         .sop-preorder-columns-toggle {
