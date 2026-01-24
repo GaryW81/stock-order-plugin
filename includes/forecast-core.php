@@ -9,9 +9,10 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.27
+ * File version: 1.0.28
  * - Removed stray placeholder label in get_supplier_product_ids().
  * - Inbound: support inbound_map (locked sheet quantities) in stock_at_arrival and suggested_raw.
+ * - Inbound: time-phase inbound using schedule map (arrival_date_owner) when provided.
  * - Correct fallback SOQ to prefer monthly cap × buffer and treat MOQ as one-off pack size.
  * - Canonicalise max_order_qty_per_month meta key.
  */
@@ -636,6 +637,11 @@ class Stock_Order_Plugin_Core_Engine {
             $inbound_qty = 0.0;
         }
 
+        $inbound_schedule_map = array();
+        if ( ! empty( $args['inbound_schedule_map'] ) && is_array( $args['inbound_schedule_map'] ) ) {
+            $inbound_schedule_map = $args['inbound_schedule_map'];
+        }
+
         $current_stock = (int) $product->get_stock_quantity();
         if ( $current_stock < 0 ) {
             $current_stock = 0;
@@ -644,7 +650,85 @@ class Stock_Order_Plugin_Core_Engine {
         $effective_stock_for_forecast = (float) $current_stock + $inbound_qty;
 
         // Stock remaining when the shipment lands (before new order), clamped at zero.
-        $stock_at_arrival = max( 0.0, $effective_stock_for_forecast - $lead_demand );
+        $stock_at_arrival = 0.0;
+        $schedule_entries = array();
+
+        if ( isset( $inbound_schedule_map[ $product_id ] ) && is_array( $inbound_schedule_map[ $product_id ] ) ) {
+            $schedule_entries = $inbound_schedule_map[ $product_id ];
+        }
+
+        if ( ! empty( $schedule_entries ) ) {
+            $tz       = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+            $today    = new \DateTime( 'today', $tz );
+            $today_ts = $today->getTimestamp();
+
+            $lead_days_effective = max( 0.0, (float) $lead_days );
+            $phased_entries      = array();
+
+            foreach ( $schedule_entries as $entry ) {
+                if ( ! is_array( $entry ) ) {
+                    continue;
+                }
+
+                $qty = isset( $entry['qty'] ) ? (float) $entry['qty'] : 0.0;
+                if ( $qty <= 0 ) {
+                    continue;
+                }
+
+                $arrival_raw = isset( $entry['arrival_date'] ) ? (string) $entry['arrival_date'] : '';
+                $eta_days    = 0.0;
+
+                if ( '' !== $arrival_raw ) {
+                    try {
+                        $arrival_dt = new \DateTime( $arrival_raw, $tz );
+                        $arrival_ts = $arrival_dt->getTimestamp();
+                        $diff_days  = ( $arrival_ts - $today_ts ) / DAY_IN_SECONDS;
+                        if ( $diff_days > 0 ) {
+                            $eta_days = (float) $diff_days;
+                        }
+                    } catch ( \Exception $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+                        $eta_days = 0.0;
+                    }
+                }
+
+                if ( $eta_days > $lead_days_effective ) {
+                    continue;
+                }
+
+                $phased_entries[] = array(
+                    'eta_days' => $eta_days,
+                    'qty'      => $qty,
+                );
+            }
+
+            usort(
+                $phased_entries,
+                static function ( $a, $b ) {
+                    $a_eta = isset( $a['eta_days'] ) ? (float) $a['eta_days'] : 0.0;
+                    $b_eta = isset( $b['eta_days'] ) ? (float) $b['eta_days'] : 0.0;
+                    return $a_eta <=> $b_eta;
+                }
+            );
+
+            $stock = (float) $current_stock;
+            $t     = 0.0;
+
+            foreach ( $phased_entries as $entry ) {
+                $eta_days = isset( $entry['eta_days'] ) ? (float) $entry['eta_days'] : 0.0;
+                if ( $eta_days < $t ) {
+                    $eta_days = $t;
+                }
+
+                $stock = max( 0.0, $stock - ( $demand_per_day * ( $eta_days - $t ) ) );
+                $stock += isset( $entry['qty'] ) ? (float) $entry['qty'] : 0.0;
+                $t      = $eta_days;
+            }
+
+            $stock           = max( 0.0, $stock - ( $demand_per_day * ( $lead_days_effective - $t ) ) );
+            $stock_at_arrival = $stock;
+        } else {
+            $stock_at_arrival = max( 0.0, $effective_stock_for_forecast - $lead_demand );
+        }
 
         // Target stock on arrival is based solely on buffer coverage.
         $target_at_arrival   = $buffer_demand;

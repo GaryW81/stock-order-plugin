@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Phase 1 (DB + Helpers)
- * File version: 1.0.05
+ * File version: 1.0.06
  *
  * - Declares sop_DB class (schema + helpers).
  * - Defines all core Stock Order Plugin tables.
@@ -13,6 +13,7 @@
  * - 1.0.03 - Add carton_no to preorder sheet lines for per-line carton tracking.
  * - 1.0.04 - Clarify inbound helper uses ordered/legacy receiving sheets.
  * - 1.0.05 - Store removed state per preorder sheet line.
+ * - 1.0.06 - Add inbound schedule helper for ETA-aware inbound grouping.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -552,6 +553,128 @@ if ( ! function_exists( 'sop_db_get_inbound_qty_map' ) ) {
             }
 
             $map[ $pid ] = $qty;
+        }
+
+        return $map;
+    }
+}
+
+/**
+ * Get a per-product inbound schedule grouped by arrival date.
+ *
+ * @param int $sheet_id_to_exclude Optional sheet ID to exclude (e.g. current draft sheet being edited).
+ *
+ * @return array<int,array<int,array{arrival_date:string,qty:float}>>
+ */
+if ( ! function_exists( 'sop_db_get_inbound_schedule_map' ) ) {
+    function sop_db_get_inbound_schedule_map( $sheet_id_to_exclude = 0 ) : array {
+        global $wpdb;
+
+        $sheet_id_to_exclude = (int) $sheet_id_to_exclude;
+
+        $tbl_sheets = function_exists( 'sop_get_preorder_sheet_table_name' ) ? sop_get_preorder_sheet_table_name() : '';
+        $tbl_lines  = function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ? sop_get_preorder_sheet_lines_table_name() : '';
+
+        if ( '' === $tbl_sheets ) {
+            $tbl_sheets = $wpdb->prefix . 'sop_preorder_sheet';
+        }
+        if ( '' === $tbl_lines ) {
+            $tbl_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
+        }
+
+        $has_is_locked = false;
+        try {
+            $col = $wpdb->get_var( "SHOW COLUMNS FROM {$tbl_sheets} LIKE 'is_locked'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            if ( ! empty( $col ) ) {
+                $has_is_locked = true;
+            }
+        } catch ( \Throwable $t ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+        }
+
+        $has_goods_in_qty_owner = false;
+        try {
+            $col = $wpdb->get_var( "SHOW COLUMNS FROM {$tbl_lines} LIKE 'goods_in_qty_owner'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            if ( ! empty( $col ) ) {
+                $has_goods_in_qty_owner = true;
+            }
+        } catch ( \Throwable $t ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+        }
+
+        $where  = array();
+        $values = array();
+
+        // Only orderable (non-zero) quantities.
+        $where[] = 'l.qty_owner > 0';
+
+        // Exclude removed lines (per-sheet flag).
+        $where[] = "( l.is_removed_owner = 0 OR l.is_removed_owner IS NULL )";
+
+        // Locked / ordered sheets only (include legacy 'receiving' for goods-in progress).
+        if ( $has_is_locked ) {
+            $where[] = "( s.status IN ( 'locked', 'receiving' ) OR ( s.is_locked IS NOT NULL AND s.is_locked = 1 ) )";
+        } else {
+            $where[] = "s.status IN ( 'locked', 'receiving' )";
+        }
+
+        // Exclude received/completed/cancelled (future-proofing).
+        $where[] = "( s.status IS NULL OR s.status NOT IN ( 'received','complete','completed','closed','cancelled' ) )";
+
+        if ( $sheet_id_to_exclude > 0 ) {
+            $where[]  = 's.id <> %d';
+            $values[] = $sheet_id_to_exclude;
+        }
+
+        $where_sql = implode( ' AND ', $where );
+
+        if ( $has_goods_in_qty_owner ) {
+            $remaining_expr = '( CAST(l.qty_owner AS SIGNED) - CAST(l.goods_in_qty_owner AS SIGNED) )';
+        } else {
+            $remaining_expr = '( l.qty_owner - COALESCE(l.goods_in_stock_added_qty, 0) - COALESCE(l.goods_in_missing_qty, 0) - COALESCE(l.goods_in_reject_qty, 0) )';
+        }
+
+        $sql = "SELECT
+                    l.product_id,
+                    s.arrival_date_owner AS arrival_date,
+                    SUM(
+                        CASE
+                            WHEN {$remaining_expr} > 0
+                            THEN {$remaining_expr}
+                            ELSE 0
+                        END
+                    ) AS inbound_qty
+                FROM {$tbl_lines} l
+                INNER JOIN {$tbl_sheets} s ON s.id = l.sheet_id
+                WHERE {$where_sql}
+                GROUP BY l.product_id, s.arrival_date_owner";
+
+        $prepared = empty( $values ) ? $sql : $wpdb->prepare( $sql, $values ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $rows     = $wpdb->get_results( $prepared, ARRAY_A ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+        if ( empty( $rows ) || ! is_array( $rows ) ) {
+            return array();
+        }
+
+        $map = array();
+        foreach ( $rows as $row ) {
+            $pid = isset( $row['product_id'] ) ? (int) $row['product_id'] : 0;
+            if ( $pid <= 0 ) {
+                continue;
+            }
+
+            $qty = isset( $row['inbound_qty'] ) ? (float) $row['inbound_qty'] : 0.0;
+            if ( $qty <= 0 ) {
+                continue;
+            }
+
+            $arrival_date = isset( $row['arrival_date'] ) ? (string) $row['arrival_date'] : '';
+            if ( ! isset( $map[ $pid ] ) ) {
+                $map[ $pid ] = array();
+            }
+
+            $map[ $pid ][] = array(
+                'arrival_date' => $arrival_date,
+                'qty'          => $qty,
+            );
         }
 
         return $map;

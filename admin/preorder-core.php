@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.72
+ * File version: 11.73
+ * - 11.73 - Pass inbound schedule map into forecast for ETA-aware inbound.
  * - 11.72 - Export dataset includes supplier-currency unit costs for non-RMB XLSX.
  * - 11.71 - Add PO Details admin page registration.
  * - 11.70 - Harden XLSX download streaming (clear output buffers) to prevent Excel repair warnings.
@@ -2250,9 +2251,14 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
     }
 
     $inbound_map = array();
+    $inbound_schedule_map = array();
     if ( function_exists( 'sop_db_get_inbound_qty_map' ) ) {
         $inbound_map = sop_db_get_inbound_qty_map( $exclude_sheet_id );
         $inbound_map = is_array( $inbound_map ) ? $inbound_map : array();
+    }
+    if ( function_exists( 'sop_db_get_inbound_schedule_map' ) ) {
+        $inbound_schedule_map = sop_db_get_inbound_schedule_map( $exclude_sheet_id );
+        $inbound_schedule_map = is_array( $inbound_schedule_map ) ? $inbound_schedule_map : array();
     }
 
     // Preload forecast rows for this supplier and index by product ID.
@@ -2269,7 +2275,8 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
                 $forecast_rows = $engine->get_supplier_forecast(
                     $supplier_id,
                     array(
-                        'inbound_map' => $inbound_map,
+                        'inbound_map'         => $inbound_map,
+                        'inbound_schedule_map' => $inbound_schedule_map,
                     )
                 );
             } catch ( \Throwable $t ) { // PHP 7+.

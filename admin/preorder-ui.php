@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.89 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.90 *
+ * - V12.90 - Pass inbound schedule map into forecast for ETA-aware inbound.
  * - V12.89 - Wire inbound_qty to open/locked/GI sheets via inbound qty map.
  * - V12.88 - UI: raise Columns button z-index so full area is clickable.
  * - V12.87 - Readonly saved sheets now hide removed/zero-qty rows to preserve sheet memory.
@@ -750,12 +751,16 @@ function sop_preorder_render_admin_page() {
     }
 
     $inbound_map = array();
+    $inbound_schedule_map = array();
     if ( $current_supplier_id > 0 && function_exists( 'sop_db_get_inbound_qty_map' ) ) {
         $exclude_sheet_id = ( $current_sheet_id > 0 ) ? (int) $current_sheet_id : 0;
         $inbound_map      = sop_db_get_inbound_qty_map( (int) $current_supplier_id, $exclude_sheet_id );
         if ( ! is_array( $inbound_map ) ) {
             $inbound_map = array();
         }
+        $inbound_schedule_map = function_exists( 'sop_db_get_inbound_schedule_map' )
+            ? sop_db_get_inbound_schedule_map( $exclude_sheet_id )
+            : array();
     }
 
     if ( ! empty( $rows ) ) {
