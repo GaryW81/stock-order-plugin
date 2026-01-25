@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.27
+ * File version: 1.1.28
  *
+ * - 1.1.28 - Goods-In list: count only ordered/active lines and show open lines + outstanding units.
  * - 1.1.27 - Improve carton filter: numeric/range match + multi-carton support (avoid substring matches like "1").
  *
  * - 1.1.26 - Add skipped-line badges + summary for AJAX apply stock.
@@ -176,7 +177,13 @@ function sop_goodsin_get_open_sheets( $include_received = false ) {
                 s.title,
                 s.order_number_label,
                 s.updated_at,
-                COUNT(l.id) AS total_lines,
+                SUM(
+                    CASE
+                        WHEN l.qty_owner > 0 AND ( l.is_removed_owner = 0 OR l.is_removed_owner IS NULL )
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS total_lines,
                 MAX(
                     CASE
                         WHEN (
@@ -191,7 +198,7 @@ function sop_goodsin_get_open_sheets( $include_received = false ) {
                 ) AS gi_started,
                 SUM(
                     CASE
-                        WHEN l.qty_owner > 0 THEN
+                        WHEN l.qty_owner > 0 AND ( l.is_removed_owner = 0 OR l.is_removed_owner IS NULL ) THEN
                             CASE
                                 WHEN (
                                     l.qty_owner
@@ -209,7 +216,23 @@ function sop_goodsin_get_open_sheets( $include_received = false ) {
                             END
                         ELSE 0
                     END
-                ) AS outstanding_qty
+                ) AS outstanding_qty,
+                SUM(
+                    CASE
+                        WHEN (
+                            l.qty_owner > 0
+                            AND ( l.is_removed_owner = 0 OR l.is_removed_owner IS NULL )
+                            AND (
+                                l.qty_owner
+                                - COALESCE(l.goods_in_stock_added_qty, 0)
+                                - COALESCE(l.goods_in_missing_qty, 0)
+                                - COALESCE(l.goods_in_reject_qty, 0)
+                            ) > 0
+                        )
+                        THEN 1
+                        ELSE 0
+                    END
+                ) AS outstanding_lines
             FROM {$tbl_sheets} s
             LEFT JOIN {$tbl_lines} l ON l.sheet_id = s.id
             WHERE s.status IN ( {$status_sql} )
@@ -509,16 +532,17 @@ function sop_render_goods_in_page() {
         echo '<th>' . esc_html__( 'Supplier', 'sop' ) . '</th>';
         echo '<th>' . esc_html__( 'Title / Order', 'sop' ) . '</th>';
         echo '<th>' . esc_html__( 'Status', 'sop' ) . '</th>';
-        echo '<th>' . esc_html__( 'Lines', 'sop' ) . '</th>';
-        echo '<th>' . esc_html__( 'Outstanding', 'sop' ) . '</th>';
+        echo '<th>' . esc_html__( 'Lines (ordered)', 'sop' ) . '</th>';
+        echo '<th>' . esc_html__( 'Open lines', 'sop' ) . '</th>';
+        echo '<th>' . esc_html__( 'Outstanding units', 'sop' ) . '</th>';
         echo '<th>' . esc_html__( 'Actions', 'sop' ) . '</th>';
         echo '</tr></thead><tbody>';
 
         if ( empty( $sheets ) ) {
             if ( $show_completed ) {
-                echo '<tr><td colspan="7">' . esc_html__( 'No Ordered/Completed sheets found.', 'sop' ) . '</td></tr>';
+                echo '<tr><td colspan="8">' . esc_html__( 'No Ordered/Completed sheets found.', 'sop' ) . '</td></tr>';
             } else {
-                echo '<tr><td colspan="7">' . esc_html__( 'No Ordered sheets found.', 'sop' ) . '</td></tr>';
+                echo '<tr><td colspan="8">' . esc_html__( 'No Ordered sheets found.', 'sop' ) . '</td></tr>';
             }
         } else {
             foreach ( $sheets as $sheet ) {
@@ -542,6 +566,7 @@ function sop_render_goods_in_page() {
                     $gi_started = true;
                 }
                 $lines = isset( $sheet['total_lines'] ) ? (int) $sheet['total_lines'] : 0;
+                $open_lines = isset( $sheet['outstanding_lines'] ) ? (int) $sheet['outstanding_lines'] : 0;
                 $outstanding = isset( $sheet['outstanding_qty'] ) ? (float) $sheet['outstanding_qty'] : 0.0;
 
                 $open_args = array(
@@ -559,7 +584,8 @@ function sop_render_goods_in_page() {
                 echo '<td>' . esc_html( trim( $title . ' ' . $order_label ) ) . '</td>';
                 echo '<td>' . sop_goodsin_render_stage_pill( $status, $gi_started ) . '</td>';
                 echo '<td>' . esc_html( $lines ) . '</td>';
-                echo '<td>' . esc_html( number_format_i18n( $outstanding, 0 ) ) . '</td>';
+                echo '<td>' . esc_html( $open_lines ) . '</td>';
+                echo '<td>' . esc_html( number_format_i18n( (int) round( $outstanding ) ) ) . '</td>';
                 echo '<td><a class="button" href="' . esc_url( $open_url ) . '">' . esc_html__( 'Open', 'sop' ) . '</a></td>';
                 echo '</tr>';
             }
