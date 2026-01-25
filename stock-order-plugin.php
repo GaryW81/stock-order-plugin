@@ -9,7 +9,8 @@
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.10
+ * File version: 1.0.11
+ * - Load Data Export module in admin bootstrap.
  * - Ensure sop_daily_maintenance cron is scheduled on activation and cleared on deactivation.
  * - Run sop_DB::maybe_install() on admin_init for safe schema upgrades.
  * - Remove TEMP Shiny CSV importer tool.
@@ -53,6 +54,7 @@ require_once SOP_PLUGIN_DIR . 'includes/class-sop-preorder-exporter-xlsx.php';
 if ( is_admin() ) {
     require_once SOP_PLUGIN_DIR . 'admin/settings-supplier.php';
     require_once SOP_PLUGIN_DIR . 'admin/settings-labels.php';
+    require_once SOP_PLUGIN_DIR . 'admin/data-export.php';
     require_once SOP_PLUGIN_DIR . 'admin/product-mapping.php';
     require_once SOP_PLUGIN_DIR . 'admin/preorder-core.php';
     require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';

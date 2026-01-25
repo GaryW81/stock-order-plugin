@@ -2,8 +2,9 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.46
+ * File version: 1.5.47
  * - Add Data Export tab routing for settings.
+ * - Show error when Data Export module is missing.
  * - Remove TEMP Shiny CSV importer tool.
  * - Add Carton CSV importer submenu.
  * - Add direct USD→RMB base FX and swap FX/lead time rows.
@@ -259,6 +260,8 @@ class sop_Admin_Settings {
             $this->render_suppliers_tab();
         } elseif ( 'export' === $active_tab && function_exists( 'sop_render_data_export_tab' ) ) {
             sop_render_data_export_tab();
+        } elseif ( 'export' === $active_tab ) {
+            echo '<div class="notice notice-error"><p>' . esc_html__( 'Data Export module not loaded (admin/data-export.php).', 'sop' ) . '</p></div>';
         } elseif ( 'labels' === $active_tab && function_exists( 'sop_labels_render_settings_tab' ) ) {
             sop_labels_render_settings_tab();
         } else {
