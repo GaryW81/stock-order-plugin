@@ -3,8 +3,8 @@
  * Stock Order Plugin - Phase 4 (Data Export)
  * Admin Settings - Data Export tab + CSV streaming
  *
- * File version: 1.0.1
- * - Add AI bundle ZIP export and shared dataset streaming.
+ * File version: 1.0.2
+ * - Add row count hints and bundle README row counts for exports.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -31,6 +31,90 @@ if ( ! function_exists( 'sop_data_export_get_suppliers' ) ) {
     }
 }
 
+if ( ! function_exists( 'sop_data_export_table_exists' ) ) {
+    /**
+     * Check if a SOP table exists.
+     *
+     * @param string $table Table name.
+     * @return bool
+     */
+    function sop_data_export_table_exists( $table ) {
+        global $wpdb;
+
+        if ( '' === $table ) {
+            return false;
+        }
+
+        return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+    }
+}
+
+if ( ! function_exists( 'sop_data_export_table_row_count' ) ) {
+    /**
+     * Get row count for a SOP table.
+     *
+     * @param string $table Table name.
+     * @return int|null
+     */
+    function sop_data_export_table_row_count( $table ) {
+        global $wpdb;
+
+        if ( '' === $table || ! sop_data_export_table_exists( $table ) ) {
+            return null;
+        }
+
+        $count = $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        if ( null === $count ) {
+            return null;
+        }
+
+        return (int) $count;
+    }
+}
+
+if ( ! function_exists( 'sop_data_export_product_snapshot_count' ) ) {
+    /**
+     * Estimate product snapshot rows for a supplier filter.
+     *
+     * @param int $supplier_id Supplier ID or 0 for all.
+     * @return int
+     */
+    function sop_data_export_product_snapshot_count( $supplier_id ) {
+        global $wpdb;
+
+        $supplier_id = (int) $supplier_id;
+        $posts = $wpdb->posts;
+        $meta  = $wpdb->postmeta;
+
+        if ( $supplier_id > 0 ) {
+            $sql = "
+                SELECT COUNT(DISTINCT p.ID)
+                FROM {$posts} p
+                INNER JOIN {$meta} pm ON pm.post_id = p.ID
+                WHERE p.post_type = 'product'
+                  AND p.post_status IN ( 'publish', 'private' )
+                  AND pm.meta_key = '_sop_supplier_id'
+                  AND pm.meta_value = %d
+            ";
+            $prepared = $wpdb->prepare( $sql, $supplier_id );
+        } else {
+            $sql = "
+                SELECT COUNT(DISTINCT p.ID)
+                FROM {$posts} p
+                INNER JOIN {$meta} pm ON pm.post_id = p.ID
+                WHERE p.post_type = 'product'
+                  AND p.post_status IN ( 'publish', 'private' )
+                  AND pm.meta_key = '_sop_supplier_id'
+                  AND CAST(pm.meta_value AS SIGNED) > 0
+            ";
+            $prepared = $sql;
+        }
+
+        $count = $wpdb->get_var( $prepared ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        return (int) $count;
+    }
+}
+
 if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
     /**
      * Render the Data Export settings tab.
@@ -44,6 +128,40 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
 
         $suppliers = sop_data_export_get_suppliers();
         $action_url = admin_url( 'admin-post.php' );
+        $format_rows = static function ( $count ) {
+            if ( null === $count ) {
+                return __( 'Rows: —', 'sop' );
+            }
+            return sprintf( __( 'Rows: %s', 'sop' ), number_format_i18n( (int) $count ) );
+        };
+
+        $table_counts = array();
+        $table_map = array(
+            'suppliers'            => 'suppliers',
+            'preorder_sheet'       => 'preorder_sheet',
+            'preorder_sheet_lines' => 'preorder_sheet_lines',
+            'goods_in_sessions'    => 'goods_in_session',
+            'goods_in_items'       => 'goods_in_item',
+            'stockout_log'         => 'stockout_log',
+            'forecast_cache'       => 'forecast_cache',
+            'forecast_cache_items' => 'forecast_cache_item',
+            'supplier_layouts'     => 'supplier_layouts',
+        );
+
+        foreach ( $table_map as $dataset => $table_key ) {
+            $table = function_exists( 'sop_get_table_name' ) ? sop_get_table_name( $table_key ) : '';
+            if ( '' === $table ) {
+                $table = $GLOBALS['wpdb']->prefix . 'sop_' . $table_key;
+            }
+            $table_counts[ $dataset ] = sop_data_export_table_row_count( $table );
+        }
+
+        $legacy_table = $GLOBALS['wpdb']->prefix . 'sop_legacy_product_history';
+        $legacy_count = sop_data_export_table_row_count( $legacy_table );
+        $product_snapshot_count = sop_data_export_product_snapshot_count( 0 );
+        $bundle_counts = array_merge( array( $product_snapshot_count ), array_values( $table_counts ) );
+        $bundle_unknown = in_array( null, $bundle_counts, true );
+        $bundle_total = $bundle_unknown ? null : array_sum( array_map( 'intval', $bundle_counts ) );
         ?>
         <div class="sop-settings-section">
             <h2><?php esc_html_e( 'Data Export', 'sop' ); ?></h2>
@@ -98,7 +216,10 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                     </tr>
                 </table>
 
-                <?php submit_button( __( 'Download AI bundle ZIP', 'sop' ), 'primary' ); ?>
+                <?php
+                submit_button( __( 'Download AI bundle ZIP', 'sop' ), 'primary' );
+                ?>
+                <span class="description"><?php echo esc_html( $format_rows( $bundle_total ) ); ?></span>
             </form>
 
             <hr />
@@ -139,17 +260,22 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                 </table>
 
                 <?php submit_button( __( 'Download CSV', 'sop' ), 'primary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $product_snapshot_count ) ); ?></span>
             </form>
 
             <hr />
 
             <h3><?php esc_html_e( 'SOP tables', 'sop' ); ?></h3>
+            <p class="description">
+                <?php esc_html_e( 'If a CSV downloads with only headers, that dataset currently has 0 rows.', 'sop' ); ?>
+            </p>
 
             <form method="post" action="<?php echo esc_url( $action_url ); ?>">
                 <input type="hidden" name="action" value="sop_data_export_csv" />
                 <input type="hidden" name="dataset" value="suppliers" />
                 <?php wp_nonce_field( 'sop_data_export_csv', 'sop_data_export_nonce' ); ?>
                 <?php submit_button( __( 'Download suppliers CSV', 'sop' ), 'secondary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $table_counts['suppliers'] ) ); ?></span>
             </form>
 
             <form method="post" action="<?php echo esc_url( $action_url ); ?>">
@@ -157,6 +283,7 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                 <input type="hidden" name="dataset" value="preorder_sheet" />
                 <?php wp_nonce_field( 'sop_data_export_csv', 'sop_data_export_nonce' ); ?>
                 <?php submit_button( __( 'Download preorder_sheet CSV', 'sop' ), 'secondary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $table_counts['preorder_sheet'] ) ); ?></span>
             </form>
 
             <form method="post" action="<?php echo esc_url( $action_url ); ?>">
@@ -168,6 +295,7 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                     <input type="number" id="sop_export_sheet_id" name="sheet_id" min="0" class="small-text" />
                 </p>
                 <?php submit_button( __( 'Download preorder_sheet_lines CSV', 'sop' ), 'secondary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $table_counts['preorder_sheet_lines'] ) ); ?></span>
             </form>
 
             <form method="post" action="<?php echo esc_url( $action_url ); ?>">
@@ -175,6 +303,10 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                 <input type="hidden" name="dataset" value="goods_in_sessions" />
                 <?php wp_nonce_field( 'sop_data_export_csv', 'sop_data_export_nonce' ); ?>
                 <?php submit_button( __( 'Download goods_in_sessions CSV', 'sop' ), 'secondary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $table_counts['goods_in_sessions'] ) ); ?></span>
+                <?php if ( null !== $table_counts['goods_in_sessions'] && 0 === (int) $table_counts['goods_in_sessions'] ) : ?>
+                    <p class="description"><?php esc_html_e( '0 rows currently.', 'sop' ); ?></p>
+                <?php endif; ?>
             </form>
 
             <form method="post" action="<?php echo esc_url( $action_url ); ?>">
@@ -186,6 +318,10 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                     <input type="number" id="sop_export_session_id" name="session_id" min="0" class="small-text" />
                 </p>
                 <?php submit_button( __( 'Download goods_in_items CSV', 'sop' ), 'secondary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $table_counts['goods_in_items'] ) ); ?></span>
+                <?php if ( null !== $table_counts['goods_in_items'] && 0 === (int) $table_counts['goods_in_items'] ) : ?>
+                    <p class="description"><?php esc_html_e( '0 rows currently.', 'sop' ); ?></p>
+                <?php endif; ?>
             </form>
 
             <form method="post" action="<?php echo esc_url( $action_url ); ?>">
@@ -201,6 +337,7 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                     <input type="number" id="sop_export_product_id" name="product_id" min="0" class="small-text" />
                 </p>
                 <?php submit_button( __( 'Download stockout_log CSV', 'sop' ), 'secondary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $table_counts['stockout_log'] ) ); ?></span>
             </form>
 
             <form method="post" action="<?php echo esc_url( $action_url ); ?>">
@@ -208,6 +345,10 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                 <input type="hidden" name="dataset" value="forecast_cache" />
                 <?php wp_nonce_field( 'sop_data_export_csv', 'sop_data_export_nonce' ); ?>
                 <?php submit_button( __( 'Download forecast_cache CSV', 'sop' ), 'secondary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $table_counts['forecast_cache'] ) ); ?></span>
+                <?php if ( null !== $table_counts['forecast_cache'] && 0 === (int) $table_counts['forecast_cache'] ) : ?>
+                    <p class="description"><?php esc_html_e( '0 rows currently.', 'sop' ); ?></p>
+                <?php endif; ?>
             </form>
 
             <form method="post" action="<?php echo esc_url( $action_url ); ?>">
@@ -215,6 +356,10 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                 <input type="hidden" name="dataset" value="forecast_cache_items" />
                 <?php wp_nonce_field( 'sop_data_export_csv', 'sop_data_export_nonce' ); ?>
                 <?php submit_button( __( 'Download forecast_cache_items CSV', 'sop' ), 'secondary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $table_counts['forecast_cache_items'] ) ); ?></span>
+                <?php if ( null !== $table_counts['forecast_cache_items'] && 0 === (int) $table_counts['forecast_cache_items'] ) : ?>
+                    <p class="description"><?php esc_html_e( '0 rows currently.', 'sop' ); ?></p>
+                <?php endif; ?>
             </form>
 
             <form method="post" action="<?php echo esc_url( $action_url ); ?>">
@@ -222,6 +367,10 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                 <input type="hidden" name="dataset" value="supplier_layouts" />
                 <?php wp_nonce_field( 'sop_data_export_csv', 'sop_data_export_nonce' ); ?>
                 <?php submit_button( __( 'Download supplier_layouts CSV', 'sop' ), 'secondary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $table_counts['supplier_layouts'] ) ); ?></span>
+                <?php if ( null !== $table_counts['supplier_layouts'] && 0 === (int) $table_counts['supplier_layouts'] ) : ?>
+                    <p class="description"><?php esc_html_e( '0 rows currently.', 'sop' ); ?></p>
+                <?php endif; ?>
             </form>
 
             <hr />
@@ -235,6 +384,7 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
                 <input type="hidden" name="dataset" value="legacy_product_history" />
                 <?php wp_nonce_field( 'sop_data_export_csv', 'sop_data_export_nonce' ); ?>
                 <?php submit_button( __( 'Download legacy_product_history CSV', 'sop' ), 'secondary' ); ?>
+                <span class="description"><?php echo esc_html( $format_rows( $legacy_count ) ); ?></span>
             </form>
         </div>
         <?php
@@ -287,7 +437,7 @@ if ( ! function_exists( 'sop_data_export_stream_table' ) ) {
      * @param string   $where_sql Optional WHERE SQL without "WHERE".
      * @param array    $params SQL parameters for WHERE.
      * @param resource $out Output handle.
-     * @return void
+     * @return int
      */
     function sop_data_export_stream_table( $table, $where_sql, array $params, $out ) {
         global $wpdb;
@@ -295,13 +445,14 @@ if ( ! function_exists( 'sop_data_export_stream_table' ) ) {
         $columns = sop_data_export_get_table_columns( $table );
         if ( empty( $columns ) ) {
             sop_data_export_write_message( $out, 'No columns found for export.' );
-            return;
+            return 0;
         }
 
         fputcsv( $out, $columns );
 
         $limit  = 500;
         $offset = 0;
+        $row_count = 0;
 
         do {
             $sql = "SELECT * FROM {$table}";
@@ -324,10 +475,13 @@ if ( ! function_exists( 'sop_data_export_stream_table' ) ) {
                     $line[] = isset( $row[ $col ] ) ? $row[ $col ] : '';
                 }
                 fputcsv( $out, $line );
+                $row_count++;
             }
 
             $offset += $limit;
         } while ( count( $rows ) === $limit );
+
+        return $row_count;
     }
 }
 
@@ -388,13 +542,13 @@ if ( ! function_exists( 'sop_data_export_stream_dataset_csv' ) ) {
      * @param string   $dataset Dataset key.
      * @param array    $args    Dataset arguments.
      * @param resource $out     Output handle.
-     * @return void
+     * @return int
      */
     function sop_data_export_stream_dataset_csv( $dataset, array $args, $out ) {
         $dataset = sanitize_key( $dataset );
         if ( '' === $dataset ) {
             sop_data_export_write_message( $out, 'Missing export dataset.' );
-            return;
+            return 0;
         }
 
         $supplier_filter   = isset( $args['supplier_id'] ) ? (int) $args['supplier_id'] : 0;
@@ -482,6 +636,7 @@ if ( ! function_exists( 'sop_data_export_stream_dataset_csv' ) ) {
             $paged = 1;
             $per_page = 200;
 
+            $row_count = 0;
             do {
                 $meta_query = array();
                 if ( $supplier_filter > 0 ) {
@@ -579,12 +734,13 @@ if ( ! function_exists( 'sop_data_export_stream_dataset_csv' ) ) {
                     }
 
                     fputcsv( $out, $row );
+                    $row_count++;
                 }
 
                 $paged++;
             } while ( true );
 
-            return;
+            return $row_count;
         }
 
         $table_map = array(
@@ -609,7 +765,7 @@ if ( ! function_exists( 'sop_data_export_stream_dataset_csv' ) ) {
             $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
             if ( ! $table_exists ) {
                 sop_data_export_write_message( $out, 'Table not found: ' . $table );
-                return;
+                return 0;
             }
 
             $where_sql = '';
@@ -635,8 +791,7 @@ if ( ! function_exists( 'sop_data_export_stream_dataset_csv' ) ) {
                 $where_sql = implode( ' AND ', $where_parts );
             }
 
-            sop_data_export_stream_table( $table, $where_sql, $params, $out );
-            return;
+            return sop_data_export_stream_table( $table, $where_sql, $params, $out );
         }
 
         if ( 'legacy_product_history' === $dataset ) {
@@ -644,14 +799,14 @@ if ( ! function_exists( 'sop_data_export_stream_dataset_csv' ) ) {
             $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
             if ( ! $table_exists ) {
                 sop_data_export_write_message( $out, 'Legacy history table not found.' );
-                return;
+                return 0;
             }
 
-            sop_data_export_stream_table( $table, '', array(), $out );
-            return;
+            return sop_data_export_stream_table( $table, '', array(), $out );
         }
 
         sop_data_export_write_message( $out, 'Unknown dataset: ' . $dataset );
+        return 0;
     }
 }
 
@@ -777,6 +932,7 @@ function sop_handle_data_export_bundle_zip() {
     $temp_files = array();
     $included_files = array();
     $skipped_files = array();
+    $file_row_counts = array();
 
     foreach ( $bundle_items as $item ) {
         $dataset = $item['dataset'];
@@ -800,7 +956,7 @@ function sop_handle_data_export_bundle_zip() {
             continue;
         }
 
-        sop_data_export_stream_dataset_csv( $dataset, $args_base, $fh );
+        $row_count = sop_data_export_stream_dataset_csv( $dataset, $args_base, $fh );
         fclose( $fh );
 
         if ( ! $zip->addFile( $csv_path, $filename ) ) {
@@ -811,6 +967,7 @@ function sop_handle_data_export_bundle_zip() {
 
         $temp_files[] = $csv_path;
         $included_files[] = $filename;
+        $file_row_counts[ $filename ] = (int) $row_count;
     }
 
     $readme_lines = array(
@@ -819,8 +976,17 @@ function sop_handle_data_export_bundle_zip() {
         'Supplier filter: ' . ( $supplier_id > 0 ? (string) $supplier_id : 'All' ),
         'Include inbound schedule: ' . ( $include_schedule ? 'Yes' : 'No' ),
         'Stockout days back: ' . (string) $days_back,
-        'Included files: ' . ( empty( $included_files ) ? 'None' : implode( ', ', $included_files ) ),
+        'Files:',
     );
+
+    if ( ! empty( $included_files ) ) {
+        foreach ( $included_files as $included_file ) {
+            $count = isset( $file_row_counts[ $included_file ] ) ? (int) $file_row_counts[ $included_file ] : 0;
+            $readme_lines[] = '- ' . $included_file . ' (' . $count . ' rows)';
+        }
+    } else {
+        $readme_lines[] = '- None';
+    }
     if ( ! empty( $skipped_files ) ) {
         $readme_lines[] = 'Skipped files: ' . implode( ', ', $skipped_files );
     }
