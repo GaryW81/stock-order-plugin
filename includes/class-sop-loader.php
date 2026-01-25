@@ -2,9 +2,10 @@
 /**
  * Main loader for the Stock Order Plugin.
  *
- * File version: 1.0.02
+ * File version: 1.0.03
  * - Load stockout tracking module in core bootstrap.
  * - Goods-In v1: load goods-in admin core/UI.
+ * - Add data export admin tab wiring.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -49,6 +50,7 @@ class sop_Loader {
      */
     protected function load_admin() {
         require_once SOP_PLUGIN_DIR . 'admin/settings-supplier.php';
+        require_once SOP_PLUGIN_DIR . 'admin/data-export.php';
         require_once SOP_PLUGIN_DIR . 'admin/product-mapping.php';
         require_once SOP_PLUGIN_DIR . 'admin/preorder-core.php';
         require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';

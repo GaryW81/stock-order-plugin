@@ -3,7 +3,8 @@
  * Stock Order Plugin - Phase 2
  * Admin tab navigation + submenu highlight helpers
  *
- * File version: 1.0.4
+ * File version: 1.0.5
+ * - Add Data Export tab to Settings group.
  * - Add PO Details tab to Purchase Orders group.
  */
 
@@ -31,6 +32,11 @@ if ( ! function_exists( 'sop_admin_tabs_get_groups' ) ) {
                         'slug' => 'sop_stock_order',
                         'label' => __( 'Labels & Barcodes', 'sop' ),
                         'args' => array( 'tab' => 'labels' ),
+                    ),
+                    array(
+                        'slug' => 'sop_stock_order',
+                        'label' => __( 'Data Export', 'sop' ),
+                        'args' => array( 'tab' => 'export' ),
                     ),
                 ),
             ),
