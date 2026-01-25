@@ -2,10 +2,11 @@
 /**
  * Main loader for the Stock Order Plugin.
  *
- * File version: 1.0.03
+ * File version: 1.0.04
  * - Load stockout tracking module in core bootstrap.
  * - Goods-In v1: load goods-in admin core/UI.
  * - Add data export admin tab wiring.
+ * - Remove unused setup_* placeholder methods.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -26,11 +27,6 @@ class sop_Loader {
         if ( is_admin() ) {
             $this->load_admin();
         }
-
-        $this->setup_suppliers();
-        $this->setup_forecasting();
-        $this->setup_preorder();
-        $this->setup_goods_in();
     }
 
     /**
@@ -58,39 +54,4 @@ class sop_Loader {
         require_once SOP_PLUGIN_DIR . 'admin/goods-in-ui.php';
     }
 
-    /**
-     * Placeholder hook-up for supplier features.
-     *
-     * TODO: Integrate supplier helpers and admin pages via dedicated classes.
-     */
-    protected function setup_suppliers() {
-        // Placeholder for future supplier feature wiring (menus, forms, integrations).
-    }
-
-    /**
-     * Placeholder hook-up for forecasting features.
-     *
-     * TODO: Instantiate forecasting services and connect to cron/events.
-     */
-    protected function setup_forecasting() {
-        // Placeholder for future forecasting bootstrap logic.
-    }
-
-    /**
-     * Placeholder for preorder sheet / UI wiring.
-     *
-     * TODO: Register preorder admin pages, AJAX endpoints, and helpers.
-     */
-    protected function setup_preorder() {
-        // Placeholder for future preorder sheet logic.
-    }
-
-    /**
-     * Placeholder for goods-in / stock intake features.
-     *
-     * TODO: Wire up goods-in records, status tracking, and notifications.
-     */
-    protected function setup_goods_in() {
-        // Placeholder for future goods-in handling.
-    }
 }
