@@ -3,8 +3,8 @@
  * Stock Order Plugin - Phase 4 (Data Export)
  * Admin Settings - Data Export tab + CSV streaming
  *
- * File version: 1.0.0
- * - Add Data Export settings tab with CSV exports for SOP datasets.
+ * File version: 1.0.1
+ * - Add AI bundle ZIP export and shared dataset streaming.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -50,6 +50,56 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
             <p class="description">
                 <?php esc_html_e( 'Exports may contain sensitive business data. Store files securely and share only with approved staff.', 'sop' ); ?>
             </p>
+
+            <hr />
+
+            <h3><?php esc_html_e( 'AI bundle (ZIP)', 'sop' ); ?></h3>
+            <p class="description">
+                <?php esc_html_e( 'Bundle multiple CSVs into one ZIP for external analysis. Treat exported data as sensitive business information.', 'sop' ); ?>
+            </p>
+            <form method="post" action="<?php echo esc_url( $action_url ); ?>">
+                <input type="hidden" name="action" value="sop_data_export_bundle_zip" />
+                <?php wp_nonce_field( 'sop_data_export_bundle_zip', 'sop_data_export_bundle_nonce' ); ?>
+
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">
+                            <label for="sop_bundle_supplier_id"><?php esc_html_e( 'Supplier filter', 'sop' ); ?></label>
+                        </th>
+                        <td>
+                            <select name="supplier_id" id="sop_bundle_supplier_id">
+                                <option value="0"><?php esc_html_e( 'All suppliers', 'sop' ); ?></option>
+                                <?php foreach ( $suppliers as $supplier ) : ?>
+                                    <?php
+                                    $sid = isset( $supplier['id'] ) ? (int) $supplier['id'] : 0;
+                                    $label = isset( $supplier['name'] ) ? (string) $supplier['name'] : '';
+                                    ?>
+                                    <option value="<?php echo esc_attr( $sid ); ?>"><?php echo esc_html( $label ); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php esc_html_e( 'Inbound schedule columns', 'sop' ); ?></th>
+                        <td>
+                            <label>
+                                <input type="checkbox" name="include_inbound_schedule" value="1" checked="checked" />
+                                <?php esc_html_e( 'Include inbound schedule columns', 'sop' ); ?>
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="sop_bundle_days_back"><?php esc_html_e( 'Stockout log days back', 'sop' ); ?></label>
+                        </th>
+                        <td>
+                            <input type="number" id="sop_bundle_days_back" name="days_back" min="1" value="365" class="small-text" />
+                        </td>
+                    </tr>
+                </table>
+
+                <?php submit_button( __( 'Download AI bundle ZIP', 'sop' ), 'primary' ); ?>
+            </form>
 
             <hr />
 
@@ -331,6 +381,280 @@ if ( ! function_exists( 'sop_data_export_normalize_meta_value' ) ) {
     }
 }
 
+if ( ! function_exists( 'sop_data_export_stream_dataset_csv' ) ) {
+    /**
+     * Stream a dataset CSV to a provided file handle.
+     *
+     * @param string   $dataset Dataset key.
+     * @param array    $args    Dataset arguments.
+     * @param resource $out     Output handle.
+     * @return void
+     */
+    function sop_data_export_stream_dataset_csv( $dataset, array $args, $out ) {
+        $dataset = sanitize_key( $dataset );
+        if ( '' === $dataset ) {
+            sop_data_export_write_message( $out, 'Missing export dataset.' );
+            return;
+        }
+
+        $supplier_filter   = isset( $args['supplier_id'] ) ? (int) $args['supplier_id'] : 0;
+        $include_schedule  = ! empty( $args['include_inbound_schedule'] );
+        $sheet_id          = isset( $args['sheet_id'] ) ? (int) $args['sheet_id'] : 0;
+        $session_id        = isset( $args['session_id'] ) ? (int) $args['session_id'] : 0;
+        $days_back         = isset( $args['days_back'] ) ? (int) $args['days_back'] : 365;
+        $product_id_filter = isset( $args['product_id'] ) ? (int) $args['product_id'] : 0;
+
+        if ( $days_back <= 0 ) {
+            $days_back = 365;
+        }
+
+        global $wpdb;
+
+        if ( 'products_snapshot' === $dataset ) {
+            $supplier_rows = sop_data_export_get_suppliers();
+            $supplier_map = array();
+            foreach ( $supplier_rows as $supplier ) {
+                $sid = isset( $supplier['id'] ) ? (int) $supplier['id'] : 0;
+                if ( $sid > 0 ) {
+                    $supplier_map[ $sid ] = array(
+                        'name'     => isset( $supplier['name'] ) ? (string) $supplier['name'] : '',
+                        'currency' => isset( $supplier['currency'] ) ? (string) $supplier['currency'] : '',
+                    );
+                }
+            }
+
+            $inbound_map = function_exists( 'sop_db_get_inbound_qty_map' ) ? sop_db_get_inbound_qty_map( 0 ) : array();
+            if ( ! is_array( $inbound_map ) ) {
+                $inbound_map = array();
+            }
+
+            $schedule_map = array();
+            if ( $include_schedule ) {
+                if ( function_exists( 'sop_db_get_inbound_schedule_by_arrival_date' ) ) {
+                    try {
+                        $ref = new ReflectionFunction( 'sop_db_get_inbound_schedule_by_arrival_date' );
+                        if ( $ref->getNumberOfRequiredParameters() > 0 ) {
+                            $schedule_map = sop_db_get_inbound_schedule_by_arrival_date( 0 );
+                        } else {
+                            $schedule_map = sop_db_get_inbound_schedule_by_arrival_date();
+                        }
+                    } catch ( Throwable $e ) {
+                        $schedule_map = array();
+                    }
+                } elseif ( function_exists( 'sop_db_get_inbound_schedule_map' ) ) {
+                    $schedule_map = sop_db_get_inbound_schedule_map( 0 );
+                }
+            }
+            if ( ! is_array( $schedule_map ) ) {
+                $schedule_map = array();
+            }
+
+            $columns = array(
+                'product_id',
+                'sku',
+                'product_name',
+                'supplier_id',
+                'supplier_name',
+                'supplier_currency',
+                'manage_stock',
+                'stock_qty',
+                'stock_status',
+                'cost_gbp',
+                'cost_rmb',
+                'cost_usd',
+                'cost_eur',
+                'price',
+                'regular_price',
+                'sale_price',
+                'location',
+                'min_order_qty',
+                'max_order_qty_per_month',
+                'supplier_skus',
+                'inbound_qty_total',
+            );
+
+            if ( $include_schedule ) {
+                $columns[] = 'inbound_schedule';
+            }
+
+            fputcsv( $out, $columns );
+
+            $paged = 1;
+            $per_page = 200;
+
+            do {
+                $meta_query = array();
+                if ( $supplier_filter > 0 ) {
+                    $meta_query[] = array(
+                        'key'     => '_sop_supplier_id',
+                        'value'   => $supplier_filter,
+                        'compare' => '=',
+                    );
+                } else {
+                    $meta_query[] = array(
+                        'key'     => '_sop_supplier_id',
+                        'compare' => 'EXISTS',
+                    );
+                }
+
+                $query = new WP_Query(
+                    array(
+                        'post_type'      => array( 'product' ),
+                        'post_status'    => array( 'publish', 'private' ),
+                        'posts_per_page' => $per_page,
+                        'paged'          => $paged,
+                        'fields'         => 'ids',
+                        'no_found_rows'  => true,
+                        'meta_query'     => $meta_query,
+                    )
+                );
+
+                if ( empty( $query->posts ) ) {
+                    break;
+                }
+
+                foreach ( $query->posts as $product_id ) {
+                    $product_id = (int) $product_id;
+                    if ( $product_id <= 0 ) {
+                        continue;
+                    }
+
+                    $product = wc_get_product( $product_id );
+                    if ( ! $product ) {
+                        continue;
+                    }
+
+                    $supplier_id = (int) get_post_meta( $product_id, '_sop_supplier_id', true );
+                    if ( $supplier_id <= 0 ) {
+                        continue;
+                    }
+                    if ( $supplier_filter > 0 && $supplier_id !== $supplier_filter ) {
+                        continue;
+                    }
+
+                    $supplier_name = isset( $supplier_map[ $supplier_id ]['name'] ) ? $supplier_map[ $supplier_id ]['name'] : '';
+                    $supplier_currency = isset( $supplier_map[ $supplier_id ]['currency'] ) ? $supplier_map[ $supplier_id ]['currency'] : '';
+
+                    $manage_stock = $product->managing_stock() ? 1 : 0;
+                    $stock_qty = $product->get_stock_quantity();
+                    if ( null === $stock_qty ) {
+                        $stock_qty = 0;
+                    }
+                    $stock_status = $product->get_stock_status();
+
+                    $location = get_post_meta( $product_id, '_sop_bin_location', true );
+                    if ( '' === $location ) {
+                        $location = get_post_meta( $product_id, '_product_location', true );
+                    }
+                    $location = sop_data_export_normalize_meta_value( $location );
+                    $supplier_skus = sop_data_export_normalize_meta_value( get_post_meta( $product_id, '_sop_supplier_skus', true ) );
+
+                    $row = array(
+                        $product_id,
+                        $product->get_sku(),
+                        $product->get_name(),
+                        $supplier_id,
+                        $supplier_name,
+                        $supplier_currency,
+                        $manage_stock,
+                        (int) $stock_qty,
+                        $stock_status,
+                        get_post_meta( $product_id, '_cogs_value', true ),
+                        get_post_meta( $product_id, '_sop_cost_rmb', true ),
+                        get_post_meta( $product_id, '_sop_cost_usd', true ),
+                        get_post_meta( $product_id, '_sop_cost_eur', true ),
+                        get_post_meta( $product_id, '_price', true ),
+                        get_post_meta( $product_id, '_regular_price', true ),
+                        get_post_meta( $product_id, '_sale_price', true ),
+                        $location,
+                        get_post_meta( $product_id, '_sop_min_order_qty', true ),
+                        get_post_meta( $product_id, 'max_order_qty_per_month', true ),
+                        $supplier_skus,
+                        isset( $inbound_map[ $product_id ] ) ? (float) $inbound_map[ $product_id ] : 0.0,
+                    );
+
+                    if ( $include_schedule ) {
+                        $schedule_entries = isset( $schedule_map[ $product_id ] ) ? $schedule_map[ $product_id ] : array();
+                        $row[] = sop_data_export_format_schedule( $schedule_entries );
+                    }
+
+                    fputcsv( $out, $row );
+                }
+
+                $paged++;
+            } while ( true );
+
+            return;
+        }
+
+        $table_map = array(
+            'suppliers'            => 'suppliers',
+            'preorder_sheet'       => 'preorder_sheet',
+            'preorder_sheet_lines' => 'preorder_sheet_lines',
+            'goods_in_sessions'    => 'goods_in_session',
+            'goods_in_items'       => 'goods_in_item',
+            'stockout_log'         => 'stockout_log',
+            'forecast_cache'       => 'forecast_cache',
+            'forecast_cache_items' => 'forecast_cache_item',
+            'supplier_layouts'     => 'supplier_layouts',
+        );
+
+        if ( isset( $table_map[ $dataset ] ) ) {
+            $table_key = $table_map[ $dataset ];
+            $table = function_exists( 'sop_get_table_name' ) ? sop_get_table_name( $table_key ) : '';
+            if ( '' === $table ) {
+                $table = $wpdb->prefix . 'sop_' . $table_key;
+            }
+
+            $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+            if ( ! $table_exists ) {
+                sop_data_export_write_message( $out, 'Table not found: ' . $table );
+                return;
+            }
+
+            $where_sql = '';
+            $params = array();
+
+            if ( 'preorder_sheet_lines' === $dataset && $sheet_id > 0 ) {
+                $where_sql = 'sheet_id = %d';
+                $params[] = $sheet_id;
+            } elseif ( 'goods_in_items' === $dataset && $session_id > 0 ) {
+                $where_sql = 'session_id = %d';
+                $params[] = $session_id;
+            } elseif ( 'stockout_log' === $dataset ) {
+                $from_ts = current_time( 'timestamp', true ) - ( $days_back * DAY_IN_SECONDS );
+                $from_date = gmdate( 'Y-m-d H:i:s', $from_ts );
+
+                $where_parts = array();
+                $where_parts[] = 'date_start >= %s';
+                $params[] = $from_date;
+                if ( $product_id_filter > 0 ) {
+                    $where_parts[] = 'product_id = %d';
+                    $params[] = $product_id_filter;
+                }
+                $where_sql = implode( ' AND ', $where_parts );
+            }
+
+            sop_data_export_stream_table( $table, $where_sql, $params, $out );
+            return;
+        }
+
+        if ( 'legacy_product_history' === $dataset ) {
+            $table = $wpdb->prefix . 'sop_legacy_product_history';
+            $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+            if ( ! $table_exists ) {
+                sop_data_export_write_message( $out, 'Legacy history table not found.' );
+                return;
+            }
+
+            sop_data_export_stream_table( $table, '', array(), $out );
+            return;
+        }
+
+        sop_data_export_write_message( $out, 'Unknown dataset: ' . $dataset );
+    }
+}
+
 /**
  * Handle CSV export requests for SOP datasets.
  *
@@ -361,265 +685,168 @@ function sop_handle_data_export_csv() {
         wp_die( esc_html__( 'Unable to open export stream.', 'sop' ) );
     }
 
-    global $wpdb;
-
-    if ( 'products_snapshot' === $dataset ) {
-        $supplier_filter = isset( $_POST['supplier_id'] ) ? absint( wp_unslash( $_POST['supplier_id'] ) ) : 0;
-        $include_schedule = ! empty( $_POST['include_inbound_schedule'] );
-
-        $supplier_rows = sop_data_export_get_suppliers();
-        $supplier_map = array();
-        foreach ( $supplier_rows as $supplier ) {
-            $sid = isset( $supplier['id'] ) ? (int) $supplier['id'] : 0;
-            if ( $sid > 0 ) {
-                $supplier_map[ $sid ] = array(
-                    'name'     => isset( $supplier['name'] ) ? (string) $supplier['name'] : '',
-                    'currency' => isset( $supplier['currency'] ) ? (string) $supplier['currency'] : '',
-                );
-            }
-        }
-
-        $inbound_map = function_exists( 'sop_db_get_inbound_qty_map' ) ? sop_db_get_inbound_qty_map( 0 ) : array();
-        if ( ! is_array( $inbound_map ) ) {
-            $inbound_map = array();
-        }
-
-        $schedule_map = array();
-        if ( $include_schedule ) {
-            if ( function_exists( 'sop_db_get_inbound_schedule_by_arrival_date' ) ) {
-                try {
-                    $ref = new ReflectionFunction( 'sop_db_get_inbound_schedule_by_arrival_date' );
-                    if ( $ref->getNumberOfRequiredParameters() > 0 ) {
-                        $schedule_map = sop_db_get_inbound_schedule_by_arrival_date( 0 );
-                    } else {
-                        $schedule_map = sop_db_get_inbound_schedule_by_arrival_date();
-                    }
-                } catch ( Throwable $e ) {
-                    $schedule_map = array();
-                }
-            } elseif ( function_exists( 'sop_db_get_inbound_schedule_map' ) ) {
-                $schedule_map = sop_db_get_inbound_schedule_map( 0 );
-            }
-        }
-        if ( ! is_array( $schedule_map ) ) {
-            $schedule_map = array();
-        }
-
-        $columns = array(
-            'product_id',
-            'sku',
-            'product_name',
-            'supplier_id',
-            'supplier_name',
-            'supplier_currency',
-            'manage_stock',
-            'stock_qty',
-            'stock_status',
-            'cost_gbp',
-            'cost_rmb',
-            'cost_usd',
-            'cost_eur',
-            'price',
-            'regular_price',
-            'sale_price',
-            'location',
-            'min_order_qty',
-            'max_order_qty_per_month',
-            'supplier_skus',
-            'inbound_qty_total',
-        );
-
-        if ( $include_schedule ) {
-            $columns[] = 'inbound_schedule';
-        }
-
-        fputcsv( $out, $columns );
-
-        $paged = 1;
-        $per_page = 200;
-
-        do {
-            $meta_query = array();
-            if ( $supplier_filter > 0 ) {
-                $meta_query[] = array(
-                    'key'     => '_sop_supplier_id',
-                    'value'   => $supplier_filter,
-                    'compare' => '=',
-                );
-            } else {
-                $meta_query[] = array(
-                    'key'     => '_sop_supplier_id',
-                    'compare' => 'EXISTS',
-                );
-            }
-
-            $query = new WP_Query(
-                array(
-                    'post_type'      => array( 'product' ),
-                    'post_status'    => array( 'publish', 'private' ),
-                    'posts_per_page' => $per_page,
-                    'paged'          => $paged,
-                    'fields'         => 'ids',
-                    'no_found_rows'  => true,
-                    'meta_query'     => $meta_query,
-                )
-            );
-
-            if ( empty( $query->posts ) ) {
-                break;
-            }
-
-            foreach ( $query->posts as $product_id ) {
-                $product_id = (int) $product_id;
-                if ( $product_id <= 0 ) {
-                    continue;
-                }
-
-                $product = wc_get_product( $product_id );
-                if ( ! $product ) {
-                    continue;
-                }
-
-                $supplier_id = (int) get_post_meta( $product_id, '_sop_supplier_id', true );
-                if ( $supplier_id <= 0 ) {
-                    continue;
-                }
-                if ( $supplier_filter > 0 && $supplier_id !== $supplier_filter ) {
-                    continue;
-                }
-
-                $supplier_name = isset( $supplier_map[ $supplier_id ]['name'] ) ? $supplier_map[ $supplier_id ]['name'] : '';
-                $supplier_currency = isset( $supplier_map[ $supplier_id ]['currency'] ) ? $supplier_map[ $supplier_id ]['currency'] : '';
-
-                $manage_stock = $product->managing_stock() ? 1 : 0;
-                $stock_qty = $product->get_stock_quantity();
-                if ( null === $stock_qty ) {
-                    $stock_qty = 0;
-                }
-                $stock_status = $product->get_stock_status();
-
-                $location = get_post_meta( $product_id, '_sop_bin_location', true );
-                if ( '' === $location ) {
-                    $location = get_post_meta( $product_id, '_product_location', true );
-                }
-                $location = sop_data_export_normalize_meta_value( $location );
-                $supplier_skus = sop_data_export_normalize_meta_value( get_post_meta( $product_id, '_sop_supplier_skus', true ) );
-
-                $row = array(
-                    $product_id,
-                    $product->get_sku(),
-                    $product->get_name(),
-                    $supplier_id,
-                    $supplier_name,
-                    $supplier_currency,
-                    $manage_stock,
-                    (int) $stock_qty,
-                    $stock_status,
-                    get_post_meta( $product_id, '_cogs_value', true ),
-                    get_post_meta( $product_id, '_sop_cost_rmb', true ),
-                    get_post_meta( $product_id, '_sop_cost_usd', true ),
-                    get_post_meta( $product_id, '_sop_cost_eur', true ),
-                    get_post_meta( $product_id, '_price', true ),
-                    get_post_meta( $product_id, '_regular_price', true ),
-                    get_post_meta( $product_id, '_sale_price', true ),
-                    $location,
-                    get_post_meta( $product_id, '_sop_min_order_qty', true ),
-                    get_post_meta( $product_id, 'max_order_qty_per_month', true ),
-                    $supplier_skus,
-                    isset( $inbound_map[ $product_id ] ) ? (float) $inbound_map[ $product_id ] : 0.0,
-                );
-
-                if ( $include_schedule ) {
-                    $schedule_entries = isset( $schedule_map[ $product_id ] ) ? $schedule_map[ $product_id ] : array();
-                    $row[] = sop_data_export_format_schedule( $schedule_entries );
-                }
-
-                fputcsv( $out, $row );
-            }
-
-            $paged++;
-        } while ( true );
-
-        exit;
-    }
-
-    $table_map = array(
-        'suppliers'            => 'suppliers',
-        'preorder_sheet'       => 'preorder_sheet',
-        'preorder_sheet_lines' => 'preorder_sheet_lines',
-        'goods_in_sessions'    => 'goods_in_session',
-        'goods_in_items'       => 'goods_in_item',
-        'stockout_log'         => 'stockout_log',
-        'forecast_cache'       => 'forecast_cache',
-        'forecast_cache_items' => 'forecast_cache_item',
-        'supplier_layouts'     => 'supplier_layouts',
+    $args = array(
+        'supplier_id'              => isset( $_POST['supplier_id'] ) ? absint( wp_unslash( $_POST['supplier_id'] ) ) : 0,
+        'include_inbound_schedule' => ! empty( $_POST['include_inbound_schedule'] ),
+        'sheet_id'                 => isset( $_POST['sheet_id'] ) ? absint( wp_unslash( $_POST['sheet_id'] ) ) : 0,
+        'session_id'               => isset( $_POST['session_id'] ) ? absint( wp_unslash( $_POST['session_id'] ) ) : 0,
+        'days_back'                => isset( $_POST['days_back'] ) ? absint( wp_unslash( $_POST['days_back'] ) ) : 365,
+        'product_id'               => isset( $_POST['product_id'] ) ? absint( wp_unslash( $_POST['product_id'] ) ) : 0,
     );
 
-    if ( isset( $table_map[ $dataset ] ) ) {
-        $table_key = $table_map[ $dataset ];
-        $table = function_exists( 'sop_get_table_name' ) ? sop_get_table_name( $table_key ) : '';
-        if ( '' === $table ) {
-            $table = $wpdb->prefix . 'sop_' . $table_key;
-        }
-
-        $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-        if ( ! $table_exists ) {
-            sop_data_export_write_message( $out, 'Table not found: ' . $table );
-            exit;
-        }
-
-        $where_sql = '';
-        $params = array();
-
-        if ( 'preorder_sheet_lines' === $dataset ) {
-            $sheet_id = isset( $_POST['sheet_id'] ) ? absint( wp_unslash( $_POST['sheet_id'] ) ) : 0;
-            if ( $sheet_id > 0 ) {
-                $where_sql = 'sheet_id = %d';
-                $params[] = $sheet_id;
-            }
-        } elseif ( 'goods_in_items' === $dataset ) {
-            $session_id = isset( $_POST['session_id'] ) ? absint( wp_unslash( $_POST['session_id'] ) ) : 0;
-            if ( $session_id > 0 ) {
-                $where_sql = 'session_id = %d';
-                $params[] = $session_id;
-            }
-        } elseif ( 'stockout_log' === $dataset ) {
-            $days_back = isset( $_POST['days_back'] ) ? absint( wp_unslash( $_POST['days_back'] ) ) : 365;
-            if ( $days_back <= 0 ) {
-                $days_back = 365;
-            }
-            $product_id = isset( $_POST['product_id'] ) ? absint( wp_unslash( $_POST['product_id'] ) ) : 0;
-            $from_ts = current_time( 'timestamp', true ) - ( $days_back * DAY_IN_SECONDS );
-            $from_date = gmdate( 'Y-m-d H:i:s', $from_ts );
-
-            $where_parts = array();
-            $where_parts[] = 'date_start >= %s';
-            $params[] = $from_date;
-            if ( $product_id > 0 ) {
-                $where_parts[] = 'product_id = %d';
-                $params[] = $product_id;
-            }
-            $where_sql = implode( ' AND ', $where_parts );
-        }
-
-        sop_data_export_stream_table( $table, $where_sql, $params, $out );
-        exit;
-    }
-
-    if ( 'legacy_product_history' === $dataset ) {
-        $table = $wpdb->prefix . 'sop_legacy_product_history';
-        $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-        if ( ! $table_exists ) {
-            sop_data_export_write_message( $out, 'Legacy history table not found.' );
-            exit;
-        }
-
-        sop_data_export_stream_table( $table, '', array(), $out );
-        exit;
-    }
-
-    sop_data_export_write_message( $out, 'Unknown dataset: ' . $dataset );
+    sop_data_export_stream_dataset_csv( $dataset, $args, $out );
     exit;
 }
 
 add_action( 'admin_post_sop_data_export_csv', 'sop_handle_data_export_csv' );
+
+/**
+ * Handle ZIP bundle export for SOP datasets.
+ *
+ * @return void
+ */
+function sop_handle_data_export_bundle_zip() {
+    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You do not have permission to export data.', 'sop' ) );
+    }
+
+    check_admin_referer( 'sop_data_export_bundle_zip', 'sop_data_export_bundle_nonce' );
+
+    if ( ! class_exists( 'ZipArchive' ) ) {
+        wp_die( esc_html__( 'ZIP export is not available on this server. Please ask your host to enable ZipArchive.', 'sop' ) );
+    }
+
+    $supplier_id = isset( $_POST['supplier_id'] ) ? absint( wp_unslash( $_POST['supplier_id'] ) ) : 0;
+    $include_schedule = ! empty( $_POST['include_inbound_schedule'] );
+    $days_back = isset( $_POST['days_back'] ) ? absint( wp_unslash( $_POST['days_back'] ) ) : 365;
+    $sheet_id = isset( $_POST['sheet_id'] ) ? absint( wp_unslash( $_POST['sheet_id'] ) ) : 0;
+    $session_id = isset( $_POST['session_id'] ) ? absint( wp_unslash( $_POST['session_id'] ) ) : 0;
+    $product_id = isset( $_POST['product_id'] ) ? absint( wp_unslash( $_POST['product_id'] ) ) : 0;
+
+    if ( $days_back <= 0 ) {
+        $days_back = 365;
+    }
+
+    $args_base = array(
+        'supplier_id'              => $supplier_id,
+        'include_inbound_schedule' => $include_schedule,
+        'days_back'                => $days_back,
+        'sheet_id'                 => $sheet_id,
+        'session_id'               => $session_id,
+        'product_id'               => $product_id,
+    );
+
+    $zip_path = wp_tempnam( 'sop-ai-bundle' );
+    if ( ! $zip_path ) {
+        wp_die( esc_html__( 'Unable to create temporary ZIP file.', 'sop' ) );
+    }
+    if ( substr( $zip_path, -4 ) !== '.zip' ) {
+        $renamed = $zip_path . '.zip';
+        @rename( $zip_path, $renamed );
+        $zip_path = $renamed;
+    }
+
+    $zip = new ZipArchive();
+    $opened = $zip->open( $zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE );
+    if ( true !== $opened ) {
+        @unlink( $zip_path );
+        wp_die( esc_html__( 'Unable to open ZIP archive for writing.', 'sop' ) );
+    }
+
+    global $wpdb;
+    $legacy_table = $wpdb->prefix . 'sop_legacy_product_history';
+    $legacy_exists = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $legacy_table ) );
+
+    $bundle_items = array(
+        array( 'dataset' => 'products_snapshot',    'filename' => '01-product_snapshot.csv' ),
+        array( 'dataset' => 'suppliers',            'filename' => '02-suppliers.csv' ),
+        array( 'dataset' => 'preorder_sheet',       'filename' => '03-preorder_sheet.csv' ),
+        array( 'dataset' => 'preorder_sheet_lines', 'filename' => '04-preorder_sheet_lines.csv' ),
+        array( 'dataset' => 'goods_in_sessions',    'filename' => '05-goods_in_sessions.csv' ),
+        array( 'dataset' => 'goods_in_items',       'filename' => '06-goods_in_items.csv' ),
+        array( 'dataset' => 'stockout_log',         'filename' => '07-stockout_log.csv' ),
+        array( 'dataset' => 'forecast_cache',       'filename' => '08-forecast_cache.csv' ),
+        array( 'dataset' => 'forecast_cache_items', 'filename' => '09-forecast_cache_items.csv' ),
+        array( 'dataset' => 'supplier_layouts',     'filename' => '10-supplier_layouts.csv' ),
+    );
+
+    if ( $legacy_exists ) {
+        $bundle_items[] = array( 'dataset' => 'legacy_product_history', 'filename' => '11-legacy_product_history.csv' );
+    }
+
+    $temp_files = array();
+    $included_files = array();
+    $skipped_files = array();
+
+    foreach ( $bundle_items as $item ) {
+        $dataset = $item['dataset'];
+        $filename = $item['filename'];
+
+        $csv_path = wp_tempnam( 'sop-export-' . $dataset );
+        if ( ! $csv_path ) {
+            $skipped_files[] = $filename . ' (temp file failed)';
+            continue;
+        }
+        if ( substr( $csv_path, -4 ) !== '.csv' ) {
+            $csv_renamed = $csv_path . '.csv';
+            @rename( $csv_path, $csv_renamed );
+            $csv_path = $csv_renamed;
+        }
+
+        $fh = fopen( $csv_path, 'w' );
+        if ( ! $fh ) {
+            $skipped_files[] = $filename . ' (open failed)';
+            @unlink( $csv_path );
+            continue;
+        }
+
+        sop_data_export_stream_dataset_csv( $dataset, $args_base, $fh );
+        fclose( $fh );
+
+        if ( ! $zip->addFile( $csv_path, $filename ) ) {
+            $skipped_files[] = $filename . ' (zip add failed)';
+            @unlink( $csv_path );
+            continue;
+        }
+
+        $temp_files[] = $csv_path;
+        $included_files[] = $filename;
+    }
+
+    $readme_lines = array(
+        'SOP AI Bundle Export',
+        'Timestamp (UTC): ' . gmdate( 'Y-m-d H:i:s' ),
+        'Supplier filter: ' . ( $supplier_id > 0 ? (string) $supplier_id : 'All' ),
+        'Include inbound schedule: ' . ( $include_schedule ? 'Yes' : 'No' ),
+        'Stockout days back: ' . (string) $days_back,
+        'Included files: ' . ( empty( $included_files ) ? 'None' : implode( ', ', $included_files ) ),
+    );
+    if ( ! empty( $skipped_files ) ) {
+        $readme_lines[] = 'Skipped files: ' . implode( ', ', $skipped_files );
+    }
+
+    $zip->addFromString( 'README.txt', implode( "\n", $readme_lines ) . "\n" );
+    $zip->close();
+
+    while ( ob_get_level() > 0 ) {
+        ob_end_clean();
+    }
+
+    $zip_filename = 'sop-ai-bundle-' . gmdate( 'Ymd-His' ) . '.zip';
+    $zip_filename = sanitize_file_name( $zip_filename );
+
+    nocache_headers();
+    header( 'Content-Type: application/zip' );
+    header( 'Content-Disposition: attachment; filename=' . $zip_filename );
+    header( 'Content-Length: ' . filesize( $zip_path ) );
+
+    readfile( $zip_path );
+
+    foreach ( $temp_files as $temp_path ) {
+        @unlink( $temp_path );
+    }
+    @unlink( $zip_path );
+    exit;
+}
+
+add_action( 'admin_post_sop_data_export_bundle_zip', 'sop_handle_data_export_bundle_zip' );
