@@ -1,7 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.26
+ * File version: 1.1.27
+ *
+ * - 1.1.27 - Improve carton filter: numeric/range match + multi-carton support (avoid substring matches like "1").
  *
  * - 1.1.26 - Add skipped-line badges + summary for AJAX apply stock.
  * - 1.1.25 - Show per-line completion tick for ordered lines (AJAX + server render).
@@ -844,7 +846,7 @@ function sop_render_goods_in_page() {
             </div>
             <div class="sop-goodsin-mg-carton">
                 <div class="sop-goodsin-filter-row">
-                    <input type="text" id="sop-goodsin-carton" placeholder="<?php esc_attr_e( 'Carton (Enter)', 'sop' ); ?>" autocomplete="off" />
+                    <input type="text" id="sop-goodsin-carton" placeholder="<?php esc_attr_e( 'Carton(s) (Enter)', 'sop' ); ?>" title="<?php esc_attr_e( 'Enter one or more cartons (e.g. 1550,1561 or 1550-1561).', 'sop' ); ?>" autocomplete="off" />
                     <button type="button" class="button-link" id="sop-goodsin-carton-clear"><?php esc_html_e( 'Clear', 'sop' ); ?></button>
                 </div>
             </div>
@@ -3084,6 +3086,86 @@ function sop_render_goods_in_page() {
                 return (str || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
             }
 
+            function sopGoodsinParseCartonRanges(raw) {
+                var cleaned = (raw || '').toString().replace(/\r?\n/g, ',');
+                cleaned = cleaned.replace(/[^\d,\-\s]/g, ' ');
+                cleaned = cleaned.replace(/\s*-\s*/g, '-');
+                var tokens = cleaned.split(/[,\s]+/);
+                var ranges = [];
+
+                tokens.forEach(function(token){
+                    var part = (token || '').toString().trim();
+                    if ( ! part ) {
+                        return;
+                    }
+
+                    if ( part.indexOf('-') !== -1 ) {
+                        var bits = part.split('-').map(function(val){
+                            return (val || '').toString().trim();
+                        }).filter(function(val){
+                            return val !== '';
+                        });
+                        if ( bits.length >= 2 ) {
+                            var start = parseInt(bits[0], 10);
+                            var end = parseInt(bits[1], 10);
+                            if ( ! isNaN(start) && ! isNaN(end) ) {
+                                if ( start > end ) {
+                                    var tmp = start;
+                                    start = end;
+                                    end = tmp;
+                                }
+                                ranges.push({ start: start, end: end });
+                            }
+                        }
+                        return;
+                    }
+
+                    var single = parseInt(part, 10);
+                    if ( ! isNaN(single) ) {
+                        ranges.push({ start: single, end: single });
+                    }
+                });
+
+                return ranges;
+            }
+
+            function sopGoodsinGetRowCartonRanges($tr) {
+                var cached = $tr.data('sopCartonRanges');
+                if ( cached ) {
+                    return cached;
+                }
+                var raw = ($tr.attr('data-carton') || '').toString();
+                if ( ! raw ) {
+                    var $cell = $tr.find('td[data-column="carton"]').first();
+                    if ( $cell.length ) {
+                        raw = ($cell.attr('title') || '').toString();
+                        if ( ! raw ) {
+                            raw = ($cell.text() || '').toString();
+                        }
+                    }
+                }
+                var ranges = sopGoodsinParseCartonRanges(raw);
+                $tr.data('sopCartonRanges', ranges);
+                return ranges;
+            }
+
+            function sopGoodsinRowMatchesCartonRanges($tr, queryRanges) {
+                var rowRanges = sopGoodsinGetRowCartonRanges($tr);
+                if ( ! rowRanges.length || ! queryRanges.length ) {
+                    return false;
+                }
+                for ( var i = 0; i < queryRanges.length; i++ ) {
+                    var q = queryRanges[i];
+                    for ( var r = 0; r < rowRanges.length; r++ ) {
+                        var row = rowRanges[r];
+                        if ( q.start <= row.end && q.end >= row.start ) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
             function sopGoodsinJumpToFirstVisible(target) {
                 var el = target;
                 if ( typeof target === 'string' ) {
@@ -3396,7 +3478,9 @@ function sop_render_goods_in_page() {
                 var issuesOnly = $issuesOnly.is(':checked');
                 var query = sopGoodsinNormalizeQuery( $searchInput.val() || '' );
                 var terms = query ? query.split(' ') : [];
-                var cartonQuery = sopGoodsinNormalizeQuery( $cartonInput ? $cartonInput.val() : '' );
+                var cartonQueryRaw = $cartonInput ? ($cartonInput.val() || '').toString().trim() : '';
+                var cartonQueryNorm = sopGoodsinNormalizeQuery( cartonQueryRaw );
+                var cartonRanges = sopGoodsinParseCartonRanges( cartonQueryRaw );
                 var total = 0;
                 var hidden = 0;
                 var hiddenSearch = 0;
@@ -3420,8 +3504,12 @@ function sop_render_goods_in_page() {
 
                     var rowCarton = sopGoodsinNormalizeQuery( ($tr.attr('data-carton') || $tr.find('.sop-goodsin-carton-text').text() || '') );
                     var matchesCarton = true;
-                    if ( cartonQuery ) {
-                        matchesCarton = ( rowCarton.indexOf( cartonQuery ) !== -1 );
+                    if ( cartonQueryNorm ) {
+                        if ( cartonRanges.length ) {
+                            matchesCarton = sopGoodsinRowMatchesCartonRanges($tr, cartonRanges);
+                        } else {
+                            matchesCarton = ( rowCarton && rowCarton.indexOf( cartonQueryNorm ) !== -1 );
+                        }
                     }
                     var rowMissing = sopGoodsinParseNumber( $tr.find('.sop-goodsin-missing').val() );
                     var rowReject  = sopGoodsinParseNumber( $tr.find('.sop-goodsin-reject').val() );
@@ -3429,7 +3517,7 @@ function sop_render_goods_in_page() {
 
                     var hideCompleted = ( ! showCompleted && complete );
                     var hideSearch    = ( terms.length && ! matchesSearch );
-                    var hideCarton    = ( cartonQuery && ! matchesCarton );
+                    var hideCarton    = ( cartonQueryNorm && ! matchesCarton );
                     var hideIssues    = ( issuesOnly && ! isIssue );
 
                     if ( hideCompleted ) {
