@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.73
+ * File version: 11.74
+ * - 11.74 - Add additional CBM planning field to preorder_planning + carry through filter/save redirects.
  * - 11.73 - Pass inbound schedule map into forecast for ETA-aware inbound.
  * - 11.72 - Export dataset includes supplier-currency unit costs for non-RMB XLSX.
  * - 11.71 - Add PO Details admin page registration.
@@ -410,11 +411,19 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
         $planning_allowance = 50;
     }
     $planning_pallet = ! empty( $_POST['sop_pallet_layer'] ) ? 1 : 0;
+    $planning_additional_cbm = isset( $_POST['sop_additional_cbm'] ) ? (float) wp_unslash( $_POST['sop_additional_cbm'] ) : 0.0;
+    if ( $planning_additional_cbm < 0 ) {
+        $planning_additional_cbm = 0.0;
+    } elseif ( $planning_additional_cbm > 9999 ) {
+        $planning_additional_cbm = 9999;
+    }
+    $planning_additional_cbm = round( (float) $planning_additional_cbm, 3 );
 
     $payload['preorder_planning'] = array(
         'container_type'    => $planning_container,
         'allowance_percent' => (float) $planning_allowance,
         'pallet_layer'      => (int) $planning_pallet,
+        'additional_items_cbm' => (float) $planning_additional_cbm,
     );
 
     // Ensure expected keys are present for consistent UI behaviour.
@@ -795,6 +804,7 @@ function sop_handle_preorder_filter() {
     $container_type = isset( $_POST['sop_container'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_container'] ) ) : '';
     $pallet_layer   = ! empty( $_POST['sop_pallet_layer'] ) ? 1 : 0;
     $allowance      = isset( $_POST['sop_allowance'] ) ? floatval( wp_unslash( $_POST['sop_allowance'] ) ) : 0;
+    $additional_cbm = isset( $_POST['sop_additional_cbm'] ) ? floatval( wp_unslash( $_POST['sop_additional_cbm'] ) ) : 0.0;
     $sku_filter     = isset( $_POST['sop_sku_filter'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_sku_filter'] ) ) : '';
 
     if ( $sheet_id <= 0 && isset( $_POST['sop_sheet_id'] ) ) {
@@ -806,12 +816,19 @@ function sop_handle_preorder_filter() {
     } elseif ( $allowance > 50 ) {
         $allowance = 50;
     }
+    if ( $additional_cbm < 0 ) {
+        $additional_cbm = 0.0;
+    } elseif ( $additional_cbm > 9999 ) {
+        $additional_cbm = 9999;
+    }
+    $additional_cbm = round( (float) $additional_cbm, 3 );
 
     $redirect_args = array(
         'page'             => 'sop-preorder-sheet',
         '_sop_supplier_id' => $supplier_id,
         'sop_container'   => $container_type,
         'sop_allowance'   => $allowance,
+        'sop_additional_cbm' => $additional_cbm,
     );
 
     if ( $pallet_layer ) {
@@ -913,6 +930,7 @@ function sop_handle_save_preorder_sheet() {
     $container_type = isset( $_POST['sop_container_type'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_container_type'] ) ) : '';
     $allowance      = isset( $_POST['sop_allowance_percent'] ) ? floatval( wp_unslash( $_POST['sop_allowance_percent'] ) ) : 0;
     $pallet_layer   = ! empty( $_POST['sop_pallet_layer'] ) ? 1 : 0;
+    $additional_cbm = isset( $_POST['sop_additional_cbm'] ) ? floatval( wp_unslash( $_POST['sop_additional_cbm'] ) ) : 0.0;
 
     $allowed_containers = array( '', '20ft', '40ft', '40ft_hc' );
     if ( ! in_array( $container_type, $allowed_containers, true ) ) {
@@ -924,6 +942,12 @@ function sop_handle_save_preorder_sheet() {
     } elseif ( $allowance < -50 ) {
         $allowance = -50;
     }
+    if ( $additional_cbm < 0 ) {
+        $additional_cbm = 0.0;
+    } elseif ( $additional_cbm > 9999 ) {
+        $additional_cbm = 9999;
+    }
+    $additional_cbm = round( (float) $additional_cbm, 3 );
     $order_number_label = isset( $_POST['sop_header_order_number'] )
         ? sanitize_text_field( wp_unslash( $_POST['sop_header_order_number'] ) )
         : '';
@@ -933,6 +957,7 @@ function sop_handle_save_preorder_sheet() {
         '_sop_supplier_id' => $supplier_id,
         'sop_container'   => $container_type,
         'sop_allowance'   => $allowance,
+        'sop_additional_cbm' => $additional_cbm,
     );
     if ( $pallet_layer ) {
         $redirect_common['sop_pallet_layer'] = 1;

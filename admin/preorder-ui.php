@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.90 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.91 *
+ * - V12.91 - Add Additional items CBM field and include it in container fill calculations.
  * - V12.90 - Pass inbound schedule map into forecast for ETA-aware inbound.
  * - V12.89 - Wire inbound_qty to open/locked/GI sheets via inbound qty map.
  * - V12.88 - UI: raise Columns button z-index so full area is clickable.
@@ -607,6 +608,7 @@ function sop_preorder_render_admin_page() {
     $container_selection = '';
     $pallet_layer        = 0;
     $allowance           = 0;
+    $additional_cbm      = 0.0;
 
     // Supplier defaults (none/false/0 if not set).
     $default_container_type = (string) $supplier_defaults_container;
@@ -659,6 +661,7 @@ function sop_preorder_render_admin_page() {
         $container_selection = isset( $defaults['container_type'] ) ? (string) $defaults['container_type'] : '';
         $pallet_layer        = ! empty( $defaults['pallet_layer'] ) ? 1 : 0;
         $allowance           = isset( $defaults['allowance'] ) ? (int) $defaults['allowance'] : 0;
+        $additional_cbm      = 0.0;
     } else {
         // Existing sheets: keep current behaviour (sheet/header or prior defaults/GET).
         $planning_payload = array();
@@ -695,6 +698,14 @@ function sop_preorder_render_admin_page() {
         } else {
             $allowance = (float) $default_allowance;
         }
+
+        if ( isset( $_GET['sop_additional_cbm'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $additional_cbm = (float) $_GET['sop_additional_cbm'];
+        } elseif ( isset( $planning_payload['additional_items_cbm'] ) && is_numeric( $planning_payload['additional_items_cbm'] ) ) {
+            $additional_cbm = (float) $planning_payload['additional_items_cbm'];
+        } else {
+            $additional_cbm = 0.0;
+        }
     }
 
     if ( $allowance < -50 ) {
@@ -702,6 +713,12 @@ function sop_preorder_render_admin_page() {
     } elseif ( $allowance > 50 ) {
         $allowance = 50;
     }
+    if ( $additional_cbm < 0 ) {
+        $additional_cbm = 0.0;
+    } elseif ( $additional_cbm > 9999 ) {
+        $additional_cbm = 9999;
+    }
+    $additional_cbm = round( (float) $additional_cbm, 3 );
 
     // SKU filter (substring match, case-insensitive).
     $sku_filter = '';
@@ -949,6 +966,8 @@ function sop_preorder_render_admin_page() {
 
         $total_skus++;
     }
+
+    $total_cbm += $additional_cbm;
 
     $used_cbm     = 0.0; // raw percent, may exceed 100.
     $used_cbm_bar = 0.0; // clamped percent for bar width.
@@ -1410,6 +1429,13 @@ function sop_preorder_render_admin_page() {
                             </label>
                         </div>
 
+                        <div class="sop-preorder-container-item sop-preorder-container-item--additional-cbm">
+                            <label class="sop-additional-cbm-label">
+                                <?php esc_html_e( 'Additional items CBM:', 'sop' ); ?>
+                                <input type="number" name="sop_additional_cbm" value="<?php echo esc_attr( $additional_cbm ); ?>" step="0.001" min="0" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?> />
+                            </label>
+                        </div>
+
                         <div class="sop-preorder-container-item sop-preorder-container-item--button">
                             <button type="submit" class="button button-secondary" name="sop_preorder_update_container" value="1" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?>>
                                 <?php esc_html_e( 'Update container', 'sop' ); ?>
@@ -1565,6 +1591,7 @@ function sop_preorder_render_admin_page() {
                 <input type="hidden" name="sop_container_type" value="<?php echo esc_attr( $container_selection ); ?>" />
                 <input type="hidden" name="sop_allowance_percent" value="<?php echo esc_attr( $allowance ); ?>" />
                 <input type="hidden" name="sop_pallet_layer" value="<?php echo esc_attr( $pallet_layer ? 1 : 0 ); ?>" />
+                <input type="hidden" name="sop_additional_cbm" value="<?php echo esc_attr( $additional_cbm ); ?>" />
                 <input type="hidden" name="sop_po_payload" id="sop-po-payload" value="" />
                 <input type="hidden" name="sop_lines_json" id="sop-lines-json" value="" />
                 <input type="hidden" name="sop_preorder_hidden_columns" id="sop_preorder_hidden_columns" value="<?php echo esc_attr( $sop_hidden_columns_json ); ?>" />
@@ -3216,6 +3243,18 @@ function sop_preorder_render_admin_page() {
                 min-width: 80px;
             }
 
+            .sop-additional-cbm-label {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+
+            .sop-additional-cbm-label input[type="number"] {
+                flex: 1 1 0;
+                min-width: 80px;
+            }
+
             .sop-preorder-container-item--button .button {
                 width: 100%;
             }
@@ -3869,7 +3908,7 @@ function sop_preorder_render_admin_page() {
 
             if ( sopPreorderIsReadOnly ) {
                 $table.find('tbody').find('input, select, textarea').prop('disabled', true);
-                $( '[name="sop_container_type"],[name="sop_allowance_percent"],[name="sop_pallet_layer"]' ).prop('disabled', true);
+                $( '[name="sop_container_type"],[name="sop_allowance_percent"],[name="sop_pallet_layer"],[name="sop_additional_cbm"]' ).prop('disabled', true);
             }
 
             function sopMarkUnsavedChanges() {
@@ -3973,6 +4012,7 @@ function sop_preorder_render_admin_page() {
                     var $containerSelect = $form.find('select[name="sop_container"]');
                     var $palletCheckbox  = $form.find('input[name="sop_pallet_layer"]');
                     var $allowanceInput  = $form.find('input[name="sop_allowance"]');
+                    var $additionalInput = $form.find('input[name="sop_additional_cbm"]');
 
                     if ( $containerSelect.length ) {
                         $containerSelect.val('');
@@ -3982,6 +4022,9 @@ function sop_preorder_render_admin_page() {
                     }
                     if ( $allowanceInput.length ) {
                         $allowanceInput.val('');
+                    }
+                    if ( $additionalInput.length ) {
+                        $additionalInput.val('');
                     }
 
                     $form.trigger('submit');
@@ -4457,9 +4500,21 @@ function sop_preorder_render_admin_page() {
                 $('#sop-total-profit-gbp').text(wc_price_format(totalProfit));
                 $('#sop-total-margin-pct').text(marginPct.toFixed(1) + '%');
 
+                var additionalCbm = 0;
+                var $additionalInput = $('input[name="sop_additional_cbm"][form="sop-preorder-filter-form"]');
+                if ( $additionalInput.length ) {
+                    var additionalVal = parseFloat( $additionalInput.val() );
+                    if ( ! isNaN( additionalVal ) && additionalVal > 0 ) {
+                        additionalCbm = additionalVal;
+                    }
+                }
+                if ( additionalCbm < 0 ) {
+                    additionalCbm = 0;
+                }
+
                 var usedCbmPercent = 0;
-                if ( containerCbm > 0 && totalCbm > 0 ) {
-                    usedCbmPercent = ( totalCbm / containerCbm ) * 100;
+                if ( containerCbm > 0 && ( totalCbm + additionalCbm ) > 0 ) {
+                    usedCbmPercent = ( ( totalCbm + additionalCbm ) / containerCbm ) * 100;
                 }
 
                 // Clamp bar width between 0 and 100, but show the raw percentage in the label.
@@ -4487,6 +4542,10 @@ function sop_preorder_render_admin_page() {
                 $('.sop-cbm-bar-wrapper').attr('title', usedCbmPercent.toFixed(1) + '%');
                 $('#sop-cbm-label').text(usedCbmPercent.toFixed(1) + '%');
             }
+
+            $( document ).on( 'change input', 'input[name="sop_additional_cbm"][form="sop-preorder-filter-form"]', function() {
+                recalcTotals();
+            } );
 
             function wc_price_format(amount) {
                 return '<?php echo esc_js( html_entity_decode( get_woocommerce_currency_symbol(), ENT_QUOTES, 'UTF-8' ) ); ?> ' + amount.toFixed(2);
@@ -6002,10 +6061,12 @@ function sop_preorder_render_admin_page() {
                 var $hiddenContainer = $sheetForm.find( 'input[name="sop_container_type"]' );
                 var $hiddenAllowance = $sheetForm.find( 'input[name="sop_allowance_percent"]' );
                 var $hiddenPallet    = $sheetForm.find( 'input[name="sop_pallet_layer"]' );
+                var $hiddenAdditional = $sheetForm.find( 'input[name="sop_additional_cbm"]' );
 
                 var containerType = $hiddenContainer.length ? $hiddenContainer.val() : '';
                 var allowanceVal  = $hiddenAllowance.length ? $hiddenAllowance.val() : 0;
                 var palletOn      = $hiddenPallet.length ? parseInt( $hiddenPallet.val(), 10 ) : 0;
+                var additionalVal = $hiddenAdditional.length ? $hiddenAdditional.val() : 0;
                 if ( isNaN( palletOn ) ) {
                     palletOn = 0;
                 }
@@ -6013,8 +6074,9 @@ function sop_preorder_render_admin_page() {
                 var $containerSelect = $( 'select[name="sop_container"][form="sop-preorder-filter-form"]' );
                 var $allowanceInput  = $( 'input[name="sop_allowance"][form="sop-preorder-filter-form"]' );
                 var $palletCheckbox  = $( 'input[type="checkbox"][name="sop_pallet_layer"][form="sop-preorder-filter-form"]' );
+                var $additionalInput = $( 'input[name="sop_additional_cbm"][form="sop-preorder-filter-form"]' );
 
-                if ( !$containerSelect.length && !$allowanceInput.length && !$palletCheckbox.length ) {
+                if ( !$containerSelect.length && !$allowanceInput.length && !$palletCheckbox.length && !$additionalInput.length ) {
                     return;
                 }
 
@@ -6036,6 +6098,13 @@ function sop_preorder_render_admin_page() {
                     palletOn = $palletCheckbox.is( ':checked' ) ? 1 : 0;
                 }
 
+                if ( $additionalInput.length ) {
+                    var inputAdditional = $additionalInput.val();
+                    if ( typeof inputAdditional !== 'undefined' && inputAdditional !== null && inputAdditional !== '' ) {
+                        additionalVal = inputAdditional;
+                    }
+                }
+
                 allowanceVal = parseFloat( allowanceVal );
                 if ( isNaN( allowanceVal ) ) {
                     allowanceVal = 0;
@@ -6045,6 +6114,14 @@ function sop_preorder_render_admin_page() {
                     allowanceVal = -50;
                 }
 
+                additionalVal = parseFloat( additionalVal );
+                if ( isNaN( additionalVal ) || additionalVal < 0 ) {
+                    additionalVal = 0;
+                } else if ( additionalVal > 9999 ) {
+                    additionalVal = 9999;
+                }
+                additionalVal = Math.round( additionalVal * 1000 ) / 1000;
+
                 if ( $hiddenContainer.length ) {
                     $hiddenContainer.val( containerType );
                 }
@@ -6053,6 +6130,9 @@ function sop_preorder_render_admin_page() {
                 }
                 if ( $hiddenPallet.length ) {
                     $hiddenPallet.val( palletOn );
+                }
+                if ( $hiddenAdditional.length ) {
+                    $hiddenAdditional.val( additionalVal );
                 }
             }
 
