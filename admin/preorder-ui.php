@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.91 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.92 *
+ * - V12.92 - UI: add balanced padding around header icon divider line (8px each side).
  * - V12.91 - Add Additional items CBM field and include it in container fill calculations.
  * - V12.90 - Pass inbound schedule map into forecast for ETA-aware inbound.
  * - V12.89 - Wire inbound_qty to open/locked/GI sheets via inbound qty map.
@@ -2489,6 +2490,7 @@ function sop_preorder_render_admin_page() {
             align-items: center;
             justify-content: center;
             padding: 3px;
+            padding-right: 8px;
             border-right: 1px solid #c3c4c7;
             background-color: #fff;
             border-top-left-radius: 8px;
@@ -2513,7 +2515,7 @@ function sop_preorder_render_admin_page() {
             display: flex;
             flex-direction: column;
             justify-content: center;
-            padding-left: 16px;
+            padding-left: 8px;
         }
 
         .sop-preorder-card-icon .dashicons {
@@ -3199,6 +3201,7 @@ function sop_preorder_render_admin_page() {
                 width: 64px;
                 height: 64px;
                 padding: 2px;
+                padding-right: 8px;
             }
 
             .sop-preorder-card-icon .dashicons,
@@ -3210,7 +3213,7 @@ function sop_preorder_render_admin_page() {
             }
 
             .sop-preorder-card-main {
-                padding-left: 12px;
+                padding-left: 8px;
             }
 
             .sop-preorder-card__row--container-top {
