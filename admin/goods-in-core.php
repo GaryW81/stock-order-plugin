@@ -1,11 +1,12 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.27
+ * File version: 1.0.28
  *
  * - Receive against ordered (locked) preorder sheets.
  * - Save goods-in progress, apply stock increases, and complete goods-in.
  * - Uses JSON payload to avoid max_input_vars on large sheets.
+ * - 1.0.28 - Remove duplicate payload line normalisation calls in Goods-In save handler.
  * - 1.0.02 - Add live display hydration helper for Goods-In lines (display only).
  * - 1.0.03 - Key Goods-In handlers by product_id (SKU fallback) and normalise POST maps.
  * - 1.0.04 - Apply product_id normalisation across all Goods-In handlers (SKU fallback).
@@ -650,10 +651,6 @@ function sop_handle_goodsin_save() {
         wp_safe_redirect( add_query_arg( 'sop_msg', 'no_lines', $redirect ) );
         exit;
     }
-    // Ensure product_id is present for each payload line (SKU fallback).
-    $payload['lines'] = sop_goodsin_normalize_payload_lines( $payload['lines'], $lines_map );
-    // Ensure product_id is present for each payload line (SKU fallback).
-    $payload['lines'] = sop_goodsin_normalize_payload_lines( $payload['lines'], $lines_map );
     // Ensure product_id is present for each payload line (SKU fallback).
     $payload['lines'] = sop_goodsin_normalize_payload_lines( $payload['lines'], $lines_map );
 
