@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.94 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.95 *
+ * - V12.95 - Fix: constrain header icon <img> sizing to prevent layout blowout.
  * - V12.94 - Fix sop_preorder_render_header_icon() to return icon HTML (data URI or dashicon fallback).
  * - V12.93 - UI: clip header icon background to content box so divider spacing is respected.
  * - V12.92 - UI: add balanced padding around header icon divider line (8px each side).
@@ -2509,8 +2510,8 @@ function sop_preorder_render_admin_page() {
             background-color: #fff;
             border-top-left-radius: 8px;
             border-bottom-left-radius: 8px;
-            min-width: 92px;
-            min-height: 92px;
+            min-width: 0;
+            min-height: 0;
             width: 92px;
             height: 92px;
             background-repeat: no-repeat;
@@ -2666,6 +2667,15 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-card-icon.sop-has-custom-icon .dashicons {
             display: none;
+        }
+
+        .sop-preorder-header-icon-img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
         }
 
         .sop-download-dropdown {
@@ -3212,8 +3222,8 @@ function sop_preorder_render_admin_page() {
             }
 
             .sop-preorder-card-icon {
-                min-width: 64px;
-                min-height: 64px;
+                min-width: 0;
+                min-height: 0;
                 width: 64px;
                 height: 64px;
                 padding: 2px;
