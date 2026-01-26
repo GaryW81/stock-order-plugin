@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Carton CSV Importer (admin only)
- * File version: 1.2.2
+ * File version: 1.2.3
+ * - 1.2.3 - Tweak: Update importer UI notice now that all suppliers are allowed by default.
  * - 1.2.2 - Change: Remove hard-coded supplier restriction; allow all suppliers by default (filterable).
  * - 1.2.1 - Fix: Report CSV export is Excel-safe for multi-carton lists; flatten multiline fields.
  * - 1.2.0 - Improve carton import reporting (notes preview, details table, CSV report download, clearer undo/dry-run flow).
@@ -848,7 +849,7 @@ if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
 
         echo '<div class="wrap">';
         echo '<h1>' . esc_html__( 'Carton CSV Import', 'sop' ) . '</h1>';
-        echo '<div class="notice notice-warning"><p>' . esc_html__( 'This tool updates carton numbers and order notes for saved pre-order sheets. Only suppliers Shiny (1) and BSE (4) are supported.', 'sop' ) . '</p></div>';
+        echo '<div class="notice notice-warning"><p>' . esc_html__( 'This tool updates carton numbers and order notes for saved pre-order sheets. Supplier CSV formats may vary.', 'sop' ) . '</p></div>';
 
         foreach ( $errors as $error ) {
             echo '<div class="notice notice-error"><p>' . esc_html( $error ) . '</p></div>';
