@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.93 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.94 *
+ * - V12.94 - Fix sop_preorder_render_header_icon() to return icon HTML (data URI or dashicon fallback).
  * - V12.93 - UI: clip header icon background to content box so divider spacing is respected.
  * - V12.92 - UI: add balanced padding around header icon divider line (8px each side).
  * - V12.91 - Add Additional items CBM field and include it in container fill calculations.
@@ -110,7 +111,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! function_exists( 'sop_preorder_render_header_icon' ) ) {
     /**
-     * Render a header icon using a custom PNG when available, falling back to dashicons.
+     * Render a header icon using a custom icon (SVG/PNG) when available, falling back to dashicons.
      *
      * @param string $filename               PNG filename inside assets/icons.
      * @param string $fallback_dashicon_class Dashicon class to use when PNG is missing.
@@ -120,7 +121,19 @@ if ( ! function_exists( 'sop_preorder_render_header_icon' ) ) {
     function sop_preorder_render_header_icon( $filename, $fallback_dashicon_class, $alt ) {
         $data_uri = sop_preorder_get_header_icon_data_uri( $filename );
 
-        return '<span class="dashicons ' . esc_attr( $fallback_dashicon_class ) . ' sop-preorder-header-icon-fallback" aria-hidden="true"></span>';
+        if ( '' !== $data_uri ) {
+            return '<img class="sop-preorder-header-icon-img" src="' . esc_attr( $data_uri ) . '" alt="' . esc_attr( $alt ) . '" />';
+        }
+
+        if ( '' !== $fallback_dashicon_class ) {
+            $icon = '<span class="dashicons ' . esc_attr( $fallback_dashicon_class ) . ' sop-preorder-header-icon-fallback" aria-hidden="true"></span>';
+            if ( '' !== $alt ) {
+                $icon .= '<span class="screen-reader-text">' . esc_html( $alt ) . '</span>';
+            }
+            return $icon;
+        }
+
+        return '';
     }
 }
 
