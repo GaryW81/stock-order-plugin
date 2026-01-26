@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Carton CSV Importer (admin only)
- * File version: 1.2.1
+ * File version: 1.2.2
+ * - 1.2.2 - Change: Remove hard-coded supplier restriction; allow all suppliers by default (filterable).
  * - 1.2.1 - Fix: Report CSV export is Excel-safe for multi-carton lists; flatten multiline fields.
  * - 1.2.0 - Improve carton import reporting (notes preview, details table, CSV report download, clearer undo/dry-run flow).
  * - 1.1.1 - Improve column guessing + preview UX; default annotation append off.
@@ -24,14 +25,27 @@ if ( ! function_exists( 'sop_carton_csv_importer_upload_dir' ) ) {
 
 if ( ! function_exists( 'sop_carton_csv_importer_get_allowed_supplier_ids' ) ) {
     function sop_carton_csv_importer_get_allowed_supplier_ids() {
-        return array( 1, 4 );
+        $allowed = apply_filters( 'sop_carton_csv_importer_allowed_supplier_ids', array() );
+        $allowed = is_array( $allowed ) ? $allowed : array();
+
+        $clean = array();
+        foreach ( $allowed as $supplier_id ) {
+            $supplier_id = (int) $supplier_id;
+            if ( $supplier_id > 0 ) {
+                $clean[] = $supplier_id;
+            }
+        }
+
+        $clean = array_values( array_unique( $clean ) );
+        return $clean;
     }
 }
 
 if ( ! function_exists( 'sop_carton_csv_importer_is_sheet_allowed' ) ) {
     function sop_carton_csv_importer_is_sheet_allowed( array $sheet ) {
         $supplier_id = isset( $sheet['supplier_id'] ) ? (int) $sheet['supplier_id'] : 0;
-        if ( ! in_array( $supplier_id, sop_carton_csv_importer_get_allowed_supplier_ids(), true ) ) {
+        $allowed_suppliers = sop_carton_csv_importer_get_allowed_supplier_ids();
+        if ( ! empty( $allowed_suppliers ) && ! in_array( $supplier_id, $allowed_suppliers, true ) ) {
             return false;
         }
 
