@@ -1,11 +1,12 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.28
+ * File version: 1.0.29
  *
  * - Receive against ordered (locked) preorder sheets.
  * - Save goods-in progress, apply stock increases, and complete goods-in.
  * - Uses JSON payload to avoid max_input_vars on large sheets.
+ * - 1.0.29 - Allow Goods-In stock corrections (decrease) when accepted qty is lower.
  * - 1.0.28 - Remove duplicate payload line normalisation calls in Goods-In save handler.
  * - 1.0.02 - Add live display hydration helper for Goods-In lines (display only).
  * - 1.0.03 - Key Goods-In handlers by product_id (SKU fallback) and normalise POST maps.
@@ -515,9 +516,10 @@ function sop_goodsin_normalize_payload_lines( $payload_lines, $lines_map ) {
  *
  * @param array $line_in
  * @param array $db_row
+ * @param array $opts
  * @return array
  */
-function sop_goodsin_normalize_line_payload( array $line_in, array $db_row ) {
+function sop_goodsin_normalize_line_payload( array $line_in, array $db_row, array $opts = array() ) {
     $ordered_qty = isset( $db_row['qty_owner'] ) ? (float) $db_row['qty_owner'] : 0.0;
     $stock_added = isset( $db_row['goods_in_stock_added_qty'] ) ? (float) $db_row['goods_in_stock_added_qty'] : 0.0;
     if ( $ordered_qty < 0 ) {
@@ -553,16 +555,21 @@ function sop_goodsin_normalize_line_payload( array $line_in, array $db_row ) {
         $reject_qty = $ordered_qty;
     }
 
-    $max_other = max( 0.0, $ordered_qty - $stock_added );
+    $allow_lower_received = ! empty( $opts['allow_lower_received'] );
+    $accepted_input = max( 0.0, $received_qty - $reject_qty );
+    $effective_stock_added = $allow_lower_received ? min( $stock_added, $accepted_input ) : $stock_added;
+    $max_other = max( 0.0, $ordered_qty - $effective_stock_added );
     if ( ( $missing_qty + $reject_qty ) > $max_other ) {
         $reject_qty  = min( $reject_qty, $max_other );
         $missing_qty = max( 0.0, $max_other - $reject_qty );
     }
 
-    // Ensure received cannot be below the already applied + rejected amount.
-    $min_received = min( $ordered_qty, $stock_added + $reject_qty );
-    if ( $received_qty < $min_received ) {
-        $received_qty = $min_received;
+    if ( ! $allow_lower_received ) {
+        // Ensure received cannot be below the already applied + rejected amount.
+        $min_received = min( $ordered_qty, $stock_added + $reject_qty );
+        if ( $received_qty < $min_received ) {
+            $received_qty = $min_received;
+        }
     }
 
     return array(
@@ -812,7 +819,7 @@ function sop_handle_goodsin_apply_stock() {
         }
 
         $db_row    = $lines_map[ $line_id ];
-        $norm      = sop_goodsin_normalize_line_payload( $line_in, $db_row );
+        $norm      = sop_goodsin_normalize_line_payload( $line_in, $db_row, array( 'allow_lower_received' => true ) );
         $product_id = isset( $line_in['product_id'] ) ? (int) $line_in['product_id'] : 0;
         $db_pid     = isset( $db_row['product_id'] ) ? (int) $db_row['product_id'] : 0;
         if ( $product_id <= 0 && $db_pid > 0 ) {
@@ -839,14 +846,13 @@ function sop_handle_goodsin_apply_stock() {
             array( '%d', '%d' )
         );
 
-        $accepted_qty = max( 0.0, $received_qty - $reject_qty );
-        $to_apply     = max( 0.0, $accepted_qty - $stock_added );
-        $remaining_for_apply = max( 0.0, $ordered_qty - $stock_added - $missing_qty - $reject_qty );
-        if ( $to_apply > $remaining_for_apply ) {
-            $to_apply = $remaining_for_apply;
-        }
-
-        if ( $to_apply <= 0 ) {
+        $accepted_qty   = max( 0.0, $received_qty - $reject_qty );
+        $max_stockable  = max( 0.0, $ordered_qty - $missing_qty - $reject_qty );
+        $target_stocked = min( $accepted_qty, $max_stockable );
+        $stock_added_int = (int) round( $stock_added );
+        $target_int      = (int) round( $target_stocked );
+        $delta_int       = $target_int - $stock_added_int;
+        if ( 0 === $delta_int ) {
             continue;
         }
 
@@ -878,7 +884,9 @@ function sop_handle_goodsin_apply_stock() {
             continue;
         }
 
-        $result = wc_update_product_stock( $product, $to_apply, 'increase' );
+        $delta_qty = abs( $delta_int );
+        $direction = ( $delta_int > 0 ) ? 'increase' : 'decrease';
+        $result = wc_update_product_stock( $product, $delta_qty, $direction );
         if ( is_wp_error( $result ) ) {
             $skipped[] = array(
                 'line_id'    => $line_id,
@@ -889,7 +897,7 @@ function sop_handle_goodsin_apply_stock() {
             continue;
         }
 
-        $new_stock_added = $stock_added + $to_apply;
+        $new_stock_added = $target_int;
 
         $wpdb->update(
             $tbl_lines,
@@ -903,7 +911,7 @@ function sop_handle_goodsin_apply_stock() {
         );
 
         $applied_lines++;
-        $applied_qty += $to_apply;
+        $applied_qty += $delta_qty;
     }
 
     // Store last apply report for UI.
@@ -1090,7 +1098,7 @@ function sop_ajax_goodsin_apply_stock_line() {
         wp_send_json_error( array( 'message' => __( 'Product mismatch for line.', 'sop' ) ), 400 );
     }
 
-    $norm         = sop_goodsin_normalize_line_payload( $line_in, $db_row );
+    $norm         = sop_goodsin_normalize_line_payload( $line_in, $db_row, array( 'allow_lower_received' => true ) );
     $ordered_qty  = $norm['ordered_qty'];
     $received_qty = $norm['received_qty'];
     $missing_qty  = $norm['missing_qty'];
@@ -1127,14 +1135,14 @@ function sop_ajax_goodsin_apply_stock_line() {
         $result_data['status'] = 'skipped';
         $result_data['reason'] = 'invalid_qty_or_product';
     } else {
-        $accepted_qty        = max( 0.0, $received_qty - $reject_qty );
-        $to_apply            = max( 0.0, $accepted_qty - $stock_added );
-        $remaining_for_apply = max( 0.0, $ordered_qty - $stock_added - $missing_qty - $reject_qty );
-        if ( $to_apply > $remaining_for_apply ) {
-            $to_apply = $remaining_for_apply;
-        }
+        $accepted_qty   = max( 0.0, $received_qty - $reject_qty );
+        $max_stockable  = max( 0.0, $ordered_qty - $missing_qty - $reject_qty );
+        $target_stocked = min( $accepted_qty, $max_stockable );
+        $stock_added_int = (int) round( $stock_added );
+        $target_int      = (int) round( $target_stocked );
+        $delta_int       = $target_int - $stock_added_int;
 
-        if ( $to_apply <= 0 ) {
+        if ( 0 === $delta_int ) {
             $result_data['status'] = 'noop';
         } else {
             $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
@@ -1148,11 +1156,13 @@ function sop_ajax_goodsin_apply_stock_line() {
                 $result_data['status']  = 'skipped';
                 $result_data['reason']  = 'stock_api_missing';
             } else {
-                $result = wc_update_product_stock( $product, $to_apply, 'increase' );
+                $delta_qty = abs( $delta_int );
+                $direction = ( $delta_int > 0 ) ? 'increase' : 'decrease';
+                $result = wc_update_product_stock( $product, $delta_qty, $direction );
                 if ( is_wp_error( $result ) ) {
                     $product_retry = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
                     if ( $product_retry && function_exists( 'wc_update_product_stock' ) ) {
-                        $result = wc_update_product_stock( $product_retry, $to_apply, 'increase' );
+                        $result = wc_update_product_stock( $product_retry, $delta_qty, $direction );
                     }
                 }
                 if ( is_wp_error( $result ) ) {
@@ -1160,7 +1170,7 @@ function sop_ajax_goodsin_apply_stock_line() {
                     $result_data['reason']  = 'stock_update_failed';
                     $result_data['message'] = $result->get_error_message();
                 } else {
-                    $stock_added_qty = $stock_added + $to_apply;
+                    $stock_added_qty = $target_int;
                     $wpdb->update(
                         $tbl_lines,
                         array(
@@ -1172,7 +1182,8 @@ function sop_ajax_goodsin_apply_stock_line() {
                         array( '%d', '%d' )
                     );
                     $result_data['status']      = 'applied';
-                    $result_data['applied_qty'] = $to_apply;
+                    $result_data['applied_qty'] = $delta_qty;
+                    $result_data['applied_direction'] = ( $delta_int > 0 ) ? 'increase' : 'decrease';
                 }
             }
         }

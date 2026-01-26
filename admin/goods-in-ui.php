@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.28
+ * File version: 1.1.29
  *
+ * - 1.1.29 - Goods-In: update apply-stock wording for correction support.
  * - 1.1.28 - Goods-In list: count only ordered/active lines and show open lines + outstanding units.
  * - 1.1.27 - Improve carton filter: numeric/range match + multi-carton support (avoid substring matches like "1").
  *
@@ -470,9 +471,9 @@ function sop_render_goods_in_page() {
                 $skipped = isset( $_GET['sop_skipped'] ) ? (int) $_GET['sop_skipped'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
                 $errors  = isset( $_GET['sop_errors'] ) ? (int) $_GET['sop_errors'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
                 if ( $errors > 0 ) {
-                    $text = sprintf( __( 'Stock applied for %1$d lines (%2$d skipped, %3$d errors).', 'sop' ), $applied, $skipped, $errors );
+                    $text = sprintf( __( 'Stock updated for %1$d lines (%2$d skipped, %3$d errors).', 'sop' ), $applied, $skipped, $errors );
                 } else {
-                    $text = sprintf( __( 'Stock applied for %1$d lines (%2$d skipped).', 'sop' ), $applied, $skipped );
+                    $text = sprintf( __( 'Stock updated for %1$d lines (%2$d skipped).', 'sop' ), $applied, $skipped );
                 }
                 break;
             case 'completed':
@@ -827,7 +828,7 @@ function sop_render_goods_in_page() {
                     <button type="button" class="button button-primary sop-goodsin-submit" data-action="save"><?php esc_html_e( 'Save progress', 'sop' ); ?></button>
                 </div>
                 <div class="sop-goodsin-mg-add">
-                    <button type="button" class="button sop-goodsin-submit" data-action="apply_stock"><?php esc_html_e( 'Add selected to stock', 'sop' ); ?></button>
+                    <button type="button" class="button sop-goodsin-submit" data-action="apply_stock"><?php esc_html_e( 'Apply selected stock', 'sop' ); ?></button>
                 </div>
                 <div class="sop-goodsin-mg-progress">
                     <div id="sop-goodsin-apply-progress" class="sop-goodsin-apply-progress" style="display:none;">
