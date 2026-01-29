@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.1.02
+ * File version: 1.1.03
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.1.03 - Cleanup: remove duplicate $include_supplier_skus assignment.
  * - 1.1.02 - Fix: Non-RMB Order Sheet unit costs avoid double RMB conversion.
  * - 1.1.01 - Fix: Non-RMB Order Sheet unit costs use cost_rmb_owner without RMB conversion.
  * - 1.1.00 - Fix: Non-RMB PO Summary writes Deposit/Balance to correct rows in new template (D36/D37).
@@ -253,11 +254,6 @@ class SOP_Preorder_XLSX_Exporter {
             } elseif ( $sheet_supplier_effective_fx > 0 ) {
                 $sheet_fx_for_usd = $sheet_supplier_effective_fx;
             }
-        }
-
-        $include_supplier_skus = false;
-        if ( isset( $sheet_header['supplier_id'] ) && function_exists( 'sop_supplier_show_supplier_skus_column' ) ) {
-            $include_supplier_skus = sop_supplier_show_supplier_skus_column( (int) $sheet_header['supplier_id'] );
         }
 
         $sheet_rows_xml = '';
