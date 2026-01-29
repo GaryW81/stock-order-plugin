@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin – Phase 2
  * Supplier Product Mapping Screen (paginated + totals)
- * File version: 1.0.05
+ * File version: 1.0.06
+ * - Expand unassigned view to include supplier meta 0/blank.
  * - Canonicalise product notes meta key to _sop_product_notes.
  *
  * - Adds "Products by Supplier" submenu under Stock Order.
@@ -144,9 +145,21 @@ function sop_render_products_by_supplier_page() {
     if ( $is_unassigned_view ) {
         // Products with no supplier meta.
         $query_args['meta_query'] = array(
+            'relation' => 'OR',
             array(
                 'key'     => '_sop_supplier_id',
                 'compare' => 'NOT EXISTS',
+            ),
+            array(
+                'key'     => '_sop_supplier_id',
+                'value'   => 0,
+                'compare' => '=',
+                'type'    => 'NUMERIC',
+            ),
+            array(
+                'key'     => '_sop_supplier_id',
+                'value'   => '',
+                'compare' => '=',
             ),
         );
     } else {

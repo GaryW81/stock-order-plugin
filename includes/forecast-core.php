@@ -9,7 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.28
+ * File version: 1.0.29
+ * - Gate forecast debug logging and treat supplier 0 as unassigned.
  * - Removed stray placeholder label in get_supplier_product_ids().
  * - Inbound: support inbound_map (locked sheet quantities) in stock_at_arrival and suggested_raw.
  * - Inbound: time-phase inbound using schedule map (arrival_date_owner) when provided.
@@ -19,6 +20,28 @@
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
+}
+
+/**
+ * Gate forecast logging (defaults to WP_DEBUG).
+ *
+ * @return bool
+ */
+function sop_forecast_debug_log_enabled() {
+    return (bool) apply_filters( 'sop_debug_log_enabled', ( defined( 'WP_DEBUG' ) && WP_DEBUG ) );
+}
+
+/**
+ * Safe forecast logger.
+ *
+ * @param string $message Log message.
+ * @return void
+ */
+function sop_forecast_log( $message ) {
+    if ( ! sop_forecast_debug_log_enabled() || ! function_exists( 'error_log' ) ) {
+        return;
+    }
+    error_log( (string) $message );
 }
 
 // Require core helpers. If they are missing, bail quietly so we don't fatal.
@@ -99,8 +122,6 @@ class Stock_Order_Plugin_Core_Engine {
         $supplier_id = (int) $supplier_id;
 
         if ( $supplier_id <= 0 ) {
-            error_log( 'SOP: get_supplier_settings() called with invalid supplier ID.' );
-
             return array(
                 'lead_time_weeks'    => 0,
                 'buffer_months'      => 0,
@@ -111,7 +132,7 @@ class Stock_Order_Plugin_Core_Engine {
         }
 
         if ( ! function_exists( 'sop_supplier_get_by_id' ) || ! function_exists( 'sop_get_settings' ) ) {
-            error_log( sprintf( 'SOP: supplier/settings helpers missing in get_supplier_settings() for supplier %d.', $supplier_id ) );
+            sop_forecast_log( sprintf( 'SOP: supplier/settings helpers missing in get_supplier_settings() for supplier %d.', $supplier_id ) );
 
             return array(
                 'lead_time_weeks'    => 0,
@@ -125,7 +146,7 @@ class Stock_Order_Plugin_Core_Engine {
         $supplier = sop_supplier_get_by_id( $supplier_id );
 
         if ( ! $supplier || ( ! is_object( $supplier ) && ! is_array( $supplier ) ) ) {
-            error_log( sprintf( 'SOP: supplier %d not found in get_supplier_settings().', $supplier_id ) );
+            sop_forecast_log( sprintf( 'SOP: supplier %d not found in get_supplier_settings().', $supplier_id ) );
 
             return array(
                 'lead_time_weeks'    => 0,
@@ -892,9 +913,7 @@ endif; // class exists.
  */
 function sop_core_engine() {
     if ( ! class_exists( 'Stock_Order_Plugin_Core_Engine' ) ) {
-        if ( function_exists( 'error_log' ) ) {
-            error_log( '[SOP] sop_core_engine() called but Stock_Order_Plugin_Core_Engine is not available.' );
-        }
+        sop_forecast_log( '[SOP] sop_core_engine() called but Stock_Order_Plugin_Core_Engine is not available.' );
         return null;
     }
 
@@ -950,7 +969,7 @@ function sop_render_forecast_debug_page() {
             $rows    = $engine->get_supplier_forecast( $selected_supplier_id );
             $ran_run = true;
         } catch ( \Throwable $t ) {
-            error_log(
+            sop_forecast_log(
                 sprintf(
                     'SOP: Forecast debug run failed for supplier %d: %s in %s:%d',
                     (int) $selected_supplier_id,
