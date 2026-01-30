@@ -2,8 +2,9 @@
 /**
  * Main loader for the Stock Order Plugin.
  *
- * File version: 1.0.05
+ * File version: 1.0.06
  * - Skip admin module load on non-SOP AJAX requests.
+ * - Load SOP UI modules only on SOP admin pages.
  * - Load stockout tracking module in core bootstrap.
  * - Goods-In v1: load goods-in admin core/UI.
  * - Add data export admin tab wiring.
@@ -50,9 +51,14 @@ class sop_Loader {
         require_once SOP_PLUGIN_DIR . 'admin/data-export.php';
         require_once SOP_PLUGIN_DIR . 'admin/product-mapping.php';
         require_once SOP_PLUGIN_DIR . 'admin/preorder-core.php';
-        require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';
         require_once SOP_PLUGIN_DIR . 'admin/goods-in-core.php';
-        require_once SOP_PLUGIN_DIR . 'admin/goods-in-ui.php';
+
+        $page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+        $is_sop_page = ( '' !== $page && 0 === strpos( $page, 'sop' ) );
+        if ( $is_sop_page ) {
+            require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';
+            require_once SOP_PLUGIN_DIR . 'admin/goods-in-ui.php';
+        }
     }
 
     /**

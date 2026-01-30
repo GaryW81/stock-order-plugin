@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.33
+ * File version: 1.0.34
+ * - Add guarded sop_get_settings helper with safe defaults.
  * - Add SOP notes HTML sanitizer helper for rich notes storage/rendering.
  * - Align handling-day helper with PO modal: order date is day 0, handling starts next day.
  * - Add holiday-aware handling days helper for forecast/PO parity.
@@ -308,6 +309,29 @@ if ( ! function_exists( 'sop_normalise_scan_input' ) ) {
         $scan = (string) $raw_scan;
         // Trim leading/trailing whitespace; preserve internal spacing and case.
         return trim( $scan );
+    }
+}
+
+if ( ! function_exists( 'sop_get_settings' ) ) {
+    /**
+     * Global helper to get Stock Order Plugin settings (with defaults).
+     *
+     * @return array
+     */
+    function sop_get_settings() {
+        if ( class_exists( 'sop_Admin_Settings' ) && method_exists( 'sop_Admin_Settings', 'get_settings' ) ) {
+            return sop_Admin_Settings::get_settings();
+        }
+
+        return array(
+            'analysis_lookback_days'   => 365,
+            'buffer_months_global'     => 6,
+            'rmb_to_gbp_rate'          => '',
+            'eur_to_gbp_rate'          => '',
+            'usd_to_gbp_rate'          => '',
+            'usd_to_rmb_rate'          => '',
+            'show_suggested_vs_max'    => 1,
+        );
     }
 }
 
