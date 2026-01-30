@@ -2,9 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.28
- * - Fix red toggle button via inline TinyMCE setup (no external plugin JS).
- * - UI: scope SOP TinyMCE plugin to notes editors and guard plugin loading.
+ * File version: 1.0.29
+ * - Fix: use native TinyMCE forecolor for SOP notes editors.
  * - UI: ensure red toggle loads and toolbar order is bold/red/strike.
  * - UI: enforce strikethrough tag for SOP notes editor and keep red toggle.
  * - UI: add rich notes editor for product/internal notes (bold/strike/red).
@@ -72,45 +71,6 @@ if ( ! function_exists( 'sop_notes_should_enable_editor' ) ) {
 
         return ( 'product' === $screen->post_type );
     }
-}
-
-if ( ! function_exists( 'sop_notes_tinymce_toolbar_for_notes' ) ) {
-    /**
-     * Apply SOP notes toolbar only to SOP notes editors.
-     *
-     * @param array $init TinyMCE init settings.
-     * @param string $editor_id Editor ID.
-     * @return array
-     */
-    function sop_notes_tinymce_toolbar_for_notes( $init, $editor_id ) {
-        if ( ! sop_notes_should_enable_editor() ) {
-            return $init;
-        }
-
-        $allowed_ids = array( 'sop_product_notes_editor', 'sop_internal_product_notes_editor' );
-        if ( ! in_array( $editor_id, $allowed_ids, true ) ) {
-            return $init;
-        }
-
-        $init['toolbar1'] = 'bold,sopred,strikethrough';
-        $init['toolbar2'] = '';
-        $init['forced_root_block'] = false;
-        $init['force_br_newlines'] = true;
-        $init['force_p_newlines'] = false;
-        $init['formats'] = '{strikethrough: {inline: "s"}}';
-        $init['content_style'] = '.sop-note-red{color:#d63638;}';
-        $init['setup'] = 'function(editor){'
-            . 'editor.formatter.register("sop_red",{inline:"span",classes:"sop-note-red"});'
-            . 'if(editor.ui&&editor.ui.registry&&editor.ui.registry.addToggleButton){'
-                . 'editor.ui.registry.addToggleButton("sopred",{text:"Red",tooltip:"Red text",onAction:function(){editor.formatter.toggle("sop_red");},onSetup:function(api){var handler=function(state){api.setActive(state);};editor.formatter.formatChanged("sop_red",handler);return function(){editor.formatter.formatChanged("sop_red",handler);};}});'
-            . '}else if(editor.addButton){'
-                . 'editor.addButton("sopred",{text:"Red",tooltip:"Red text",onclick:function(){editor.formatter.toggle("sop_red");},onPostRender:function(){var btn=this;editor.on("NodeChange",function(){var active=editor.formatter.match("sop_red");if(btn&&btn.active){btn.active(active);}});}});'
-            . '}'
-        . '}';
-
-        return $init;
-    }
-    add_filter( 'tiny_mce_before_init', 'sop_notes_tinymce_toolbar_for_notes', 10, 2 );
 }
 
 // Require DB + domain helpers from Phase 1.
@@ -307,13 +267,15 @@ function sop_render_product_supplier_metabox( $post ) {
                 'quicktags'     => false,
                 'wpautop'       => false,
                 'tinymce'       => array(
-                    'toolbar1'          => 'bold,sopred,strikethrough',
+                    'toolbar1'          => 'bold,forecolor,strikethrough',
                     'toolbar2'          => '',
                     'forced_root_block' => false,
                     'force_br_newlines' => true,
                     'force_p_newlines'  => false,
                     'formats'           => '{strikethrough: {inline: "s"}}',
                     'content_style'     => '.sop-note-red{color:#d63638;}',
+                    'textcolor_map'     => array( 'D63638', 'Red' ),
+                    'textcolor_rows'    => 1,
                 ),
             )
         );
@@ -334,13 +296,15 @@ function sop_render_product_supplier_metabox( $post ) {
                 'quicktags'     => false,
                 'wpautop'       => false,
                 'tinymce'       => array(
-                    'toolbar1'          => 'bold,sopred,strikethrough',
+                    'toolbar1'          => 'bold,forecolor,strikethrough',
                     'toolbar2'          => '',
                     'forced_root_block' => false,
                     'force_br_newlines' => true,
                     'force_p_newlines'  => false,
                     'formats'           => '{strikethrough: {inline: "s"}}',
                     'content_style'     => '.sop-note-red{color:#d63638;}',
+                    'textcolor_map'     => array( 'D63638', 'Red' ),
+                    'textcolor_rows'    => 1,
                 ),
             )
         );

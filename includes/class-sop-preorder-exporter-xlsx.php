@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.1.04
+ * File version: 1.1.05
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.1.05 - Notes: support inline red color style in XLSX export.
  * - 1.1.04 - Notes: support rich product notes (bold/red/strike) in XLSX export.
  * - 1.1.03 - Cleanup: remove duplicate $include_supplier_skus assignment.
  * - 1.1.02 - Fix: Non-RMB Order Sheet unit costs avoid double RMB conversion.
@@ -1928,6 +1929,17 @@ class SOP_Preorder_XLSX_Exporter {
                             if ( preg_match( '/(^|\\s)sop-note-red(\\s|$)/', $class_raw ) ) {
                                 $state['color'] = 'FFD63638';
                                 $has_rich = true;
+                            }
+                        }
+                        if ( preg_match( '/style\\s*=\\s*(\"|\\\")(.*?)\\1/i', $token, $style_match ) ) {
+                            $style_raw = strtolower( (string) ( $style_match[2] ?? '' ) );
+                            if ( preg_match( '/color\\s*:\\s*([^;]+)/', $style_raw, $color_match ) ) {
+                                $color_val = trim( (string) ( $color_match[1] ?? '' ) );
+                                $color_val = str_replace( ' ', '', $color_val );
+                                if ( in_array( $color_val, array( '#d63638', 'd63638', 'rgb(214,54,56)', 'rgba(214,54,56,1)' ), true ) ) {
+                                    $state['color'] = 'FFD63638';
+                                    $has_rich = true;
+                                }
                             }
                         }
                     }
