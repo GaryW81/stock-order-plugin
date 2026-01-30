@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.25
+ * File version: 1.0.26
+ * - UI: ensure red toggle loads and toolbar order is bold/red/strike.
  * - UI: enforce strikethrough tag for SOP notes editor and keep red toggle.
  * - UI: add rich notes editor for product/internal notes (bold/strike/red).
  * - UI: add internal product notes field on product edit screen.
@@ -83,8 +84,10 @@ if ( ! function_exists( 'sop_notes_register_tinymce_plugin' ) ) {
             return $plugins;
         }
 
-        if ( defined( 'SOP_PLUGIN_URL' ) ) {
-            $plugins['sopred'] = SOP_PLUGIN_URL . 'admin/js/sop-notes-tinymce.js';
+        if ( defined( 'SOP_PLUGIN_URL' ) && defined( 'SOP_PLUGIN_DIR' ) ) {
+            $plugin_path = SOP_PLUGIN_DIR . 'admin/js/sop-notes-tinymce.js';
+            $ver = file_exists( $plugin_path ) ? (string) filemtime( $plugin_path ) : '';
+            $plugins['sopred'] = SOP_PLUGIN_URL . 'admin/js/sop-notes-tinymce.js' . ( '' !== $ver ? '?ver=' . $ver : '' );
         }
 
         return $plugins;
@@ -286,7 +289,7 @@ function sop_render_product_supplier_metabox( $post ) {
                 'quicktags'     => false,
                 'wpautop'       => false,
                 'tinymce'       => array(
-                    'toolbar1'          => 'bold,strikethrough,sopred',
+                    'toolbar1'          => 'bold,sopred,strikethrough',
                     'toolbar2'          => '',
                     'forced_root_block' => false,
                     'force_br_newlines' => true,
@@ -313,7 +316,7 @@ function sop_render_product_supplier_metabox( $post ) {
                 'quicktags'     => false,
                 'wpautop'       => false,
                 'tinymce'       => array(
-                    'toolbar1'          => 'bold,strikethrough,sopred',
+                    'toolbar1'          => 'bold,sopred,strikethrough',
                     'toolbar2'          => '',
                     'forced_root_block' => false,
                     'force_br_newlines' => true,
