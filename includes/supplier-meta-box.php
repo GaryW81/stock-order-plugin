@@ -2,8 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.32
- * - Fix forecolor palette config (array map) for SOP notes editors.
+ * File version: 1.0.33
+ * - Fix: ensure SOP notes save path preserves sop-note-red output from sanitizer.
  * - UI: ensure red toggle loads and toolbar order is bold/red/strike.
  * - UI: enforce strikethrough tag for SOP notes editor and keep red toggle.
  * - UI: add rich notes editor for product/internal notes (bold/strike/red).

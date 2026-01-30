@@ -2,8 +2,8 @@
 /**
  * Stock Order Plugin - Phase 4
  * Notes HTML helpers (admin-safe rendering)
- * File version: 1.0.05
- * - Fix red canonicaliser to handle rgb()/rgba() and TinyMCE attributes.
+ * File version: 1.0.06
+ * - Fix: canonicalise TinyMCE red outputs (style/data-mce-style/font) to sop-note-red before kses.
  * - Allow strike tag and keep red class allowlist stable.
  * - Initial helpers for SOP notes sanitization and rendering.
  */
@@ -83,7 +83,7 @@ if ( ! function_exists( 'sop_notes_canonicalize_red_spans' ) ) {
 
                 if ( '' !== $style || '' !== $mce ) {
                     $style_blob = str_replace( ' ', '', $style . ';' . $mce );
-                    if ( preg_match( '/color:(#d63638|d63638|rgb\(214,54,56\)|rgba\(214,54,56,1(?:\.0)?\))/i', $style_blob ) ) {
+                    if ( preg_match( '/color:(#d63638|d63638|rgb\(214,54,56\)|rgba\(214,54,56,1(?:\.0)?\)|red)(!important)?/i', $style_blob ) ) {
                         $is_red = true;
                     }
                 }
@@ -170,7 +170,60 @@ if ( ! function_exists( 'sop_notes_sanitize_html' ) ) {
             return nl2br( esc_html( $raw ) );
         }
 
-        $canon = sop_notes_canonicalize_red_spans( $raw );
+        $pre = $raw;
+
+        $pre = preg_replace_callback(
+            '/<span\b([^>]*)>/i',
+            function ( $matches ) {
+                $attrs     = isset( $matches[1] ) ? $matches[1] : '';
+                $has_red   = false;
+                $attr_vals = array();
+
+                if ( preg_match_all( '/\b(style|data-mce-style)\s*=\s*("|\')(.*?)\2/i', $attrs, $attr_matches, PREG_SET_ORDER ) ) {
+                    foreach ( $attr_matches as $attr_match ) {
+                        $attr_vals[] = strtolower( (string) ( $attr_match[3] ?? '' ) );
+                    }
+                }
+
+                foreach ( $attr_vals as $val ) {
+                    $val = preg_replace( '/\s+/', '', $val );
+                    if ( preg_match( '/color:(#d63638|d63638|rgb\(214,54,56\)|rgba\(214,54,56,1(?:\.0)?\)|red)(!important)?/i', $val ) ) {
+                        $has_red = true;
+                        break;
+                    }
+                }
+
+                if ( $has_red ) {
+                    return '<span class="sop-note-red">';
+                }
+
+                return '<span' . $attrs . '>';
+            },
+            $pre
+        );
+
+        $pre = preg_replace_callback(
+            '/<font\b([^>]*)>(.*?)<\/font>/is',
+            function ( $matches ) {
+                $attrs = isset( $matches[1] ) ? $matches[1] : '';
+                $inner = isset( $matches[2] ) ? $matches[2] : '';
+                $color = '';
+
+                if ( preg_match( '/\bcolor\s*=\s*("|\')(.*?)\1/i', $attrs, $color_match ) ) {
+                    $color = strtolower( trim( (string) ( $color_match[2] ?? '' ) ) );
+                }
+
+                $color = str_replace( ' ', '', $color );
+                if ( preg_match( '/^(#d63638|d63638|rgb\(214,54,56\)|rgba\(214,54,56,1(?:\.0)?\)|red)$/i', $color ) ) {
+                    return '<span class="sop-note-red">' . $inner . '</span>';
+                }
+
+                return '<span>' . $inner . '</span>';
+            },
+            $pre
+        );
+
+        $canon = sop_notes_canonicalize_red_spans( $pre );
         $clean = wp_kses( $canon, sop_notes_allowed_html() );
         return sop_notes_normalize_span_classes( $clean );
     }
