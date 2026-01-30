@@ -1,9 +1,9 @@
-<?php
+﻿<?php
 /**
  * Stock Order Plugin - Phase 4
  * Notes HTML helpers (admin-safe rendering)
- * File version: 1.0.03
- * - Fix: persist red notes by converting inline styles to sop-note-red class.
+ * File version: 1.0.04
+ * - Fix: robust red canonicalisation for TinyMCE output (style/data-mce-style/font).
  * - Allow strike tag and keep red class allowlist stable.
  * - Initial helpers for SOP notes sanitization and rendering.
  */
@@ -41,38 +41,89 @@ if ( ! function_exists( 'sop_notes_canonicalize_red_spans' ) ) {
      * @return string
      */
     function sop_notes_canonicalize_red_spans( $html ) {
-        return preg_replace_callback(
-            '/<span([^>]*)>/i',
-            function ( $matches ) {
-                $attrs = isset( $matches[1] ) ? $matches[1] : '';
-                $has_red = false;
+        $html = (string) $html;
+        if ( '' === trim( $html ) || false === strpos( $html, '<' ) ) {
+            return $html;
+        }
 
-                if ( preg_match( '/class\s*=\s*("|\')(.*?)\1/i', $attrs, $class_match ) ) {
-                    $class_raw = isset( $class_match[2] ) ? $class_match[2] : '';
-                    if ( preg_match( '/(^|\s)sop-note-red(\s|$)/', $class_raw ) ) {
-                        $has_red = true;
+        if ( ! class_exists( 'DOMDocument' ) ) {
+            return $html;
+        }
+
+        $prev_errors = libxml_use_internal_errors( true );
+        $dom         = new DOMDocument();
+        $wrapped     = '<div id="sop-notes-wrapper">' . $html . '</div>';
+
+        if ( ! $dom->loadHTML( $wrapped, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD ) ) {
+            libxml_clear_errors();
+            libxml_use_internal_errors( $prev_errors );
+            return $html;
+        }
+
+        $wrapper = $dom->getElementById( 'sop-notes-wrapper' );
+        if ( ! $wrapper ) {
+            libxml_clear_errors();
+            libxml_use_internal_errors( $prev_errors );
+            return $html;
+        }
+
+        $xpath = new DOMXPath( $dom );
+        $nodes = $xpath->query( './/span|.//font', $wrapper );
+
+        if ( $nodes instanceof DOMNodeList ) {
+            foreach ( $nodes as $node ) {
+                if ( ! ( $node instanceof DOMElement ) ) {
+                    continue;
+                }
+
+                $is_red = false;
+                $style  = strtolower( (string) $node->getAttribute( 'style' ) );
+                $mce    = strtolower( (string) $node->getAttribute( 'data-mce-style' ) );
+                $color  = strtolower( (string) $node->getAttribute( 'color' ) );
+
+                if ( '' !== $style || '' !== $mce ) {
+                    $style_blob = str_replace( ' ', '', $style . ';' . $mce );
+                    if ( preg_match( '/color:(#d63638|d63638|rgb\(214,54,56\)|rgba\(214,54,56,1\))/i', $style_blob ) ) {
+                        $is_red = true;
                     }
                 }
 
-                if ( ! $has_red && preg_match( '/style\s*=\s*("|\')(.*?)\1/i', $attrs, $style_match ) ) {
-                    $style_raw = strtolower( (string) ( $style_match[2] ?? '' ) );
-                    if ( preg_match( '/color\s*:\s*([^;]+)/', $style_raw, $color_match ) ) {
-                        $color_val = trim( (string) ( $color_match[1] ?? '' ) );
-                        $color_val = str_replace( ' ', '', $color_val );
-                        if ( in_array( $color_val, array( '#d63638', 'd63638', 'rgb(214,54,56)', 'rgba(214,54,56,1)' ), true ) ) {
-                            $has_red = true;
-                        }
+                if ( ! $is_red && '' !== $color ) {
+                    $color_clean = str_replace( ' ', '', $color );
+                    if ( preg_match( '/^(#d63638|d63638|rgb\(214,54,56\)|rgba\(214,54,56,1\)|red)$/i', $color_clean ) ) {
+                        $is_red = true;
                     }
                 }
 
-                if ( $has_red ) {
-                    return '<span class="sop-note-red">';
+                if ( ! $is_red ) {
+                    continue;
                 }
 
-                return '<span>';
-            },
-            (string) $html
-        );
+                if ( 'font' === strtolower( $node->nodeName ) ) {
+                    $replacement = $dom->createElement( 'span' );
+                    while ( $node->firstChild ) {
+                        $replacement->appendChild( $node->firstChild );
+                    }
+                    $node->parentNode->replaceChild( $replacement, $node );
+                    $node = $replacement;
+                }
+
+                $node->setAttribute( 'class', 'sop-note-red' );
+                $node->removeAttribute( 'style' );
+                $node->removeAttribute( 'data-mce-style' );
+                $node->removeAttribute( 'color' );
+            }
+        }
+
+        $output = '';
+        foreach ( $wrapper->childNodes as $child ) {
+            $output .= $dom->saveHTML( $child );
+        }
+
+        libxml_clear_errors();
+        libxml_use_internal_errors( $prev_errors );
+
+        return $output;
     }
 }
 
@@ -146,3 +197,5 @@ if ( ! function_exists( 'sop_notes_render_admin_html' ) ) {
         return sop_notes_normalize_span_classes( $clean );
     }
 }
+
+
