@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Stock Order Plugin Ã¢â‚¬â€œ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)

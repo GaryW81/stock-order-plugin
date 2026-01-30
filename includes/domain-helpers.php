@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB

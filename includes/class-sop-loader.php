@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Main loader for the Stock Order Plugin.
  *
