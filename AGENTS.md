@@ -47,6 +47,25 @@ ordering system for Wilson-Organisation Ltd.
   - VS Code diff view (Source Control / inline diff)
   - or provide a short, focused snippet ONLY if it’s under ~50 lines and only when it clarifies a change.
 
+---
+
+## Agent Output Rules (Mandatory)
+
+1) After completing any edit task, the agent response MUST contain ONLY:
+   - Up to 10 lines total summarising what changed (plain text)
+   - One final line: "Commit message: …"
+   No other sections, no headings, no code blocks, no diffs, no file contents.
+
+2) NEVER paste PHP/JS/CSS or any large code output into chat. All code changes must be made directly in the repository files in VS Code.
+
+3) NEVER claim you ran any CLI commands (git, php -l, wp-cli, tests, etc.). You cannot execute commands here.
+   - If asked about commit status, reply: "No commit created here; please commit via VS Code Source Control / GitHub workflow. Commit message: …"
+   - Do not mention `git status` or show imaginary outputs.
+
+4) If Gary explicitly asks to see a snippet, keep it to <= 10 lines and only the specific snippet requested.
+
+5) Keep text plain (no unusual formatting, no character-by-character output, no markdown that turns underscores into italics).
+
 The plugin’s job is to:
 - Forecast demand per SKU (typically over 6-month cycles).
 - Plan supplier purchase orders with lead times and China holidays.
@@ -336,3 +355,4 @@ Before finalising changes:
 - Revalidate syntax.
 - Ensure the update follows every rule in this `AGENTS.md`.
 - Only then apply or output the file.
+

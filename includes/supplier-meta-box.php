@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.23
+ * File version: 1.0.24
+ * - UI: add rich notes editor for product/internal notes (bold/strike/red).
  * - UI: add internal product notes field on product edit screen.
  * - Allow max_order_qty_per_month to save decimals (2dp), accept comma, and never block product save.
  * - Add Supplier SKUs meta (multi-line) for optional Supplier SKUs column.
@@ -47,6 +48,47 @@ if ( ! function_exists( 'sop_parse_decimal_2dp' ) ) {
 
         return number_format( (float) $raw, 2, '.', '' );
     }
+}
+
+if ( ! function_exists( 'sop_notes_should_enable_editor' ) ) {
+    /**
+     * Check if SOP notes editor enhancements should load.
+     *
+     * @return bool
+     */
+    function sop_notes_should_enable_editor() {
+        if ( ! is_admin() || ! function_exists( 'get_current_screen' ) ) {
+            return false;
+        }
+
+        $screen = get_current_screen();
+        if ( ! $screen || empty( $screen->post_type ) ) {
+            return false;
+        }
+
+        return ( 'product' === $screen->post_type );
+    }
+}
+
+if ( ! function_exists( 'sop_notes_register_tinymce_plugin' ) ) {
+    /**
+     * Register TinyMCE plugin for SOP red notes button.
+     *
+     * @param array $plugins Plugins map.
+     * @return array
+     */
+    function sop_notes_register_tinymce_plugin( $plugins ) {
+        if ( ! sop_notes_should_enable_editor() ) {
+            return $plugins;
+        }
+
+        if ( defined( 'SOP_PLUGIN_URL' ) ) {
+            $plugins['sopred'] = SOP_PLUGIN_URL . 'admin/js/sop-notes-tinymce.js';
+        }
+
+        return $plugins;
+    }
+    add_filter( 'mce_external_plugins', 'sop_notes_register_tinymce_plugin' );
 }
 
 // Require DB + domain helpers from Phase 1.
@@ -113,6 +155,11 @@ function sop_render_product_supplier_metabox( $post ) {
 
     $internal_product_notes = get_post_meta( $post->ID, '_sop_internal_product_notes', true );
     $internal_product_notes = is_string( $internal_product_notes ) ? $internal_product_notes : '';
+
+    if ( function_exists( 'sop_notes_sanitize_html' ) ) {
+        $product_notes = sop_notes_sanitize_html( $product_notes );
+        $internal_product_notes = sop_notes_sanitize_html( $internal_product_notes );
+    }
 
     $supplier_skus = get_post_meta( $post->ID, '_sop_supplier_skus', true );
     $supplier_skus = is_string( $supplier_skus ) ? $supplier_skus : '';
@@ -224,22 +271,56 @@ function sop_render_product_supplier_metabox( $post ) {
     </p>
 
     <p>
-        <label for="sop_product_notes">
+        <label for="sop_product_notes_editor">
             <?php esc_html_e( 'Product notes', 'sop' ); ?>
         </label>
-        <textarea name="sop_product_notes"
-                  id="sop_product_notes"
-                  rows="3"
-                  class="widefat"><?php echo esc_textarea( $product_notes ); ?></textarea>
+        <?php
+        wp_editor(
+            $product_notes,
+            'sop_product_notes_editor',
+            array(
+                'textarea_name' => 'sop_product_notes',
+                'textarea_rows' => 4,
+                'media_buttons' => false,
+                'quicktags'     => false,
+                'wpautop'       => false,
+                'tinymce'       => array(
+                    'toolbar1'          => 'bold,strikethrough,sopred',
+                    'toolbar2'          => '',
+                    'forced_root_block' => false,
+                    'force_br_newlines' => true,
+                    'force_p_newlines'  => false,
+                    'content_style'     => '.sop-note-red{color:#d63638;}',
+                ),
+            )
+        );
+        ?>
     </p>
     <p>
-        <label for="sop_internal_product_notes">
+        <label for="sop_internal_product_notes_editor">
             <?php esc_html_e( 'Internal product notes', 'sop' ); ?>
         </label>
-        <textarea name="sop_internal_product_notes"
-                  id="sop_internal_product_notes"
-                  rows="3"
-                  class="widefat"><?php echo esc_textarea( $internal_product_notes ); ?></textarea>
+        <?php
+        wp_editor(
+            $internal_product_notes,
+            'sop_internal_product_notes_editor',
+            array(
+                'textarea_name' => 'sop_internal_product_notes',
+                'textarea_rows' => 4,
+                'media_buttons' => false,
+                'quicktags'     => false,
+                'wpautop'       => false,
+                'tinymce'       => array(
+                    'toolbar1'          => 'bold,strikethrough,sopred',
+                    'toolbar2'          => '',
+                    'forced_root_block' => false,
+                    'force_br_newlines' => true,
+                    'force_p_newlines'  => false,
+                    'content_style'     => '.sop-note-red{color:#d63638;}',
+                ),
+            )
+        );
+        ?>
         <span class="description" style="display:block;margin-top:2px;">
             <?php esc_html_e( 'Private internal notes shown in Pre-Order / Goods-In.', 'sop' ); ?>
         </span>
@@ -393,7 +474,8 @@ function sop_save_product_supplier_meta( $post_id ) {
 
     // SOP product notes.
     if ( isset( $_POST['sop_product_notes'] ) ) {
-        $notes = trim( (string) wp_unslash( $_POST['sop_product_notes'] ) );
+        $notes_raw = wp_unslash( (string) $_POST['sop_product_notes'] );
+        $notes     = function_exists( 'sop_notes_sanitize_html' ) ? sop_notes_sanitize_html( $notes_raw ) : sanitize_textarea_field( $notes_raw );
         if ( '' === $notes ) {
             delete_post_meta( $post_id, '_sop_product_notes' );
         } else {
@@ -403,7 +485,8 @@ function sop_save_product_supplier_meta( $post_id ) {
 
     // SOP internal product notes.
     if ( isset( $_POST['sop_internal_product_notes'] ) ) {
-        $notes = trim( (string) wp_unslash( $_POST['sop_internal_product_notes'] ) );
+        $notes_raw = wp_unslash( (string) $_POST['sop_internal_product_notes'] );
+        $notes     = function_exists( 'sop_notes_sanitize_html' ) ? sop_notes_sanitize_html( $notes_raw ) : sanitize_textarea_field( $notes_raw );
         if ( '' === $notes ) {
             delete_post_meta( $post_id, '_sop_internal_product_notes' );
         } else {

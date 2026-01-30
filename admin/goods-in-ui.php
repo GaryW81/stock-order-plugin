@@ -1,7 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.29
+ * File version: 1.1.30
+ *
+ * - 1.1.30 - Notes: render product/internal notes with rich preview + modal.
  *
  * - 1.1.29 - Goods-In: update apply-stock wording for correction support.
  * - 1.1.28 - Goods-In list: count only ordered/active lines and show open lines + outstanding units.
@@ -1175,14 +1177,28 @@ function sop_render_goods_in_page() {
                     <td class="sop-goodsin-carton sop-goodsin-cell-truncate" data-column="carton" data-carton-sort="<?php echo esc_attr( $carton_sort_key ); ?>" title="<?php echo esc_attr( $carton ); ?>">
                         <div class="sop-goodsin-carton-text"><?php echo wp_kses_post( $carton_display ); ?></div>
                     </td>
-                    <td class="sop-goodsin-text-col" data-column="product_notes" title="<?php echo esc_attr( $product_notes ); ?>">
+                    <td class="sop-goodsin-text-col" data-column="product_notes">
                         <div class="sop-goodsin-notes-wrap">
-                            <div class="sop-goodsin-notes-text"><?php echo esc_html( $product_notes ); ?></div>
+                            <div class="sop-notes-preview" data-sop-notes-title="<?php esc_attr_e( 'Product notes', 'sop' ); ?>">
+                                <?php
+                                $product_notes_html = function_exists( 'sop_notes_render_admin_html' )
+                                    ? sop_notes_render_admin_html( $product_notes )
+                                    : nl2br( esc_html( $product_notes ) );
+                                echo $product_notes_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                ?>
+                            </div>
                         </div>
                     </td>
-                    <td class="sop-goodsin-text-col" data-column="internal_product_notes" title="<?php echo esc_attr( $internal_notes ); ?>">
+                    <td class="sop-goodsin-text-col" data-column="internal_product_notes">
                         <div class="sop-goodsin-notes-wrap">
-                            <div class="sop-goodsin-notes-text"><?php echo esc_html( $internal_notes ); ?></div>
+                            <div class="sop-notes-preview" data-sop-notes-title="<?php esc_attr_e( 'Internal notes', 'sop' ); ?>">
+                                <?php
+                                $internal_notes_html = function_exists( 'sop_notes_render_admin_html' )
+                                    ? sop_notes_render_admin_html( $internal_notes )
+                                    : nl2br( esc_html( $internal_notes ) );
+                                echo $internal_notes_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                ?>
+                            </div>
                         </div>
                     </td>
                     <td class="sop-goodsin-text-col" data-column="order_notes" title="<?php echo esc_attr( $order_notes ); ?>">
@@ -2533,6 +2549,24 @@ function sop_render_goods_in_page() {
             max-height: 4.8em;
             text-align: left;
         }
+        .sop-goodsin-table .sop-notes-preview {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 4;
+            overflow: hidden;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            line-height: 1.2;
+            max-height: 4.8em;
+            text-align: left;
+        }
+        .sop-goodsin-table .sop-notes-preview.is-truncated {
+            cursor: pointer;
+        }
+        .sop-note-red {
+            color: #d63638;
+        }
         .sop-goodsin-table .sop-goodsin-notes-preview-box {
             background: #fff;
             border: 1px solid #8c8f94;
@@ -3874,12 +3908,16 @@ function sop_render_goods_in_page() {
                 }
             }
 
-            function openInfoModal(titleText, bodyText) {
+            function openInfoModal(titleText, bodyText, bodyIsHtml) {
                 if ( ! $infoModal.length ) {
                     return;
                 }
                 $infoModalTitle.text(titleText || '');
-                $infoModalBody.text(bodyText || '');
+                if ( bodyIsHtml ) {
+                    $infoModalBody.html(bodyText || '');
+                } else {
+                    $infoModalBody.text(bodyText || '');
+                }
                 $infoModalBackdrop.show().attr('aria-hidden', 'false');
                 $infoModal.show().attr('aria-hidden', 'false');
                 document.documentElement.classList.add('sop-goodsin-modal-open');
@@ -3894,11 +3932,29 @@ function sop_render_goods_in_page() {
                 $infoModal.hide().attr('aria-hidden', 'true');
                 $infoModalBackdrop.hide().attr('aria-hidden', 'true');
                 $infoModalTitle.text('');
-                $infoModalBody.text('');
+                $infoModalBody.empty();
                 if ( ! $productModal.hasClass('is-open') && ! $notesModal.is(':visible') ) {
                     document.documentElement.classList.remove('sop-goodsin-modal-open');
                     document.body.classList.remove('sop-goodsin-modal-open');
                 }
+            }
+
+            function sopGoodsinNotesPreviewIsTruncated( el ) {
+                if ( ! el ) {
+                    return false;
+                }
+                return el.scrollHeight > el.clientHeight + 1;
+            }
+
+            function sopGoodsinInitNotesPreviews() {
+                $('#sop-goodsin-lines').find('.sop-notes-preview').each(function() {
+                    var $el = $(this);
+                    if ( sopGoodsinNotesPreviewIsTruncated( this ) ) {
+                        $el.addClass('is-truncated');
+                    } else {
+                        $el.removeClass('is-truncated');
+                    }
+                });
             }
 
             function saveNotesModal() {
@@ -3938,6 +3994,16 @@ function sop_render_goods_in_page() {
             $notesModalClose.on('click', function(e){
                 e.preventDefault();
                 closeNotesModal();
+            });
+
+            sopGoodsinInitNotesPreviews();
+            $(window).on('resize', sopGoodsinInitNotesPreviews);
+
+            $('#sop-goodsin-lines').on('click', '.sop-notes-preview.is-truncated', function(e){
+                e.preventDefault();
+                var $el = $(this);
+                var titleText = $el.data('sop-notes-title') || '';
+                openInfoModal(titleText, $el.html() || '', true);
             });
 
             $(document).on('click', '[data-sop-info-close="1"]', function(e){
@@ -4317,8 +4383,10 @@ function sop_render_goods_in_page() {
                 var rejectVal = parseFloat($tr.find('.sop-goodsin-reject').val()) || 0;
                 var stockedVal = parseFloat($tr.find('td[data-column="stocked"]').text()) || parseFloat($tr.data('sort-stocked')) || 0;
                 var outstandingVal = Math.max(0, orderedVal - receivedVal - missingVal - rejectVal);
-                var productNotes = ($tr.find('td[data-column="product_notes"] .sop-goodsin-notes-text').text() || '').toString().trim();
-                var internalNotes = ($tr.find('td[data-column="internal_product_notes"] .sop-goodsin-notes-text').text() || '').toString().trim();
+                var productNotesHtml = ($tr.find('td[data-column="product_notes"] .sop-notes-preview').html() || '').toString();
+                var internalNotesHtml = ($tr.find('td[data-column="internal_product_notes"] .sop-notes-preview').html() || '').toString();
+                var productNotesText = ($tr.find('td[data-column="product_notes"] .sop-notes-preview').text() || '').toString().trim();
+                var internalNotesText = ($tr.find('td[data-column="internal_product_notes"] .sop-notes-preview').text() || '').toString().trim();
                 var orderNotes = ($tr.find('td[data-column="order_notes"] .sop-goodsin-notes-text').text() || '').toString().trim();
                 var bufferRaw = $tr.attr('data-buffer-target');
                 var bufferTarget = null;
@@ -4351,8 +4419,10 @@ function sop_render_goods_in_page() {
                     qty_received: receivedVal,
                     added_to_stock: stockedVal,
                     outstanding: outstandingVal,
-                    product_notes_text: productNotes,
-                    internal_notes_text: internalNotes,
+                    product_notes_text: productNotesText,
+                    internal_notes_text: internalNotesText,
+                    product_notes_html: productNotesHtml,
+                    internal_notes_html: internalNotesHtml,
                     buffer_target: bufferTarget,
                     order_notes_text: orderNotes
                 };
@@ -4425,8 +4495,8 @@ function sop_render_goods_in_page() {
                 $productModalNotesInternalBtn.removeClass('is-yes is-no').addClass( data.internal_notes_text ? 'is-yes' : 'is-no' );
                 $productModalNotesOrderBtn.removeClass('is-yes is-no').addClass( data.order_notes_text ? 'is-yes' : 'is-no' );
 
-                $productModalNotesProductBtn.data('noteText', data.product_notes_text || '');
-                $productModalNotesInternalBtn.data('noteText', data.internal_notes_text || '');
+                $productModalNotesProductBtn.data('noteHtml', data.product_notes_html || '');
+                $productModalNotesInternalBtn.data('noteHtml', data.internal_notes_html || '');
                 $productModalNotesOrderBtn.data('noteText', data.order_notes_text || '');
 
                 $productModalNotesProductBtn.toggleClass('is-disabled', ! data.product_notes_text).prop('disabled', ! data.product_notes_text);
@@ -4633,20 +4703,20 @@ function sop_render_goods_in_page() {
 
                 $productModalNotesProductBtn.on('click', function(e){
                     e.preventDefault();
-                    var noteText = ($(this).data('noteText') || '').toString();
-                    if ( ! noteText ) {
+                    var noteHtml = ($(this).data('noteHtml') || '').toString();
+                    if ( ! noteHtml ) {
                         return;
                     }
-                    openInfoModal('<?php echo esc_js( __( 'Product notes', 'sop' ) ); ?>', noteText);
+                    openInfoModal('<?php echo esc_js( __( 'Product notes', 'sop' ) ); ?>', noteHtml, true);
                 });
 
                 $productModalNotesInternalBtn.on('click', function(e){
                     e.preventDefault();
-                    var noteText = ($(this).data('noteText') || '').toString();
-                    if ( ! noteText ) {
+                    var noteHtml = ($(this).data('noteHtml') || '').toString();
+                    if ( ! noteHtml ) {
                         return;
                     }
-                    openInfoModal('<?php echo esc_js( __( 'Internal product notes', 'sop' ) ); ?>', noteText);
+                    openInfoModal('<?php echo esc_js( __( 'Internal product notes', 'sop' ) ); ?>', noteHtml, true);
                 });
 
                 $productModalNotesOrderBtn.on('click', function(e){
@@ -4655,7 +4725,7 @@ function sop_render_goods_in_page() {
                     if ( ! noteText ) {
                         return;
                     }
-                    openInfoModal('<?php echo esc_js( __( 'Order notes', 'sop' ) ); ?>', noteText);
+                    openInfoModal('<?php echo esc_js( __( 'Order notes', 'sop' ) ); ?>', noteText, false);
                 });
             }
 
@@ -4683,8 +4753,8 @@ function sop_render_goods_in_page() {
                 $productModalQtyValue.val('0');
                 $productModalAdded.text('');
                 $productModalOutstanding.text('');
-                $productModalNotesProductBtn.removeClass('is-yes is-no is-disabled').data('noteText', '').prop('disabled', false);
-                $productModalNotesInternalBtn.removeClass('is-yes is-no is-disabled').data('noteText', '').prop('disabled', false);
+                $productModalNotesProductBtn.removeClass('is-yes is-no is-disabled').data('noteHtml', '').prop('disabled', false);
+                $productModalNotesInternalBtn.removeClass('is-yes is-no is-disabled').data('noteHtml', '').prop('disabled', false);
                 $productModalNotesOrderBtn.removeClass('is-yes is-no is-disabled').data('noteText', '').prop('disabled', false);
                 $productModalEdit.attr('href', '#').addClass('is-hidden');
                 $productModalImage.attr('src', '').addClass('is-hidden');

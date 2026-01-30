@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.74
+ * File version: 11.75
+ * - 11.75 - Sanitize product/internal notes using SOP notes allowlist.
  * - 11.74 - Add additional CBM planning field to preorder_planning + carry through filter/save redirects.
  * - 11.73 - Pass inbound schedule map into forecast for ETA-aware inbound.
  * - 11.72 - Export dataset includes supplier-currency unit costs for non-RMB XLSX.
@@ -1013,8 +1014,10 @@ function sop_handle_save_preorder_sheet() {
             $qty       = isset( $line['qty'] ) ? floatval( $line['qty'] ) : 0;
             $moq       = isset( $line['moq'] ) ? floatval( $line['moq'] ) : 0;
             $cost_rmb  = isset( $line['cost_rmb'] ) ? floatval( $line['cost_rmb'] ) : 0;
-            $p_notes   = isset( $line['product_notes'] ) ? wp_kses_post( $line['product_notes'] ) : '';
-            $i_notes   = isset( $line['internal_product_notes'] ) ? wp_kses_post( $line['internal_product_notes'] ) : '';
+            $p_notes_raw = isset( $line['product_notes'] ) ? (string) $line['product_notes'] : '';
+            $i_notes_raw = isset( $line['internal_product_notes'] ) ? (string) $line['internal_product_notes'] : '';
+            $p_notes     = function_exists( 'sop_notes_sanitize_html' ) ? sop_notes_sanitize_html( $p_notes_raw ) : wp_kses_post( $p_notes_raw );
+            $i_notes     = function_exists( 'sop_notes_sanitize_html' ) ? sop_notes_sanitize_html( $i_notes_raw ) : wp_kses_post( $i_notes_raw );
             $o_notes   = isset( $line['order_notes'] ) ? sanitize_textarea_field( $line['order_notes'] ) : '';
             $carton_no = isset( $line['carton_no'] ) ? sanitize_text_field( $line['carton_no'] ) : '';
             if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
@@ -1076,8 +1079,10 @@ function sop_handle_save_preorder_sheet() {
             $qty       = isset( $qtys[ $pid ] ) ? floatval( wp_unslash( $qtys[ $pid ] ) ) : 0;
             $moq       = isset( $moqs[ $pid ] ) ? floatval( wp_unslash( $moqs[ $pid ] ) ) : 0;
             $cost_rmb  = isset( $costs_rmb[ $pid ] ) ? floatval( wp_unslash( $costs_rmb[ $pid ] ) ) : 0;
-            $p_notes   = isset( $product_notes[ $pid ] ) ? wp_kses_post( wp_unslash( $product_notes[ $pid ] ) ) : '';
-            $i_notes   = isset( $internal_notes[ $pid ] ) ? wp_kses_post( wp_unslash( $internal_notes[ $pid ] ) ) : '';
+            $p_notes_raw = isset( $product_notes[ $pid ] ) ? (string) wp_unslash( $product_notes[ $pid ] ) : '';
+            $i_notes_raw = isset( $internal_notes[ $pid ] ) ? (string) wp_unslash( $internal_notes[ $pid ] ) : '';
+            $p_notes     = function_exists( 'sop_notes_sanitize_html' ) ? sop_notes_sanitize_html( $p_notes_raw ) : wp_kses_post( $p_notes_raw );
+            $i_notes     = function_exists( 'sop_notes_sanitize_html' ) ? sop_notes_sanitize_html( $i_notes_raw ) : wp_kses_post( $i_notes_raw );
             $o_notes   = isset( $order_notes[ $pid ] ) ? sanitize_textarea_field( $order_notes[ $pid ] ) : '';
             $carton_no = isset( $carton_nos[ $pid ] ) ? sanitize_text_field( $carton_nos[ $pid ] ) : '';
             if ( function_exists( 'sop_normalize_carton_numbers_for_display' ) ) {
@@ -2628,7 +2633,8 @@ function sop_preorder_handle_post() {
         }
 
         $sku_val     = isset( $skus[ $index ] ) ? wc_clean( wp_unslash( $skus[ $index ] ) ) : '';
-        $note_val    = isset( $notes[ $index ] ) ? wp_kses_post( wp_unslash( $notes[ $index ] ) ) : '';
+        $note_raw    = isset( $notes[ $index ] ) ? (string) wp_unslash( $notes[ $index ] ) : '';
+        $note_val    = function_exists( 'sop_notes_sanitize_html' ) ? sop_notes_sanitize_html( $note_raw ) : wp_kses_post( $note_raw );
         $min_val     = isset( $mins[ $index ] ) ? (float) $mins[ $index ] : 0.0;
         $cost_val    = isset( $costs[ $index ] ) ? (float) $costs[ $index ] : 0.0;
 

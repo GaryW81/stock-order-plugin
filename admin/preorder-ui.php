@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.95 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.96 *
+ * - V12.96 - Notes: render product/internal notes read-only with preview modal + rich formatting.
  * - V12.95 - Fix: constrain header icon <img> sizing to prevent layout blowout.
  * - V12.94 - Fix sop_preorder_render_header_icon() to return icon HTML (data URI or dashicon fallback).
  * - V12.93 - UI: clip header icon background to content box so divider spacing is respected.
@@ -2016,26 +2017,15 @@ function sop_preorder_render_admin_page() {
                                     </td>
                                     <td class="column-notes" data-column="notes">
                                         <div class="sop-preorder-notes-wrapper">
-                                            <textarea
-                                                name="sop_line_product_notes[<?php echo esc_attr( $display_product_id ); ?>]"
-                                                rows="3"
-                                                class="sop-preorder-notes sop-preorder-notes-product"
-                                                style="width: 100%; resize: none;"
-                                                title="<?php echo esc_attr( $notes ); ?>"
-                                                data-row-index="<?php echo esc_attr( $row_index ); ?>"
-                                                data-notes-type="product"
-                                                <?php echo $inputs_disabled_attr; ?>
-                                            ><?php echo esc_textarea( $notes ); ?></textarea>
-
-                                            <button type="button"
-                                                    class="sop-preorder-notes-edit-icon"
-                                                    data-row-key="<?php echo esc_attr( $row_key ); ?>"
-                                                    data-row-index="<?php echo esc_attr( $row_index ); ?>"
-                                                    data-notes-type="product"
-                                                    aria-label="<?php esc_attr_e( 'Edit product notes', 'sop' ); ?>"
-                                                    <?php echo $inputs_disabled_attr; ?>>
-                                                <span class="dashicons dashicons-edit"></span>
-                                            </button>
+                                            <div class="sop-notes-preview" data-sop-notes-title="<?php esc_attr_e( 'Product notes', 'sop' ); ?>">
+                                                <?php
+                                                $notes_html = function_exists( 'sop_notes_render_admin_html' )
+                                                    ? sop_notes_render_admin_html( $notes )
+                                                    : nl2br( esc_html( $notes ) );
+                                                echo $notes_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                                ?>
+                                            </div>
+                                            <input type="hidden" name="sop_line_product_notes[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $notes ); ?>" />
                                         </div>
 
                                         <input
@@ -2047,26 +2037,15 @@ function sop_preorder_render_admin_page() {
                                     </td>
                                     <td class="column-internal-product-notes" data-column="internal_product_notes">
                                         <div class="sop-preorder-notes-wrapper">
-                                            <textarea
-                                                name="sop_line_internal_product_notes[<?php echo esc_attr( $display_product_id ); ?>]"
-                                                rows="3"
-                                                class="sop-preorder-notes sop-preorder-notes-internal"
-                                                style="width: 100%; resize: none;"
-                                                title="<?php echo esc_attr( $internal_product_notes ); ?>"
-                                                data-row-index="<?php echo esc_attr( $row_index ); ?>"
-                                                data-notes-type="internal"
-                                                <?php echo $inputs_disabled_attr; ?>
-                                            ><?php echo esc_textarea( $internal_product_notes ); ?></textarea>
-
-                                            <button type="button"
-                                                    class="sop-preorder-notes-edit-icon"
-                                                    data-row-key="<?php echo esc_attr( $row_key ); ?>"
-                                                    data-row-index="<?php echo esc_attr( $row_index ); ?>"
-                                                    data-notes-type="internal"
-                                                    aria-label="<?php esc_attr_e( 'Edit internal notes', 'sop' ); ?>"
-                                                    <?php echo $inputs_disabled_attr; ?>>
-                                                <span class="dashicons dashicons-edit"></span>
-                                            </button>
+                                            <div class="sop-notes-preview" data-sop-notes-title="<?php esc_attr_e( 'Internal notes', 'sop' ); ?>">
+                                                <?php
+                                                $internal_html = function_exists( 'sop_notes_render_admin_html' )
+                                                    ? sop_notes_render_admin_html( $internal_product_notes )
+                                                    : nl2br( esc_html( $internal_product_notes ) );
+                                                echo $internal_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                                ?>
+                                            </div>
+                                            <input type="hidden" name="sop_line_internal_product_notes[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $internal_product_notes ); ?>" />
                                         </div>
                                     </td>
                                     <td class="column-order-notes" data-column="order_notes">
@@ -2132,6 +2111,15 @@ function sop_preorder_render_admin_page() {
                             <?php esc_html_e( 'Save notes', 'sop' ); ?>
                         </button>
                     </p>
+                </div>
+            </div>
+
+            <div id="sop-notes-preview-modal" class="sop-notes-preview-modal" style="display:none;">
+                <div class="sop-notes-preview-modal-backdrop"></div>
+                <div class="sop-notes-preview-modal-inner" role="dialog" aria-modal="true" aria-labelledby="sop-notes-preview-modal-title">
+                    <button type="button" class="button-link sop-notes-preview-modal-close" aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">&times;</button>
+                    <h3 id="sop-notes-preview-modal-title" class="sop-notes-preview-modal-title"></h3>
+                    <div class="sop-notes-preview-modal-body"></div>
                 </div>
             </div>
 
@@ -3821,6 +3809,22 @@ function sop_preorder_render_admin_page() {
             position: relative;
         }
 
+        .sop-notes-preview {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 4;
+            overflow: hidden;
+            white-space: normal;
+        }
+
+        .sop-notes-preview.is-truncated {
+            cursor: pointer;
+        }
+
+        .sop-note-red {
+            color: #d63638;
+        }
+
         .sop-preorder-notes-edit-icon {
             position: absolute;
             top: 4px;
@@ -3867,6 +3871,39 @@ function sop_preorder_render_admin_page() {
             resize: vertical;
             box-sizing: border-box;
         }
+
+        .sop-notes-preview-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 100005;
+            display: none;
+        }
+
+        .sop-notes-preview-modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .sop-notes-preview-modal-inner {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 700px;
+            width: 90%;
+            background: #fff;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            max-height: 70vh;
+            overflow: hidden;
+        }
+
+        .sop-notes-preview-modal-body {
+            max-height: 55vh;
+            overflow: auto;
+            white-space: normal;
+        }
     </style>
 
     <script>
@@ -3895,6 +3932,10 @@ function sop_preorder_render_admin_page() {
             var $notesOverlayTitle   = $notesOverlay.find('.sop-preorder-notes-overlay-title');
             var $notesOverlayProduct = $notesOverlay.find('.sop-preorder-notes-overlay-product');
             var $notesOverlayTextarea = $notesOverlay.find('.sop-preorder-notes-overlay-textarea');
+            var $notesPreviewModal   = $('#sop-notes-preview-modal');
+            var $notesPreviewBackdrop = $notesPreviewModal.find('.sop-notes-preview-modal-backdrop');
+            var $notesPreviewTitle   = $notesPreviewModal.find('.sop-notes-preview-modal-title');
+            var $notesPreviewBody    = $notesPreviewModal.find('.sop-notes-preview-modal-body');
             var currentNotesTextarea = null;
             var currentNotesType     = 'product';
             var currentNotesRowIndex = null;
@@ -4273,6 +4314,46 @@ function sop_preorder_render_admin_page() {
                 $notesOverlay.hide();
             }
 
+            function sopNotesPreviewIsTruncated( el ) {
+                if ( ! el ) {
+                    return false;
+                }
+                return el.scrollHeight > el.clientHeight + 1;
+            }
+
+            function sopNotesPreviewInit() {
+                $table.find( '.sop-notes-preview' ).each( function() {
+                    var $el = $( this );
+                    if ( sopNotesPreviewIsTruncated( this ) ) {
+                        $el.addClass( 'is-truncated' );
+                    } else {
+                        $el.removeClass( 'is-truncated' );
+                    }
+                } );
+            }
+
+            function sopNotesPreviewOpen( $el ) {
+                if ( ! $notesPreviewModal.length || ! $el || ! $el.length ) {
+                    return;
+                }
+                var title = $el.data( 'sop-notes-title' ) || '';
+                $notesPreviewTitle.text( title );
+                $notesPreviewBody.html( $el.html() || '' );
+                $notesPreviewModal.show();
+            }
+
+            function sopNotesPreviewClose() {
+                if ( ! $notesPreviewModal.length ) {
+                    return;
+                }
+                $notesPreviewModal.hide();
+                $notesPreviewTitle.text( '' );
+                $notesPreviewBody.empty();
+            }
+
+            sopNotesPreviewInit();
+            $( window ).on( 'resize', sopNotesPreviewInit );
+
             // Selection: select-all and shift-click range.
             if ( $selectAllCheckbox.length ) {
                 $selectAllCheckbox.on( 'change', function() {
@@ -4406,6 +4487,23 @@ function sop_preorder_render_admin_page() {
                 var $row = $( this ).closest( 'tr.sop-preorder-row' );
                 var notesType = $( this ).data( 'notes-type' ) || ( $( this ).hasClass( 'sop-preorder-notes-order' ) ? 'order' : ( $( this ).hasClass( 'sop-preorder-notes-internal' ) ? 'internal' : 'product' ) );
                 sopPreorderOpenNotesOverlayForRow( $row, notesType );
+            } );
+
+            $table.on( 'click', '.sop-notes-preview.is-truncated', function( e ) {
+                e.preventDefault();
+                sopNotesPreviewOpen( $( this ) );
+            } );
+
+            $notesPreviewModal.on( 'click', '.sop-notes-preview-modal-close, .sop-notes-preview-modal-backdrop', function( e ) {
+                e.preventDefault();
+                sopNotesPreviewClose();
+            } );
+
+            $( document ).on( 'keydown', function( e ) {
+                if ( 27 === e.which && $notesPreviewModal.is( ':visible' ) ) {
+                    e.preventDefault();
+                    sopNotesPreviewClose();
+                }
             } );
 
             // Save notes from overlay.
@@ -4782,9 +4880,9 @@ function sop_preorder_render_admin_page() {
                     case 'category':
                         return $row.find('.column-category').text() || '';
                     case 'notes':
-                        return $row.find('.column-notes textarea').val() || '';
+                        return $row.find('.column-notes .sop-notes-preview').text() || $row.find('input[name^="sop_line_product_notes"]').val() || '';
                     case 'internal_product_notes':
-                        return $row.find('.column-internal-product-notes textarea').val() || '';
+                        return $row.find('.column-internal-product-notes .sop-notes-preview').text() || $row.find('input[name^="sop_line_internal_product_notes"]').val() || '';
                     case 'order_notes':
                         return $row.find('.column-order-notes textarea').val() || '';
                     case 'cost':
@@ -6030,8 +6128,8 @@ function sop_preorder_render_admin_page() {
                             if ( isNaN( moq ) ) { moq = 0; }
                             var costRmb = parseFloat( $row.find( 'input[name^="sop_line_cost_rmb"]' ).val() );
                             if ( isNaN( costRmb ) ) { costRmb = 0; }
-                            var productNotes = $row.find( 'textarea[name^="sop_line_product_notes"]' ).val() || '';
-                            var internalNotes = $row.find( 'textarea[name^="sop_line_internal_product_notes"]' ).val() || '';
+                            var productNotes = $row.find( 'input[name^=\"sop_line_product_notes\"]' ).val() || '';
+                            var internalNotes = $row.find( 'input[name^=\"sop_line_internal_product_notes\"]' ).val() || '';
                             var orderNotes = $row.find( 'textarea[name^="sop_line_order_notes"]' ).val() || '';
                             var cartonNo = $row.find( 'input[name^="sop_line_carton_no"]' ).val() || '';
                             var cubicCm = parseFloat( $row.find( '.column-cubic-item' ).data( 'cubic-cm' ) );

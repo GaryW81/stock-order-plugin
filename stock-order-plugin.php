@@ -9,7 +9,8 @@
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.11
+ * File version: 1.0.12
+ * - Load notes helpers for rich notes sanitization/rendering.
  * - Load Data Export module in admin bootstrap.
  * - Ensure sop_daily_maintenance cron is scheduled on activation and cleared on deactivation.
  * - Run sop_DB::maybe_install() on admin_init for safe schema upgrades.
@@ -41,6 +42,7 @@ if ( ! defined( 'SOP_PLUGIN_URL' ) ) {
 // Core includes.
 require_once SOP_PLUGIN_DIR . 'includes/db-helpers.php';
 require_once SOP_PLUGIN_DIR . 'includes/domain-helpers.php';
+require_once SOP_PLUGIN_DIR . 'includes/notes-helpers.php';
 require_once SOP_PLUGIN_DIR . 'includes/stockout-tracking.php';
 require_once SOP_PLUGIN_DIR . 'includes/helper-buffer.php';
 require_once SOP_PLUGIN_DIR . 'includes/forecast-core.php';

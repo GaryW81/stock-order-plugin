@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.1.03
+ * File version: 1.1.04
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.1.04 - Notes: support rich product notes (bold/red/strike) in XLSX export.
  * - 1.1.03 - Cleanup: remove duplicate $include_supplier_skus assignment.
  * - 1.1.02 - Fix: Non-RMB Order Sheet unit costs avoid double RMB conversion.
  * - 1.1.01 - Fix: Non-RMB Order Sheet unit costs use cost_rmb_owner without RMB conversion.
@@ -719,7 +720,7 @@ class SOP_Preorder_XLSX_Exporter {
             $row_cells[] = self::format_number_cell( $cost_usd, 2 );
         }
         $row_cells[] = self::format_number_cell( $line_total_supplier, 2 );
-        $row_cells[] = $product_notes;
+        $row_cells[] = self::sop_notes_build_cell_value( $product_notes );
         $row_cells[] = $order_notes;
         $row_cells[] = $carton_number;
         $row_cells[] = self::format_number_cell( $cm3_per_unit, 4 );
@@ -1862,6 +1863,139 @@ class SOP_Preorder_XLSX_Exporter {
         return str_replace( "\n", '&#10;', $value );
     }
 
+    private static function sop_notes_html_to_plain_text( $html ) {
+        $html = (string) $html;
+        $html = str_ireplace( array( '<br>', '<br/>', '<br />' ), "\n", $html );
+        $html = strip_tags( $html );
+        $html = html_entity_decode( $html, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+        $html = str_replace( array( "\r\n", "\r" ), "\n", $html );
+        return $html;
+    }
+
+    private static function sop_notes_html_to_runs( $html ) {
+        $html = (string) $html;
+        $tokens = preg_split( '/(<\/?[^>]+>)/', $html, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY );
+        $state = array(
+            'bold'   => false,
+            'strike' => false,
+            'color'  => '',
+        );
+        $stack = array();
+        $runs  = array();
+        $has_rich = false;
+
+        foreach ( $tokens as $token ) {
+            if ( '<' === substr( $token, 0, 1 ) ) {
+                $tag_raw = strtolower( trim( $token, "<> \t\r\n" ) );
+                if ( '' === $tag_raw ) {
+                    continue;
+                }
+                $is_closing = ( '/' === $tag_raw[0] );
+                if ( $is_closing ) {
+                    $tag_raw = trim( substr( $tag_raw, 1 ) );
+                }
+                $tag_name = preg_replace( '/\s+.*/', '', $tag_raw );
+
+                if ( 'br' === $tag_name ) {
+                    $runs[] = array(
+                        'text'   => "\n",
+                        'bold'   => $state['bold'],
+                        'strike' => $state['strike'],
+                        'color'  => $state['color'],
+                    );
+                    continue;
+                }
+
+                if ( $is_closing ) {
+                    if ( ! empty( $stack ) ) {
+                        $state = array_pop( $stack );
+                    }
+                    continue;
+                }
+
+                if ( in_array( $tag_name, array( 'strong', 'b', 's', 'del', 'span' ), true ) ) {
+                    $stack[] = $state;
+                    $state = $state;
+                    if ( in_array( $tag_name, array( 'strong', 'b' ), true ) ) {
+                        $state['bold'] = true;
+                        $has_rich = true;
+                    } elseif ( in_array( $tag_name, array( 's', 'del' ), true ) ) {
+                        $state['strike'] = true;
+                        $has_rich = true;
+                    } elseif ( 'span' === $tag_name ) {
+                        if ( preg_match( '/class\\s*=\\s*(\"|\\\")(.*?)\\1/i', $token, $class_match ) ) {
+                            $class_raw = isset( $class_match[2] ) ? $class_match[2] : '';
+                            if ( preg_match( '/(^|\\s)sop-note-red(\\s|$)/', $class_raw ) ) {
+                                $state['color'] = 'FFD63638';
+                                $has_rich = true;
+                            }
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            $text = html_entity_decode( $token, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+            if ( '' === $text ) {
+                continue;
+            }
+
+            $runs[] = array(
+                'text'   => $text,
+                'bold'   => $state['bold'],
+                'strike' => $state['strike'],
+                'color'  => $state['color'],
+            );
+        }
+
+        if ( empty( $runs ) ) {
+            return array(
+                'runs'     => array(),
+                'has_rich' => false,
+            );
+        }
+
+        $merged = array();
+        foreach ( $runs as $run ) {
+            $last_index = count( $merged ) - 1;
+            if ( $last_index >= 0 ) {
+                $last = $merged[ $last_index ];
+                if ( isset( $last['bold'], $last['strike'], $last['color'] ) && $last['bold'] === $run['bold'] && $last['strike'] === $run['strike'] && $last['color'] === $run['color'] ) {
+                    $merged[ $last_index ]['text'] .= $run['text'];
+                    continue;
+                }
+            }
+            $merged[] = $run;
+        }
+
+        return array(
+            'runs'     => $merged,
+            'has_rich' => $has_rich,
+        );
+    }
+
+    private static function sop_notes_build_cell_value( $notes_raw ) {
+        $notes_raw = (string) $notes_raw;
+        if ( '' === trim( $notes_raw ) ) {
+            return '';
+        }
+
+        $notes_html = function_exists( 'sop_notes_sanitize_html' ) ? sop_notes_sanitize_html( $notes_raw ) : $notes_raw;
+
+        if ( false !== strpos( $notes_html, '<' ) ) {
+            $parsed = self::sop_notes_html_to_runs( $notes_html );
+            if ( ! empty( $parsed['runs'] ) && ( $parsed['has_rich'] || count( $parsed['runs'] ) > 1 ) ) {
+                return array(
+                    'type' => 'rich',
+                    'runs' => $parsed['runs'],
+                );
+            }
+        }
+
+        return self::sop_notes_html_to_plain_text( $notes_html );
+    }
+
     private static function column_letter( $index ) {
         $index  = (int) $index;
         $letter = '';
@@ -1906,10 +2040,14 @@ class SOP_Preorder_XLSX_Exporter {
                     foreach ( $runs as $run ) {
                         $text  = isset( $run['text'] ) ? (string) $run['text'] : '';
                         $bold  = ! empty( $run['bold'] );
+                        $strike = ! empty( $run['strike'] );
                         $color = isset( $run['color'] ) ? (string) $run['color'] : '';
                         $xml  .= '<r><rPr>';
                         if ( $bold ) {
                             $xml .= '<b/>';
+                        }
+                        if ( $strike ) {
+                            $xml .= '<strike/>';
                         }
                         if ( '' !== $color ) {
                             $xml .= '<color rgb="' . self::esc_xml( $color ) . '"/>';
