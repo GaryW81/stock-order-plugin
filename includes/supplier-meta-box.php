@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.24
+ * File version: 1.0.25
+ * - UI: enforce strikethrough tag for SOP notes editor and keep red toggle.
  * - UI: add rich notes editor for product/internal notes (bold/strike/red).
  * - UI: add internal product notes field on product edit screen.
  * - Allow max_order_qty_per_month to save decimals (2dp), accept comma, and never block product save.
@@ -290,6 +291,7 @@ function sop_render_product_supplier_metabox( $post ) {
                     'forced_root_block' => false,
                     'force_br_newlines' => true,
                     'force_p_newlines'  => false,
+                    'formats'           => '{strikethrough: {inline: "s"}}',
                     'content_style'     => '.sop-note-red{color:#d63638;}',
                 ),
             )
@@ -316,6 +318,7 @@ function sop_render_product_supplier_metabox( $post ) {
                     'forced_root_block' => false,
                     'force_br_newlines' => true,
                     'force_p_newlines'  => false,
+                    'formats'           => '{strikethrough: {inline: "s"}}',
                     'content_style'     => '.sop-note-red{color:#d63638;}',
                 ),
             )

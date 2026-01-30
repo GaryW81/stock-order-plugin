@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 4
  * Notes HTML helpers (admin-safe rendering)
- * File version: 1.0.00
+ * File version: 1.0.01
+ * - Allow strike tag and keep red class allowlist stable.
  * - Initial helpers for SOP notes sanitization and rendering.
  */
 
@@ -22,6 +23,7 @@ if ( ! function_exists( 'sop_notes_allowed_html' ) ) {
             'strong' => array(),
             'b'      => array(),
             's'      => array(),
+            'strike' => array(),
             'del'    => array(),
             'span'   => array(
                 'class' => array(),

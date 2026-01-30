@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.96 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.97 *
+ * - V12.97 - Notes: clamp preview height to prevent row expansion.
  * - V12.96 - Notes: render product/internal notes read-only with preview modal + rich formatting.
  * - V12.95 - Fix: constrain header icon <img> sizing to prevent layout blowout.
  * - V12.94 - Fix sop_preorder_render_header_icon() to return icon HTML (data URI or dashicon fallback).
@@ -3815,6 +3816,7 @@ function sop_preorder_render_admin_page() {
             -webkit-line-clamp: 4;
             overflow: hidden;
             white-space: normal;
+            max-height: 80px;
         }
 
         .sop-notes-preview.is-truncated {

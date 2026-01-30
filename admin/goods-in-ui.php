@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.30
+ * File version: 1.1.31
  *
+ * - 1.1.31 - Notes: clamp preview height to prevent row expansion.
  * - 1.1.30 - Notes: render product/internal notes with rich preview + modal.
  *
  * - 1.1.29 - Goods-In: update apply-stock wording for correction support.
@@ -2546,7 +2547,7 @@ function sop_render_goods_in_page() {
             overflow-wrap: anywhere;
             word-break: break-word;
             line-height: 1.2;
-            max-height: 4.8em;
+            max-height: 80px;
             text-align: left;
         }
         .sop-goodsin-table .sop-notes-preview {
