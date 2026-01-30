@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.26
+ * File version: 1.0.27
+ * - UI: scope SOP TinyMCE plugin to notes editors and guard plugin loading.
  * - UI: ensure red toggle loads and toolbar order is bold/red/strike.
  * - UI: enforce strikethrough tag for SOP notes editor and keep red toggle.
  * - UI: add rich notes editor for product/internal notes (bold/strike/red).
@@ -84,15 +85,52 @@ if ( ! function_exists( 'sop_notes_register_tinymce_plugin' ) ) {
             return $plugins;
         }
 
-        if ( defined( 'SOP_PLUGIN_URL' ) && defined( 'SOP_PLUGIN_DIR' ) ) {
-            $plugin_path = SOP_PLUGIN_DIR . 'admin/js/sop-notes-tinymce.js';
-            $ver = file_exists( $plugin_path ) ? (string) filemtime( $plugin_path ) : '';
-            $plugins['sopred'] = SOP_PLUGIN_URL . 'admin/js/sop-notes-tinymce.js' . ( '' !== $ver ? '?ver=' . $ver : '' );
+        if ( ! defined( 'SOP_PLUGIN_FILE' ) ) {
+            return $plugins;
         }
+
+        $plugin_path = plugin_dir_path( SOP_PLUGIN_FILE ) . 'admin/js/sop-notes-tinymce.js';
+        if ( ! file_exists( $plugin_path ) ) {
+            return $plugins;
+        }
+
+        $ver = (string) filemtime( $plugin_path );
+        $plugins['sopred'] = plugins_url( 'admin/js/sop-notes-tinymce.js', SOP_PLUGIN_FILE ) . ( '' !== $ver ? '?ver=' . $ver : '' );
 
         return $plugins;
     }
     add_filter( 'mce_external_plugins', 'sop_notes_register_tinymce_plugin' );
+}
+
+if ( ! function_exists( 'sop_notes_tinymce_toolbar_for_notes' ) ) {
+    /**
+     * Apply SOP notes toolbar only to SOP notes editors.
+     *
+     * @param array $init TinyMCE init settings.
+     * @param string $editor_id Editor ID.
+     * @return array
+     */
+    function sop_notes_tinymce_toolbar_for_notes( $init, $editor_id ) {
+        if ( ! sop_notes_should_enable_editor() ) {
+            return $init;
+        }
+
+        $allowed_ids = array( 'sop_product_notes_editor', 'sop_internal_product_notes_editor' );
+        if ( ! in_array( $editor_id, $allowed_ids, true ) ) {
+            return $init;
+        }
+
+        $init['toolbar1'] = 'bold,sopred,strikethrough';
+        $init['toolbar2'] = '';
+        $init['forced_root_block'] = false;
+        $init['force_br_newlines'] = true;
+        $init['force_p_newlines'] = false;
+        $init['formats'] = '{strikethrough: {inline: "s"}}';
+        $init['content_style'] = '.sop-note-red{color:#d63638;}';
+
+        return $init;
+    }
+    add_filter( 'tiny_mce_before_init', 'sop_notes_tinymce_toolbar_for_notes', 10, 2 );
 }
 
 // Require DB + domain helpers from Phase 1.

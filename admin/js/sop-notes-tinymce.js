@@ -4,7 +4,7 @@
     }
 
     tinymce.PluginManager.add('sopred', function(editor) {
-        editor.formatter.register('sopred', {
+        editor.formatter.register('sop_red', {
             inline: 'span',
             classes: 'sop-note-red'
         });
@@ -14,15 +14,15 @@
                 text: 'Red',
                 tooltip: 'Red text',
                 onAction: function() {
-                    editor.formatter.toggle('sopred');
+                    editor.formatter.toggle('sop_red');
                 },
                 onSetup: function(api) {
                     var handler = function(state) {
                         api.setActive(state);
                     };
-                    editor.formatter.formatChanged('sopred', handler);
+                    editor.formatter.formatChanged('sop_red', handler);
                     return function() {
-                        editor.formatter.formatChanged('sopred', handler);
+                        editor.formatter.formatChanged('sop_red', handler);
                     };
                 }
             });
@@ -31,12 +31,12 @@
                 text: 'Red',
                 tooltip: 'Red text',
                 onclick: function() {
-                    editor.formatter.toggle('sopred');
+                    editor.formatter.toggle('sop_red');
                 },
                 onPostRender: function() {
                     var btn = this;
                     editor.on('NodeChange', function() {
-                        var active = editor.formatter.match('sopred');
+                        var active = editor.formatter.match('sop_red');
                         if ( btn && btn.active ) {
                             btn.active(active);
                         }
