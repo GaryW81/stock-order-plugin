@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.32
+ * File version: 1.0.33
+ * - Add SOP notes HTML sanitizer helper for rich notes storage/rendering.
  * - Align handling-day helper with PO modal: order date is day 0, handling starts next day.
  * - Add holiday-aware handling days helper for forecast/PO parity.
  * - Prefer direct USDη'RMB base FX if provided in settings.
@@ -307,6 +308,52 @@ if ( ! function_exists( 'sop_normalise_scan_input' ) ) {
         $scan = (string) $raw_scan;
         // Trim leading/trailing whitespace; preserve internal spacing and case.
         return trim( $scan );
+    }
+}
+
+if ( ! function_exists( 'sop_notes_sanitize_html' ) ) {
+    /**
+     * Sanitize SOP notes HTML for safe storage/display.
+     *
+     * @param string $html Raw HTML input.
+     * @return string
+     */
+    function sop_notes_sanitize_html( $html ) {
+        $html = wp_unslash( (string) $html );
+        $html = trim( $html );
+        if ( '' === $html ) {
+            return '';
+        }
+
+        if ( false === strpos( $html, '<' ) ) {
+            return nl2br( esc_html( $html ) );
+        }
+
+        $allowed = array(
+            'br'     => array(),
+            'p'      => array(),
+            'ul'     => array(),
+            'ol'     => array(),
+            'li'     => array(),
+            'strong' => array(),
+            'b'      => array(),
+            'em'     => array(),
+            'i'      => array(),
+            'u'      => array(),
+            's'      => array(),
+            'del'    => array(),
+            'span'   => array(
+                'style' => array(),
+                'class' => array(),
+            ),
+            'a'      => array(
+                'href'   => array(),
+                'target' => array(),
+                'rel'    => array(),
+            ),
+        );
+
+        return wp_kses( $html, $allowed );
     }
 }
 

@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.31
+ * File version: 1.1.32
  *
+ * - 1.1.32 - Notes: render rich product/internal notes with kses-sanitised HTML.
  * - 1.1.31 - Notes: clamp preview height to prevent row expansion.
  * - 1.1.30 - Notes: render product/internal notes with rich preview + modal.
  *
@@ -1181,24 +1182,28 @@ function sop_render_goods_in_page() {
                     <td class="sop-goodsin-text-col" data-column="product_notes">
                         <div class="sop-goodsin-notes-wrap">
                             <div class="sop-notes-preview" data-sop-notes-title="<?php esc_attr_e( 'Product notes', 'sop' ); ?>">
+                                <div class="sop-notes-html">
                                 <?php
-                                $product_notes_html = function_exists( 'sop_notes_render_admin_html' )
-                                    ? sop_notes_render_admin_html( $product_notes )
-                                    : nl2br( esc_html( $product_notes ) );
+                                $product_notes_html = function_exists( 'sop_notes_sanitize_html' )
+                                    ? sop_notes_sanitize_html( $product_notes )
+                                    : wp_kses_post( $product_notes );
                                 echo $product_notes_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                                 ?>
+                                </div>
                             </div>
                         </div>
                     </td>
                     <td class="sop-goodsin-text-col" data-column="internal_product_notes">
                         <div class="sop-goodsin-notes-wrap">
                             <div class="sop-notes-preview" data-sop-notes-title="<?php esc_attr_e( 'Internal notes', 'sop' ); ?>">
+                                <div class="sop-notes-html">
                                 <?php
-                                $internal_notes_html = function_exists( 'sop_notes_render_admin_html' )
-                                    ? sop_notes_render_admin_html( $internal_notes )
-                                    : nl2br( esc_html( $internal_notes ) );
+                                $internal_notes_html = function_exists( 'sop_notes_sanitize_html' )
+                                    ? sop_notes_sanitize_html( $internal_notes )
+                                    : wp_kses_post( $internal_notes );
                                 echo $internal_notes_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                                 ?>
+                                </div>
                             </div>
                         </div>
                     </td>
@@ -2561,6 +2566,10 @@ function sop_render_goods_in_page() {
             line-height: 1.2;
             max-height: 4.8em;
             text-align: left;
+        }
+        .sop-goodsin-table .sop-notes-html {
+            white-space: normal;
+            word-break: break-word;
         }
         .sop-goodsin-table .sop-notes-preview.is-truncated {
             cursor: pointer;

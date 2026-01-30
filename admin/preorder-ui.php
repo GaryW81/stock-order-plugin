@@ -1,7 +1,7 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.97 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.98 *
+ * - V12.98 - Notes: render rich product/internal notes with kses-sanitised HTML.
  * - V12.97 - Notes: clamp preview height to prevent row expansion.
- * - V12.96 - Notes: render product/internal notes read-only with preview modal + rich formatting.
  * - V12.95 - Fix: constrain header icon <img> sizing to prevent layout blowout.
  * - V12.94 - Fix sop_preorder_render_header_icon() to return icon HTML (data URI or dashicon fallback).
  * - V12.93 - UI: clip header icon background to content box so divider spacing is respected.
@@ -2019,12 +2019,14 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-notes" data-column="notes">
                                         <div class="sop-preorder-notes-wrapper">
                                             <div class="sop-notes-preview" data-sop-notes-title="<?php esc_attr_e( 'Product notes', 'sop' ); ?>">
+                                                <div class="sop-notes-html">
                                                 <?php
-                                                $notes_html = function_exists( 'sop_notes_render_admin_html' )
-                                                    ? sop_notes_render_admin_html( $notes )
-                                                    : nl2br( esc_html( $notes ) );
+                                                $notes_html = function_exists( 'sop_notes_sanitize_html' )
+                                                    ? sop_notes_sanitize_html( $notes )
+                                                    : wp_kses_post( $notes );
                                                 echo $notes_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                                                 ?>
+                                                </div>
                                             </div>
                                             <input type="hidden" name="sop_line_product_notes[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $notes ); ?>" />
                                         </div>
@@ -2039,12 +2041,14 @@ function sop_preorder_render_admin_page() {
                                     <td class="column-internal-product-notes" data-column="internal_product_notes">
                                         <div class="sop-preorder-notes-wrapper">
                                             <div class="sop-notes-preview" data-sop-notes-title="<?php esc_attr_e( 'Internal notes', 'sop' ); ?>">
+                                                <div class="sop-notes-html">
                                                 <?php
-                                                $internal_html = function_exists( 'sop_notes_render_admin_html' )
-                                                    ? sop_notes_render_admin_html( $internal_product_notes )
-                                                    : nl2br( esc_html( $internal_product_notes ) );
+                                                $internal_html = function_exists( 'sop_notes_sanitize_html' )
+                                                    ? sop_notes_sanitize_html( $internal_product_notes )
+                                                    : wp_kses_post( $internal_product_notes );
                                                 echo $internal_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                                                 ?>
+                                                </div>
                                             </div>
                                             <input type="hidden" name="sop_line_internal_product_notes[<?php echo esc_attr( $display_product_id ); ?>]" value="<?php echo esc_attr( $internal_product_notes ); ?>" />
                                         </div>
@@ -3817,6 +3821,11 @@ function sop_preorder_render_admin_page() {
             overflow: hidden;
             white-space: normal;
             max-height: 80px;
+        }
+
+        .sop-notes-html {
+            white-space: normal;
+            word-break: break-word;
         }
 
         .sop-notes-preview.is-truncated {
