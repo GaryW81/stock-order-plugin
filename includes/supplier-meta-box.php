@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Stock Order Plugin - Phase 4
  * Notes HTML helpers (admin-safe rendering)
