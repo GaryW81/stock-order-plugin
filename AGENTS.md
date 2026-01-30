@@ -65,6 +65,8 @@ ordering system for Wilson-Organisation Ltd.
 4) If Gary explicitly asks to see a snippet, keep it to <= 10 lines and only the specific snippet requested.
 
 5) Keep text plain (no unusual formatting, no character-by-character output, no markdown that turns underscores into italics).
+6) NEVER introduce UTF-8 BOM. PHP files must start with "<?php" as the very first bytes (no BOM/whitespace) and omit the closing "?>".
+7) After editing any PHP file, explicitly confirm in static checks: "No BOM added" and "No closing PHP tag".
 
 The plugin’s job is to:
 - Forecast demand per SKU (typically over 6-month cycles).
