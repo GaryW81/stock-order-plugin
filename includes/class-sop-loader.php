@@ -1,8 +1,9 @@
-<?php
+﻿<?php
 /**
  * Main loader for the Stock Order Plugin.
  *
- * File version: 1.0.06
+ * File version: 1.0.07
+ * - Remove BOM/whitespace to prevent activation output.
  * - Skip admin module load on non-SOP AJAX requests.
  * - Load SOP UI modules only on SOP admin pages.
  * - Load stockout tracking module in core bootstrap.
@@ -78,3 +79,4 @@ class sop_Loader {
     }
 
 }
+

@@ -1,13 +1,14 @@
-<?php
+﻿<?php
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.34
+ * File version: 1.0.35
+ * - Remove BOM/whitespace to prevent activation output.
  * - Add guarded sop_get_settings helper with safe defaults.
  * - Add SOP notes HTML sanitizer helper for rich notes storage/rendering.
  * - Align handling-day helper with PO modal: order date is day 0, handling starts next day.
  * - Add holiday-aware handling days helper for forecast/PO parity.
- * - Prefer direct USDη'RMB base FX if provided in settings.
+ * - Prefer direct USDÎ·'RMB base FX if provided in settings.
  * - Add helper to check Supplier SKUs column toggle.
  * - Add scan normaliser for barcode/picking.
  * - Persist preorder carton_no when saving sheet lines.
@@ -974,9 +975,9 @@ function sop_delete_preorder_sheet( $sheet_id ) {
  * Create or update a supplier.
  *
  * Priority:
- * - If 'id' is provided and matches an existing row Ã¢â€ â€™ update that row.
- * - Else if 'slug' is provided and exists Ã¢â€ â€™ update that row.
- * - Else Ã¢â€ â€™ insert new row.
+ * - If 'id' is provided and matches an existing row ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ update that row.
+ * - Else if 'slug' is provided and exists ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ update that row.
+ * - Else ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ insert new row.
  *
  * @param array $args
  * @return int|false Supplier ID on success, false on failure.
@@ -1090,7 +1091,7 @@ function sop_supplier_get_by_slug( $slug ) {
  * Get all suppliers, with optional filters.
  *
  * Supported $args:
- * - is_active (int|null)   Ã¢â€ â€™ filter by active flag.
+ * - is_active (int|null)   ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ filter by active flag.
  *
  * @param array $args
  * @return array
@@ -2550,3 +2551,4 @@ function sop_forecast_add_item( $cache_id, array $item_data ) {
     $id = sop_db_insert( 'forecast_cache_item', $row );
     return $id ?: false;
 }
+

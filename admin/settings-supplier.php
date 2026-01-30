@@ -1,13 +1,14 @@
-<?php
+﻿<?php
 /**
- * Stock Order Plugin â€“ Phase 2 (Updated with USD)
+ * Stock Order Plugin Ã¢â‚¬â€œ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.49
+ * File version: 1.5.50
+ * - Remove BOM/whitespace to prevent activation output.
  * - Add Data Export tab routing for settings.
  * - Show error when Data Export module is missing.
  * - Remove TEMP Shiny CSV importer tool.
  * - Add Carton CSV importer submenu.
- * - Add direct USD→RMB base FX and swap FX/lead time rows.
+ * - Add direct USDâ†’RMB base FX and swap FX/lead time rows.
  * - Adds supplier-level defaults for Pre-Order container settings.
  * - Adds company profile + supplier PI details for Rates & Dates view.
  * - Add per-supplier toggle to show Supplier SKUs column.
@@ -25,7 +26,7 @@
  * - Suppliers tab manages rows in `sop_suppliers` via Phase 1 helpers.
  * - Implements global stock buffer months + per-supplier override (months).
  * - Supplier currency options: GBP, RMB, EUR, USD.
- * - Future phases: plugin will own its own productâ†’supplier links and foreign prices
+ * - Future phases: plugin will own its own productÃ¢â€ â€™supplier links and foreign prices
  *   (your existing meta like "supplier" and "rmb" can be migrated via a one-off tool).
  */
 
@@ -48,7 +49,7 @@ class sop_Admin_Settings {
     const OPTION_KEY = 'sop_settings';
 
     /**
-     * Constructor â€“ hook into admin.
+     * Constructor Ã¢â‚¬â€œ hook into admin.
      */
     public function __construct() {
         add_action( 'admin_menu', array( $this, 'register_menu' ) );
@@ -180,13 +181,13 @@ class sop_Admin_Settings {
             $output['rmb_to_gbp_rate'] = $rate;
         }
 
-        // EUR ï¿½ï¿½' GBP rate (allow string, we'll cast when using).
+        // EUR Ã¯Â¿Â½Ã¯Â¿Â½' GBP rate (allow string, we'll cast when using).
         if ( isset( $input['eur_to_gbp_rate'] ) ) {
             $rate = trim( (string) $input['eur_to_gbp_rate'] );
             $output['eur_to_gbp_rate'] = $rate;
         }
 
-        // USD ï¿½ï¿½' GBP rate (allow string, we'll cast when using).
+        // USD Ã¯Â¿Â½Ã¯Â¿Â½' GBP rate (allow string, we'll cast when using).
         if ( isset( $input['usd_to_gbp_rate'] ) ) {
             $rate = trim( (string) $input['usd_to_gbp_rate'] );
             $output['usd_to_gbp_rate'] = $rate;
@@ -240,7 +241,7 @@ class sop_Admin_Settings {
     }
 
     /**
-     * Main page renderer â€“ handles tab switching.
+     * Main page renderer Ã¢â‚¬â€œ handles tab switching.
      */
     public function render_page() {
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
@@ -1208,7 +1209,7 @@ class sop_Admin_Settings {
                                    size="20"
                                    style="width: 8em;" />
                             <p class="description">
-                                <?php esc_html_e( 'Base USD→RMB rate. If set, this is used as the primary FX for USD↔RMB; leave blank to derive it from RMB→GBP and USD→GBP.', 'sop' ); ?>
+                                <?php esc_html_e( 'Base USDâ†’RMB rate. If set, this is used as the primary FX for USDâ†”RMB; leave blank to derive it from RMBâ†’GBP and USDâ†’GBP.', 'sop' ); ?>
                             </p>
                         </td>
                     </tr>
@@ -1892,7 +1893,7 @@ class sop_Admin_Settings {
                                        max="20"
                                        value="<?php echo esc_attr( $fx_adjust_percent_val ); ?>" />
                                 <p class="description">
-                                    <?php esc_html_e( 'Positive values reduce the base USD→RMB rate by this %, e.g. 0.5 → base 7.287 becomes ~7.25 to cover the supplier’s bank FX fees.', 'sop' ); ?>
+                                    <?php esc_html_e( 'Positive values reduce the base USDâ†’RMB rate by this %, e.g. 0.5 â†’ base 7.287 becomes ~7.25 to cover the supplierâ€™s bank FX fees.', 'sop' ); ?>
                                 </p>
                             </td>
                         </tr>
@@ -2388,5 +2389,4 @@ function sop_get_settings() {
     );
 }
 }
-
 
