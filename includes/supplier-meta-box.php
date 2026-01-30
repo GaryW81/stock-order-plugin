@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.27
+ * File version: 1.0.28
+ * - Fix red toggle button via inline TinyMCE setup (no external plugin JS).
  * - UI: scope SOP TinyMCE plugin to notes editors and guard plugin loading.
  * - UI: ensure red toggle loads and toolbar order is bold/red/strike.
  * - UI: enforce strikethrough tag for SOP notes editor and keep red toggle.
@@ -73,35 +74,6 @@ if ( ! function_exists( 'sop_notes_should_enable_editor' ) ) {
     }
 }
 
-if ( ! function_exists( 'sop_notes_register_tinymce_plugin' ) ) {
-    /**
-     * Register TinyMCE plugin for SOP red notes button.
-     *
-     * @param array $plugins Plugins map.
-     * @return array
-     */
-    function sop_notes_register_tinymce_plugin( $plugins ) {
-        if ( ! sop_notes_should_enable_editor() ) {
-            return $plugins;
-        }
-
-        if ( ! defined( 'SOP_PLUGIN_FILE' ) ) {
-            return $plugins;
-        }
-
-        $plugin_path = plugin_dir_path( SOP_PLUGIN_FILE ) . 'admin/js/sop-notes-tinymce.js';
-        if ( ! file_exists( $plugin_path ) ) {
-            return $plugins;
-        }
-
-        $ver = (string) filemtime( $plugin_path );
-        $plugins['sopred'] = plugins_url( 'admin/js/sop-notes-tinymce.js', SOP_PLUGIN_FILE ) . ( '' !== $ver ? '?ver=' . $ver : '' );
-
-        return $plugins;
-    }
-    add_filter( 'mce_external_plugins', 'sop_notes_register_tinymce_plugin' );
-}
-
 if ( ! function_exists( 'sop_notes_tinymce_toolbar_for_notes' ) ) {
     /**
      * Apply SOP notes toolbar only to SOP notes editors.
@@ -127,6 +99,14 @@ if ( ! function_exists( 'sop_notes_tinymce_toolbar_for_notes' ) ) {
         $init['force_p_newlines'] = false;
         $init['formats'] = '{strikethrough: {inline: "s"}}';
         $init['content_style'] = '.sop-note-red{color:#d63638;}';
+        $init['setup'] = 'function(editor){'
+            . 'editor.formatter.register("sop_red",{inline:"span",classes:"sop-note-red"});'
+            . 'if(editor.ui&&editor.ui.registry&&editor.ui.registry.addToggleButton){'
+                . 'editor.ui.registry.addToggleButton("sopred",{text:"Red",tooltip:"Red text",onAction:function(){editor.formatter.toggle("sop_red");},onSetup:function(api){var handler=function(state){api.setActive(state);};editor.formatter.formatChanged("sop_red",handler);return function(){editor.formatter.formatChanged("sop_red",handler);};}});'
+            . '}else if(editor.addButton){'
+                . 'editor.addButton("sopred",{text:"Red",tooltip:"Red text",onclick:function(){editor.formatter.toggle("sop_red");},onPostRender:function(){var btn=this;editor.on("NodeChange",function(){var active=editor.formatter.match("sop_red");if(btn&&btn.active){btn.active(active);}});}});'
+            . '}'
+        . '}';
 
         return $init;
     }
