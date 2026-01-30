@@ -2,7 +2,8 @@
 /**
  * Main loader for the Stock Order Plugin.
  *
- * File version: 1.0.07
+ * File version: 1.0.08
+ * - Skip SOP bootstrap on non-SOP AJAX requests.
  * - Remove BOM/whitespace to prevent activation output.
  * - Skip admin module load on non-SOP AJAX requests.
  * - Load SOP UI modules only on SOP admin pages.
@@ -25,6 +26,10 @@ class sop_Loader {
      * Bootstraps plugin components.
      */
     public function init() {
+        if ( ! $this->should_bootstrap_for_request() ) {
+            return;
+        }
+
         $this->load_core();
 
         if ( is_admin() && $this->should_load_admin_modules() ) {
@@ -63,13 +68,38 @@ class sop_Loader {
     }
 
     /**
+     * Read the current AJAX action (sanitised).
+     *
+     * @return string
+     */
+    protected function get_current_ajax_action() {
+        return isset( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( $_REQUEST['action'] ) ) : '';
+    }
+
+    /**
+     * Decide whether the plugin should bootstrap for this request.
+     *
+     * @return bool
+     */
+    protected function should_bootstrap_for_request() {
+        if ( defined( 'DOING_AJAX' ) && DOING_AJAX ) {
+            $action = $this->get_current_ajax_action();
+            if ( '' === $action || 0 !== strpos( $action, 'sop_' ) ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Decide whether admin modules should load for the current request.
      *
      * @return bool
      */
     protected function should_load_admin_modules() {
         if ( defined( 'DOING_AJAX' ) && DOING_AJAX ) {
-            $action = isset( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( $_REQUEST['action'] ) ) : '';
+            $action = $this->get_current_ajax_action();
             if ( '' === $action || 0 !== strpos( $action, 'sop_' ) ) {
                 return false;
             }
