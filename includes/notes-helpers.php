@@ -2,8 +2,8 @@
 /**
  * Stock Order Plugin - Phase 4
  * Notes HTML helpers (admin-safe rendering)
- * File version: 1.0.04
- * - Fix: robust red canonicalisation for TinyMCE output (style/data-mce-style/font).
+ * File version: 1.0.05
+ * - Fix red canonicaliser to handle rgb()/rgba() and TinyMCE attributes.
  * - Allow strike tag and keep red class allowlist stable.
  * - Initial helpers for SOP notes sanitization and rendering.
  */
@@ -83,14 +83,14 @@ if ( ! function_exists( 'sop_notes_canonicalize_red_spans' ) ) {
 
                 if ( '' !== $style || '' !== $mce ) {
                     $style_blob = str_replace( ' ', '', $style . ';' . $mce );
-                    if ( preg_match( '/color:(#d63638|d63638|rgb\(214,54,56\)|rgba\(214,54,56,1\))/i', $style_blob ) ) {
+                    if ( preg_match( '/color:(#d63638|d63638|rgb\(214,54,56\)|rgba\(214,54,56,1(?:\.0)?\))/i', $style_blob ) ) {
                         $is_red = true;
                     }
                 }
 
                 if ( ! $is_red && '' !== $color ) {
                     $color_clean = str_replace( ' ', '', $color );
-                    if ( preg_match( '/^(#d63638|d63638|rgb\(214,54,56\)|rgba\(214,54,56,1\)|red)$/i', $color_clean ) ) {
+                    if ( preg_match( '/^(#d63638|d63638|rgb\(214,54,56\)|rgba\(214,54,56,1(?:\.0)?\)|red)$/i', $color_clean ) ) {
                         $is_red = true;
                     }
                 }
@@ -197,5 +197,9 @@ if ( ! function_exists( 'sop_notes_render_admin_html' ) ) {
         return sop_notes_normalize_span_classes( $clean );
     }
 }
+
+
+
+
 
 

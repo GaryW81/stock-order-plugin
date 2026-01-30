@@ -2,8 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.31
- * - Fix: SOP notes forecolor palette stability + enable textcolor plugin (scoped).
+ * File version: 1.0.32
+ * - Fix forecolor palette config (array map) for SOP notes editors.
  * - UI: ensure red toggle loads and toolbar order is bold/red/strike.
  * - UI: enforce strikethrough tag for SOP notes editor and keep red toggle.
  * - UI: add rich notes editor for product/internal notes (bold/strike/red).
@@ -101,7 +101,7 @@ if ( ! function_exists( 'sop_notes_tinymce_init' ) ) {
 
         $init['plugins']        = trim( implode( ' ', $plugins ) );
         $init['toolbar1']       = 'bold,forecolor,strikethrough';
-        $init['textcolor_map']  = 'D63638,Red';
+        $init['textcolor_map']  = array( 'D63638', 'Red' );
         $init['textcolor_rows'] = 1;
         $init['textcolor_cols'] = 1;
 
@@ -316,7 +316,7 @@ function sop_render_product_supplier_metabox( $post ) {
                     'force_p_newlines'  => false,
                     'formats'           => '{strikethrough: {inline: "s"}}',
                     'content_style'     => '.sop-note-red{color:#d63638;}',
-                    'textcolor_map'     => 'D63638,Red',
+                    'textcolor_map'     => array( 'D63638', 'Red' ),
                     'textcolor_rows'    => 1,
                     'textcolor_cols'    => 1,
                 ),
@@ -346,7 +346,7 @@ function sop_render_product_supplier_metabox( $post ) {
                     'force_p_newlines'  => false,
                     'formats'           => '{strikethrough: {inline: "s"}}',
                     'content_style'     => '.sop-note-red{color:#d63638;}',
-                    'textcolor_map'     => 'D63638,Red',
+                    'textcolor_map'     => array( 'D63638', 'Red' ),
                     'textcolor_rows'    => 1,
                     'textcolor_cols'    => 1,
                 ),
@@ -553,5 +553,7 @@ function sop_get_product_supplier_id( $product_id ) {
 
     return (int) $supplier_id;
 }
+
+
 
 
