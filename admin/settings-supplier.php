@@ -2,7 +2,7 @@
 /**
  * Stock Order Plugin â€“ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.47
+ * File version: 1.5.48
  * - Add Data Export tab routing for settings.
  * - Show error when Data Export module is missing.
  * - Remove TEMP Shiny CSV importer tool.
@@ -2369,6 +2369,7 @@ add_action( 'admin_init', 'sop_handle_company_profile_save_request' );
  *
  * @return array
  */
+if ( ! function_exists( 'sop_get_settings' ) ) {
 function sop_get_settings() {
 
     if ( class_exists( 'sop_Admin_Settings' ) ) {
@@ -2384,6 +2385,7 @@ function sop_get_settings() {
         'usd_to_gbp_rate'          => '',
         'show_suggested_vs_max'    => 1,
     );
+}
 }
 
 
