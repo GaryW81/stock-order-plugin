@@ -2,7 +2,8 @@
 /**
  * Main loader for the Stock Order Plugin.
  *
- * File version: 1.0.09
+ * File version: 1.0.10
+ * - Fix WMS debug panel detection for existing product edit screens; throttle render.
  * - Add opt-in WMS debug panel (JS/AJAX capture) behind sop_debug_wms=1.
  * - Skip SOP bootstrap on non-SOP AJAX requests.
  * - Remove BOM/whitespace to prevent activation output.
@@ -149,6 +150,13 @@ class sop_Loader {
             }
         }
 
+        if ( 'post.php' === $pagenow ) {
+            $post_id = isset( $_GET['post'] ) ? absint( wp_unslash( $_GET['post'] ) ) : 0;
+            if ( $post_id > 0 && function_exists( 'get_post_type' ) ) {
+                return ( 'product' === get_post_type( $post_id ) );
+            }
+        }
+
         $post_type = isset( $_GET['post_type'] ) ? sanitize_key( wp_unslash( $_GET['post_type'] ) ) : '';
         return ( 'product' === $post_type );
     }
@@ -232,13 +240,20 @@ class sop_Loader {
 
                 var logs = [];
                 var maxEntries = 200;
+                var renderScheduled = false;
 
                 function addLog(entry) {
                     logs.push(entry);
                     if (logs.length > maxEntries) {
                         logs = logs.slice(logs.length - maxEntries);
                     }
-                    renderLogs();
+                    if (!renderScheduled) {
+                        renderScheduled = true;
+                        setTimeout(function() {
+                            renderScheduled = false;
+                            renderLogs();
+                        }, 200);
+                    }
                 }
 
                 function renderLogs() {
