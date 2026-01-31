@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.1.07
+ * File version: 1.1.08
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.1.08 - XLSX: Supplier Summary mirrors Order Summary template and preserves FX formulas (no hard-coded RMB cells).
  * - 1.1.07 - Notes: preserve arbitrary note colours in XLSX export.
  * - 1.1.06 - Notes: add Internal notes column to XLSX exports.
  * - 1.1.05 - Notes: support inline red color style in XLSX export.
@@ -1480,62 +1481,65 @@ class SOP_Preorder_XLSX_Exporter {
 
         if ( 'RMB' === $currency_label ) {
             // RMB template mapping (no structural changes).
-            $format_fx = function( $val ) {
-                if ( $val <= 0 ) {
-                    return '';
-                }
-                return number_format( (float) $val, 3, '.', '' );
-            };
-
             // Deposit row (template defines layout).
-            $fx_display = ( $deposit_fx > 0 ) ? $format_fx( $deposit_fx ) : '';
             if ( $is_new_template_layout ) {
                 if ( $deposit_usd > 0 ) {
-                    self::set_inline_preserve_style( $doc, $xpath, 'B37', self::format_money_string( $deposit_usd, 'USD' ) );
+                    self::update_cell_number_preserve_node_with_decimals( $xpath, $doc, 'B37', $deposit_usd, 2 );
                 }
                 if ( $deposit_fx > 0 ) {
-                    $set_inline( 'C37', sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ), '' );
+                    self::update_cell_number_preserve_node_with_decimals( $xpath, $doc, 'C37', $deposit_fx, 4 );
                 }
-                $result = self::update_cell_number_preserve_node( $xpath, $doc, 'D37', $deposit_rmb );
-                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                if ( ! self::po_template_cell_has_formula( $xpath, 'D37' ) ) {
+                    $result = self::po_template_set_formula_cell( $doc, $xpath, 'D37', 'B37*C37', 0 );
+                    if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                }
             } else {
-                self::set_inline_preserve_style( $doc, $xpath, 'B28', self::format_money_string( $deposit_usd, 'USD' ) );
-                $set_inline( 'C28', $deposit_fx > 0 ? sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ) : '', '' );
-                $result = self::set_inline_preserve_style( $doc, $xpath, 'D28', self::format_money_string( $deposit_rmb, 'RMB' ) );
-                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                if ( $deposit_usd > 0 ) {
+                    self::update_cell_number_preserve_node_with_decimals( $xpath, $doc, 'B28', $deposit_usd, 2 );
+                }
+                if ( $deposit_fx > 0 ) {
+                    self::update_cell_number_preserve_node_with_decimals( $xpath, $doc, 'C28', $deposit_fx, 4 );
+                }
+                if ( ! self::po_template_cell_has_formula( $xpath, 'D28' ) ) {
+                    $result = self::po_template_set_formula_cell( $doc, $xpath, 'D28', 'B28*C28', 0 );
+                    if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                }
             }
 
             // Balance row (template defines layout). Only show USD/FX when FX rate provided.
-            $balance_fx_display = ( $effective_balance_fx_for_export > 0 ) ? $format_fx( $effective_balance_fx_for_export ) : '';
             if ( $is_new_template_layout ) {
                 if ( $balance_fx_locked ) {
                     if ( $balance_usd_for_export > 0 ) {
-                        self::set_inline_preserve_style( $doc, $xpath, 'B38', self::format_money_string( $balance_usd_for_export, 'USD' ) );
+                        self::update_cell_number_preserve_node_with_decimals( $xpath, $doc, 'B38', $balance_usd_for_export, 2 );
                     }
                     if ( $effective_balance_fx_for_export > 0 ) {
-                        $set_inline( 'C38', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), '' );
+                        self::update_cell_number_preserve_node_with_decimals( $xpath, $doc, 'C38', $effective_balance_fx_for_export, 4 );
                     }
                 } elseif ( $deposit_fx > 0 && $deposit_fx_locked ) {
                     if ( $balance_usd_for_export > 0 ) {
-                        self::set_inline_preserve_style( $doc, $xpath, 'B38', self::format_money_string( $balance_usd_for_export, 'USD' ) );
+                        self::update_cell_number_preserve_node_with_decimals( $xpath, $doc, 'B38', $balance_usd_for_export, 2 );
                     }
-                    $set_inline( 'C38', sprintf( __( '1 USD = %s RMB', 'sop' ), $fx_display ), '' );
+                    self::update_cell_number_preserve_node_with_decimals( $xpath, $doc, 'C38', $deposit_fx, 4 );
                 }
-                $result = self::update_cell_number_preserve_node( $xpath, $doc, 'D38', $balance_rmb );
-                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                if ( ! self::po_template_cell_has_formula( $xpath, 'D38' ) ) {
+                    $result = self::po_template_set_formula_cell( $doc, $xpath, 'D38', 'D34-D37', 0 );
+                    if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                }
             } else {
                 if ( $balance_usd_for_export > 0 ) {
-                    self::set_inline_preserve_style( $doc, $xpath, 'B29', self::format_money_string( $balance_usd_for_export, 'USD' ) );
+                    self::update_cell_number_preserve_node_with_decimals( $xpath, $doc, 'B29', $balance_usd_for_export, 2 );
                 } else {
                     $set_inline( 'B29', '', '' );
                 }
                 if ( $effective_balance_fx_for_export > 0 ) {
-                    $set_inline( 'C29', sprintf( __( '1 USD = %s RMB', 'sop' ), $balance_fx_display ), '' );
+                    self::update_cell_number_preserve_node_with_decimals( $xpath, $doc, 'C29', $effective_balance_fx_for_export, 4 );
                 } else {
                     $set_inline( 'C29', '', '' );
                 }
-                $result = self::set_inline_preserve_style( $doc, $xpath, 'D29', self::format_money_string( $balance_rmb, 'RMB' ) );
-                if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                if ( ! self::po_template_cell_has_formula( $xpath, 'D29' ) ) {
+                    $result = self::po_template_set_formula_cell( $doc, $xpath, 'D29', 'D25-D28', 0 );
+                    if ( is_wp_error( $result ) ) { $zip->close(); return $result; }
+                }
             }
         } else {
             // Non-RMB template values: deposit and balance in supplier currency.
@@ -2146,6 +2150,62 @@ class SOP_Preorder_XLSX_Exporter {
         return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, '' !== $style_index ? $style_index : '' );
     }
 
+    private static function po_template_cell_has_formula( DOMXPath $xpath, $cell_ref ) {
+        $cell_ref = strtoupper( (string) $cell_ref );
+        if ( '' === $cell_ref ) {
+            return false;
+        }
+        $cell_nodes = $xpath->query( '//*[local-name()="c" and @r="' . $cell_ref . '"]' );
+        if ( ! $cell_nodes || $cell_nodes->length < 1 ) {
+            return false;
+        }
+        $cell = $cell_nodes->item( 0 );
+        if ( ! $cell ) {
+            return false;
+        }
+        foreach ( $cell->childNodes as $child ) {
+            if ( XML_ELEMENT_NODE === $child->nodeType && 'f' === $child->localName ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function po_template_set_formula_cell( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $formula, $value = null, $style_override = '' ) {
+        $cell = self::po_template_get_or_create_cell( $doc, $xpath, $cell_ref, '' === $style_override ? '' : $style_override );
+        if ( is_wp_error( $cell ) ) {
+            return $cell;
+        }
+        if ( $cell->hasAttribute( 't' ) ) {
+            $cell->removeAttribute( 't' );
+        }
+        $children = array();
+        foreach ( $cell->childNodes as $child ) {
+            if ( XML_ELEMENT_NODE === $child->nodeType ) {
+                $children[] = $child;
+            }
+        }
+        foreach ( $children as $child ) {
+            $local = $child->localName;
+            if ( 'v' === $local || 'is' === $local || 'f' === $local ) {
+                $cell->removeChild( $child );
+            }
+        }
+
+        $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+        $f  = $doc->createElementNS( $ns, 'f' );
+        $f->appendChild( $doc->createTextNode( (string) $formula ) );
+        $cell->appendChild( $f );
+
+        if ( null !== $value ) {
+            $v = $doc->createElementNS( $ns, 'v' );
+            $v->appendChild( $doc->createTextNode( self::format_number_cell( $value, 2 ) ) );
+            $cell->appendChild( $v );
+        }
+
+        return $cell;
+    }
+
     private static function update_cell_number_preserve_node( DOMXPath $xpath, DOMDocument $doc, $cell_ref, $number ) {
         $cell_ref = strtoupper( (string) $cell_ref );
         if ( '' === $cell_ref ) {
@@ -2179,6 +2239,44 @@ class SOP_Preorder_XLSX_Exporter {
         $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
         $v  = $doc->createElementNS( $ns, 'v' );
         $v->appendChild( $doc->createTextNode( self::format_number_cell( $number, 2 ) ) );
+        $cell->appendChild( $v );
+
+        return $cell;
+    }
+
+    private static function update_cell_number_preserve_node_with_decimals( DOMXPath $xpath, DOMDocument $doc, $cell_ref, $number, $decimals = 2 ) {
+        $cell_ref = strtoupper( (string) $cell_ref );
+        if ( '' === $cell_ref ) {
+            return self::po_template_set_number_cell( $doc, $xpath, $cell_ref, $number, '' );
+        }
+        $cell_nodes = $xpath->query( '//*[local-name()="c" and @r="' . $cell_ref . '"]' );
+        if ( ! $cell_nodes || $cell_nodes->length < 1 ) {
+            return self::po_template_set_number_cell( $doc, $xpath, $cell_ref, $number, '' );
+        }
+        $cell = $cell_nodes->item( 0 );
+        if ( ! $cell ) {
+            return self::po_template_set_number_cell( $doc, $xpath, $cell_ref, $number, '' );
+        }
+        if ( $cell->hasAttribute( 't' ) && '' !== $cell->getAttribute( 't' ) ) {
+            return self::po_template_set_number_cell( $doc, $xpath, $cell_ref, $number, '' );
+        }
+
+        $children = array();
+        foreach ( $cell->childNodes as $child ) {
+            if ( XML_ELEMENT_NODE === $child->nodeType ) {
+                $children[] = $child;
+            }
+        }
+        foreach ( $children as $child ) {
+            $local = $child->localName;
+            if ( 'v' === $local || 'is' === $local ) {
+                $cell->removeChild( $child );
+            }
+        }
+
+        $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+        $v  = $doc->createElementNS( $ns, 'v' );
+        $v->appendChild( $doc->createTextNode( self::format_number_cell( $number, $decimals ) ) );
         $cell->appendChild( $v );
 
         return $cell;
