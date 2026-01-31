@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.1.08
+ * File version: 1.1.09
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.1.09 - XLSX: force full recalculation on open so formula cells populate automatically.
  * - 1.1.08 - XLSX: Supplier Summary mirrors Order Summary template and preserves FX formulas (no hard-coded RMB cells).
  * - 1.1.07 - Notes: preserve arbitrary note colours in XLSX export.
  * - 1.1.06 - Notes: add Internal notes column to XLSX exports.
@@ -1624,6 +1625,7 @@ class SOP_Preorder_XLSX_Exporter {
 
         // Write back and close.
         $zip->addFromString( 'xl/worksheets/sheet1.xml', $new_sheet_xml );
+        self::sop_xlsx_force_full_calc_on_load( $zip );
         $zip->close();
 
         return $xlsx_path;
@@ -2148,6 +2150,42 @@ class SOP_Preorder_XLSX_Exporter {
     private static function set_inline_preserve_style( DOMDocument $doc, DOMXPath $xpath, $cell_ref, $text ) {
         $style_index = self::po_template_get_style_index( $xpath, $cell_ref );
         return self::po_template_set_inline_cell( $doc, $xpath, $cell_ref, $text, '' !== $style_index ? $style_index : '' );
+    }
+
+    private static function sop_xlsx_force_full_calc_on_load( ZipArchive $zip ) {
+        $path = 'xl/workbook.xml';
+        $xml  = $zip->getFromName( $path );
+        if ( false === $xml ) {
+            return;
+        }
+
+        $doc                     = new DOMDocument();
+        $doc->preserveWhiteSpace = false;
+        $doc->formatOutput       = false;
+        if ( ! @$doc->loadXML( $xml, LIBXML_NOERROR | LIBXML_NOWARNING ) ) {
+            return;
+        }
+        $xpath = new DOMXPath( $doc );
+        $xpath->registerNamespace( 's', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main' );
+
+        $workbook = $xpath->query( '/s:workbook' )->item( 0 );
+        if ( ! $workbook ) {
+            return;
+        }
+        $calc_pr = $xpath->query( '/s:workbook/s:calcPr' )->item( 0 );
+        if ( ! $calc_pr ) {
+            $calc_pr = $doc->createElementNS( 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'calcPr' );
+            $workbook->appendChild( $calc_pr );
+        }
+        $calc_pr->setAttribute( 'fullCalcOnLoad', '1' );
+        if ( ! $calc_pr->hasAttribute( 'calcId' ) ) {
+            $calc_pr->setAttribute( 'calcId', '171027' );
+        }
+
+        $updated = $doc->saveXML();
+        if ( false !== $updated ) {
+            $zip->addFromString( $path, $updated );
+        }
     }
 
     private static function po_template_cell_has_formula( DOMXPath $xpath, $cell_ref ) {
