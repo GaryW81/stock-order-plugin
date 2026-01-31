@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.02 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.03 *
+ * - V13.03 - UI: set Allowance input width to 60px for header alignment.
  * - V13.02 - UI: reduce Additional items CBM input width to 110px for header alignment.
  * - V13.01 - UI: align container controls row with stacked labels + top-aligned pallet checkbox.
  * - V13.00 - UI: prevent duplicate header icons by removing data-icon background layer (single <img> render).
@@ -1470,7 +1471,7 @@ function sop_preorder_render_admin_page() {
                             <div class="sop-preorder-control">
                                 <div class="sop-preorder-control-label"><?php esc_html_e( 'Allowance:', 'sop' ); ?></div>
                                 <div class="sop-preorder-control-field">
-                                    <input type="number" name="sop_allowance" value="<?php echo esc_attr( $allowance ); ?>" step="1" min="-50" max="50" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?> />
+                                    <input type="number" name="sop_allowance" value="<?php echo esc_attr( $allowance ); ?>" step="1" min="-50" max="50" form="sop-preorder-filter-form" class="sop-preorder-allowance-input" <?php echo $sop_disabled_attr; ?> />
                                     %
                                 </div>
                             </div>
@@ -2953,6 +2954,12 @@ function sop_preorder_render_admin_page() {
             box-sizing: border-box;
             width: 110px;
             max-width: 110px;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-allowance-input {
+            box-sizing: border-box;
+            width: 60px;
+            max-width: 60px;
         }
 
         .sop-preorder-container-item--button {
