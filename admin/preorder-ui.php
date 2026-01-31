@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.01 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.02 *
+ * - V13.02 - UI: reduce Additional items CBM input width to 110px for header alignment.
  * - V13.01 - UI: align container controls row with stacked labels + top-aligned pallet checkbox.
  * - V13.00 - UI: prevent duplicate header icons by removing data-icon background layer (single <img> render).
  * - V12.99 - UI: prevent header SVG icon first-paint blowout by constraining icon dimensions.
@@ -1479,7 +1480,7 @@ function sop_preorder_render_admin_page() {
                             <div class="sop-preorder-control">
                                 <div class="sop-preorder-control-label"><?php esc_html_e( 'Additional items CBM:', 'sop' ); ?></div>
                                 <div class="sop-preorder-control-field">
-                                    <input type="number" name="sop_additional_cbm" value="<?php echo esc_attr( $additional_cbm ); ?>" step="0.001" min="0" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?> />
+                                    <input type="number" name="sop_additional_cbm" value="<?php echo esc_attr( $additional_cbm ); ?>" step="0.001" min="0" form="sop-preorder-filter-form" class="sop-preorder-additional-cbm-input" <?php echo $sop_disabled_attr; ?> />
                                 </div>
                             </div>
                         </div>
@@ -2946,6 +2947,12 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-card__row--container-top .sop-preorder-checkbox-label input[type="checkbox"] {
             margin-top: 2px;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-additional-cbm-input {
+            box-sizing: border-box;
+            width: 110px;
+            max-width: 110px;
         }
 
         .sop-preorder-container-item--button {
