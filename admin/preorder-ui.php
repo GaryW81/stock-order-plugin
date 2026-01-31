@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.05 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.06 *
+ * - V13.06 - UI: fix container controls overlap by enforcing wrap-friendly flex sizing.
  * - V13.05 - No-op: version bump to record reverted baseline for Pre-Order UI.
  * - V13.04 - UI: prevent container controls overlap on narrow screens with safer wrapping.
  * - V13.03 - UI: set Allowance input width to 60px for header alignment.
@@ -1488,10 +1489,15 @@ function sop_preorder_render_admin_page() {
                             </div>
                         </div>
 
-                        <div class="sop-preorder-container-item sop-preorder-container-item--button">
-                            <button type="submit" class="button button-secondary" name="sop_preorder_update_container" value="1" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?>>
-                                <?php esc_html_e( 'Update container', 'sop' ); ?>
-                            </button>
+                        <div class="sop-preorder-container-item sop-preorder-container-item--update">
+                            <div class="sop-preorder-control">
+                                <div class="sop-preorder-control-label sop-preorder-control-label--spacer">.</div>
+                                <div class="sop-preorder-control-field">
+                                    <button type="submit" class="button button-secondary" name="sop_preorder_update_container" value="1" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?>>
+                                        <?php esc_html_e( 'Update container', 'sop' ); ?>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -2905,28 +2911,38 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-card__row--container-top {
             display: flex;
-            align-items: center;
-            gap: 16px;
+            align-items: flex-start;
+            gap: 12px;
             flex-wrap: wrap;
             width: 100%;
         }
 
         .sop-preorder-card__row--container-top .sop-preorder-container-item {
-            flex: 1 1 0;
-            min-width: 0;
             display: flex;
             align-items: stretch;
             gap: 8px;
         }
 
         .sop-preorder-card__row--container-top .sop-preorder-container-item--select {
-            flex: 1 1 220px;
-            min-width: 220px;
+            flex: 1 1 270px;
+            min-width: 240px;
         }
 
         .sop-preorder-card__row--container-top .sop-preorder-container-item--pallet {
-            flex: 1 1 170px;
-            min-width: 170px;
+            flex: 0 1 170px;
+            min-width: 150px;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-container-item--allowance {
+            flex: 0 0 auto;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-container-item--additional-cbm {
+            flex: 0 0 auto;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-container-item--update {
+            flex: 0 0 auto;
         }
 
         .sop-preorder-card__row--container-top .sop-preorder-control {
@@ -2934,6 +2950,7 @@ function sop_preorder_render_admin_page() {
             flex-direction: column;
             gap: 4px;
             width: 100%;
+            min-width: 0;
         }
 
         .sop-preorder-card__row--container-top .sop-preorder-control-label {
@@ -2978,7 +2995,7 @@ function sop_preorder_render_admin_page() {
             max-width: 60px;
         }
 
-        .sop-preorder-container-item--button {
+        .sop-preorder-container-item--update {
             justify-content: flex-end;
         }
 
@@ -3369,7 +3386,7 @@ function sop_preorder_render_admin_page() {
                 min-width: 80px;
             }
 
-            .sop-preorder-container-item--button .button {
+            .sop-preorder-container-item--update .button {
                 width: 100%;
             }
 
