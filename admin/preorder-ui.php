@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.98 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.99 *
+ * - V12.99 - UI: prevent header SVG icon first-paint blowout by constraining icon dimensions.
  * - V12.98 - Notes: render rich product/internal notes with kses-sanitised HTML.
  * - V12.97 - Notes: clamp preview height to prevent row expansion.
  * - V12.95 - Fix: constrain header icon <img> sizing to prevent layout blowout.
@@ -125,7 +126,9 @@ if ( ! function_exists( 'sop_preorder_render_header_icon' ) ) {
         $data_uri = sop_preorder_get_header_icon_data_uri( $filename );
 
         if ( '' !== $data_uri ) {
-            return '<img class="sop-preorder-header-icon-img" src="' . esc_attr( $data_uri ) . '" alt="' . esc_attr( $alt ) . '" />';
+            $icon_size = 80;
+            $style     = 'width:' . $icon_size . 'px;height:' . $icon_size . 'px;max-width:' . $icon_size . 'px;max-height:' . $icon_size . 'px;';
+            return '<img class="sop-preorder-header-icon-img" src="' . esc_attr( $data_uri ) . '" alt="' . esc_attr( $alt ) . '" width="' . (int) $icon_size . '" height="' . (int) $icon_size . '" style="' . esc_attr( $style ) . '" />';
         }
 
         if ( '' !== $fallback_dashicon_class ) {
@@ -1345,6 +1348,22 @@ function sop_preorder_render_admin_page() {
                 </form>
             <?php endif; ?>
 
+            <style>
+                .sop-preorder-card-icon {
+                    width: 92px;
+                    height: 92px;
+                    min-width: 92px;
+                    min-height: 92px;
+                    overflow: hidden;
+                }
+                .sop-preorder-header-icon-img {
+                    width: 80px;
+                    height: 80px;
+                    max-width: 80px;
+                    max-height: 80px;
+                    display: block;
+                }
+            </style>
             <div class="sop-preorder-card sop-preorder-card--top">
                 <?php
                 $sop_icon_supplier_class = $sop_icon_supplier_uri ? ' sop-has-custom-icon' : '';

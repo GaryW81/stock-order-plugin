@@ -1,4 +1,4 @@
-# AGENTS.md – Wilson Stock Order Plugin
+﻿# AGENTS.md â€“ Wilson Stock Order Plugin
 
 You are working on a custom WordPress + WooCommerce plugin used ONLY on the
 parent multisite `wilson-organisation.com`. It is an internal ERP-style stock
@@ -18,7 +18,7 @@ ordering system for Wilson-Organisation Ltd.
 ## Output policy (chat bloat control)
 
 - DEFAULT RESPONSE FORMAT (for every task):
-  1) Summary (2–6 bullets)
+  1) Summary (2â€“6 bullets)
   2) Files changed (exact paths)
   3) Static checks performed (explicit checklist)
   4) Commit message suggestion (single line)
@@ -27,25 +27,25 @@ ordering system for Wilson-Organisation Ltd.
   - Default: Max 10 lines TOTAL per response (including blanks).
   - No internal reasoning, no step-by-step logs, no long diagnostics.
   - Allowed format within 10 lines:
-    1) Summary (2–4 lines max)
+    1) Summary (2â€“4 lines max)
     2) Files changed (1 line)
-    3) Static checks performed (2–3 lines max)
+    3) Static checks performed (2â€“3 lines max)
     4) Commit message suggestion (1 line, MUST be the final line)
   - Exception: Only exceed 10 lines if the user explicitly requests verbose output/debug logs.
 
 - DO NOT paste full file contents by default.
   - Never paste entire PHP files, JS files, or long templates into chat.
-  - Never say “preparing full updated file output” unless the user requested full file output.
+  - Never say â€œpreparing full updated file outputâ€ unless the user requested full file output.
 
 - ONLY paste complete file contents when the user explicitly requests it using wording like:
-  - “paste the full file”
-  - “output the complete file”
-  - “give me the entire file content”
+  - â€œpaste the full fileâ€
+  - â€œoutput the complete fileâ€
+  - â€œgive me the entire file contentâ€
   Otherwise: do not.
 
 - For review, direct the user to rely on:
   - VS Code diff view (Source Control / inline diff)
-  - or provide a short, focused snippet ONLY if it’s under ~50 lines and only when it clarifies a change.
+  - or provide a short, focused snippet ONLY if itâ€™s under ~50 lines and only when it clarifies a change.
 
 ---
 
@@ -53,13 +53,13 @@ ordering system for Wilson-Organisation Ltd.
 
 1) After completing any edit task, the agent response MUST contain ONLY:
    - Up to 10 lines total summarising what changed (plain text)
-   - One final line: "Commit message: …"
+   - One final line: "Commit message: â€¦"
    No other sections, no headings, no code blocks, no diffs, no file contents.
 
 2) NEVER paste PHP/JS/CSS or any large code output into chat. All code changes must be made directly in the repository files in VS Code.
 
 3) NEVER claim you ran any CLI commands (git, php -l, wp-cli, tests, etc.). You cannot execute commands here.
-   - If asked about commit status, reply: "No commit created here; please commit via VS Code Source Control / GitHub workflow. Commit message: …"
+   - If asked about commit status, reply: "No commit created here; please commit via VS Code Source Control / GitHub workflow. Commit message: â€¦"
    - Do not mention `git status` or show imaginary outputs.
 
 4) If Gary explicitly asks to see a snippet, keep it to <= 10 lines and only the specific snippet requested.
@@ -68,7 +68,16 @@ ordering system for Wilson-Organisation Ltd.
 6) NEVER introduce UTF-8 BOM. PHP files must start with "<?php" as the very first bytes (no BOM/whitespace) and omit the closing "?>".
 7) After editing any PHP file, explicitly confirm in static checks: "No BOM added" and "No closing PHP tag".
 
-The plugin’s job is to:
+
+## Chat Output Policy (MANDATORY)
+
+- DO NOT paste full file contents into chat unless the user explicitly asks for a full file to be pasted.
+- Default completion response MUST be:
+  1) Summary: max 10 lines total (include static checks in ONE line inside those 10 lines)
+  2) One final line: "Commit message: <message>"
+- Include ONE line within the 10-line summary stating:
+  "I will not paste full file contents here because the repository/VS Code is the source of truth and to avoid noise/risk."
+- If the user asks for code, point them to VS Code file paths first; only paste code if explicitly requested.The pluginâ€™s job is to:
 - Forecast demand per SKU (typically over 6-month cycles).
 - Plan supplier purchase orders with lead times and China holidays.
 - Track CBM and container capacity.
@@ -85,15 +94,15 @@ from scratch.
 
 - Plugin folder: `stock-order-plugin/`
 - Key files and folders:
-  - `stock-order-plugin.php` — main plugin bootstrap and hooks.
-  - `/includes` — core logic (data access, forecasting, calculations, helpers).
-  - `/admin` — admin-only UI (settings pages, pre-order sheet, list tables).
-  - `/assets` — admin JS/CSS (if present).
+  - `stock-order-plugin.php` â€” main plugin bootstrap and hooks.
+  - `/includes` â€” core logic (data access, forecasting, calculations, helpers).
+  - `/admin` â€” admin-only UI (settings pages, pre-order sheet, list tables).
+  - `/assets` â€” admin JS/CSS (if present).
 - PHP: 8.1+.
 - Platform: WordPress multisite, WooCommerce store on parent site.
 - No front-end output; everything is WordPress admin-side.
 
-Follow the user’s **Master Project Instructions** in this ChatGPT project:
+Follow the userâ€™s **Master Project Instructions** in this ChatGPT project:
 - GitHub is the single source of truth.
 - Every PHP file has a header with phase + description + file version.
 - Increment file version numbers on each edit.
@@ -123,13 +132,13 @@ replaced:
 - Stock quantity.
 - Dimensions (length, width, height) in cm.
 - Weight.
-- Cost price (GBP) – WooCommerce native cost field.
+- Cost price (GBP) â€“ WooCommerce native cost field.
 - Supplier cost price (e.g. RMB) stored at product level.
 - Supplier association meta (e.g. supplier ID per product).
 - Product brand taxonomy and categories.
-- `max_order_qty_per_month` — **critical manual ceiling**.
+- `max_order_qty_per_month` â€” **critical manual ceiling**.
   - Never overwrite this meta.
-  - Never “recalculate” and write a new value into it.
+  - Never â€œrecalculateâ€ and write a new value into it.
   - If you need plugin-side limits, store them separately.
 
 Discontinued items are simply products with **no supplier assigned**; they must
@@ -149,7 +158,7 @@ The plugin may create and maintain its own data:
 - Supplier configuration:
   - Lead time, currency, container types/capacities, column layouts.
 - Goods-in / receiving logs (later phase).
-- Any “plugin suggested max order” values (separate from
+- Any â€œplugin suggested max orderâ€ values (separate from
   `max_order_qty_per_month`).
 
 All tables and options must be safely created/updated on activation with
@@ -163,7 +172,7 @@ The v1.5.5 plugin already contains early implementations of:
 
 - A main admin menu for the Stock Order Plugin.
 - Per-product meta box for supplier and SOP meta fields.
-- Supplier-filtered “pre-order sheet” UI:
+- Supplier-filtered â€œpre-order sheetâ€ UI:
   - Shows products for a selected supplier.
   - Supports basic CBM calculations using product dimensions.
   - Handles multiple supplier currencies (RMB, GBP and others).
@@ -172,8 +181,8 @@ The v1.5.5 plugin already contains early implementations of:
 - Core engine scaffolding for forecasting and ordering.
 
 When editing code, **respect existing structures**:
-- Don’t rename SOP meta keys without a clear migration.
-- Don’t rip out the pre-order sheet; extend it to fit the Blueprint.
+- Donâ€™t rename SOP meta keys without a clear migration.
+- Donâ€™t rip out the pre-order sheet; extend it to fit the Blueprint.
 
 ---
 
@@ -185,7 +194,7 @@ rules include:
 1. **Forecasting**
    - Default 12-month lookback, configurable.
    - Detect stockouts (stock transitions to 0 and back) and exclude those days
-     from “days on sale”.
+     from â€œdays on saleâ€.
    - Support optional weighting so recent months count more.
    - For each SKU:
      - Work out demand over lead time + buffer (e.g. 6-month cycle).
@@ -203,9 +212,9 @@ rules include:
      - Export column layout.
 
 3. **Containers & CBM**
-   - Per-unit CBM from L×W×H in cm (divide by 1,000,000).
+   - Per-unit CBM from LÃ—WÃ—H in cm (divide by 1,000,000).
    - For any proposed order:
-     - Line CBM = qty × per-unit CBM.
+     - Line CBM = qty Ã— per-unit CBM.
      - Container fill % vs chosen container type.
      - Colour/alert ranges for underfilled / optimal / full / overfull.
 
@@ -216,7 +225,7 @@ rules include:
    - Sorting, filtering, and rounding controls (round to 1/5/10, mark rounded).
 
 5. **Goods-in (later phase)**
-   - Import supplier’s confirmed sheet (carton numbers + final quantities).
+   - Import supplierâ€™s confirmed sheet (carton numbers + final quantities).
    - Receiving screen for ticking off and adjusting items.
    - Bulk stock_delta updates in WooCommerce.
    - Reports for shortages/damage/substitutions.
@@ -226,25 +235,25 @@ rules include:
 ## Phased development
 
 You must respect the phased approach. Each phase should be a coherent unit that
-doesn’t break earlier phases:
+doesnâ€™t break earlier phases:
 
-1. **Phase 1 – Core forecasting & suggested order report**
+1. **Phase 1 â€“ Core forecasting & suggested order report**
    - Forecast engine, stockouts going forward, per-supplier suggested quantities.
 
-2. **Phase 2 – Supplier settings & export sheet**
+2. **Phase 2 â€“ Supplier settings & export sheet**
    - Supplier admin UI, export layouts, CSV/XLSX generation.
 
-3. **Phase 3 – Container CBM & capacity**
+3. **Phase 3 â€“ Container CBM & capacity**
    - Robust CBM calculations and container fill UI.
 
-4. **Phase 4 – Advanced analytics & refinements**
+4. **Phase 4 â€“ Advanced analytics & refinements**
    - Top sellers, low volume, overstock flags, comparison to
      `max_order_qty_per_month`, UX refinements.
 
-5. **Phase 5 – Goods-in / container receiving**
+5. **Phase 5 â€“ Goods-in / container receiving**
    - Optional module for receiving / stock_delta bulk updates.
 
-v1.5.5 is partially through Phases 1–3 and especially Phase 4.1 (pre-order
+v1.5.5 is partially through Phases 1â€“3 and especially Phase 4.1 (pre-order
 sheet). Do **not** re-implement these blindly; extend them.
 
 ---
@@ -324,7 +333,7 @@ When a task affects multiple files or is part of a phase:
 - Produce a short, clear plan before editing.
 - Group multi-file actions logically.
 - Ask for A/B/C/D confirmation if the task is large or risky.
-- Reference which Phase (1–5) the task belongs to.
+- Reference which Phase (1â€“5) the task belongs to.
 
 ---
 
@@ -357,4 +366,5 @@ Before finalising changes:
 - Revalidate syntax.
 - Ensure the update follows every rule in this `AGENTS.md`.
 - Only then apply or output the file.
+
 
