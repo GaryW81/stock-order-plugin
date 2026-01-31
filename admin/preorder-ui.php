@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.04 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.05 *
+ * - V13.05 - No-op: version bump to record reverted baseline for Pre-Order UI.
  * - V13.04 - UI: prevent container controls overlap on narrow screens with safer wrapping.
  * - V13.03 - UI: set Allowance input width to 60px for header alignment.
  * - V13.02 - UI: reduce Additional items CBM input width to 110px for header alignment.
