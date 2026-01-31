@@ -1,9 +1,9 @@
-<?php
+﻿<?php
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.33
- * - Fix: ensure SOP notes save path preserves sop-note-red output from sanitizer.
+ * File version: 1.0.34
+ * - Restore native TinyMCE colour palette for SOP notes editors.
  * - UI: ensure red toggle loads and toolbar order is bold/red/strike.
  * - UI: enforce strikethrough tag for SOP notes editor and keep red toggle.
  * - UI: add rich notes editor for product/internal notes (bold/strike/red).
@@ -73,48 +73,6 @@ if ( ! function_exists( 'sop_notes_should_enable_editor' ) ) {
     }
 }
 
-if ( ! function_exists( 'sop_notes_tinymce_init' ) ) {
-    /**
-     * Ensure SOP notes editors load textcolor palette and red class styling.
-     *
-     * @param array  $init      TinyMCE init array.
-     * @param string $editor_id Editor ID.
-     * @return array
-     */
-    function sop_notes_tinymce_init( $init, $editor_id ) {
-        $allowed = array(
-            'sop_product_notes_editor',
-            'sop_internal_product_notes_editor',
-        );
-
-        if ( ! in_array( $editor_id, $allowed, true ) ) {
-            return $init;
-        }
-
-        $plugins_raw = isset( $init['plugins'] ) ? (string) $init['plugins'] : '';
-        $plugins     = preg_split( '/[\s,]+/', $plugins_raw, -1, PREG_SPLIT_NO_EMPTY );
-        $plugins     = is_array( $plugins ) ? $plugins : array();
-
-        if ( ! in_array( 'textcolor', $plugins, true ) ) {
-            $plugins[] = 'textcolor';
-        }
-
-        $init['plugins']        = trim( implode( ' ', $plugins ) );
-        $init['toolbar1']       = 'bold,forecolor,strikethrough';
-        $init['textcolor_map']  = array( 'D63638', 'Red' );
-        $init['textcolor_rows'] = 1;
-        $init['textcolor_cols'] = 1;
-
-        $content_style = isset( $init['content_style'] ) ? (string) $init['content_style'] : '';
-        if ( false === strpos( $content_style, '.sop-note-red' ) ) {
-            $content_style = trim( $content_style . ' .sop-note-red{color:#d63638;}' );
-        }
-        $init['content_style'] = $content_style;
-
-        return $init;
-    }
-}
-add_filter( 'tiny_mce_before_init', 'sop_notes_tinymce_init', 20, 2 );
 // Require DB + domain helpers from Phase 1.
 if ( ! class_exists( 'sop_DB' ) || ! function_exists( 'sop_supplier_get_all' ) ) {
     return;
@@ -203,7 +161,7 @@ function sop_render_product_supplier_metabox( $post ) {
     <p>
         <select name="_sop_supplier_id" id="_sop_supplier_id" style="width:100%;">
             <option value="0">
-                <?php esc_html_e( 'â€” No supplier (exclude from Stock Order) â€”', 'sop' ); ?>
+                <?php esc_html_e( 'Ã¢â‚¬â€ No supplier (exclude from Stock Order) Ã¢â‚¬â€', 'sop' ); ?>
             </option>
             <?php if ( ! empty( $suppliers ) ) : ?>
                 <?php foreach ( $suppliers as $supplier ) : ?>
@@ -316,9 +274,6 @@ function sop_render_product_supplier_metabox( $post ) {
                     'force_p_newlines'  => false,
                     'formats'           => '{strikethrough: {inline: "s"}}',
                     'content_style'     => '.sop-note-red{color:#d63638;}',
-                    'textcolor_map'     => array( 'D63638', 'Red' ),
-                    'textcolor_rows'    => 1,
-                    'textcolor_cols'    => 1,
                 ),
             )
         );
@@ -346,9 +301,6 @@ function sop_render_product_supplier_metabox( $post ) {
                     'force_p_newlines'  => false,
                     'formats'           => '{strikethrough: {inline: "s"}}',
                     'content_style'     => '.sop-note-red{color:#d63638;}',
-                    'textcolor_map'     => array( 'D63638', 'Red' ),
-                    'textcolor_rows'    => 1,
-                    'textcolor_cols'    => 1,
                 ),
             )
         );
@@ -553,6 +505,8 @@ function sop_get_product_supplier_id( $product_id ) {
 
     return (int) $supplier_id;
 }
+
+
 
 
 

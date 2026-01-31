@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.1.06
+ * File version: 1.1.07
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.1.07 - Notes: preserve arbitrary note colours in XLSX export.
  * - 1.1.06 - Notes: add Internal notes column to XLSX exports.
  * - 1.1.05 - Notes: support inline red color style in XLSX export.
  * - 1.1.04 - Notes: support rich product notes (bold/red/strike) in XLSX export.
@@ -1893,6 +1894,34 @@ class SOP_Preorder_XLSX_Exporter {
         $stack = array();
         $runs  = array();
         $has_rich = false;
+        $parse_color = function ( $value ) {
+            $value = strtolower( trim( (string) $value ) );
+            if ( '' === $value ) {
+                return '';
+            }
+            $value = str_replace( ' ', '', $value );
+            if ( 'red' === $value ) {
+                return 'FFFF0000';
+            }
+            if ( preg_match( '/^#?([0-9a-f]{3})$/i', $value, $m ) ) {
+                $hex = $m[1];
+                $hex = strtoupper( $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2] );
+                return 'FF' . $hex;
+            }
+            if ( preg_match( '/^#?([0-9a-f]{6})$/i', $value, $m ) ) {
+                return 'FF' . strtoupper( $m[1] );
+            }
+            if ( preg_match( '/^rgba?\\((\\d{1,3}),(\\d{1,3}),(\\d{1,3})(?:,([0-9.]+))?\\)$/i', $value, $m ) ) {
+                $r = max( 0, min( 255, (int) $m[1] ) );
+                $g = max( 0, min( 255, (int) $m[2] ) );
+                $b = max( 0, min( 255, (int) $m[3] ) );
+                if ( isset( $m[4] ) && '' !== $m[4] && (float) $m[4] <= 0 ) {
+                    return '';
+                }
+                return 'FF' . strtoupper( sprintf( '%02X%02X%02X', $r, $g, $b ) );
+            }
+            return '';
+        };
 
         foreach ( $tokens as $token ) {
             if ( '<' === substr( $token, 0, 1 ) ) {
@@ -1943,10 +1972,10 @@ class SOP_Preorder_XLSX_Exporter {
                         if ( preg_match( '/style\\s*=\\s*(\"|\\\")(.*?)\\1/i', $token, $style_match ) ) {
                             $style_raw = strtolower( (string) ( $style_match[2] ?? '' ) );
                             if ( preg_match( '/color\\s*:\\s*([^;]+)/', $style_raw, $color_match ) ) {
-                                $color_val = trim( (string) ( $color_match[1] ?? '' ) );
-                                $color_val = str_replace( ' ', '', $color_val );
-                                if ( in_array( $color_val, array( '#d63638', 'd63638', 'rgb(214,54,56)', 'rgba(214,54,56,1)' ), true ) ) {
-                                    $state['color'] = 'FFD63638';
+                                $color_val = $color_match[1] ?? '';
+                                $argb = $parse_color( $color_val );
+                                if ( '' !== $argb ) {
+                                    $state['color'] = $argb;
                                     $has_rich = true;
                                 }
                             }
