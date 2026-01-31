@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V12.99 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.00 *
+ * - V13.00 - UI: prevent duplicate header icons by removing data-icon background layer (single <img> render).
  * - V12.99 - UI: prevent header SVG icon first-paint blowout by constraining icon dimensions.
  * - V12.98 - Notes: render rich product/internal notes with kses-sanitised HTML.
  * - V12.97 - Notes: clamp preview height to prevent row expansion.
@@ -1367,9 +1368,8 @@ function sop_preorder_render_admin_page() {
             <div class="sop-preorder-card sop-preorder-card--top">
                 <?php
                 $sop_icon_supplier_class = $sop_icon_supplier_uri ? ' sop-has-custom-icon' : '';
-                $sop_icon_supplier_data = $sop_icon_supplier_uri ? ' data-icon="' . esc_attr( $sop_icon_supplier_uri ) . '"' : '';
                 ?>
-                <div class="sop-preorder-card-icon sop-preorder-card-icon--supplier<?php echo esc_attr( $sop_icon_supplier_class ); ?>" aria-hidden="true"<?php echo $sop_icon_supplier_data; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+                <div class="sop-preorder-card-icon sop-preorder-card-icon--supplier<?php echo esc_attr( $sop_icon_supplier_class ); ?>" aria-hidden="true">
                     <?php echo sop_preorder_render_header_icon( 'supplier.svg', 'dashicons-admin-users', __( 'Supplier', 'sop' ) ); ?>
                 </div>
                 <div class="sop-preorder-card-main sop-preorder-card-main--top">
@@ -1432,9 +1432,8 @@ function sop_preorder_render_admin_page() {
             <div class="sop-preorder-card sop-preorder-card--planning">
                 <?php
                 $sop_icon_container_class = $sop_icon_container_uri ? ' sop-has-custom-icon' : '';
-                $sop_icon_container_data = $sop_icon_container_uri ? ' data-icon="' . esc_attr( $sop_icon_container_uri ) . '"' : '';
-                ?>
-                <div class="sop-preorder-card-icon sop-preorder-card-icon--container<?php echo esc_attr( $sop_icon_container_class ); ?>" aria-hidden="true"<?php echo $sop_icon_container_data; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+            ?>
+            <div class="sop-preorder-card-icon sop-preorder-card-icon--container<?php echo esc_attr( $sop_icon_container_class ); ?>" aria-hidden="true">
                     <?php echo sop_preorder_render_header_icon( 'container.svg', 'dashicons-admin-multisite', __( 'Container', 'sop' ) ); ?>
                 </div>
                 <div class="sop-preorder-card-main sop-preorder-card-main--middle">
@@ -1504,9 +1503,8 @@ function sop_preorder_render_admin_page() {
             <div class="sop-preorder-card sop-preorder-card--tools sop-preorder-card--rounding">
                 <?php
                 $sop_icon_rounding_class = $sop_icon_rounding_uri ? ' sop-has-custom-icon' : '';
-                $sop_icon_rounding_data = $sop_icon_rounding_uri ? ' data-icon="' . esc_attr( $sop_icon_rounding_uri ) . '"' : '';
-                ?>
-                <div class="sop-preorder-card-icon sop-preorder-card-icon--planner<?php echo esc_attr( $sop_icon_rounding_class ); ?>" aria-hidden="true"<?php echo $sop_icon_rounding_data; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+            ?>
+            <div class="sop-preorder-card-icon sop-preorder-card-icon--planner<?php echo esc_attr( $sop_icon_rounding_class ); ?>" aria-hidden="true">
                     <?php echo sop_preorder_render_header_icon( 'rounding.svg', 'dashicons-clipboard', __( 'Rounding', 'sop' ) ); ?>
                 </div>
                     <div class="sop-preorder-card-main sop-preorder-card-main--tools">
@@ -3986,21 +3984,7 @@ function sop_preorder_render_admin_page() {
             }
             var $soqTooltip          = $('#sop-soq-tooltip');
 
-            // IMPORTANT:
-            // SVG background-images must NOT be rendered inline.
-            // Browsers paint SVGs at intrinsic size before CSS loads, causing splash.
-            // Always defer background-image application via data-icon + DOM ready.
-            function sopApplyDeferredHeaderIcons() {
-                $('.sop-preorder-card-icon[data-icon]').each( function() {
-                    var dataIcon = $( this ).attr( 'data-icon' );
-                    if ( ! dataIcon || this.style.backgroundImage ) {
-                        return;
-                    }
-                    this.style.backgroundImage = 'url(' + dataIcon + ')';
-                } );
-            }
-
-            sopApplyDeferredHeaderIcons();
+            // Header icons now render via <img> only (no background-image layer).
             var lastMouseClientX     = null;
             var lastMouseClientY     = null;
             var soqScrollTimer       = null;
