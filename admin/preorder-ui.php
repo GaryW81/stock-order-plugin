@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.00 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.01 *
+ * - V13.01 - UI: align container controls row with stacked labels + top-aligned pallet checkbox.
  * - V13.00 - UI: prevent duplicate header icons by removing data-icon background layer (single <img> render).
  * - V12.99 - UI: prevent header SVG icon first-paint blowout by constraining icon dimensions.
  * - V12.98 - Notes: render rich product/internal notes with kses-sanitised HTML.
@@ -1439,37 +1440,48 @@ function sop_preorder_render_admin_page() {
                 <div class="sop-preorder-card-main sop-preorder-card-main--middle">
                     <div class="sop-preorder-card__row sop-preorder-card__row--container-top">
                         <div class="sop-preorder-container-item sop-preorder-container-item--select">
-                            <label>
-                                <?php esc_html_e( 'Container:', 'sop' ); ?>
-                                <select name="sop_container" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?>>
-                                    <option value=""><?php esc_html_e( 'None', 'sop' ); ?></option>
-                                    <option value="20ft" <?php selected( $container_selection, '20ft' ); ?>>20&#39; (33.2 CBM)</option>
-                                    <option value="40ft" <?php selected( $container_selection, '40ft' ); ?>>40&#39; (67.7 CBM)</option>
-                                    <option value="40ft_hc" <?php selected( $container_selection, '40ft_hc' ); ?>>40&#39; HQ (76.3 CBM)</option>
-                                </select>
-                            </label>
+                            <div class="sop-preorder-control">
+                                <div class="sop-preorder-control-label"><?php esc_html_e( 'Container:', 'sop' ); ?></div>
+                                <div class="sop-preorder-control-field">
+                                    <select name="sop_container" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?>>
+                                        <option value=""><?php esc_html_e( 'None', 'sop' ); ?></option>
+                                        <option value="20ft" <?php selected( $container_selection, '20ft' ); ?>>20&#39; (33.2 CBM)</option>
+                                        <option value="40ft" <?php selected( $container_selection, '40ft' ); ?>>40&#39; (67.7 CBM)</option>
+                                        <option value="40ft_hc" <?php selected( $container_selection, '40ft_hc' ); ?>>40&#39; HQ (76.3 CBM)</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="sop-preorder-container-item sop-preorder-container-item--pallet">
-                            <label class="sop-pallet-layer-label">
-                                <input type="checkbox" name="sop_pallet_layer" value="1" <?php checked( $pallet_layer ); ?> form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?> />
-                                <?php esc_html_e( '150mm pallet layer', 'sop' ); ?>
-                            </label>
+                            <div class="sop-preorder-control">
+                                <div class="sop-preorder-control-label sop-preorder-control-label--spacer">.</div>
+                                <div class="sop-preorder-control-field">
+                                    <label class="sop-preorder-checkbox-label">
+                                        <input type="checkbox" name="sop_pallet_layer" value="1" <?php checked( $pallet_layer ); ?> form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?> />
+                                        <?php esc_html_e( '150mm pallet layer', 'sop' ); ?>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="sop-preorder-container-item sop-preorder-container-item--allowance">
-                            <label class="sop-allowance-label">
-                                <?php esc_html_e( 'Allowance:', 'sop' ); ?>
-                                <input type="number" name="sop_allowance" value="<?php echo esc_attr( $allowance ); ?>" step="1" min="-50" max="50" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?> />
-                                %
-                            </label>
+                            <div class="sop-preorder-control">
+                                <div class="sop-preorder-control-label"><?php esc_html_e( 'Allowance:', 'sop' ); ?></div>
+                                <div class="sop-preorder-control-field">
+                                    <input type="number" name="sop_allowance" value="<?php echo esc_attr( $allowance ); ?>" step="1" min="-50" max="50" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?> />
+                                    %
+                                </div>
+                            </div>
                         </div>
 
                         <div class="sop-preorder-container-item sop-preorder-container-item--additional-cbm">
-                            <label class="sop-additional-cbm-label">
-                                <?php esc_html_e( 'Additional items CBM:', 'sop' ); ?>
-                                <input type="number" name="sop_additional_cbm" value="<?php echo esc_attr( $additional_cbm ); ?>" step="0.001" min="0" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?> />
-                            </label>
+                            <div class="sop-preorder-control">
+                                <div class="sop-preorder-control-label"><?php esc_html_e( 'Additional items CBM:', 'sop' ); ?></div>
+                                <div class="sop-preorder-control-field">
+                                    <input type="number" name="sop_additional_cbm" value="<?php echo esc_attr( $additional_cbm ); ?>" step="0.001" min="0" form="sop-preorder-filter-form" <?php echo $sop_disabled_attr; ?> />
+                                </div>
+                            </div>
                         </div>
 
                         <div class="sop-preorder-container-item sop-preorder-container-item--button">
@@ -2899,8 +2911,41 @@ function sop_preorder_render_admin_page() {
             flex: 1 1 0;
             min-width: 0;
             display: flex;
-            align-items: center;
+            align-items: stretch;
             gap: 8px;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-control {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 100%;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-control-label {
+            font-size: 12px;
+            line-height: 1.1;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-control-label--spacer {
+            visibility: hidden;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-control-field {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-checkbox-label {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-checkbox-label input[type="checkbox"] {
+            margin-top: 2px;
         }
 
         .sop-preorder-container-item--button {
