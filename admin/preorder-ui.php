@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.07 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.08 *
+ * - V13.08 - UI: fix Container select to fixed width (fits longest option).
  * - V13.07 - UI: reduce container/pallet min widths so Update container stays inline more often.
  * - V13.06 - UI: fix container controls overlap by enforcing wrap-friendly flex sizing.
  * - V13.05 - No-op: version bump to record reverted baseline for Pre-Order UI.
@@ -2925,8 +2926,7 @@ function sop_preorder_render_admin_page() {
         }
 
         .sop-preorder-card__row--container-top .sop-preorder-container-item--select {
-            flex: 1 1 220px;
-            min-width: 200px;
+            flex: 0 0 auto;
         }
 
         .sop-preorder-card__row--container-top .sop-preorder-container-item--pallet {
@@ -2972,6 +2972,12 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-card__row--container-top .sop-preorder-control-field select {
             width: 100%;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-container-item--select select {
+            box-sizing: border-box;
+            width: 310px;
+            max-width: 310px;
         }
 
         .sop-preorder-card__row--container-top .sop-preorder-checkbox-label {
