@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.03 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.04 *
+ * - V13.04 - UI: prevent container controls overlap on narrow screens with safer wrapping.
  * - V13.03 - UI: set Allowance input width to 60px for header alignment.
  * - V13.02 - UI: reduce Additional items CBM input width to 110px for header alignment.
  * - V13.01 - UI: align container controls row with stacked labels + top-aligned pallet checkbox.
@@ -2917,6 +2918,16 @@ function sop_preorder_render_admin_page() {
             gap: 8px;
         }
 
+        .sop-preorder-card__row--container-top .sop-preorder-container-item--select {
+            flex: 1 1 220px;
+            min-width: 220px;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-container-item--pallet {
+            flex: 1 1 170px;
+            min-width: 170px;
+        }
+
         .sop-preorder-card__row--container-top .sop-preorder-control {
             display: flex;
             flex-direction: column;
@@ -2938,6 +2949,10 @@ function sop_preorder_render_admin_page() {
             align-items: center;
             gap: 6px;
             flex-wrap: wrap;
+        }
+
+        .sop-preorder-card__row--container-top .sop-preorder-control-field select {
+            width: 100%;
         }
 
         .sop-preorder-card__row--container-top .sop-preorder-checkbox-label {
