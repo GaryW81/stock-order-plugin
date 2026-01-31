@@ -1,8 +1,9 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.32
+ * File version: 1.1.33
  *
+ * - 1.1.33 - Goods-In: show correct +/- delta in apply-stock progress status.
  * - 1.1.32 - Notes: render rich product/internal notes with kses-sanitised HTML.
  * - 1.1.31 - Notes: clamp preview height to prevent row expansion.
  * - 1.1.30 - Notes: render product/internal notes with rich preview + modal.
@@ -3799,7 +3800,9 @@ function sop_render_goods_in_page() {
                         if (status === 'applied') {
                             applied++;
                             $row.addClass('sop-goodsin-row-applied');
-                            $progressStatus.text('Line ' + line.line_id + ' applied (+' + appliedQty + ').');
+                            var appliedDirection = (resp && resp.data && resp.data.result && resp.data.result.applied_direction) ? resp.data.result.applied_direction : 'increase';
+                            var appliedSign = (appliedDirection === 'decrease') ? '-' : '+';
+                            $progressStatus.text('Line ' + line.line_id + ' applied (' + appliedSign + appliedQty + ').');
                         } else if (status === 'noop' || status === 'skipped') {
                             skipped++;
                             $row.addClass('sop-goodsin-row-skipped');
