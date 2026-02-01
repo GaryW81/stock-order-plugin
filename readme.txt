@@ -1,6 +1,6 @@
 === Stock Order ===
 Contributors: Wilson Organisation Ltd
-Version: 1.0.2
+Version: 1.0.3
 Requires at least: 5.9
 Tested up to: 6.6
 Requires PHP: 8.1
@@ -24,3 +24,4 @@ Stock Order is an internal WooCommerce admin tool for Wilson-Organisation Ltd. I
 == Changelog ==
 1.0.1 - Dependency guards (WooCommerce + main site only), cron cleanup on deactivation, plugin header polish, Settings link.
 1.0.2 - Hotfix: parent-site guard uses wilson-organisation.com host suffix (fixes missing menu/access denied on multisite setups).
+1.0.3 - Release hygiene: add ABSPATH guards across admin/includes modules.
