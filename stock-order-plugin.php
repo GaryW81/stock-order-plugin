@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Stock Order
  * Description: Internal tool for suppliers, forecasting, purchase orders, container planning, goods-in, and labels/barcodes.
- * Version: 1.0.4
+ * Version: 1.0.5
  * Author: Wilson Organisation Ltd
  * Text Domain: sop
  * Domain Path: /languages
@@ -14,7 +14,8 @@
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.18
+ * File version: 1.0.19
+ * - Add System Status debug export + capability consistency.
  * - Add System Status tab + notices manager + capability helper.
  * - Release hygiene: ABSPATH guards across modules.
  * - Hotfix: parent-site guard now matches wilson-organisation.com host (multisite safe).
@@ -38,7 +39,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '1.0.4' );
+    define( 'SOP_PLUGIN_VERSION', '1.0.5' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -341,7 +342,7 @@ if ( ! function_exists( 'sop_admin_menu_register_group_links' ) ) {
             $parent_slug,
             __( 'Suppliers', 'sop' ),
             __( 'Suppliers', 'sop' ),
-            'manage_woocommerce',
+            sop_get_admin_capability(),
             'sop_stock_order_suppliers',
             'sop_admin_tabs_render_suppliers_redirect'
         );
