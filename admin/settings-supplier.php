@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin Ã¢â‚¬â€œ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.50
+ * File version: 1.5.51
+ * - UI copy: rename Stock Order plugin wording to Stock Order.
  * - Remove BOM/whitespace to prevent activation output.
  * - Add Data Export tab routing for settings.
  * - Show error when Data Export module is missing.
@@ -1223,7 +1224,7 @@ class sop_Admin_Settings {
                                 <input type="checkbox"
                                        name="<?php echo esc_attr( self::OPTION_KEY ); ?>[show_suggested_vs_max]"
                                        value="1" <?php checked( 1, (int) $settings['show_suggested_vs_max'] ); ?> />
-                                <?php esc_html_e( 'Display plugin suggested qty alongside max_order_qty_per_month on forecast screens.', 'sop' ); ?>
+                                <?php esc_html_e( 'Display suggested qty alongside max_order_qty_per_month on forecast screens.', 'sop' ); ?>
                             </label>
                         </td>
                     </tr>
@@ -1572,7 +1573,7 @@ class sop_Admin_Settings {
         <div class="sop-suppliers-wrap">
             <h2><?php esc_html_e( 'Suppliers', 'sop' ); ?></h2>
 
-            <p><?php esc_html_e( 'Manage suppliers used by the Stock Order plugin. Each supplier can have its own lead time, currency, and optional stock buffer override.', 'sop' ); ?></p>
+            <p><?php esc_html_e( 'Manage suppliers used by Stock Order. Each supplier can have its own lead time, currency, and optional stock buffer override.', 'sop' ); ?></p>
 
             <h3><?php esc_html_e( 'Supplier list', 'sop' ); ?></h3>
 
@@ -2119,7 +2120,7 @@ class sop_Admin_Settings {
                                        max="50"
                                        class="small-text" />
                                 <p class="description">
-                                    <?php esc_html_e( 'Allowance for container planning on new Pre-Order sheets (e.g. 5 = 5% spare, -5 = slight overfill). Leave blank to use the plugin default (5%).', 'sop' ); ?>
+                                    <?php esc_html_e( 'Allowance for container planning on new Pre-Order sheets (e.g. 5 = 5% spare, -5 = slight overfill). Leave blank to use the default (5%).', 'sop' ); ?>
                                 </p>
                             </td>
                         </tr>
