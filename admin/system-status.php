@@ -2,13 +2,57 @@
 /**
  * Stock Order Plugin - Phase 4.1
  * System Status (admin only)
- * File version: 1.0.1
+ * File version: 1.0.2
+ * - Add legacy product history status + expiry indicator.
  * - Add diagnostics tab with environment, DB, cron, templates, and last bootstrap error.
  * - Add debug report download and polish last error display.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
+}
+
+if ( ! function_exists( 'sop_get_legacy_product_history_status' ) ) {
+    function sop_get_legacy_product_history_status() {
+        global $wpdb;
+        $table       = $wpdb->prefix . 'sop_legacy_product_history';
+        $table_found = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+        $row_count   = 0;
+        $last_raw    = '';
+
+        if ( $table_found ) {
+            $row_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $last_raw  = (string) $wpdb->get_var( "SELECT MAX(imported_at) FROM {$table}" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        }
+
+        $lookback_days = function_exists( 'sop_get_analysis_lookback_days' ) ? (int) sop_get_analysis_lookback_days() : 365;
+        if ( $lookback_days < 1 ) {
+            $lookback_days = 365;
+        }
+
+        $now_ts_gmt      = (int) current_time( 'timestamp', true );
+        $window_start_ts = $now_ts_gmt - ( $lookback_days * DAY_IN_SECONDS );
+        $last_import_ts  = $last_raw ? strtotime( $last_raw ) : 0;
+        if ( false === $last_import_ts ) {
+            $last_import_ts = 0;
+        }
+        $legacy_in_use = ( $table_found && $row_count > 0 && $last_import_ts > 0 && $window_start_ts < $last_import_ts );
+        $expires_ts    = $last_import_ts > 0 ? ( $last_import_ts + ( $lookback_days * DAY_IN_SECONDS ) ) : 0;
+        $days_remaining = ( $expires_ts > $now_ts_gmt ) ? (int) ceil( ( $expires_ts - $now_ts_gmt ) / DAY_IN_SECONDS ) : 0;
+
+        return array(
+            'table'           => $table,
+            'present'         => $table_found,
+            'rows'            => $row_count,
+            'last_import_raw' => $last_raw,
+            'last_import_ts'  => $last_import_ts,
+            'lookback_days'   => $lookback_days,
+            'window_start_ts' => $window_start_ts,
+            'expires_ts'      => $expires_ts,
+            'in_use'          => $legacy_in_use,
+            'days_remaining'  => $days_remaining,
+        );
+    }
 }
 
 if ( ! function_exists( 'sop_render_system_status_tab' ) ) {
@@ -51,6 +95,7 @@ if ( ! function_exists( 'sop_render_system_status_tab' ) ) {
         $last_time  = isset( $last_error['time'] ) ? (int) $last_error['time'] : 0;
         $last_when  = $last_time ? date_i18n( 'Y-m-d H:i:s', $last_time ) : '';
         $has_last_error = ( ! empty( $last_error['code'] ) || ! empty( $last_error['message'] ) );
+        $legacy_status  = function_exists( 'sop_get_legacy_product_history_status' ) ? sop_get_legacy_product_history_status() : array();
         ?>
         <div class="wrap">
             <h1><?php esc_html_e( 'System Status', 'sop' ); ?></h1>
@@ -134,6 +179,42 @@ if ( ! function_exists( 'sop_render_system_status_tab' ) ) {
                 <?php endforeach; ?>
                 </tbody>
             </table>
+
+            <h2><?php esc_html_e( 'Legacy product history', 'sop' ); ?></h2>
+            <table class="widefat striped" style="max-width:900px;">
+                <tbody>
+                    <tr><th><?php esc_html_e( 'Legacy table present', 'sop' ); ?></th><td><?php echo esc_html( ! empty( $legacy_status['present'] ) ? 'Yes' : 'No' ); ?></td></tr>
+                    <tr><th><?php esc_html_e( 'Legacy rows', 'sop' ); ?></th><td><?php echo esc_html( isset( $legacy_status['rows'] ) ? (int) $legacy_status['rows'] : 0 ); ?></td></tr>
+                    <tr><th><?php esc_html_e( 'Last legacy import', 'sop' ); ?></th><td><?php echo esc_html( ! empty( $legacy_status['last_import_ts'] ) ? date_i18n( 'Y-m-d H:i:s', (int) $legacy_status['last_import_ts'] ) : __( '—', 'sop' ) ); ?></td></tr>
+                    <tr><th><?php esc_html_e( 'Lookback window', 'sop' ); ?></th><td><?php echo esc_html( isset( $legacy_status['lookback_days'] ) ? (int) $legacy_status['lookback_days'] : 365 ); ?> <?php esc_html_e( 'days', 'sop' ); ?></td></tr>
+                    <tr>
+                        <th><?php esc_html_e( 'Legacy status', 'sop' ); ?></th>
+                        <td>
+                            <?php
+                            if ( ! empty( $legacy_status['in_use'] ) && ! empty( $legacy_status['expires_ts'] ) ) {
+                                $exp_date = date_i18n( 'Y-m-d H:i:s', (int) $legacy_status['expires_ts'] );
+                                $days     = isset( $legacy_status['days_remaining'] ) ? (int) $legacy_status['days_remaining'] : 0;
+                                echo esc_html( sprintf( 'IN USE until %s (%d days remaining)', $exp_date, $days ) );
+                            } elseif ( ! empty( $legacy_status['present'] ) && ! empty( $legacy_status['last_import_ts'] ) ) {
+                                $exp_date = ! empty( $legacy_status['expires_ts'] ) ? date_i18n( 'Y-m-d H:i:s', (int) $legacy_status['expires_ts'] ) : '';
+                                $suffix   = $exp_date ? sprintf( ' Safe to remove after %s.', $exp_date ) : '';
+                                echo esc_html( 'Not in use (window start is after last legacy import).' . $suffix );
+                            } else {
+                                esc_html_e( 'No legacy data detected.', 'sop' );
+                            }
+                            ?>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <p><strong><?php esc_html_e( 'Cleanup after expiry:', 'sop' ); ?></strong></p>
+            <ul>
+                <li><?php echo esc_html( $wpdb->prefix . 'sop_legacy_product_history' ); ?></li>
+                <li><?php esc_html_e( 'includes/class-sop-legacy-history.php', 'sop' ); ?></li>
+                <li><?php esc_html_e( 'sop_legacy_* helpers (e.g. sop_legacy_get_scaled_days_for_window())', 'sop' ); ?></li>
+                <li><?php esc_html_e( 'Legacy blending/stockout scaling logic in includes/forecast-core.php', 'sop' ); ?></li>
+                <li><?php esc_html_e( 'Data Export dataset: legacy_product_history (admin/data-export.php)', 'sop' ); ?></li>
+            </ul>
         </div>
         <?php
     }
@@ -200,6 +281,20 @@ if ( ! function_exists( 'sop_handle_download_sop_debug_report' ) ) {
             $template_presence[ $label ] = file_exists( $path );
         }
 
+        $legacy_status = function_exists( 'sop_get_legacy_product_history_status' ) ? sop_get_legacy_product_history_status() : array();
+        $legacy_payload = array(
+            'table'             => isset( $legacy_status['table'] ) ? (string) $legacy_status['table'] : '',
+            'present'           => ! empty( $legacy_status['present'] ),
+            'rows'              => isset( $legacy_status['rows'] ) ? (int) $legacy_status['rows'] : 0,
+            'last_import_raw'   => isset( $legacy_status['last_import_raw'] ) ? (string) $legacy_status['last_import_raw'] : '',
+            'last_import_local' => ! empty( $legacy_status['last_import_ts'] ) ? date_i18n( 'Y-m-d H:i:s', (int) $legacy_status['last_import_ts'] ) : '',
+            'lookback_days'     => isset( $legacy_status['lookback_days'] ) ? (int) $legacy_status['lookback_days'] : 365,
+            'window_start_utc'  => ! empty( $legacy_status['window_start_ts'] ) ? gmdate( 'c', (int) $legacy_status['window_start_ts'] ) : '',
+            'expires_on_utc'    => ! empty( $legacy_status['expires_ts'] ) ? gmdate( 'c', (int) $legacy_status['expires_ts'] ) : '',
+            'in_use'            => ! empty( $legacy_status['in_use'] ),
+            'days_remaining'    => isset( $legacy_status['days_remaining'] ) ? (int) $legacy_status['days_remaining'] : 0,
+        );
+
         $payload = array(
             'generated_at_utc'                          => gmdate( 'c' ),
             'plugin_version'                            => defined( 'SOP_PLUGIN_VERSION' ) ? SOP_PLUGIN_VERSION : '',
@@ -218,6 +313,7 @@ if ( ! function_exists( 'sop_handle_download_sop_debug_report' ) ) {
             'db_tables_presence'                        => $table_presence,
             'templates_presence'                        => $template_presence,
             'last_bootstrap_error'                      => function_exists( 'sop_get_last_bootstrap_error' ) ? sop_get_last_bootstrap_error() : array(),
+            'legacy_product_history'                    => $legacy_payload,
             'php_ini'                                   => array(
                 'memory_limit'       => (string) ini_get( 'memory_limit' ),
                 'max_execution_time' => (string) ini_get( 'max_execution_time' ),
