@@ -2,16 +2,20 @@
 /**
  * Plugin Name: Stock Order
  * Description: Internal tool for suppliers, forecasting, purchase orders, container planning, goods-in, and labels/barcodes.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Wilson Organisation Ltd
  * Text Domain: sop
+ * Domain Path: /languages
+ * Requires PHP: 8.1
+ * Requires Plugins: woocommerce
+ * Update URI: https://wilson-organisation.com/stock-order
  */
 
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.14
- * - Release: set official plugin name and v1.0.0 metadata.
+ * File version: 1.0.15
+ * - Release hardening: dependency guards, parent-site gate, and plugin metadata.
  * - Contextual admin module loading to reduce wp-admin overhead and prevent 3rd-party AJAX UI interference.
  * - Load notes helpers for rich notes sanitization/rendering.
  * - Load Data Export module in admin bootstrap.
@@ -31,7 +35,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '1.0.0' );
+    define( 'SOP_PLUGIN_VERSION', '1.0.1' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -42,82 +46,147 @@ if ( ! defined( 'SOP_PLUGIN_URL' ) ) {
     define( 'SOP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 }
 
-// Core includes.
-require_once SOP_PLUGIN_DIR . 'includes/db-helpers.php';
-require_once SOP_PLUGIN_DIR . 'includes/domain-helpers.php';
-require_once SOP_PLUGIN_DIR . 'includes/notes-helpers.php';
-require_once SOP_PLUGIN_DIR . 'includes/stockout-tracking.php';
-require_once SOP_PLUGIN_DIR . 'includes/helper-buffer.php';
-require_once SOP_PLUGIN_DIR . 'includes/forecast-core.php';
-require_once SOP_PLUGIN_DIR . 'includes/class-sop-legacy-history.php';
-require_once SOP_PLUGIN_DIR . 'includes/supplier-meta-box.php';
-require_once SOP_PLUGIN_DIR . 'includes/barcode-code128.php';
-require_once SOP_PLUGIN_DIR . 'includes/labels-core.php';
-require_once SOP_PLUGIN_DIR . 'includes/class-sop-preorder-exporter-xlsx.php';
-
-// Admin-only includes.
-if ( is_admin() ) {
-    $pagenow       = isset( $GLOBALS['pagenow'] ) ? (string) $GLOBALS['pagenow'] : '';
-    $is_doing_ajax = defined( 'DOING_AJAX' ) && DOING_AJAX;
-    $action        = isset( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( $_REQUEST['action'] ) ) : '';
-    $is_sop_action = ( '' !== $action && 0 === strpos( $action, 'sop_' ) );
-    $page          = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
-    $is_sop_page   = ( '' !== $page && 0 === strpos( $page, 'sop' ) );
-    $is_admin_post = ( 'admin-post.php' === $pagenow );
-
-    if ( ( $is_doing_ajax && ! $is_sop_action ) || ( $is_admin_post && ! $is_sop_action ) ) {
-        // Skip SOP admin modules on non-SOP AJAX/admin-post requests.
-    } else {
-        require_once SOP_PLUGIN_DIR . 'admin/settings-supplier.php';
-        require_once SOP_PLUGIN_DIR . 'admin/admin-tabs.php';
-
-        if ( $is_sop_page || $is_sop_action ) {
-            require_once SOP_PLUGIN_DIR . 'admin/settings-labels.php';
-            require_once SOP_PLUGIN_DIR . 'admin/data-export.php';
-            require_once SOP_PLUGIN_DIR . 'admin/product-mapping.php';
-            require_once SOP_PLUGIN_DIR . 'admin/preorder-core.php';
-            require_once SOP_PLUGIN_DIR . 'admin/goods-in-core.php';
-            require_once SOP_PLUGIN_DIR . 'admin/po-details.php';
-
-            if ( $is_sop_page ) {
-                require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';
-                require_once SOP_PLUGIN_DIR . 'admin/goods-in-ui.php';
-                require_once SOP_PLUGIN_DIR . 'admin/carton-csv-importer.php';
-            }
-        }
-
-        /**
-         * Register Saved sheets submenu.
-         */
-        add_action(
-            'admin_menu',
-            function () {
-                $parent_slug = 'sop_stock_order_dashboard';
-
-                add_submenu_page(
-                    $parent_slug,
-                    __( 'Saved sheets', 'sop' ),
-                    __( 'Saved sheets', 'sop' ),
-                    'manage_woocommerce',
-                    'sop-preorder-sheets',
-                    'sop_render_preorder_sheets_page'
-                );
-            },
-            100
-        );
-
-        add_action( 'admin_notices', 'sop_admin_tabs_render_if_sop_screen', 1 );
-        add_action( 'admin_menu', 'sop_admin_menu_register_group_links', 95 );
-        add_action( 'admin_menu', 'sop_admin_menu_hide_group_children', 10000 );
-        add_action( 'admin_head', 'sop_admin_menu_hide_group_children_late', 0 );
-        add_filter( 'submenu_file', 'sop_admin_tabs_fix_submenu_highlight', 10, 2 );
+if ( ! function_exists( 'sop_is_woocommerce_active' ) ) {
+    function sop_is_woocommerce_active() {
+        return class_exists( 'WooCommerce' ) || function_exists( 'WC' );
     }
 }
+
+if ( ! function_exists( 'sop_is_allowed_site_context' ) ) {
+    function sop_is_allowed_site_context() {
+        return ! ( is_multisite() && ! is_main_site() );
+    }
+}
+
+if ( ! function_exists( 'sop_add_admin_notice' ) ) {
+    function sop_add_admin_notice( $message ) {
+        if ( ! is_admin() ) {
+            return;
+        }
+        add_action(
+            'admin_notices',
+            function () use ( $message ) {
+                if ( ! current_user_can( 'manage_woocommerce' ) ) {
+                    return;
+                }
+                echo '<div class="notice notice-error"><p>' . esc_html( $message ) . '</p></div>';
+            }
+        );
+    }
+}
+
+if ( ! function_exists( 'sop_bootstrap_plugin' ) ) {
+    function sop_bootstrap_plugin() {
+        if ( ! sop_is_woocommerce_active() ) {
+            sop_add_admin_notice( __( 'Stock Order requires WooCommerce to be active.', 'sop' ) );
+            return;
+        }
+        if ( ! sop_is_allowed_site_context() ) {
+            sop_add_admin_notice( __( 'Stock Order can only run on the main site in this multisite network.', 'sop' ) );
+            return;
+        }
+
+        // Core includes.
+        require_once SOP_PLUGIN_DIR . 'includes/db-helpers.php';
+        require_once SOP_PLUGIN_DIR . 'includes/domain-helpers.php';
+        require_once SOP_PLUGIN_DIR . 'includes/notes-helpers.php';
+        require_once SOP_PLUGIN_DIR . 'includes/stockout-tracking.php';
+        require_once SOP_PLUGIN_DIR . 'includes/helper-buffer.php';
+        require_once SOP_PLUGIN_DIR . 'includes/forecast-core.php';
+        require_once SOP_PLUGIN_DIR . 'includes/class-sop-legacy-history.php';
+        require_once SOP_PLUGIN_DIR . 'includes/supplier-meta-box.php';
+        require_once SOP_PLUGIN_DIR . 'includes/barcode-code128.php';
+        require_once SOP_PLUGIN_DIR . 'includes/labels-core.php';
+        require_once SOP_PLUGIN_DIR . 'includes/class-sop-preorder-exporter-xlsx.php';
+
+        // Admin-only includes.
+        if ( is_admin() ) {
+            $pagenow       = isset( $GLOBALS['pagenow'] ) ? (string) $GLOBALS['pagenow'] : '';
+            $is_doing_ajax = defined( 'DOING_AJAX' ) && DOING_AJAX;
+            $action        = isset( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( $_REQUEST['action'] ) ) : '';
+            $is_sop_action = ( '' !== $action && 0 === strpos( $action, 'sop_' ) );
+            $page          = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+            $is_sop_page   = ( '' !== $page && 0 === strpos( $page, 'sop' ) );
+            $is_admin_post = ( 'admin-post.php' === $pagenow );
+
+            if ( ( $is_doing_ajax && ! $is_sop_action ) || ( $is_admin_post && ! $is_sop_action ) ) {
+                // Skip SOP admin modules on non-SOP AJAX/admin-post requests.
+            } else {
+                require_once SOP_PLUGIN_DIR . 'admin/settings-supplier.php';
+                require_once SOP_PLUGIN_DIR . 'admin/admin-tabs.php';
+
+                if ( $is_sop_page || $is_sop_action ) {
+                    require_once SOP_PLUGIN_DIR . 'admin/settings-labels.php';
+                    require_once SOP_PLUGIN_DIR . 'admin/data-export.php';
+                    require_once SOP_PLUGIN_DIR . 'admin/product-mapping.php';
+                    require_once SOP_PLUGIN_DIR . 'admin/preorder-core.php';
+                    require_once SOP_PLUGIN_DIR . 'admin/goods-in-core.php';
+                    require_once SOP_PLUGIN_DIR . 'admin/po-details.php';
+
+                    if ( $is_sop_page ) {
+                        require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';
+                        require_once SOP_PLUGIN_DIR . 'admin/goods-in-ui.php';
+                        require_once SOP_PLUGIN_DIR . 'admin/carton-csv-importer.php';
+                    }
+                }
+
+                /**
+                 * Register Saved sheets submenu.
+                 */
+                add_action(
+                    'admin_menu',
+                    function () {
+                        $parent_slug = 'sop_stock_order_dashboard';
+
+                        add_submenu_page(
+                            $parent_slug,
+                            __( 'Saved sheets', 'sop' ),
+                            __( 'Saved sheets', 'sop' ),
+                            'manage_woocommerce',
+                            'sop-preorder-sheets',
+                            'sop_render_preorder_sheets_page'
+                        );
+                    },
+                    100
+                );
+
+                add_action( 'admin_notices', 'sop_admin_tabs_render_if_sop_screen', 1 );
+                add_action( 'admin_menu', 'sop_admin_menu_register_group_links', 95 );
+                add_action( 'admin_menu', 'sop_admin_menu_hide_group_children', 10000 );
+                add_action( 'admin_head', 'sop_admin_menu_hide_group_children_late', 0 );
+                add_filter( 'submenu_file', 'sop_admin_tabs_fix_submenu_highlight', 10, 2 );
+            }
+        }
+    }
+}
+
+add_action( 'plugins_loaded', 'sop_bootstrap_plugin', 20 );
+
+if ( ! function_exists( 'sop_plugin_action_links' ) ) {
+    function sop_plugin_action_links( $links ) {
+        if ( current_user_can( 'manage_woocommerce' ) ) {
+            $settings_url = admin_url( 'admin.php?page=sop_stock_order&tab=general' );
+            $links[]      = '<a href="' . esc_url( $settings_url ) . '">' . esc_html__( 'Settings', 'sop' ) . '</a>';
+        }
+        return $links;
+    }
+}
+add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), 'sop_plugin_action_links' );
 
 /**
  * Fired during plugin activation.
  */
 function sop_activate_plugin() {
+    if ( ! class_exists( 'sop_DB' ) ) {
+        require_once SOP_PLUGIN_DIR . 'includes/db-helpers.php';
+    }
+    if ( ! class_exists( 'SOP_Legacy_History' ) ) {
+        require_once SOP_PLUGIN_DIR . 'includes/class-sop-legacy-history.php';
+    }
+    if ( ! function_exists( 'sop_ensure_daily_maintenance_cron' ) ) {
+        require_once SOP_PLUGIN_DIR . 'includes/stockout-tracking.php';
+    }
+
     if ( class_exists( 'sop_DB' ) ) {
         sop_DB::maybe_install();
     }
