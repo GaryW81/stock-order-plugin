@@ -1,9 +1,9 @@
-﻿<?php
+<?php
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.34
- * - Restore native TinyMCE colour palette for SOP notes editors.
+ * File version: 1.0.35
+ * - Fix corrupted No supplier label encoding.\r\n * - Restore native TinyMCE colour palette for SOP notes editors.
  * - UI: ensure red toggle loads and toolbar order is bold/red/strike.
  * - UI: enforce strikethrough tag for SOP notes editor and keep red toggle.
  * - UI: add rich notes editor for product/internal notes (bold/strike/red).
@@ -161,7 +161,7 @@ function sop_render_product_supplier_metabox( $post ) {
     <p>
         <select name="_sop_supplier_id" id="_sop_supplier_id" style="width:100%;">
             <option value="0">
-                <?php esc_html_e( 'Ã¢â‚¬â€ No supplier (exclude from Stock Order) Ã¢â‚¬â€', 'sop' ); ?>
+                <?php esc_html_e( '-- No supplier (exclude from Stock Order) --', 'sop' ); ?>
             </option>
             <?php if ( ! empty( $suppliers ) ) : ?>
                 <?php foreach ( $suppliers as $supplier ) : ?>

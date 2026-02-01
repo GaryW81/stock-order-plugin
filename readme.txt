@@ -1,6 +1,6 @@
 === Stock Order ===
 Contributors: Wilson Organisation Ltd
-Version: 1.0.7
+Version: 1.0.8
 Requires at least: 5.9
 Tested up to: 6.6
 Requires PHP: 8.1
@@ -28,4 +28,4 @@ Stock Order is an internal WooCommerce admin tool for Wilson-Organisation Ltd. I
 1.0.4 - Add System Status tab (diagnostics), centralised notices + last bootstrap error panel, capability helper for consistent access checks.
 1.0.5 - Add downloadable System Status debug report + minor UI polish + capability consistency.
 1.0.6 - System Status: show legacy product history usage + expiry date + cleanup checklist.
-1.0.7: legacy helper hardening + embedded expiry cleanup playbook in System Status.
+1.0.7: legacy helper hardening + embedded expiry cleanup playbook in System Status.\r\n1.0.8 - Fix product edit 'No supplier' label encoding.
