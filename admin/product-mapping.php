@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin – Phase 2
  * Supplier Product Mapping Screen (paginated + totals)
- * File version: 1.0.06
+ * File version: 1.0.07
+ * - Use capability helper for Stock Order UI access.
  * - Expand unassigned view to include supplier meta 0/blank.
  * - Canonicalise product notes meta key to _sop_product_notes.
  *
@@ -46,7 +47,7 @@ function sop_register_products_by_supplier_submenu() {
         'sop_stock_order',
         __( 'Products by Supplier', 'sop' ),
         __( 'Products by Supplier', 'sop' ),
-        'manage_woocommerce',
+        function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce',
         'sop_products_by_supplier',
         'sop_render_products_by_supplier_page'
     );
@@ -57,7 +58,7 @@ add_action( 'admin_menu', 'sop_register_products_by_supplier_submenu' );
  * Render the Products by Supplier screen.
  */
 function sop_render_products_by_supplier_page() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         return;
     }
 

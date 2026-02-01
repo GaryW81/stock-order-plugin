@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin Ã¢â‚¬â€œ Phase 2 (Updated with USD)
  * Admin Settings & Supplier UI (General + Suppliers)
- * File version: 1.5.51
+ * File version: 1.5.52
+ * - Add System Status tab routing and use capability helper.
  * - UI copy: rename Stock Order plugin wording to Stock Order.
  * - Remove BOM/whitespace to prevent activation output.
  * - Add Data Export tab routing for settings.
@@ -62,7 +63,7 @@ class sop_Admin_Settings {
      */
     public function register_menu() {
         // Only for users who can manage WooCommerce.
-        $capability     = 'manage_woocommerce';
+        $capability     = function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce';
         $dashboard_slug = 'sop_stock_order_dashboard';
         $settings_slug  = 'sop_stock_order';
 
@@ -245,12 +246,12 @@ class sop_Admin_Settings {
      * Main page renderer Ã¢â‚¬â€œ handles tab switching.
      */
     public function render_page() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             return;
         }
 
         $active_tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'general';
-        if ( ! in_array( $active_tab, array( 'general', 'suppliers', 'labels', 'export' ), true ) ) {
+        if ( ! in_array( $active_tab, array( 'general', 'suppliers', 'labels', 'export', 'status' ), true ) ) {
             $active_tab = 'general';
         }
 
@@ -264,6 +265,10 @@ class sop_Admin_Settings {
             sop_render_data_export_tab();
         } elseif ( 'export' === $active_tab ) {
             echo '<div class="notice notice-error"><p>' . esc_html__( 'Data Export module not loaded (admin/data-export.php).', 'sop' ) . '</p></div>';
+        } elseif ( 'status' === $active_tab && function_exists( 'sop_render_system_status_tab' ) ) {
+            sop_render_system_status_tab();
+        } elseif ( 'status' === $active_tab ) {
+            echo '<div class="notice notice-error"><p>' . esc_html__( 'System Status module not loaded (admin/system-status.php).', 'sop' ) . '</p></div>';
         } elseif ( 'labels' === $active_tab && function_exists( 'sop_labels_render_settings_tab' ) ) {
             sop_labels_render_settings_tab();
         } else {
@@ -277,7 +282,7 @@ class sop_Admin_Settings {
      * Render the Stock Order Dashboard.
      */
     public function render_dashboard_page() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             return;
         }
 
@@ -1244,7 +1249,7 @@ class sop_Admin_Settings {
             return;
         }
 
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             return;
         }
 
@@ -2342,7 +2347,7 @@ function sop_handle_company_profile_save_request() {
         return;
     }
 
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         return;
     }
 

@@ -9,7 +9,8 @@
  *     - sop_get_analysis_lookback_days()
  * - Submenu: Stock Order → Forecast (Debug).
  * - Supplier dropdown shows supplier name only (no [ID: X] suffix).
- * File version: 1.0.29
+ * File version: 1.0.30
+ * - Use capability helper for Stock Order UI access.
  * - Gate forecast debug logging and treat supplier 0 as unassigned.
  * - Removed stray placeholder label in get_supplier_product_ids().
  * - Inbound: support inbound_map (locked sheet quantities) in stock_at_arrival and suggested_raw.
@@ -932,7 +933,7 @@ add_action(
             'sop_stock_order_dashboard',
             __( 'Stock Order Forecast (Debug)', 'sop' ),
             __( 'Forecast (Debug)', 'sop' ),
-            'manage_woocommerce',
+            function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce',
             'sop-forecast-debug',
             'sop_render_forecast_debug_page'
         );
@@ -944,7 +945,7 @@ add_action(
  * Render the Forecast (Debug) page.
  */
 function sop_render_forecast_debug_page() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to access this page.', 'sop' ) );
     }
 

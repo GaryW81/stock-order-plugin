@@ -3,7 +3,8 @@
  * Stock Order Plugin - Phase 2
  * Admin tab navigation + submenu highlight helpers
  *
- * File version: 1.0.5
+ * File version: 1.0.6
+ * - Add System Status tab to Settings group.
  * - Add Data Export tab to Settings group.
  * - Add PO Details tab to Purchase Orders group.
  */
@@ -37,6 +38,11 @@ if ( ! function_exists( 'sop_admin_tabs_get_groups' ) ) {
                         'slug' => 'sop_stock_order',
                         'label' => __( 'Data Export', 'sop' ),
                         'args' => array( 'tab' => 'export' ),
+                    ),
+                    array(
+                        'slug' => 'sop_stock_order',
+                        'label' => __( 'System Status', 'sop' ),
+                        'args' => array( 'tab' => 'status' ),
                     ),
                 ),
             ),
@@ -269,7 +275,7 @@ if ( ! function_exists( 'sop_admin_tabs_render_suppliers_redirect' ) ) {
      * @return void
      */
     function sop_admin_tabs_render_suppliers_redirect() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             return;
         }
 

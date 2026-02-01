@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 4
  * Stockout tracking + maintenance hooks
- * File version: 1.0.4
+ * File version: 1.0.5
+ * - Use capability helper for Stock Order UI access.
  * - Add tooltips for Stockout Log header columns.
  *
  * - Hooks WooCommerce stock changes to stockout open/close helpers.
@@ -126,7 +127,7 @@ function sop_register_stockout_log_debug_page() {
         $parent_slug,
         __( 'Stockout Log (Debug)', 'sop' ),
         __( 'Stockout Log (Debug)', 'sop' ),
-        'manage_woocommerce',
+        function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce',
         'sop_stockout_log_debug',
         'sop_render_stockout_log_debug_page'
     );
@@ -141,7 +142,7 @@ add_action( 'admin_menu', 'sop_register_stockout_log_debug_page', 30 );
  * @return void
  */
 function sop_render_stockout_log_debug_page() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         return;
     }
 

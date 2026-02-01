@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.09 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.10 *
+ * - V13.10 - Use capability helper for Stock Order UI access.
  * - V13.09 - UI: set Container select width to 150px.
  * - V13.08 - UI: fix Container select to fixed width (fits longest option).
  * - V13.07 - UI: reduce container/pallet min widths so Update container stays inline more often.
@@ -248,7 +249,7 @@ if ( ! function_exists( 'sop_preorder_parse_supplier_sku_entries' ) ) {
 }
 
 function sop_preorder_render_admin_page() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to access this page.', 'sop' ) );
     }
 

@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes settings tab
- * File version: 1.0.9
+ * File version: 1.0.10
+ * - Use capability helper for Stock Order UI access.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -13,7 +14,7 @@ if ( ! function_exists( 'sop_labels_render_settings_tab' ) ) {
      * Render the Labels & Barcodes settings tab.
      */
     function sop_labels_render_settings_tab() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             return;
         }
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Stock Order
  * Description: Internal tool for suppliers, forecasting, purchase orders, container planning, goods-in, and labels/barcodes.
- * Version: 1.0.3
+ * Version: 1.0.4
  * Author: Wilson Organisation Ltd
  * Text Domain: sop
  * Domain Path: /languages
@@ -14,7 +14,8 @@
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.17
+ * File version: 1.0.18
+ * - Add System Status tab + notices manager + capability helper.
  * - Release hygiene: ABSPATH guards across modules.
  * - Hotfix: parent-site guard now matches wilson-organisation.com host (multisite safe).
  * - Release hardening: dependency guards, parent-site gate, and plugin metadata.
@@ -37,7 +38,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '1.0.3' );
+    define( 'SOP_PLUGIN_VERSION', '1.0.4' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -46,6 +47,14 @@ if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
 
 if ( ! defined( 'SOP_PLUGIN_URL' ) ) {
     define( 'SOP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+}
+
+require_once SOP_PLUGIN_DIR . 'includes/admin-notices.php';
+
+if ( ! function_exists( 'sop_get_admin_capability' ) ) {
+    function sop_get_admin_capability() {
+        return apply_filters( 'sop_admin_capability', 'manage_woocommerce' );
+    }
 }
 
 if ( ! function_exists( 'sop_is_woocommerce_active' ) ) {
@@ -86,18 +95,12 @@ if ( ! function_exists( 'sop_is_allowed_site_context' ) ) {
 
 if ( ! function_exists( 'sop_add_admin_notice' ) ) {
     function sop_add_admin_notice( $message ) {
-        if ( ! is_admin() ) {
-            return;
+        if ( function_exists( 'sop_admin_notices_init' ) ) {
+            sop_admin_notices_init();
         }
-        add_action(
-            'admin_notices',
-            function () use ( $message ) {
-                if ( ! current_user_can( 'manage_woocommerce' ) && ! current_user_can( 'manage_options' ) ) {
-                    return;
-                }
-                echo '<div class="notice notice-error"><p>' . esc_html( $message ) . '</p></div>';
-            }
-        );
+        if ( function_exists( 'sop_admin_notices_add' ) ) {
+            sop_admin_notices_add( $message, 'error', true );
+        }
     }
 }
 
@@ -105,10 +108,16 @@ if ( ! function_exists( 'sop_bootstrap_plugin' ) ) {
     function sop_bootstrap_plugin() {
         if ( ! sop_is_woocommerce_active() ) {
             sop_add_admin_notice( __( 'Stock Order requires WooCommerce to be active.', 'sop' ) );
+            if ( function_exists( 'sop_set_last_bootstrap_error' ) ) {
+                sop_set_last_bootstrap_error( 'woocommerce_inactive', __( 'WooCommerce is not active.', 'sop' ) );
+            }
             return;
         }
         if ( ! sop_is_allowed_site_context() ) {
             sop_add_admin_notice( __( 'Stock Order is configured to run only on the parent site (wilson-organisation.com).', 'sop' ) );
+            if ( function_exists( 'sop_set_last_bootstrap_error' ) ) {
+                sop_set_last_bootstrap_error( 'site_context_blocked', __( 'Not an allowed site context for Stock Order.', 'sop' ) );
+            }
             return;
         }
 
@@ -148,6 +157,7 @@ if ( ! function_exists( 'sop_bootstrap_plugin' ) ) {
                     require_once SOP_PLUGIN_DIR . 'admin/preorder-core.php';
                     require_once SOP_PLUGIN_DIR . 'admin/goods-in-core.php';
                     require_once SOP_PLUGIN_DIR . 'admin/po-details.php';
+                    require_once SOP_PLUGIN_DIR . 'admin/system-status.php';
 
                     if ( $is_sop_page ) {
                         require_once SOP_PLUGIN_DIR . 'admin/preorder-ui.php';
@@ -168,7 +178,7 @@ if ( ! function_exists( 'sop_bootstrap_plugin' ) ) {
                             $parent_slug,
                             __( 'Saved sheets', 'sop' ),
                             __( 'Saved sheets', 'sop' ),
-                            'manage_woocommerce',
+                            sop_get_admin_capability(),
                             'sop-preorder-sheets',
                             'sop_render_preorder_sheets_page'
                         );
@@ -190,7 +200,7 @@ add_action( 'plugins_loaded', 'sop_bootstrap_plugin', 20 );
 
 if ( ! function_exists( 'sop_plugin_action_links' ) ) {
     function sop_plugin_action_links( $links ) {
-        if ( current_user_can( 'manage_woocommerce' ) ) {
+        if ( current_user_can( sop_get_admin_capability() ) ) {
             $settings_url = admin_url( 'admin.php?page=sop_stock_order&tab=general' );
             $links[]      = '<a href="' . esc_url( $settings_url ) . '">' . esc_html__( 'Settings', 'sop' ) . '</a>';
         }

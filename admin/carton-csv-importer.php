@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Carton CSV Importer (admin only)
- * File version: 1.2.3
+ * File version: 1.2.4
+ * - 1.2.4 - Use capability helper for Stock Order UI access.
  * - 1.2.3 - Tweak: Update importer UI notice now that all suppliers are allowed by default.
  * - 1.2.2 - Change: Remove hard-coded supplier restriction; allow all suppliers by default (filterable).
  * - 1.2.1 - Fix: Report CSV export is Excel-safe for multi-carton lists; flatten multiline fields.
@@ -475,7 +476,7 @@ if ( ! function_exists( 'sop_normalize_carton_and_annotation' ) ) {
 
 if ( ! function_exists( 'sop_render_carton_csv_import_page' ) ) {
     function sop_render_carton_csv_import_page() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             wp_die( esc_html__( 'You do not have permission to access this tool.', 'sop' ) );
         }
 
@@ -1144,7 +1145,7 @@ if ( ! function_exists( 'sop_carton_csv_importer_report_flatten_cell' ) ) {
 
 if ( ! function_exists( 'sop_carton_csv_importer_download_report' ) ) {
     function sop_carton_csv_importer_download_report() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             wp_die( esc_html__( 'You do not have permission to access this report.', 'sop' ) );
         }
 

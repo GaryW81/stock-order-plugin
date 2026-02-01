@@ -3,7 +3,8 @@
  * Stock Order Plugin - Phase 4 (Data Export)
  * Admin Settings - Data Export tab + CSV streaming
  *
- * File version: 1.0.2
+ * File version: 1.0.3
+ * - Use capability helper for Stock Order UI access.
  * - Add row count hints and bundle README row counts for exports.
  */
 
@@ -122,7 +123,7 @@ if ( ! function_exists( 'sop_render_data_export_tab' ) ) {
      * @return void
      */
     function sop_render_data_export_tab() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             return;
         }
 
@@ -816,7 +817,7 @@ if ( ! function_exists( 'sop_data_export_stream_dataset_csv' ) ) {
  * @return void
  */
 function sop_handle_data_export_csv() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to export data.', 'sop' ) );
     }
 
@@ -861,7 +862,7 @@ add_action( 'admin_post_sop_data_export_csv', 'sop_handle_data_export_csv' );
  * @return void
  */
 function sop_handle_data_export_bundle_zip() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to export data.', 'sop' ) );
     }
 

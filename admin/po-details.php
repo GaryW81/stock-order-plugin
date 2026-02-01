@@ -3,7 +3,8 @@
  * Stock Order Plugin - Phase 2
  * PO Details admin page (Company profile for PO exports)
  *
- * File version: 1.0.0
+ * File version: 1.0.1
+ * - Use capability helper for Stock Order UI access.
  * - Add PO Details page for company profile fields used in PO exports.
  */
 
@@ -18,7 +19,7 @@ if ( ! function_exists( 'sop_render_po_details_page' ) ) {
      * @return void
      */
     function sop_render_po_details_page() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             wp_die( esc_html__( 'You do not have permission to access this page.', 'sop' ) );
         }
 

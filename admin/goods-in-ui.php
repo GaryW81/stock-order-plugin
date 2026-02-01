@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.33
+ * File version: 1.1.34
+ * - Use capability helper for Stock Order UI access.
  *
  * - 1.1.33 - Goods-In: show correct +/- delta in apply-stock progress status.
  * - 1.1.32 - Notes: render rich product/internal notes with kses-sanitised HTML.
@@ -146,7 +147,7 @@ function sop_goodsin_register_menu() {
         'sop_stock_order_dashboard',
         __( 'Goods In', 'sop' ),
         __( 'Goods In', 'sop' ),
-        'manage_woocommerce',
+        function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce',
         'sop-goods-in',
         'sop_render_goods_in_page'
     );
@@ -449,7 +450,7 @@ function sop_goodsin_render_stage_pill( $status, $goods_in_started = false ) {
 }
 
 function sop_render_goods_in_page() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to access Goods In.', 'sop' ) );
     }
 

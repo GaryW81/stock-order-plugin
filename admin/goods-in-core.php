@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.29
+ * File version: 1.0.30
+ * - Use capability helper for Stock Order UI access.
  *
  * - Receive against ordered (locked) preorder sheets.
  * - Save goods-in progress, apply stock increases, and complete goods-in.
@@ -595,7 +596,7 @@ function sop_goodsin_normalize_line_payload( array $line_in, array $db_row, arra
  * Save receiving progress for a sheet.
  */
 function sop_handle_goodsin_save() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to access Goods In.', 'sop' ) );
     }
 
@@ -636,7 +637,7 @@ function sop_handle_goodsin_save() {
     $lines_map = sop_goodsin_get_sheet_lines_map( $sheet_id );
     if ( ! empty( $lines_map ) && function_exists( 'sop_goodsin_migrate_lines_map_to_pid' ) ) {
         list( $lines_map, $unresolved_skus ) = sop_goodsin_migrate_lines_map_to_pid( $lines_map );
-        if ( ! empty( $unresolved_skus ) && current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! empty( $unresolved_skus ) && current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             add_action(
                 'admin_notices',
                 static function() use ( $unresolved_skus, $sheet_id ) {
@@ -729,7 +730,7 @@ function sop_handle_goodsin_save() {
  * Apply received stock to WooCommerce for selected/all lines.
  */
 function sop_handle_goodsin_apply_stock() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to access Goods In.', 'sop' ) );
     }
 
@@ -770,7 +771,7 @@ function sop_handle_goodsin_apply_stock() {
     $lines_map = sop_goodsin_get_sheet_lines_map( $sheet_id );
     if ( ! empty( $lines_map ) && function_exists( 'sop_goodsin_migrate_lines_map_to_pid' ) ) {
         list( $lines_map, $unresolved_skus ) = sop_goodsin_migrate_lines_map_to_pid( $lines_map );
-        if ( ! empty( $unresolved_skus ) && current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! empty( $unresolved_skus ) && current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             add_action(
                 'admin_notices',
                 static function() use ( $unresolved_skus, $sheet_id ) {
@@ -944,7 +945,7 @@ function sop_handle_goodsin_apply_stock() {
  * Complete goods-in for a sheet when all ordered qty is accounted for.
  */
 function sop_handle_goodsin_complete() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to access Goods In.', 'sop' ) );
     }
 
@@ -1038,7 +1039,7 @@ function sop_handle_goodsin_complete() {
  * AJAX: Apply stock for a single Goods-In line.
  */
 function sop_ajax_goodsin_apply_stock_line() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_send_json_error( array( 'message' => __( 'You do not have permission to apply stock.', 'sop' ) ), 403 );
     }
 
@@ -1253,7 +1254,7 @@ add_action( 'admin_post_sop_goodsin_complete', 'sop_handle_goodsin_complete' );
 add_action( 'admin_post_sop_export_goodsin_issues_xlsx', 'sop_handle_export_goodsin_issues_xlsx' );
 add_action( 'wp_ajax_sop_goodsin_apply_stock_line', 'sop_ajax_goodsin_apply_stock_line' );
 function sop_handle_export_goodsin_issues_xlsx() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You are not allowed to export goods-in issues.', 'sop' ) );
     }
 

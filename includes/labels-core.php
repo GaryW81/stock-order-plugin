@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Labels & Barcodes core helpers
- * File version: 1.0.29
+ * File version: 1.0.30
+ * - Use capability helper for Stock Order UI access.
  *
  * Provides defaults, sanitization, helper accessors, SVG barcode cache/API, AJAX barcode access, cache warm-up, batch labels, and in-house print label view.
  * Changelog:
@@ -1209,7 +1210,7 @@ if ( ! function_exists( 'sop_handle_barcode_warm_cache' ) ) {
      * @return void
      */
     function sop_handle_barcode_warm_cache() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             wp_die( esc_html__( 'Forbidden', 'sop' ) );
         }
 

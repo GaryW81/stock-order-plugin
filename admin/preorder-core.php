@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.75
+ * File version: 11.76
+ * - 11.76 - Use capability helper for Stock Order UI access.
  * - 11.75 - Sanitize product/internal notes using SOP notes allowlist.
  * - 11.74 - Add additional CBM planning field to preorder_planning + carry through filter/save redirects.
  * - 11.73 - Pass inbound schedule map into forecast for ETA-aware inbound.
@@ -30,7 +31,7 @@
  * - Inbound: treat locked sheet quantities as inbound stock (single grouped query) and pass into forecast so SOQ accounts for inbound.
  * - GBP suppliers: COGS resolver reads Woo meta + postmeta (and parent for variations); missing cost returns blank (NULL) for display.
  * - Cleanup: remove sop_debug_costs tooling; keep minimal COGS key list.
- * - GBP suppliers: cost priority = COGS → RMB converted → blank.
+ * - GBP suppliers: cost priority = COGS â†’ RMB converted â†’ blank.
  * - Export: exclude removed and zero-qty lines from order sheet XLS.
  * - Carry container planning params (pallet/allowance) through save redirects and accept pallet layer from save form.
  * - Add SOQ forecast context for tooltip ("Why" trust SOQ) and accept sop_lines_json payload to avoid max_input_vars truncation on large sheets.
@@ -183,12 +184,13 @@ function sop_preorder_normalize_pid_map( $raw ) {
 add_action( 'admin_menu', 'sop_preorder_register_admin_menu', 99 );
 function sop_preorder_register_admin_menu() {
     $parent_slug = sop_preorder_get_stock_order_parent_slug();
+    $capability  = function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce';
 
     add_submenu_page(
         $parent_slug,
         __( 'Pre-Order Sheet', 'sop' ),
         __( 'Pre-Order Sheet', 'sop' ),
-        'manage_woocommerce',
+        $capability,
         'sop-preorder-sheet',
         'sop_preorder_render_admin_page'
     );
@@ -197,7 +199,7 @@ function sop_preorder_register_admin_menu() {
         $parent_slug,
         __( 'PO Details', 'sop' ),
         __( 'PO Details', 'sop' ),
-        'manage_woocommerce',
+        $capability,
         'sop-po-details',
         'sop_render_po_details_page'
     );
@@ -463,7 +465,7 @@ function sop_preorder_update_po_header_from_post( $sheet_id ) {
  * Render the Saved Sheets admin page.
  */
 function sop_render_preorder_sheets_page() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to view preorder sheets.', 'sop' ) );
     }
 
@@ -794,7 +796,7 @@ add_action( 'admin_post_sop_preorder_filter', 'sop_handle_preorder_filter' );
 add_action( 'admin_post_sop_preorder_lock_sheet', 'sop_preorder_handle_lock_sheet' );
 add_action( 'admin_post_sop_preorder_unlock_sheet', 'sop_preorder_handle_unlock_sheet' );
 function sop_handle_preorder_filter() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to update preorder filters.', 'sop' ) );
     }
 
@@ -881,7 +883,7 @@ function sop_handle_preorder_filter() {
  */
 add_action( 'admin_post_sop_save_preorder_sheet', 'sop_handle_save_preorder_sheet' );
 function sop_handle_save_preorder_sheet() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to save preorder sheets.', 'sop' ) );
     }
 
@@ -1381,7 +1383,7 @@ if ( ! function_exists( 'sop_export_send_file_and_exit' ) ) {
 }
 
 function sop_handle_export_preorder_sheet_xlsx() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You are not allowed to export pre-order sheets.', 'sop' ) );
     }
 
@@ -1448,7 +1450,7 @@ function sop_handle_export_preorder_sheet_xlsx() {
 
 add_action( 'admin_post_sop_export_purchase_order_xlsx', 'sop_handle_export_purchase_order_xlsx' );
 function sop_handle_export_purchase_order_xlsx() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You are not allowed to export purchase orders.', 'sop' ) );
     }
 
@@ -1517,7 +1519,7 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
     $migration_meta = array( 'changed' => false, 'unresolved_skus' => array() );
     if ( is_array( $sheet ) && function_exists( 'sop_preorder_migrate_saved_sheet_lines_to_pid' ) ) {
         list( $sheet, $migration_meta ) = sop_preorder_migrate_saved_sheet_lines_to_pid( $sheet );
-        if ( ! empty( $migration_meta['unresolved_skus'] ) && current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! empty( $migration_meta['unresolved_skus'] ) && current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
             add_action(
                 'admin_notices',
                 static function() use ( $migration_meta, $sheet_id ) {
@@ -1702,7 +1704,7 @@ function sop_preorder_build_export_dataset( $sheet_id, $supplier_id = 0 ) {
  */
 add_action( 'admin_post_sop_delete_preorder_sheet', 'sop_handle_delete_preorder_sheet' );
 function sop_handle_delete_preorder_sheet() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to delete pre-order sheets.', 'sop' ) );
     }
 
@@ -1753,7 +1755,7 @@ function sop_handle_delete_preorder_sheet() {
  * @return void
  */
 function sop_preorder_handle_lock_sheet() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to lock pre-order sheets.', 'sop' ) );
     }
 
@@ -1804,7 +1806,7 @@ function sop_preorder_handle_lock_sheet() {
  * @return void
  */
 function sop_preorder_handle_unlock_sheet() {
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to unlock pre-order sheets.', 'sop' ) );
     }
 
@@ -2450,13 +2452,13 @@ function sop_preorder_build_rows_for_supplier( $supplier_id, $supplier_currency,
         $cubic_cm = 0.0;
 
         if ( $length > 0 && $width > 0 && $height > 0 ) {
-            // Store is confirmed to use CM, so simple L×W×H in cm³.
+            // Store is confirmed to use CM, so simple LÃ—WÃ—H in cmÂ³.
             $cubic_cm = $length * $width * $height;
         }
 
         $line_cbm = 0.0;
         if ( $cubic_cm > 0 && $order > 0 ) {
-            // Convert cm³ to m³: divide by 1,000,000.
+            // Convert cmÂ³ to mÂ³: divide by 1,000,000.
             $line_cbm = ( $cubic_cm * $order ) / 1000000;
         }
 
@@ -2586,7 +2588,7 @@ function sop_preorder_migrate_receiving_to_locked() {
     if ( get_option( 'sop_migrated_receiving_to_locked' ) ) {
         return;
     }
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         return;
     }
     global $wpdb;
@@ -2610,7 +2612,7 @@ function sop_preorder_handle_post() {
         return;
     }
 
-    if ( ! current_user_can( 'manage_woocommerce' ) ) {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         return;
     }
 
