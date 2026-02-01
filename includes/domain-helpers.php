@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 1
  * Domain-level helpers on top of sop_DB
- * File version: 1.0.35
+ * File version: 1.0.36
+ * - Harden legacy helper with table existence guard.
  * - Remove BOM/whitespace to prevent activation output.
  * - Add guarded sop_get_settings helper with safe defaults.
  * - Add SOP notes HTML sanitizer helper for rich notes storage/rendering.
@@ -2055,6 +2056,7 @@ function sop_stockout_get_days_in_window( $product_id, $variation_id = 0, $from_
  */
 function sop_legacy_get_scaled_days_for_window( $product_id, $from_ts, $to_ts ) {
     global $wpdb;
+    static $table_exists = null;
 
     $product_id = (int) $product_id;
     if ( $product_id <= 0 ) {
@@ -2079,6 +2081,17 @@ function sop_legacy_get_scaled_days_for_window( $product_id, $from_ts, $to_ts ) 
     $lookback_days = max( 1, (int) floor( ( $to_ts - $from_ts ) / DAY_IN_SECONDS ) );
 
     $table = $wpdb->prefix . 'sop_legacy_product_history';
+    if ( null === $table_exists ) {
+        $found        = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+        $table_exists = ! empty( $found );
+    }
+    if ( ! $table_exists ) {
+        return array(
+            'stockout_days' => 0.0,
+            'in_stock_days' => 0.0,
+            'total_days'    => 0.0,
+        );
+    }
 
     $sql = $wpdb->prepare(
         "SELECT stockout_days_12m_legacy, days_on_sale_12m_legacy, imported_at

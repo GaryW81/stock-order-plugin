@@ -2,8 +2,8 @@
 /**
  * Stock Order Plugin - Phase 4.1
  * System Status (admin only)
- * File version: 1.0.2
- * - Add legacy product history status + expiry indicator.
+ * File version: 1.0.3
+ * - Add legacy product history status + expiry indicator.\r\n * - Add embedded legacy cleanup playbook.
  * - Add diagnostics tab with environment, DB, cron, templates, and last bootstrap error.
  * - Add debug report download and polish last error display.
  */
@@ -52,6 +52,12 @@ if ( ! function_exists( 'sop_get_legacy_product_history_status' ) ) {
             'in_use'          => $legacy_in_use,
             'days_remaining'  => $days_remaining,
         );
+    }
+}
+
+if ( ! function_exists( 'sop_get_legacy_cleanup_playbook_text' ) ) {
+    function sop_get_legacy_cleanup_playbook_text() {
+        return "Run only when System Status shows:\n- Legacy status: Not in use\n- Days remaining: 0\n\nPASS 1 (remove legacy forecast usage):\nYou are the Stock Order Plugin Development Agent running inside Visual Studio Code. Follow AGENTS.md and docs/requirements-stock-order-plugin.md before editing any files.\n\nGOAL\nRemove legacy forecast usage and helpers now that legacy history has expired.\n\nFILES TO EDIT\n- stock-order-plugin/includes/forecast-core.php\n- stock-order-plugin/includes/domain-helpers.php\n\nTASKS\n1) Remove any legacy blending/stockout scaling logic in includes/forecast-core.php.\n   - Remove any reads of legacy_stockout_days / legacy_total_days / stockout_days_legacy fields.\n2) Remove the helper sop_legacy_get_scaled_days_for_window() from includes/domain-helpers.php.\n3) Remove any remaining references to sop_legacy_get_scaled_days_for_window().\n4) Keep all other forecasting logic unchanged.\n\nPASS 2 (remove legacy installer/exporter + table):\nYou are the Stock Order Plugin Development Agent running inside Visual Studio Code. Follow AGENTS.md and docs/requirements-stock-order-plugin.md before editing any files.\n\nGOAL\nRemove legacy history installer/exporter and stop creating legacy data.\n\nFILES TO EDIT\n- stock-order-plugin/stock-order-plugin.php\n- stock-order-plugin/admin/data-export.php\n\nFILES TO DELETE\n- stock-order-plugin/includes/class-sop-legacy-history.php\n\nTASKS\n1) Remove the SOP_Legacy_History include + install calls from stock-order-plugin.php.\n2) Remove legacy_product_history dataset support from admin/data-export.php.\n3) Delete includes/class-sop-legacy-history.php.\n4) MANUAL DB: after code changes are live, drop {$wpdb->prefix}sop_legacy_product_history via phpMyAdmin.\n\nPASS 3 (remove System Status legacy UI):\nYou are the Stock Order Plugin Development Agent running inside Visual Studio Code. Follow AGENTS.md and docs/requirements-stock-order-plugin.md before editing any files.\n\nGOAL\nRemove legacy status section, debug payload fields, and this playbook.\n\nFILES TO EDIT\n- stock-order-plugin/admin/system-status.php\n\nTASKS\n1) Remove the “Legacy product history” UI section.\n2) Remove legacy_product_history from the debug JSON payload.\n3) Remove the cleanup playbook <details> section and sop_get_legacy_cleanup_playbook_text() helper.";
     }
 }
 
@@ -185,7 +191,7 @@ if ( ! function_exists( 'sop_render_system_status_tab' ) ) {
                 <tbody>
                     <tr><th><?php esc_html_e( 'Legacy table present', 'sop' ); ?></th><td><?php echo esc_html( ! empty( $legacy_status['present'] ) ? 'Yes' : 'No' ); ?></td></tr>
                     <tr><th><?php esc_html_e( 'Legacy rows', 'sop' ); ?></th><td><?php echo esc_html( isset( $legacy_status['rows'] ) ? (int) $legacy_status['rows'] : 0 ); ?></td></tr>
-                    <tr><th><?php esc_html_e( 'Last legacy import', 'sop' ); ?></th><td><?php echo esc_html( ! empty( $legacy_status['last_import_ts'] ) ? date_i18n( 'Y-m-d H:i:s', (int) $legacy_status['last_import_ts'] ) : __( '—', 'sop' ) ); ?></td></tr>
+                    <tr><th><?php esc_html_e( 'Last legacy import', 'sop' ); ?></th><td><?php echo esc_html( ! empty( $legacy_status['last_import_ts'] ) ? date_i18n( 'Y-m-d H:i:s', (int) $legacy_status['last_import_ts'] ) : __( 'â€”', 'sop' ) ); ?></td></tr>
                     <tr><th><?php esc_html_e( 'Lookback window', 'sop' ); ?></th><td><?php echo esc_html( isset( $legacy_status['lookback_days'] ) ? (int) $legacy_status['lookback_days'] : 365 ); ?> <?php esc_html_e( 'days', 'sop' ); ?></td></tr>
                     <tr>
                         <th><?php esc_html_e( 'Legacy status', 'sop' ); ?></th>
@@ -215,6 +221,11 @@ if ( ! function_exists( 'sop_render_system_status_tab' ) ) {
                 <li><?php esc_html_e( 'Legacy blending/stockout scaling logic in includes/forecast-core.php', 'sop' ); ?></li>
                 <li><?php esc_html_e( 'Data Export dataset: legacy_product_history (admin/data-export.php)', 'sop' ); ?></li>
             </ul>
+            <details style="margin:12px 0 0;">
+                <summary><?php esc_html_e( 'Legacy cleanup playbook (copy for Codex after expiry)', 'sop' ); ?></summary>
+                <p><?php esc_html_e( 'Pass 3 removes this section after cleanup.', 'sop' ); ?></p>
+                <textarea readonly rows="20" style="width:100%; font-family: Consolas, Monaco, monospace;"><?php echo esc_textarea( sop_get_legacy_cleanup_playbook_text() ); ?></textarea>
+            </details>
         </div>
         <?php
     }
