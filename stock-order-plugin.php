@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Stock Order
  * Description: Internal tool for suppliers, forecasting, purchase orders, container planning, goods-in, and labels/barcodes.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Wilson Organisation Ltd
  * Text Domain: sop
  * Domain Path: /languages
@@ -14,7 +14,8 @@
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.15
+ * File version: 1.0.16
+ * - Hotfix: parent-site guard now matches wilson-organisation.com host (multisite safe).
  * - Release hardening: dependency guards, parent-site gate, and plugin metadata.
  * - Contextual admin module loading to reduce wp-admin overhead and prevent 3rd-party AJAX UI interference.
  * - Load notes helpers for rich notes sanitization/rendering.
@@ -35,7 +36,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '1.0.1' );
+    define( 'SOP_PLUGIN_VERSION', '1.0.2' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -54,7 +55,31 @@ if ( ! function_exists( 'sop_is_woocommerce_active' ) ) {
 
 if ( ! function_exists( 'sop_is_allowed_site_context' ) ) {
     function sop_is_allowed_site_context() {
-        return ! ( is_multisite() && ! is_main_site() );
+        if ( ! is_multisite() ) {
+            return true;
+        }
+        if ( is_main_site() ) {
+            return true;
+        }
+        $host = wp_parse_url( home_url(), PHP_URL_HOST );
+        $host = is_string( $host ) ? strtolower( $host ) : '';
+        if ( '' === $host ) {
+            return false;
+        }
+        $suffixes = apply_filters( 'sop_allowed_site_host_suffixes', array( 'wilson-organisation.com' ) );
+        if ( ! is_array( $suffixes ) ) {
+            $suffixes = array( 'wilson-organisation.com' );
+        }
+        foreach ( $suffixes as $suffix ) {
+            $suffix = is_string( $suffix ) ? strtolower( trim( $suffix ) ) : '';
+            if ( '' === $suffix ) {
+                continue;
+            }
+            if ( $host === $suffix || ( '.' . $suffix ) === substr( $host, - ( strlen( $suffix ) + 1 ) ) ) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 
@@ -66,7 +91,7 @@ if ( ! function_exists( 'sop_add_admin_notice' ) ) {
         add_action(
             'admin_notices',
             function () use ( $message ) {
-                if ( ! current_user_can( 'manage_woocommerce' ) ) {
+                if ( ! current_user_can( 'manage_woocommerce' ) && ! current_user_can( 'manage_options' ) ) {
                     return;
                 }
                 echo '<div class="notice notice-error"><p>' . esc_html( $message ) . '</p></div>';
@@ -82,7 +107,7 @@ if ( ! function_exists( 'sop_bootstrap_plugin' ) ) {
             return;
         }
         if ( ! sop_is_allowed_site_context() ) {
-            sop_add_admin_notice( __( 'Stock Order can only run on the main site in this multisite network.', 'sop' ) );
+            sop_add_admin_notice( __( 'Stock Order is configured to run only on the parent site (wilson-organisation.com).', 'sop' ) );
             return;
         }
 
