@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.38
+ * File version: 1.1.39
+ * - Align Add now input by overlaying Total label in received cell.
  * - Auto-select row on Add now entry + correction modal guidance text.
  * - Add per-line correction modal/action for safe stock decreases.
  * - Use Add now delta input with read-only received total and live apply updates.
@@ -2989,6 +2990,23 @@ function sop_render_goods_in_page() {
         }
         .sop-goodsin-narrow {
             width: 7ch;
+        }
+        .sop-goodsin-table td[data-column="received"] {
+            position: relative;
+        }
+        .sop-goodsin-table td[data-column="received"] .sop-goodsin-received-total {
+            position: absolute;
+            top: 6px;
+            left: 10px;
+            right: 10px;
+            margin: 0;
+            font-size: 11px;
+            line-height: 1.2;
+            opacity: 0.85;
+            pointer-events: none;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .sop-goodsin-received-total {
             display: block;
