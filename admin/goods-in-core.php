@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.32
+ * File version: 1.0.33
+ * - Add per-line correction AJAX endpoint for safe stock decreases.
  * - Block stock decreases during Goods-In apply handlers.
  * - Require confirmation flag before completing Goods-In.
  * - Use capability helper for Stock Order UI access.
@@ -1266,11 +1267,137 @@ function sop_ajax_goodsin_apply_stock_line() {
     );
 }
 
+/**
+ * AJAX: Correct a Goods-In line by decreasing stock and stocked total.
+ */
+function sop_ajax_goodsin_adjust_stock_line() {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
+        wp_send_json_error( array( 'reason' => 'forbidden', 'reason_label' => __( 'You do not have permission to correct stock.', 'sop' ) ), 403 );
+    }
+
+    check_ajax_referer( 'sop_goodsin_ajax', 'nonce' );
+
+    $sheet_id     = isset( $_POST['sheet_id'] ) ? (int) $_POST['sheet_id'] : 0;
+    $line_id      = isset( $_POST['line_id'] ) ? (int) $_POST['line_id'] : 0;
+    $decrease_qty = isset( $_POST['decrease_qty'] ) ? (int) $_POST['decrease_qty'] : 0;
+
+    if ( $sheet_id <= 0 || $line_id <= 0 || $decrease_qty <= 0 ) {
+        wp_send_json_error( array( 'reason' => 'invalid_payload', 'reason_label' => __( 'Invalid correction payload.', 'sop' ) ), 400 );
+    }
+
+    $sheet = sop_goodsin_get_sheet( $sheet_id );
+    if ( ! $sheet ) {
+        wp_send_json_error( array( 'reason' => 'sheet_not_found', 'reason_label' => __( 'Sheet not found.', 'sop' ) ), 404 );
+    }
+
+    $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
+    if ( in_array( $status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
+        wp_send_json_error( array( 'reason' => 'sheet_readonly', 'reason_label' => __( 'Sheet is read-only.', 'sop' ) ), 400 );
+    }
+    if ( 'locked' !== $status && 'receiving' !== $status ) {
+        wp_send_json_error( array( 'reason' => 'sheet_not_lockable', 'reason_label' => __( 'Sheet must be Ordered to correct stock.', 'sop' ) ), 400 );
+    }
+
+    $lines_map = sop_goodsin_get_sheet_lines_map( $sheet_id );
+    if ( ! empty( $lines_map ) && function_exists( 'sop_goodsin_migrate_lines_map_to_pid' ) ) {
+        list( $lines_map ) = sop_goodsin_migrate_lines_map_to_pid( $lines_map );
+    }
+    if ( empty( $lines_map ) || ! isset( $lines_map[ $line_id ] ) ) {
+        wp_send_json_error( array( 'reason' => 'line_not_found', 'reason_label' => __( 'Line not found for sheet.', 'sop' ) ), 404 );
+    }
+
+    $row          = $lines_map[ $line_id ];
+    $product_id   = isset( $row['product_id'] ) ? (int) $row['product_id'] : 0;
+    $ordered_qty  = isset( $row['qty_owner'] ) ? (float) $row['qty_owner'] : 0.0;
+    $stock_added  = isset( $row['goods_in_stock_added_qty'] ) ? (float) $row['goods_in_stock_added_qty'] : 0.0;
+    $reject_qty   = isset( $row['goods_in_reject_qty'] ) ? (float) $row['goods_in_reject_qty'] : 0.0;
+    $missing_qty  = isset( $row['goods_in_missing_qty'] ) ? (float) $row['goods_in_missing_qty'] : 0.0;
+
+    if ( $stock_added < 0 ) {
+        $stock_added = 0.0;
+    }
+    if ( $product_id <= 0 ) {
+        wp_send_json_error( array( 'reason' => 'missing_product', 'reason_label' => __( 'Missing product for this line.', 'sop' ) ), 400 );
+    }
+    if ( $decrease_qty > (int) round( $stock_added ) ) {
+        wp_send_json_error( array( 'reason' => 'exceeds_stocked', 'reason_label' => __( 'Cannot remove more than current Stocked qty.', 'sop' ) ), 400 );
+    }
+
+    $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+    if ( ! $product ) {
+        wp_send_json_error( array( 'reason' => 'missing_product', 'reason_label' => __( 'Product not found.', 'sop' ) ), 404 );
+    }
+    if ( method_exists( $product, 'managing_stock' ) && ! $product->managing_stock() ) {
+        wp_send_json_error( array( 'reason' => 'not_managing_stock', 'reason_label' => __( 'Stock management is disabled for this product.', 'sop' ) ), 400 );
+    }
+    if ( ! function_exists( 'wc_update_product_stock' ) ) {
+        wp_send_json_error( array( 'reason' => 'stock_api_missing', 'reason_label' => __( 'Woo stock API missing.', 'sop' ) ), 500 );
+    }
+
+    $woo_stock_qty = null;
+    if ( method_exists( $product, 'get_stock_quantity' ) ) {
+        $woo_stock_qty = $product->get_stock_quantity();
+        $woo_stock_qty = is_numeric( $woo_stock_qty ) ? (float) $woo_stock_qty : null;
+    }
+    if ( null !== $woo_stock_qty && $woo_stock_qty < $decrease_qty ) {
+        wp_send_json_error( array( 'reason' => 'insufficient_woo_stock', 'reason_label' => __( 'Cannot decrease: Woo stock is lower than remove qty.', 'sop' ) ), 400 );
+    }
+
+    $result = wc_update_product_stock( $product, $decrease_qty, 'decrease' );
+    if ( is_wp_error( $result ) ) {
+        wp_send_json_error(
+            array(
+                'reason'       => 'stock_update_failed',
+                'reason_label' => __( 'Woo stock update failed.', 'sop' ),
+                'message'      => $result->get_error_message(),
+            ),
+            500
+        );
+    }
+
+    $new_stock_added   = max( 0.0, $stock_added - $decrease_qty );
+    $new_received_total = max( 0.0, $new_stock_added + max( 0.0, $reject_qty ) );
+    $outstanding_qty   = max( 0.0, max( 0.0, $ordered_qty ) - $new_stock_added - max( 0.0, $missing_qty ) - max( 0.0, $reject_qty ) );
+
+    global $wpdb;
+    $tbl_lines = function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ? sop_get_preorder_sheet_lines_table_name() : '';
+    if ( '' === $tbl_lines ) {
+        $tbl_lines = $wpdb->prefix . 'sop_preorder_sheet_lines';
+    }
+
+    $wpdb->update(
+        $tbl_lines,
+        array(
+            'goods_in_stock_added_qty' => $new_stock_added,
+            'goods_in_received_qty'    => $new_received_total,
+            'goods_in_updated_at'      => current_time( 'mysql', true ),
+        ),
+        array( 'id' => $line_id, 'sheet_id' => $sheet_id ),
+        array( '%f', '%f', '%s' ),
+        array( '%d', '%d' )
+    );
+
+    wp_send_json_success(
+        array(
+            'line_id'           => $line_id,
+            'product_id'        => $product_id,
+            'status'            => 'adjusted',
+            'applied_qty'       => (float) $decrease_qty,
+            'applied_direction' => 'decrease',
+            'stock_added_qty'   => $new_stock_added,
+            'received_total'    => $new_received_total,
+            'outstanding_qty'   => $outstanding_qty,
+            'is_complete'       => ( $outstanding_qty <= 0.0001 ),
+        )
+    );
+}
+
 add_action( 'admin_post_sop_goodsin_save', 'sop_handle_goodsin_save' );
 add_action( 'admin_post_sop_goodsin_apply_stock', 'sop_handle_goodsin_apply_stock' );
 add_action( 'admin_post_sop_goodsin_complete', 'sop_handle_goodsin_complete' );
 add_action( 'admin_post_sop_export_goodsin_issues_xlsx', 'sop_handle_export_goodsin_issues_xlsx' );
 add_action( 'wp_ajax_sop_goodsin_apply_stock_line', 'sop_ajax_goodsin_apply_stock_line' );
+add_action( 'wp_ajax_sop_goodsin_adjust_stock_line', 'sop_ajax_goodsin_adjust_stock_line' );
 function sop_handle_export_goodsin_issues_xlsx() {
     if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You are not allowed to export goods-in issues.', 'sop' ) );

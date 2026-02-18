@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.36
+ * File version: 1.1.37
+ * - Add per-line correction modal/action for safe stock decreases.
  * - Use Add now delta input with read-only received total and live apply updates.
  * - Add 2-step confirmation modal for Complete Goods-In.
  * - Use capability helper for Stock Order UI access.
@@ -1240,7 +1241,14 @@ function sop_render_goods_in_page() {
                             <textarea class="sop-goodsin-notes" name="goods_in_notes[<?php echo esc_attr( $pid ); ?>]" style="display:none;"<?php echo $inputs_disabled_attr; ?>><?php echo esc_textarea( $notes ); ?></textarea>
                         </div>
                     </td>
-                    <td data-column="stocked"><?php echo esc_html( number_format_i18n( $stocked, 0 ) ); ?></td>
+                    <td data-column="stocked">
+                        <span class="sop-goodsin-stocked-value"><?php echo esc_html( number_format_i18n( $stocked, 0 ) ); ?></span>
+                        <?php if ( ! $sop_gi_is_readonly ) : ?>
+                            <button type="button" class="button-link sop-goodsin-correct-trigger<?php echo ( $stocked <= 0 ) ? ' is-hidden' : ''; ?>" data-line-id="<?php echo esc_attr( $line_id ); ?>">
+                                <?php esc_html_e( 'Correct', 'sop' ); ?>
+                            </button>
+                        <?php endif; ?>
+                    </td>
                     <td data-column="outstanding"><?php echo esc_html( number_format_i18n( $outstanding, 0 ) ); ?></td>
                 </tr>
             <?php endforeach; ?>
@@ -1297,6 +1305,34 @@ function sop_render_goods_in_page() {
             <div class="sop-goodsin-complete-actions">
                 <button type="button" class="button button-primary" id="sop-goodsin-complete-confirm" disabled><?php esc_html_e( 'Confirm complete', 'sop' ); ?></button>
                 <button type="button" class="button" data-sop-complete-close="1"><?php esc_html_e( 'Cancel', 'sop' ); ?></button>
+            </div>
+        </div>
+
+        <div class="sop-goodsin-correct-modal-backdrop" id="sop-goodsin-correct-modal-backdrop" aria-hidden="true"></div>
+        <div class="sop-goodsin-correct-modal" id="sop-goodsin-correct-modal" role="dialog" aria-modal="true" aria-labelledby="sop-goodsin-correct-modal-title" aria-hidden="true">
+            <button type="button"
+                    class="button-link sop-goodsin-info-close"
+                    data-sop-correct-close="1"
+                    aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">
+                &times;
+            </button>
+            <h3 id="sop-goodsin-correct-modal-title"><?php esc_html_e( 'Correct Stock (Decrease)', 'sop' ); ?></h3>
+            <p><?php esc_html_e( 'This decreases Woo stock and reduces the Goods-In Stocked total for this line.', 'sop' ); ?></p>
+            <p id="sop-goodsin-correct-modal-line"></p>
+            <p>
+                <label for="sop-goodsin-correct-qty"><?php esc_html_e( 'Remove qty', 'sop' ); ?></label><br />
+                <input type="number" id="sop-goodsin-correct-qty" class="sop-goodsin-narrow" min="1" step="1" value="" placeholder="0" />
+            </p>
+            <p>
+                <label for="sop-goodsin-correct-confirm-check">
+                    <input type="checkbox" id="sop-goodsin-correct-confirm-check" />
+                    <?php esc_html_e( 'I confirm this correction should decrease stock.', 'sop' ); ?>
+                </label>
+            </p>
+            <p class="sop-goodsin-correct-message" id="sop-goodsin-correct-message"></p>
+            <div class="sop-goodsin-complete-actions">
+                <button type="button" class="button button-primary" id="sop-goodsin-correct-confirm" disabled><?php esc_html_e( 'Apply correction', 'sop' ); ?></button>
+                <button type="button" class="button" data-sop-correct-close="1"><?php esc_html_e( 'Cancel', 'sop' ); ?></button>
             </div>
         </div>
 
@@ -2737,6 +2773,47 @@ function sop_render_goods_in_page() {
         .sop-goodsin-complete-modal h3 {
             margin-top: 0;
         }
+        .sop-goodsin-correct-modal-backdrop {
+            position: fixed;
+            left: 0;
+            right: 0;
+            top: var(--sop-wpadminbar-h);
+            height: calc(var(--sop-goodsin-vvh) - var(--sop-wpadminbar-h));
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 100000;
+            display: none;
+        }
+        .sop-goodsin-correct-modal {
+            position: fixed;
+            top: calc(var(--sop-wpadminbar-h) + 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff;
+            padding: 16px;
+            border: 1px solid #ccd0d4;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 100001;
+            width: 560px;
+            max-width: 90%;
+            box-sizing: border-box;
+            display: none;
+        }
+        .sop-goodsin-correct-modal h3 {
+            margin-top: 0;
+        }
+        .sop-goodsin-correct-message {
+            min-height: 18px;
+            color: #b32d2e;
+            margin: 8px 0 0;
+        }
+        .sop-goodsin-correct-trigger {
+            display: inline-block;
+            margin-left: 6px;
+            font-size: 11px;
+        }
+        .sop-goodsin-correct-trigger.is-hidden {
+            display: none;
+        }
         .sop-goodsin-complete-actions {
             display: flex;
             align-items: center;
@@ -2765,7 +2842,8 @@ function sop_render_goods_in_page() {
         @media (min-width: 783px) {
             .sop-goodsin-notes-modal,
             .sop-goodsin-info-modal,
-            .sop-goodsin-complete-modal {
+            .sop-goodsin-complete-modal,
+            .sop-goodsin-correct-modal {
                 top: calc(var(--sop-wpadminbar-h) + 50%);
                 transform: translate(-50%, -50%);
                 max-height: 80vh;
@@ -3175,6 +3253,13 @@ function sop_render_goods_in_page() {
             var $completeConfirmCheck = $('#sop-goodsin-complete-confirm-check');
             var $completeConfirmButton = $('#sop-goodsin-complete-confirm');
             var $confirmCompleteField = $('#sop-goodsin-confirm-complete');
+            var $correctModal = $('#sop-goodsin-correct-modal');
+            var $correctModalBackdrop = $('#sop-goodsin-correct-modal-backdrop');
+            var $correctLine = $('#sop-goodsin-correct-modal-line');
+            var $correctQty = $('#sop-goodsin-correct-qty');
+            var $correctConfirmCheck = $('#sop-goodsin-correct-confirm-check');
+            var $correctConfirmButton = $('#sop-goodsin-correct-confirm');
+            var $correctMessage = $('#sop-goodsin-correct-message');
             var $skusModal = $('#sop-skus-modal');
             var $skusModalContent = $('#sop-skus-modal .sop-skus-modal__content');
             var $skusModalContextName = $('#sop-skus-modal .sop-skus-modal__context-name');
@@ -3219,6 +3304,7 @@ function sop_render_goods_in_page() {
             var sopScanReadyTimer = null;
             var sopScanActive = false;
             var sopScanLock = false;
+            var sopGoodsinCorrectionState = null;
             if ( typeof window.__sop_goodsin_scan_from_product_modal === 'undefined' ) {
                 window.__sop_goodsin_scan_from_product_modal = false;
             }
@@ -3845,10 +3931,81 @@ function sop_render_goods_in_page() {
                 if ( resetConfirmFlag ) {
                     $confirmCompleteField.val('0');
                 }
-                if ( ! $productModal.hasClass('is-open') && ! $notesModal.is(':visible') && ! $infoModal.is(':visible') ) {
+                if ( ! $productModal.hasClass('is-open') && ! $notesModal.is(':visible') && ! $infoModal.is(':visible') && ! $correctModal.is(':visible') ) {
                     document.documentElement.classList.remove('sop-goodsin-modal-open');
                     document.body.classList.remove('sop-goodsin-modal-open');
                 }
+            }
+
+            function sopGoodsinToggleCorrectButton($tr, stockedQty) {
+                var $btn = $tr.find('.sop-goodsin-correct-trigger');
+                if ( ! $btn.length ) {
+                    return;
+                }
+                if ( stockedQty > 0 ) {
+                    $btn.removeClass('is-hidden');
+                } else {
+                    $btn.addClass('is-hidden');
+                }
+            }
+
+            function sopGoodsinCloseCorrectModal() {
+                sopGoodsinCorrectionState = null;
+                if ( ! $correctModal.length ) {
+                    return;
+                }
+                $correctModal.hide().attr('aria-hidden', 'true');
+                $correctModalBackdrop.hide().attr('aria-hidden', 'true');
+                $correctLine.text('');
+                $correctQty.val('');
+                $correctConfirmCheck.prop('checked', false);
+                $correctConfirmButton.prop('disabled', true);
+                $correctMessage.text('');
+                if ( ! $productModal.hasClass('is-open') && ! $notesModal.is(':visible') && ! $infoModal.is(':visible') && ! $completeModal.is(':visible') ) {
+                    document.documentElement.classList.remove('sop-goodsin-modal-open');
+                    document.body.classList.remove('sop-goodsin-modal-open');
+                }
+            }
+
+            function sopGoodsinRefreshCorrectConfirmState() {
+                if ( ! $correctModal.length ) {
+                    return;
+                }
+                var qty = parseInt( $correctQty.val(), 10 );
+                if ( isNaN( qty ) ) {
+                    qty = 0;
+                }
+                var maxQty = ( sopGoodsinCorrectionState && sopGoodsinCorrectionState.stockedQty ) ? sopGoodsinCorrectionState.stockedQty : 0;
+                var canConfirm = qty > 0 && qty <= maxQty && $correctConfirmCheck.is(':checked');
+                $correctConfirmButton.prop('disabled', ! canConfirm);
+            }
+
+            function sopGoodsinOpenCorrectModal($tr) {
+                if ( ! $correctModal.length || ! $tr || ! $tr.length ) {
+                    return;
+                }
+                var lineId = parseInt( $tr.data('line-id'), 10 ) || 0;
+                var stockedQty = Math.max( 0, Math.round( sopGoodsinGetRowStockedQty( $tr ) ) );
+                if ( lineId <= 0 || stockedQty <= 0 ) {
+                    return;
+                }
+                var skuText = ( $tr.data('sku') || $tr.find('td[data-column="sku"]').text() || '' ).toString().trim();
+                sopGoodsinCorrectionState = {
+                    lineId: lineId,
+                    stockedQty: stockedQty,
+                    sku: skuText
+                };
+                $correctLine.text( 'Line ' + lineId + ( skuText ? ' (' + skuText + ')' : '' ) + ' - current stocked: ' + stockedQty + '.' );
+                $correctQty.attr('max', stockedQty).val('');
+                $correctConfirmCheck.prop('checked', false);
+                $correctConfirmButton.prop('disabled', true);
+                $correctMessage.text('');
+                $correctModalBackdrop.show().attr('aria-hidden', 'false');
+                $correctModal.show().attr('aria-hidden', 'false');
+                document.documentElement.classList.add('sop-goodsin-modal-open');
+                document.body.classList.add('sop-goodsin-modal-open');
+                sopGoodsinSyncVisualViewportVar();
+                $correctQty.trigger('focus');
             }
 
             function sopGoodsinApplyStockSequential(payloadObj) {
@@ -3955,8 +4112,9 @@ function sop_render_goods_in_page() {
                         var $row = $('#sop-goodsin-lines tr[data-line-id="' + line.line_id + '"]');
                         if ($row.length) {
                             if (stockAddedQty !== null) {
-                                $row.find('td[data-column="stocked"]').text(Math.round(stockAddedQty).toLocaleString());
+                                $row.find('td[data-column="stocked"] .sop-goodsin-stocked-value').text(Math.round(stockAddedQty).toLocaleString());
                                 $row.data('sort-stocked', stockAddedQty);
+                                sopGoodsinToggleCorrectButton($row, stockAddedQty);
                             }
                             if (outstanding !== null && !isNaN(outstanding)) {
                                 $row.find('td[data-column="outstanding"]').text(Math.round(Math.max(0, outstanding)).toLocaleString());
@@ -4061,6 +4219,105 @@ function sop_render_goods_in_page() {
                 closeCompleteModal();
             });
 
+            $('#sop-goodsin-lines').on('click', '.sop-goodsin-correct-trigger', function(e){
+                e.preventDefault();
+                var $tr = $(this).closest('tr');
+                sopGoodsinOpenCorrectModal($tr);
+            });
+
+            $correctQty.on('input change', function(){
+                sopGoodsinRefreshCorrectConfirmState();
+            });
+
+            $correctConfirmCheck.on('change', function(){
+                sopGoodsinRefreshCorrectConfirmState();
+            });
+
+            $(document).on('click', '[data-sop-correct-close="1"]', function(e){
+                e.preventDefault();
+                sopGoodsinCloseCorrectModal();
+            });
+
+            $correctModalBackdrop.on('click', function(e){
+                e.preventDefault();
+                sopGoodsinCloseCorrectModal();
+            });
+
+            $correctConfirmButton.on('click', function(e){
+                e.preventDefault();
+                if ( ! sopGoodsinCorrectionState ) {
+                    return;
+                }
+                var lineId = parseInt( sopGoodsinCorrectionState.lineId, 10 ) || 0;
+                var decreaseQty = parseInt( $correctQty.val(), 10 ) || 0;
+                var maxQty = parseInt( sopGoodsinCorrectionState.stockedQty, 10 ) || 0;
+                if ( lineId <= 0 || decreaseQty <= 0 || decreaseQty > maxQty || ! $correctConfirmCheck.is(':checked') ) {
+                    sopGoodsinRefreshCorrectConfirmState();
+                    return;
+                }
+                $correctConfirmButton.prop('disabled', true);
+                $correctMessage.text('');
+                $.ajax({
+                    url: goodsinAjaxUrl,
+                    method: 'POST',
+                    dataType: 'json',
+                    data: {
+                        action: 'sop_goodsin_adjust_stock_line',
+                        nonce: goodsinAjaxNonce,
+                        sheet_id: <?php echo (int) $sheet_id; ?>,
+                        line_id: lineId,
+                        decrease_qty: decreaseQty
+                    }
+                }).done(function(resp){
+                    if ( resp && resp.success && resp.data ) {
+                        var result = resp.data;
+                        var $row = $('#sop-goodsin-lines tr[data-line-id="' + lineId + '"]');
+                        if ( $row.length ) {
+                            var stockedQty = parseFloat(result.stock_added_qty);
+                            var outstandingQty = parseFloat(result.outstanding_qty);
+                            var receivedTotal = parseFloat(result.received_total);
+                            if ( ! isNaN(stockedQty) ) {
+                                $row.find('td[data-column="stocked"] .sop-goodsin-stocked-value').text(Math.round(stockedQty).toLocaleString());
+                                $row.data('sort-stocked', stockedQty);
+                                sopGoodsinToggleCorrectButton($row, stockedQty);
+                            }
+                            if ( ! isNaN(outstandingQty) ) {
+                                $row.find('td[data-column="outstanding"]').text(Math.round(Math.max(0, outstandingQty)).toLocaleString());
+                                $row.data('sort-outstanding', Math.max(0, outstandingQty));
+                            }
+                            if ( ! isNaN(receivedTotal) ) {
+                                sopGoodsinSetRowReceivedTotal($row, receivedTotal);
+                            }
+                            $row.find('.sop-goodsin-add-now').val('');
+                            $row.data('sort-received', 0);
+                            if ( result.is_complete ) {
+                                $row.addClass('sop-goodsin-line-complete');
+                            } else {
+                                $row.removeClass('sop-goodsin-line-complete');
+                            }
+                            $row.addClass('sop-goodsin-row-applied');
+                            setTimeout(function(){ $row.removeClass('sop-goodsin-row-applied'); }, 1200);
+                            updateRowSortData($row);
+                            if ( activeProductRow && activeProductRow.length && parseInt(activeProductRow.data('line-id'), 10) === lineId ) {
+                                sopGoodsinRenderProductModal( sopGoodsinGetRowModalData( activeProductRow ) );
+                            }
+                        }
+                        sopGoodsinCloseCorrectModal();
+                    } else {
+                        var reasonLabel = ( resp && resp.data && resp.data.reason_label ) ? resp.data.reason_label : '<?php echo esc_js( __( 'Correction failed.', 'sop' ) ); ?>';
+                        $correctMessage.text(reasonLabel);
+                        sopGoodsinRefreshCorrectConfirmState();
+                    }
+                }).fail(function(xhr){
+                    var reasonLabel = '<?php echo esc_js( __( 'Correction failed.', 'sop' ) ); ?>';
+                    if ( xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.reason_label ) {
+                        reasonLabel = xhr.responseJSON.data.reason_label;
+                    }
+                    $correctMessage.text(reasonLabel);
+                    sopGoodsinRefreshCorrectConfirmState();
+                });
+            });
+
             $('#sop-goodsin-select-all').on('change', function(){
                 var checked = $(this).is(':checked');
                 $('.sop-goodsin-select').prop('checked', checked);
@@ -4127,7 +4384,7 @@ function sop_render_goods_in_page() {
                 notesActiveRow = null;
                 $notesModal.hide().attr('aria-hidden', 'true');
                 $notesModalBackdrop.hide().attr('aria-hidden', 'true');
-                if ( ! $productModal.hasClass('is-open') && ! $infoModal.is(':visible') ) {
+                if ( ! $productModal.hasClass('is-open') && ! $infoModal.is(':visible') && ! $completeModal.is(':visible') && ! $correctModal.is(':visible') ) {
                     document.documentElement.classList.remove('sop-goodsin-modal-open');
                     document.body.classList.remove('sop-goodsin-modal-open');
                 }
@@ -4158,7 +4415,7 @@ function sop_render_goods_in_page() {
                 $infoModalBackdrop.hide().attr('aria-hidden', 'true');
                 $infoModalTitle.text('');
                 $infoModalBody.empty();
-                if ( ! $productModal.hasClass('is-open') && ! $notesModal.is(':visible') ) {
+                if ( ! $productModal.hasClass('is-open') && ! $notesModal.is(':visible') && ! $completeModal.is(':visible') && ! $correctModal.is(':visible') ) {
                     document.documentElement.classList.remove('sop-goodsin-modal-open');
                     document.body.classList.remove('sop-goodsin-modal-open');
                 }
@@ -4253,6 +4510,10 @@ function sop_render_goods_in_page() {
                 if ( 27 === e.which && $completeModal.is(':visible') ) {
                     e.preventDefault();
                     closeCompleteModal();
+                }
+                if ( 27 === e.which && $correctModal.is(':visible') ) {
+                    e.preventDefault();
+                    sopGoodsinCloseCorrectModal();
                 }
                 if ( e.key === 'Enter' && $(e.target).is($searchInput) ) {
                     e.preventDefault();
