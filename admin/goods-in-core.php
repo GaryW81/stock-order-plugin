@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.30
+ * File version: 1.0.31
+ * - Require confirmation flag before completing Goods-In.
  * - Use capability helper for Stock Order UI access.
  *
  * - Receive against ordered (locked) preorder sheets.
@@ -961,6 +962,12 @@ function sop_handle_goodsin_complete() {
         ),
         admin_url( 'admin.php' )
     );
+
+    $confirm_complete = isset( $_POST['sop_goodsin_confirm_complete'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_goodsin_confirm_complete'] ) ) : '';
+    if ( '1' !== $confirm_complete ) {
+        wp_safe_redirect( add_query_arg( 'sop_msg', 'confirm_complete_required', $redirect ) );
+        exit;
+    }
 
     if ( $sheet_id <= 0 ) {
         wp_safe_redirect( add_query_arg( 'sop_msg', 'invalid_payload', $redirect ) );

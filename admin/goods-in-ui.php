@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.34
+ * File version: 1.1.35
+ * - Add 2-step confirmation modal for Complete Goods-In.
  * - Use capability helper for Stock Order UI access.
  *
  * - 1.1.33 - Goods-In: show correct +/- delta in apply-stock progress status.
@@ -491,6 +492,10 @@ function sop_render_goods_in_page() {
                 $out = isset( $_GET['sop_outstanding_lines'] ) ? (int) $_GET['sop_outstanding_lines'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
                 $text = sprintf( __( 'Cannot complete: %d lines still have outstanding quantity.', 'sop' ), $out );
                 break;
+            case 'confirm_complete_required':
+                $notice_class = 'notice notice-error';
+                $text = __( 'Please confirm completion before completing Goods-In.', 'sop' );
+                break;
             case 'invalid_payload':
                 $notice_class = 'notice notice-error';
                 $text = __( 'Invalid payload; please reload and try again.', 'sop' );
@@ -808,6 +813,7 @@ function sop_render_goods_in_page() {
         <input type="hidden" name="action" value="sop_goodsin_save" id="sop-goodsin-action" />
         <input type="hidden" name="sheet_id" value="<?php echo (int) $sheet_id; ?>" />
         <input type="hidden" name="sop_goodsin_payload_json" id="sop-goodsin-payload-json" value="" />
+        <input type="hidden" name="sop_goodsin_confirm_complete" id="sop-goodsin-confirm-complete" value="0" />
 
         <div class="sop-goodsin-mobile-grid">
             <div class="sop-goodsin-mg-title">
@@ -1265,6 +1271,28 @@ function sop_render_goods_in_page() {
             </button>
             <h3 id="sop-goodsin-info-modal-title"><?php esc_html_e( 'Product notes', 'sop' ); ?></h3>
             <div class="sop-goodsin-info-modal-body" id="sop-goodsin-info-modal-body"></div>
+        </div>
+
+        <div class="sop-goodsin-complete-modal-backdrop" id="sop-goodsin-complete-modal-backdrop" aria-hidden="true"></div>
+        <div class="sop-goodsin-complete-modal" id="sop-goodsin-complete-modal" role="dialog" aria-modal="true" aria-labelledby="sop-goodsin-complete-modal-title" aria-hidden="true">
+            <button type="button"
+                    class="button-link sop-goodsin-info-close"
+                    data-sop-complete-close="1"
+                    aria-label="<?php esc_attr_e( 'Close', 'sop' ); ?>">
+                &times;
+            </button>
+            <h3 id="sop-goodsin-complete-modal-title"><?php esc_html_e( 'Complete Goods-In?', 'sop' ); ?></h3>
+            <p><?php esc_html_e( 'This will mark the sheet as completed/read-only. It does not apply stock. Ensure stock has already been applied.', 'sop' ); ?></p>
+            <p>
+                <label for="sop-goodsin-complete-confirm-check">
+                    <input type="checkbox" id="sop-goodsin-complete-confirm-check" />
+                    <?php esc_html_e( 'I confirm this Goods-In is ready to be completed.', 'sop' ); ?>
+                </label>
+            </p>
+            <div class="sop-goodsin-complete-actions">
+                <button type="button" class="button button-primary" id="sop-goodsin-complete-confirm" disabled><?php esc_html_e( 'Confirm complete', 'sop' ); ?></button>
+                <button type="button" class="button" data-sop-complete-close="1"><?php esc_html_e( 'Cancel', 'sop' ); ?></button>
+            </div>
         </div>
 
         <?php if ( 'report' === $view || in_array( $sop_gi_status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) : ?>
@@ -2676,6 +2704,41 @@ function sop_render_goods_in_page() {
         .sop-goodsin-info-modal h3 {
             margin-top: 0;
         }
+        .sop-goodsin-complete-modal-backdrop {
+            position: fixed;
+            left: 0;
+            right: 0;
+            top: var(--sop-wpadminbar-h);
+            height: calc(var(--sop-goodsin-vvh) - var(--sop-wpadminbar-h));
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 100000;
+            display: none;
+        }
+        .sop-goodsin-complete-modal {
+            position: fixed;
+            top: calc(var(--sop-wpadminbar-h) + 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff;
+            padding: 16px;
+            border: 1px solid #ccd0d4;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 100001;
+            width: 560px;
+            max-width: 90%;
+            box-sizing: border-box;
+            display: none;
+        }
+        .sop-goodsin-complete-modal h3 {
+            margin-top: 0;
+        }
+        .sop-goodsin-complete-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 12px;
+        }
         .sop-goodsin-info-modal-body {
             white-space: pre-wrap;
             word-break: break-word;
@@ -2696,7 +2759,8 @@ function sop_render_goods_in_page() {
         }
         @media (min-width: 783px) {
             .sop-goodsin-notes-modal,
-            .sop-goodsin-info-modal {
+            .sop-goodsin-info-modal,
+            .sop-goodsin-complete-modal {
                 top: calc(var(--sop-wpadminbar-h) + 50%);
                 transform: translate(-50%, -50%);
                 max-height: 80vh;
@@ -3088,6 +3152,11 @@ function sop_render_goods_in_page() {
             var $infoModalBackdrop = $('#sop-goodsin-info-modal-backdrop');
             var $infoModalTitle = $('#sop-goodsin-info-modal-title');
             var $infoModalBody = $('#sop-goodsin-info-modal-body');
+            var $completeModal = $('#sop-goodsin-complete-modal');
+            var $completeModalBackdrop = $('#sop-goodsin-complete-modal-backdrop');
+            var $completeConfirmCheck = $('#sop-goodsin-complete-confirm-check');
+            var $completeConfirmButton = $('#sop-goodsin-complete-confirm');
+            var $confirmCompleteField = $('#sop-goodsin-confirm-complete');
             var $skusModal = $('#sop-skus-modal');
             var $skusModalContent = $('#sop-skus-modal .sop-skus-modal__content');
             var $skusModalContextName = $('#sop-skus-modal .sop-skus-modal__context-name');
@@ -3696,6 +3765,40 @@ function sop_render_goods_in_page() {
                 }
             }
 
+            function openCompleteModal() {
+                if ( ! $completeModal.length ) {
+                    return;
+                }
+                $completeConfirmCheck.prop('checked', false);
+                $completeConfirmButton.prop('disabled', true);
+                $confirmCompleteField.val('0');
+                $completeModalBackdrop.show().attr('aria-hidden', 'false');
+                $completeModal.show().attr('aria-hidden', 'false');
+                document.documentElement.classList.add('sop-goodsin-modal-open');
+                document.body.classList.add('sop-goodsin-modal-open');
+                sopGoodsinSyncVisualViewportVar();
+            }
+
+            function closeCompleteModal(resetConfirmFlag) {
+                if ( typeof resetConfirmFlag === 'undefined' ) {
+                    resetConfirmFlag = true;
+                }
+                if ( ! $completeModal.length ) {
+                    return;
+                }
+                $completeModal.hide().attr('aria-hidden', 'true');
+                $completeModalBackdrop.hide().attr('aria-hidden', 'true');
+                $completeConfirmCheck.prop('checked', false);
+                $completeConfirmButton.prop('disabled', true);
+                if ( resetConfirmFlag ) {
+                    $confirmCompleteField.val('0');
+                }
+                if ( ! $productModal.hasClass('is-open') && ! $notesModal.is(':visible') && ! $infoModal.is(':visible') ) {
+                    document.documentElement.classList.remove('sop-goodsin-modal-open');
+                    document.body.classList.remove('sop-goodsin-modal-open');
+                }
+            }
+
             function sopGoodsinApplyStockSequential(payloadObj) {
                 var selectedLines = payloadObj.lines.filter(function(line) {
                     return !!line.selected;
@@ -3839,15 +3942,49 @@ function sop_render_goods_in_page() {
             $('.sop-goodsin-submit').on('click', function(){
                 var actionType = $(this).data('action') || 'save';
                 if (actionType === 'apply_stock') {
+                    $confirmCompleteField.val('0');
                     var payloadObj = buildPayload(actionType);
                     sopGoodsinApplyStockSequential(payloadObj);
                     return;
                 }
+                if (actionType === 'complete') {
+                    openCompleteModal();
+                    return;
+                }
+                $confirmCompleteField.val('0');
                 setAction(actionType);
                 var payloadObj = buildPayload(actionType);
                 $payload.val(JSON.stringify(payloadObj));
                 dirty = false;
                 $form.trigger('submit');
+            });
+
+            $completeConfirmCheck.on('change', function(){
+                $completeConfirmButton.prop('disabled', ! $(this).is(':checked'));
+            });
+
+            $completeConfirmButton.on('click', function(e){
+                e.preventDefault();
+                if ( ! $completeConfirmCheck.is(':checked') ) {
+                    return;
+                }
+                $confirmCompleteField.val('1');
+                closeCompleteModal(false);
+                setAction('complete');
+                var payloadObj = buildPayload('complete');
+                $payload.val(JSON.stringify(payloadObj));
+                dirty = false;
+                $form.trigger('submit');
+            });
+
+            $(document).on('click', '[data-sop-complete-close="1"]', function(e){
+                e.preventDefault();
+                closeCompleteModal();
+            });
+
+            $completeModalBackdrop.on('click', function(e){
+                e.preventDefault();
+                closeCompleteModal();
             });
 
             $('#sop-goodsin-select-all').on('change', function(){
@@ -4038,6 +4175,10 @@ function sop_render_goods_in_page() {
                 if ( 27 === e.which && $infoModal.is(':visible') ) {
                     e.preventDefault();
                     closeInfoModal();
+                }
+                if ( 27 === e.which && $completeModal.is(':visible') ) {
+                    e.preventDefault();
+                    closeCompleteModal();
                 }
                 if ( e.key === 'Enter' && $(e.target).is($searchInput) ) {
                     e.preventDefault();
