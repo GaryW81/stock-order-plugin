@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.35
+ * File version: 1.1.36
+ * - Use Add now delta input with read-only received total and live apply updates.
  * - Add 2-step confirmation modal for Complete Goods-In.
  * - Use capability helper for Stock Order UI access.
  *
@@ -713,7 +714,7 @@ function sop_render_goods_in_page() {
             ),
             array(
                 'key'     => 'received',
-                'label'   => __( 'Received', 'sop' ),
+                'label'   => __( 'Add now', 'sop' ),
                 'visible' => true,
             ),
             array(
@@ -942,7 +943,7 @@ function sop_render_goods_in_page() {
                 <?php endif; ?>
                 <th class="sop-goodsin-sort sop-goodsin-col-product" data-sort-key="product" data-sort-type="text" data-column="product"><?php esc_html_e( 'Product', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="ordered" data-sort-type="number" data-column="ordered"><?php esc_html_e( 'Ordered', 'sop' ); ?></th>
-                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="received" data-sort-type="number" data-column="received"><?php esc_html_e( 'Received', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="received" data-sort-type="number" data-column="received"><?php esc_html_e( 'Add now', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="missing" data-sort-type="number" data-column="missing"><?php esc_html_e( 'Missing', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="reject" data-sort-type="number" data-column="reject"><?php esc_html_e( 'Reject', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="reason" data-sort-type="text" data-column="reason"><?php esc_html_e( 'Reason', 'sop' ); ?></th>
@@ -993,6 +994,7 @@ function sop_render_goods_in_page() {
                 }
                 $outstanding = max( 0.0, $ordered - $stocked - $missing - $reject );
                 $is_complete = ( $outstanding <= 0.0001 );
+                $received_total = max( $received, $stocked + $reject );
                 $supplier_skus_val = '';
                 if ( $pid > 0 ) {
                     $supplier_skus_val = get_post_meta( $pid, '_sop_supplier_skus', true );
@@ -1090,7 +1092,8 @@ function sop_render_goods_in_page() {
                     data-sort-location="<?php echo esc_attr( mb_strtolower( $location ) ); ?>"
                     data-sort-ordered="<?php echo esc_attr( $ordered ); ?>"
                     data-sop-ordered="<?php echo esc_attr( $ordered ); ?>"
-                    data-sort-received="<?php echo esc_attr( $received ); ?>"
+                    data-sort-received="<?php echo esc_attr( 0 ); ?>"
+                    data-received-total="<?php echo esc_attr( $received_total ); ?>"
                     data-sort-missing="<?php echo esc_attr( $missing ); ?>"
                     data-sort-reject="<?php echo esc_attr( $reject ); ?>"
                     data-sort-reason="<?php echo esc_attr( mb_strtolower( $reason ) ); ?>"
@@ -1145,24 +1148,26 @@ function sop_render_goods_in_page() {
                         <span class="sop-goodsin-skip-badge" aria-hidden="true"></span>
                     </td>
                     <td data-column="received">
-                        <?php if ( $sop_gi_is_readonly ) : ?>
-                            <span class="sop-goodsin-readonly-val"><?php echo esc_html( number_format_i18n( $received, 0 ) ); ?></span>
-                        <?php else : ?>
-                            <input type="number" class="sop-goodsin-received sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $received ); ?>" name="received_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> />
+                        <div class="sop-goodsin-received-total">
+                            <span class="sop-goodsin-received-total-label"><?php esc_html_e( 'Total:', 'sop' ); ?></span>
+                            <span class="sop-goodsin-received-total-value"><?php echo esc_html( number_format_i18n( $received_total, 0 ) ); ?></span>
+                        </div>
+                        <?php if ( ! $sop_gi_is_readonly ) : ?>
+                            <input type="number" class="sop-goodsin-add-now sop-goodsin-narrow" step="1" min="0" value="" placeholder="0" name="add_now_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> />
                         <?php endif; ?>
                     </td>
                     <td data-column="missing">
                         <?php if ( $sop_gi_is_readonly ) : ?>
                             <span class="sop-goodsin-readonly-val"><?php echo esc_html( number_format_i18n( $missing, 0 ) ); ?></span>
                         <?php else : ?>
-                            <input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing ); ?>" name="missing_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> />
+                            <input type="number" class="sop-goodsin-missing sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $missing > 0 ? $missing : '' ); ?>" placeholder="0" name="missing_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> />
                         <?php endif; ?>
                     </td>
                     <td data-column="reject">
                         <?php if ( $sop_gi_is_readonly ) : ?>
                             <span class="sop-goodsin-readonly-val"><?php echo esc_html( number_format_i18n( $reject, 0 ) ); ?></span>
                         <?php else : ?>
-                            <input type="number" class="sop-goodsin-reject sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $reject ); ?>" name="reject_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> />
+                            <input type="number" class="sop-goodsin-reject sop-goodsin-narrow" step="1" min="0" value="<?php echo esc_attr( $reject > 0 ? $reject : '' ); ?>" placeholder="0" name="reject_qty[<?php echo esc_attr( $pid ); ?>]" <?php echo $inputs_disabled_attr; ?> />
                         <?php endif; ?>
                     </td>
                     <td data-column="reason">
@@ -2905,6 +2910,19 @@ function sop_render_goods_in_page() {
         .sop-goodsin-narrow {
             width: 7ch;
         }
+        .sop-goodsin-received-total {
+            display: block;
+            font-size: 11px;
+            line-height: 1.2;
+            margin-bottom: 4px;
+        }
+        .sop-goodsin-received-total-label {
+            color: #50575e;
+            margin-right: 4px;
+        }
+        .sop-goodsin-received-total-value {
+            font-weight: 600;
+        }
         .sop-goodsin-text-col {
             max-width: 260px;
             word-break: break-word;
@@ -3720,6 +3738,24 @@ function sop_render_goods_in_page() {
                 sopGoodsinFilterTimer = setTimeout( sopGoodsinApplyFilterAll, 50 );
             }
 
+            function sopGoodsinGetRowStockedQty($tr) {
+                return sopGoodsinParseNumber( $tr.find('td[data-column="stocked"]').text() );
+            }
+
+            function sopGoodsinGetRowReceivedTotal($tr) {
+                var receivedTotal = sopGoodsinParseNumber( $tr.attr('data-received-total') );
+                if ( receivedTotal <= 0 ) {
+                    receivedTotal = sopGoodsinParseNumber( $tr.find('.sop-goodsin-received-total-value').text() );
+                }
+                return receivedTotal;
+            }
+
+            function sopGoodsinSetRowReceivedTotal($tr, receivedTotal) {
+                var total = Math.max( 0, sopGoodsinParseNumber( receivedTotal ) );
+                $tr.attr('data-received-total', total);
+                $tr.find('.sop-goodsin-received-total-value').text( Math.round( total ).toLocaleString() );
+            }
+
             function buildPayload(actionType) {
                 var lines = [];
                 $('#sop-goodsin-lines tbody tr').each(function(){
@@ -3727,16 +3763,32 @@ function sop_render_goods_in_page() {
                     var lineId = parseInt($tr.data('line-id'), 10) || 0;
                     var productId = parseInt($tr.data('product-id'), 10) || 0;
                     if (!lineId || !productId) { return; }
+                    var selected = $tr.find('.sop-goodsin-select').is(':checked');
+                    var stockedQty = sopGoodsinGetRowStockedQty($tr);
+                    var missingQty = sopGoodsinParseNumber( $tr.find('.sop-goodsin-missing').val() );
+                    var rejectQty = sopGoodsinParseNumber( $tr.find('.sop-goodsin-reject').val() );
+                    var receivedTotal = sopGoodsinGetRowReceivedTotal($tr);
+                    var receivedQtyForPayload = receivedTotal;
+
+                    if ( actionType === 'apply_stock' ) {
+                        var orderedQty = sopGoodsinParseNumber( $tr.data('sopOrdered') );
+                        var outstandingQty = Math.max( 0, orderedQty - stockedQty - missingQty - rejectQty );
+                        var addNowRaw = $tr.find('.sop-goodsin-add-now').val();
+                        var addNowQty = sopGoodsinParseNumber( addNowRaw );
+                        var deltaQty = Math.max( 0, Math.min( addNowQty, outstandingQty ) );
+                        receivedQtyForPayload = stockedQty + deltaQty + rejectQty;
+                        selected = selected && deltaQty > 0;
+                    }
 
                     lines.push({
                         line_id: lineId,
                         product_id: productId,
-                        received_qty: $tr.find('.sop-goodsin-received').val(),
-                        goods_in_missing_qty: $tr.find('.sop-goodsin-missing').val(),
-                        goods_in_reject_qty: $tr.find('.sop-goodsin-reject').val(),
+                        received_qty: receivedQtyForPayload,
+                        goods_in_missing_qty: missingQty,
+                        goods_in_reject_qty: rejectQty,
                         reject_reason: $tr.find('.sop-goodsin-reject-reason').val() || '',
                         notes: $tr.find('.sop-goodsin-notes').val() || '',
-                        selected: $tr.find('.sop-goodsin-select').is(':checked')
+                        selected: selected
                     });
                 });
 
@@ -3873,12 +3925,19 @@ function sop_render_goods_in_page() {
                         var status = 'error';
                         var appliedQty = 0;
                         var isComplete = false;
+                        var stockAddedQty = null;
                         var outstanding = null;
                         if (resp && resp.success && resp.data && resp.data.result) {
                             status = resp.data.result.status || 'noop';
                             appliedQty = parseFloat(resp.data.result.applied_qty) || 0;
                             if (resp.data.result.sku) {
                                 line.sku = resp.data.result.sku;
+                            }
+                            if (typeof resp.data.result.stock_added_qty !== 'undefined') {
+                                stockAddedQty = parseFloat(resp.data.result.stock_added_qty);
+                                if (isNaN(stockAddedQty)) {
+                                    stockAddedQty = null;
+                                }
                             }
                             if (typeof resp.data.result.is_complete !== 'undefined') {
                                 isComplete = !!resp.data.result.is_complete;
@@ -3895,18 +3954,33 @@ function sop_render_goods_in_page() {
 
                         var $row = $('#sop-goodsin-lines tr[data-line-id="' + line.line_id + '"]');
                         if ($row.length) {
+                            if (stockAddedQty !== null) {
+                                $row.find('td[data-column="stocked"]').text(Math.round(stockAddedQty).toLocaleString());
+                                $row.data('sort-stocked', stockAddedQty);
+                            }
+                            if (outstanding !== null && !isNaN(outstanding)) {
+                                $row.find('td[data-column="outstanding"]').text(Math.round(Math.max(0, outstanding)).toLocaleString());
+                                $row.data('sort-outstanding', Math.max(0, outstanding));
+                            }
+                            if (status === 'applied' && typeof line.received_qty !== 'undefined') {
+                                sopGoodsinSetRowReceivedTotal($row, line.received_qty);
+                            }
+                            $row.find('.sop-goodsin-add-now').val('');
+                            $row.data('sort-received', 0);
                             if (isComplete) {
                                 $row.addClass('sop-goodsin-line-complete');
                             } else {
                                 $row.removeClass('sop-goodsin-line-complete');
                             }
+                            updateRowSortData($row);
+                            if ( activeProductRow && activeProductRow.length && parseInt(activeProductRow.data('line-id'), 10) === parseInt($row.data('line-id'), 10) ) {
+                                sopGoodsinRenderProductModal( sopGoodsinGetRowModalData( activeProductRow ) );
+                            }
                         }
                         if (status === 'applied') {
                             applied++;
                             $row.addClass('sop-goodsin-row-applied');
-                            var appliedDirection = (resp && resp.data && resp.data.result && resp.data.result.applied_direction) ? resp.data.result.applied_direction : 'increase';
-                            var appliedSign = (appliedDirection === 'decrease') ? '-' : '+';
-                            $progressStatus.text('Line ' + line.line_id + ' applied (' + appliedSign + appliedQty + ').');
+                            $progressStatus.text('Line ' + line.line_id + ' applied (+' + appliedQty + ').');
                         } else if (status === 'noop' || status === 'skipped') {
                             skipped++;
                             $row.addClass('sop-goodsin-row-skipped');
@@ -4007,7 +4081,7 @@ function sop_render_goods_in_page() {
                 if (!$tr || !$tr.length) {
                     return;
                 }
-                var receivedVal = parseFloat($tr.find('.sop-goodsin-received').val()) || 0;
+                var addNowVal = parseFloat($tr.find('.sop-goodsin-add-now').val()) || 0;
                 var missingVal = parseFloat($tr.find('.sop-goodsin-missing').val()) || 0;
                 var rejectVal = parseFloat($tr.find('.sop-goodsin-reject').val()) || 0;
                 var reasonVal = ($tr.find('.sop-goodsin-reject-reason').val() || '').toString().toLowerCase();
@@ -4015,7 +4089,7 @@ function sop_render_goods_in_page() {
                 var orderedVal = parseFloat($tr.data('sort-ordered')) || 0;
                 var stockedVal = parseFloat($tr.data('sort-stocked')) || 0;
                 var outstandingVal = Math.max(0, orderedVal - (stockedVal + missingVal + rejectVal));
-                $tr.data('sort-received', receivedVal);
+                $tr.data('sort-received', addNowVal);
                 $tr.data('sort-missing', missingVal);
                 $tr.data('sort-reject', rejectVal);
                 $tr.data('sort-reason', reasonVal);
@@ -4023,7 +4097,7 @@ function sop_render_goods_in_page() {
                 $tr.data('sort-outstanding', outstandingVal);
             }
 
-            $('#sop-goodsin-lines').on('input change', '.sop-goodsin-received, .sop-goodsin-missing, .sop-goodsin-reject, .sop-goodsin-reject-reason, .sop-goodsin-notes', function(){
+            $('#sop-goodsin-lines').on('input change', '.sop-goodsin-add-now, .sop-goodsin-missing, .sop-goodsin-reject, .sop-goodsin-reject-reason, .sop-goodsin-notes', function(){
                 var $tr = $(this).closest('tr');
                 updateRowSortData($tr);
                 markDirty();
@@ -4463,7 +4537,7 @@ function sop_render_goods_in_page() {
                 sopGoodsinApplyColumnVisibility();
             });
 
-            $('#sop-goodsin-lines').on('keydown', '.sop-goodsin-received, .sop-goodsin-missing, .sop-goodsin-reject', function(e){
+            $('#sop-goodsin-lines').on('keydown', '.sop-goodsin-add-now, .sop-goodsin-missing, .sop-goodsin-reject', function(e){
                 if ( e.key !== 'Enter' && e.which !== 13 ) {
                     return;
                 }
@@ -4533,11 +4607,11 @@ function sop_render_goods_in_page() {
                 var editUrl = ($tr.data('editUrl') || '').toString();
                 var imageUrl = ($tr.data('imageUrl') || '').toString();
                 var orderedVal = parseFloat($tr.data('sopOrdered')) || parseFloat($tr.data('sort-ordered')) || 0;
-                var receivedVal = parseFloat($tr.find('.sop-goodsin-received').val()) || 0;
+                var addNowVal = parseFloat($tr.find('.sop-goodsin-add-now').val()) || 0;
                 var missingVal = parseFloat($tr.find('.sop-goodsin-missing').val()) || 0;
                 var rejectVal = parseFloat($tr.find('.sop-goodsin-reject').val()) || 0;
                 var stockedVal = parseFloat($tr.find('td[data-column="stocked"]').text()) || parseFloat($tr.data('sort-stocked')) || 0;
-                var outstandingVal = Math.max(0, orderedVal - receivedVal - missingVal - rejectVal);
+                var outstandingVal = Math.max(0, orderedVal - stockedVal - missingVal - rejectVal);
                 var productNotesHtml = ($tr.find('td[data-column="product_notes"] .sop-notes-preview').html() || '').toString();
                 var internalNotesHtml = ($tr.find('td[data-column="internal_product_notes"] .sop-notes-preview').html() || '').toString();
                 var productNotesText = ($tr.find('td[data-column="product_notes"] .sop-notes-preview').text() || '').toString().trim();
@@ -4571,7 +4645,7 @@ function sop_render_goods_in_page() {
                     location: location,
                     stock_qty: stockVal,
                     qty_ordered: orderedVal,
-                    qty_received: receivedVal,
+                    qty_received: addNowVal,
                     added_to_stock: stockedVal,
                     outstanding: outstandingVal,
                     product_notes_text: productNotesText,
@@ -4628,7 +4702,7 @@ function sop_render_goods_in_page() {
                     $productModalBufferStock.text( '' ).addClass('is-hidden');
                 }
                 $productModalQtyOrdered.text( qtyOrderedText );
-                $productModalQtyValue.val( qtyReceivedText );
+                $productModalQtyValue.val( qtyReceivedText > 0 ? qtyReceivedText : '' );
                 $productModalAdded.text( '<?php echo esc_js( __( 'Added to stock:', 'sop' ) ); ?> ' + addedVal );
                 $productModalOutstanding.text( '<?php echo esc_js( __( 'Outstanding:', 'sop' ) ); ?> ' + outstandingVal );
 
@@ -4792,6 +4866,10 @@ function sop_render_goods_in_page() {
                     if ( isNaN( ordered ) ) {
                         ordered = 0;
                     }
+                    var stocked = parseFloat( activeProductRow.find('td[data-column="stocked"]').text() );
+                    if ( isNaN( stocked ) ) {
+                        stocked = 0;
+                    }
                     var missing = parseFloat( activeProductRow.find('.sop-goodsin-missing').val() );
                     if ( isNaN( missing ) ) {
                         missing = 0;
@@ -4800,7 +4878,7 @@ function sop_render_goods_in_page() {
                     if ( isNaN( reject ) ) {
                         reject = 0;
                     }
-                    return Math.max( 0, ordered - missing - reject );
+                    return Math.max( 0, ordered - stocked - missing - reject );
                 };
 
                 var applyModalQtyValue = function(nextVal) {
@@ -4815,7 +4893,7 @@ function sop_render_goods_in_page() {
                     if ( maxVal >= 0 && value > maxVal ) {
                         value = maxVal;
                     }
-                    var $rowInput = activeProductRow.find('.sop-goodsin-received');
+                    var $rowInput = activeProductRow.find('.sop-goodsin-add-now');
                     $productModalQtyValue.val( value );
                     $rowInput.val( value ).trigger('input').trigger('change');
                     sopGoodsinRenderProductModal( sopGoodsinGetRowModalData( activeProductRow ) );
@@ -4905,7 +4983,7 @@ function sop_render_goods_in_page() {
                 $productModalStock.text('').addClass('is-hidden');
                 $productModalBufferStock.text('').addClass('is-hidden');
                 $productModalQtyOrdered.text('');
-                $productModalQtyValue.val('0');
+                $productModalQtyValue.val('');
                 $productModalAdded.text('');
                 $productModalOutstanding.text('');
                 $productModalNotesProductBtn.removeClass('is-yes is-no is-disabled').data('noteHtml', '').prop('disabled', false);

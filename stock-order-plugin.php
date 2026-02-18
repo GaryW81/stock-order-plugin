@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Stock Order
  * Description: Internal tool for suppliers, forecasting, purchase orders, container planning, goods-in, and labels/barcodes.
- * Version: 1.0.9
+ * Version: 1.0.10
  * Author: Wilson Organisation Ltd
  * Text Domain: sop
  * Domain Path: /languages
@@ -14,7 +14,8 @@
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.23
+ * File version: 1.0.24
+ * - Release 1.0.10: Goods-In Add now UX, live apply updates, and no-decrease safety rail.
  * - Release 1.0.9: Goods-In completion confirmation guard.
  * - Release 1.0.8 patch bump for label encoding fix.
  * - Add legacy status block to System Status diagnostics.
@@ -42,7 +43,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '1.0.9' );
+    define( 'SOP_PLUGIN_VERSION', '1.0.10' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {

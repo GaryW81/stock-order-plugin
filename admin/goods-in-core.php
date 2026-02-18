@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.31
+ * File version: 1.0.32
+ * - Block stock decreases during Goods-In apply handlers.
  * - Require confirmation flag before completing Goods-In.
  * - Use capability helper for Stock Order UI access.
  *
@@ -821,7 +822,7 @@ function sop_handle_goodsin_apply_stock() {
         }
 
         $db_row    = $lines_map[ $line_id ];
-        $norm      = sop_goodsin_normalize_line_payload( $line_in, $db_row, array( 'allow_lower_received' => true ) );
+        $norm      = sop_goodsin_normalize_line_payload( $line_in, $db_row );
         $product_id = isset( $line_in['product_id'] ) ? (int) $line_in['product_id'] : 0;
         $db_pid     = isset( $db_row['product_id'] ) ? (int) $db_row['product_id'] : 0;
         if ( $product_id <= 0 && $db_pid > 0 ) {
@@ -857,6 +858,14 @@ function sop_handle_goodsin_apply_stock() {
         if ( 0 === $delta_int ) {
             continue;
         }
+        if ( $delta_int < 0 ) {
+            $skipped[] = array(
+                'line_id'    => $line_id,
+                'product_id' => $product_id,
+                'reason'     => 'would_decrease_stock',
+            );
+            continue;
+        }
 
         $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
         if ( ! $product ) {
@@ -887,8 +896,7 @@ function sop_handle_goodsin_apply_stock() {
         }
 
         $delta_qty = abs( $delta_int );
-        $direction = ( $delta_int > 0 ) ? 'increase' : 'decrease';
-        $result = wc_update_product_stock( $product, $delta_qty, $direction );
+        $result = wc_update_product_stock( $product, $delta_qty, 'increase' );
         if ( is_wp_error( $result ) ) {
             $skipped[] = array(
                 'line_id'    => $line_id,
@@ -1106,7 +1114,7 @@ function sop_ajax_goodsin_apply_stock_line() {
         wp_send_json_error( array( 'message' => __( 'Product mismatch for line.', 'sop' ) ), 400 );
     }
 
-    $norm         = sop_goodsin_normalize_line_payload( $line_in, $db_row, array( 'allow_lower_received' => true ) );
+    $norm         = sop_goodsin_normalize_line_payload( $line_in, $db_row );
     $ordered_qty  = $norm['ordered_qty'];
     $received_qty = $norm['received_qty'];
     $missing_qty  = $norm['missing_qty'];
@@ -1152,6 +1160,9 @@ function sop_ajax_goodsin_apply_stock_line() {
 
         if ( 0 === $delta_int ) {
             $result_data['status'] = 'noop';
+        } elseif ( $delta_int < 0 ) {
+            $result_data['status']  = 'skipped';
+            $result_data['reason']  = 'would_decrease_stock';
         } else {
             $product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
             if ( ! $product ) {
@@ -1165,12 +1176,11 @@ function sop_ajax_goodsin_apply_stock_line() {
                 $result_data['reason']  = 'stock_api_missing';
             } else {
                 $delta_qty = abs( $delta_int );
-                $direction = ( $delta_int > 0 ) ? 'increase' : 'decrease';
-                $result = wc_update_product_stock( $product, $delta_qty, $direction );
+                $result = wc_update_product_stock( $product, $delta_qty, 'increase' );
                 if ( is_wp_error( $result ) ) {
                     $product_retry = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
                     if ( $product_retry && function_exists( 'wc_update_product_stock' ) ) {
-                        $result = wc_update_product_stock( $product_retry, $delta_qty, $direction );
+                        $result = wc_update_product_stock( $product_retry, $delta_qty, 'increase' );
                     }
                 }
                 if ( is_wp_error( $result ) ) {
@@ -1191,7 +1201,7 @@ function sop_ajax_goodsin_apply_stock_line() {
                     );
                     $result_data['status']      = 'applied';
                     $result_data['applied_qty'] = $delta_qty;
-                    $result_data['applied_direction'] = ( $delta_int > 0 ) ? 'increase' : 'decrease';
+                    $result_data['applied_direction'] = 'increase';
                 }
             }
         }
@@ -1206,6 +1216,7 @@ function sop_ajax_goodsin_apply_stock_line() {
         'missing_product'        => __( 'Missing product', 'sop' ),
         'not_managing_stock'     => __( 'Stock management disabled', 'sop' ),
         'stock_api_missing'      => __( 'Woo stock API missing', 'sop' ),
+        'would_decrease_stock'   => __( 'Blocked: would decrease stock', 'sop' ),
         'stock_update_failed'    => __( 'Woo stock update failed', 'sop' ),
     );
     if ( ! empty( $result_data['reason'] ) && isset( $reason_labels[ $result_data['reason'] ] ) ) {
