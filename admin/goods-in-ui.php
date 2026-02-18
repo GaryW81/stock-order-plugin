@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.37
+ * File version: 1.1.38
+ * - Auto-select row on Add now entry + correction modal guidance text.
  * - Add per-line correction modal/action for safe stock decreases.
  * - Use Add now delta input with read-only received total and live apply updates.
  * - Add 2-step confirmation modal for Complete Goods-In.
@@ -1318,6 +1319,7 @@ function sop_render_goods_in_page() {
             </button>
             <h3 id="sop-goodsin-correct-modal-title"><?php esc_html_e( 'Correct Stock (Decrease)', 'sop' ); ?></h3>
             <p><?php esc_html_e( 'This decreases Woo stock and reduces the Goods-In Stocked total for this line.', 'sop' ); ?></p>
+            <p><?php esc_html_e( 'Use only for correcting miscounts. For missing/reject, use the Missing/Reject fields instead.', 'sop' ); ?></p>
             <p id="sop-goodsin-correct-modal-line"></p>
             <p>
                 <label for="sop-goodsin-correct-qty"><?php esc_html_e( 'Remove qty', 'sop' ); ?></label><br />
@@ -4356,6 +4358,15 @@ function sop_render_goods_in_page() {
 
             $('#sop-goodsin-lines').on('input change', '.sop-goodsin-add-now, .sop-goodsin-missing, .sop-goodsin-reject, .sop-goodsin-reject-reason, .sop-goodsin-notes', function(){
                 var $tr = $(this).closest('tr');
+                if ( $(this).hasClass('sop-goodsin-add-now') ) {
+                    var addNowVal = parseFloat( $(this).val() ) || 0;
+                    if ( addNowVal > 0 ) {
+                        var $rowCheckbox = $tr.find('td.check-column input.sop-goodsin-select').first();
+                        if ( $rowCheckbox.length && ! $rowCheckbox.is(':disabled') ) {
+                            $rowCheckbox.prop('checked', true);
+                        }
+                    }
+                }
                 updateRowSortData($tr);
                 markDirty();
                 sopGoodsinScheduleFilterRefresh();
