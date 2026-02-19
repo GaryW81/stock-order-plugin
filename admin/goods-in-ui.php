@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.44
+ * File version: 1.1.45
+ * - Persist Goods-In columns + filters per sheet id (no cross-sheet leakage).
  * - Goods-In: add Forecast demand column after Carton no.
  * - Preserve page scroll position when opening/closing Goods-In product modal.
  * - Tidy Product column link layout (front-end name + Edit link beneath).
@@ -4634,30 +4635,70 @@ function sop_render_goods_in_page() {
                 }
             });
 
-            // Filter toggle persistence + initial apply.
-            (function(){
+            function sopGoodsinGetScopedStorageKey(baseKey) {
+                var sheetId = parseInt( $('input[name="sop_sheet_id"]').first().val(), 10 ) || 0;
+                var params = new URLSearchParams(window.location.search || '');
+                if ( ! sheetId ) {
+                    sheetId = parseInt(params.get('sheet_id'), 10) || 0;
+                }
+                var sessionId = parseInt(params.get('session_id'), 10) || 0;
+                if ( sheetId > 0 ) {
+                    return baseKey + '_sheet_' + sheetId;
+                }
+                if ( sessionId > 0 ) {
+                    return baseKey + '_session_' + sessionId;
+                }
+                return baseKey;
+            }
+
+            function sopGoodsinLoadScopedStorageValue(baseKey) {
+                var scopedKey = sopGoodsinGetScopedStorageKey(baseKey);
+                var legacyKey = baseKey;
                 var stored = null;
                 try {
-                    stored = window.localStorage.getItem('sop_goodsin_show_completed');
+                    stored = window.localStorage.getItem(scopedKey);
+                    if ( ! stored ) {
+                        var legacy = window.localStorage.getItem(legacyKey);
+                        if ( legacy ) {
+                            stored = legacy;
+                            if ( scopedKey !== legacyKey ) {
+                                window.localStorage.setItem(scopedKey, legacy);
+                                window.localStorage.removeItem(legacyKey);
+                            }
+                        }
+                    }
                 } catch (e) {}
+                return stored;
+            }
+
+            function sopGoodsinSetScopedStorageValue(baseKey, value) {
+                try {
+                    window.localStorage.setItem(sopGoodsinGetScopedStorageKey(baseKey), value);
+                } catch (e) {}
+            }
+
+            function sopGoodsinRemoveScopedStorageValue(baseKey) {
+                try {
+                    window.localStorage.removeItem(sopGoodsinGetScopedStorageKey(baseKey));
+                } catch (e) {}
+            }
+
+            // Filter toggle persistence + initial apply.
+            (function(){
+                var stored = sopGoodsinLoadScopedStorageValue('sop_goodsin_show_completed');
                 if ( stored === '1' ) {
                     $showCompleted.prop('checked', true);
                 }
             })();
 
             $showCompleted.on('change', function(){
-                try {
-                    window.localStorage.setItem('sop_goodsin_show_completed', $(this).is(':checked') ? '1' : '0');
-                } catch (e) {}
+                sopGoodsinSetScopedStorageValue('sop_goodsin_show_completed', $(this).is(':checked') ? '1' : '0');
                 sopGoodsinApplyFilterAll();
             });
 
             // Search input persistence + behaviour.
             (function(){
-                var stored = null;
-                try {
-                    stored = window.localStorage.getItem('sop_goodsin_search_query');
-                } catch (e) {}
+                var stored = sopGoodsinLoadScopedStorageValue('sop_goodsin_search_query');
                 if ( stored ) {
                     $searchInput.val( stored );
                 }
@@ -4667,10 +4708,7 @@ function sop_render_goods_in_page() {
             var $cartonInput = $('#sop-goodsin-carton');
             var $cartonClear = $('#sop-goodsin-carton-clear');
             (function(){
-                var storedCarton = null;
-                try {
-                    storedCarton = window.localStorage.getItem('sop_goodsin_carton_filter');
-                } catch (e) {}
+                var storedCarton = sopGoodsinLoadScopedStorageValue('sop_goodsin_carton_filter');
                 if ( storedCarton ) {
                     $cartonInput.val( storedCarton );
                 }
@@ -4678,36 +4716,27 @@ function sop_render_goods_in_page() {
 
             $searchInput.on('input', function(){
                 var val = $(this).val() || '';
-                try {
-                    window.localStorage.setItem('sop_goodsin_search_query', val);
-                } catch (e) {}
+                sopGoodsinSetScopedStorageValue('sop_goodsin_search_query', val);
                 sopGoodsinScheduleFilterRefresh();
             });
 
             // Issues-only persistence.
             (function(){
-                var storedIssues = null;
-                try {
-                    storedIssues = window.localStorage.getItem('sop_goodsin_issues_only');
-                } catch (e) {}
+                var storedIssues = sopGoodsinLoadScopedStorageValue('sop_goodsin_issues_only');
                 if ( storedIssues === '1' ) {
                     $issuesOnly.prop('checked', true);
                 }
             })();
 
             $issuesOnly.on('change', function(){
-                try {
-                    window.localStorage.setItem('sop_goodsin_issues_only', $(this).is(':checked') ? '1' : '0');
-                } catch (e) {}
+                sopGoodsinSetScopedStorageValue('sop_goodsin_issues_only', $(this).is(':checked') ? '1' : '0');
                 sopGoodsinScheduleFilterRefresh();
             });
 
             $searchClear.on('click', function(e){
                 e.preventDefault();
                 $searchInput.val('');
-                try {
-                    window.localStorage.removeItem('sop_goodsin_search_query');
-                } catch (e2) {}
+                sopGoodsinRemoveScopedStorageValue('sop_goodsin_search_query');
                 sopGoodsinScheduleFilterRefresh();
                 $searchInput.focus();
             });
@@ -4730,9 +4759,7 @@ function sop_render_goods_in_page() {
 
             $cartonInput.on('input', function(){
                 var val = $(this).val() || '';
-                try {
-                    window.localStorage.setItem('sop_goodsin_carton_filter', val);
-                } catch (e) {}
+                sopGoodsinSetScopedStorageValue('sop_goodsin_carton_filter', val);
                 sopGoodsinScheduleFilterRefresh();
             });
 
@@ -4742,9 +4769,7 @@ function sop_render_goods_in_page() {
                 }
                 e.preventDefault();
                 var val = $(this).val() || '';
-                try {
-                    window.localStorage.setItem('sop_goodsin_carton_filter', val);
-                } catch (e2) {}
+                sopGoodsinSetScopedStorageValue('sop_goodsin_carton_filter', val);
                 sopGoodsinApplyFilterAll();
                 sopGoodsinJumpToFirstVisible();
                 if ( $scanInput.length ) {
@@ -4760,9 +4785,7 @@ function sop_render_goods_in_page() {
             $cartonClear.on('click', function(e){
                 e.preventDefault();
                 $cartonInput.val('');
-                try {
-                    window.localStorage.removeItem('sop_goodsin_carton_filter');
-                } catch (e2) {}
+                sopGoodsinRemoveScopedStorageValue('sop_goodsin_carton_filter');
                 sopGoodsinScheduleFilterRefresh();
                 if ( $scanInput.length ) {
                     $scanInput.focus().select();
@@ -4772,19 +4795,7 @@ function sop_render_goods_in_page() {
             });
 
             function sopGoodsinGetSortStorageKey() {
-                var sheetId = parseInt( $('input[name="sop_sheet_id"]').first().val(), 10 ) || 0;
-                var params = new URLSearchParams(window.location.search || '');
-                if ( ! sheetId ) {
-                    sheetId = parseInt(params.get('sheet_id'), 10) || 0;
-                }
-                var sessionId = parseInt(params.get('session_id'), 10) || 0;
-                if ( sheetId > 0 ) {
-                    return 'sop_goodsin_sort_sheet_' + sheetId;
-                }
-                if ( sessionId > 0 ) {
-                    return 'sop_goodsin_sort_session_' + sessionId;
-                }
-                return 'sop_goodsin_sort';
+                return sopGoodsinGetScopedStorageKey('sop_goodsin_sort');
             }
 
             function sopGoodsinSaveSortState(sortKey, isAsc) {
@@ -4898,6 +4909,54 @@ function sop_render_goods_in_page() {
                 });
             }
 
+            function sopGoodsinGetColumnsHiddenStorageKey() {
+                return sopGoodsinGetScopedStorageKey('sop_goodsin_columns_hidden');
+            }
+
+            function sopGoodsinLoadHiddenColumns() {
+                try {
+                    var scopedKey = sopGoodsinGetColumnsHiddenStorageKey();
+                    var raw = window.localStorage.getItem(scopedKey);
+                    if ( ! raw ) {
+                        var legacyRaw = window.localStorage.getItem('sop_goodsin_columns_hidden');
+                        if ( legacyRaw ) {
+                            window.localStorage.setItem(scopedKey, legacyRaw);
+                            if ( scopedKey !== 'sop_goodsin_columns_hidden' ) {
+                                window.localStorage.removeItem('sop_goodsin_columns_hidden');
+                            }
+                            raw = legacyRaw;
+                        }
+                    }
+                    if ( ! raw ) {
+                        return null;
+                    }
+                    var parsed = JSON.parse(raw);
+                    return Array.isArray(parsed) ? parsed : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function sopGoodsinSaveHiddenColumns(hiddenCols) {
+                try {
+                    window.localStorage.setItem(sopGoodsinGetColumnsHiddenStorageKey(), JSON.stringify(hiddenCols || []));
+                } catch (e) {}
+            }
+
+            function sopGoodsinApplyHiddenColumnsToCheckboxes(hiddenCols) {
+                if ( ! hiddenCols || ! hiddenCols.length ) {
+                    return;
+                }
+                var hiddenSet = {};
+                hiddenCols.forEach(function(c){ hiddenSet[c] = true; });
+                $columnCheckboxes.each(function(){
+                    var $cb = $(this);
+                    var col = $cb.data('column');
+                    if ( ! col ) { return; }
+                    $cb.prop('checked', !hiddenSet[col]);
+                });
+            }
+
             $columnsToggle.on('click', function(e){
                 e.preventDefault();
                 var isOpen = $columnsWrapper.hasClass('is-open');
@@ -4909,6 +4968,16 @@ function sop_render_goods_in_page() {
             $columnCheckboxes.on('change', function(){
                 sopGoodsinUpdateColumnsToggleLabel();
                 sopGoodsinApplyColumnVisibility();
+                var hiddenCols = [];
+                $columnCheckboxes.each(function(){
+                    var $cb = $(this);
+                    var col = $cb.data('column');
+                    if ( ! col ) { return; }
+                    if ( ! $cb.is(':checked') ) {
+                        hiddenCols.push(col);
+                    }
+                });
+                sopGoodsinSaveHiddenColumns(hiddenCols);
             });
 
             $('#sop-goodsin-lines').on('keydown', '.sop-goodsin-add-now, .sop-goodsin-missing, .sop-goodsin-reject', function(e){
@@ -4936,6 +5005,8 @@ function sop_render_goods_in_page() {
                 }
             });
 
+            var hiddenCols = sopGoodsinLoadHiddenColumns();
+            sopGoodsinApplyHiddenColumnsToCheckboxes(hiddenCols);
             sopGoodsinUpdateColumnsToggleLabel();
             sopGoodsinApplyColumnVisibility();
             $('#sop-goodsin-lines tbody tr').each(function(){ updateRowSortData($(this)); });

@@ -1,6 +1,6 @@
 === Stock Order ===
 Contributors: Wilson Organisation Ltd
-Version: 1.0.18
+Version: 1.0.19
 Requires at least: 5.9
 Tested up to: 6.6
 Requires PHP: 8.1
@@ -40,3 +40,4 @@ Stock Order is an internal WooCommerce admin tool for Wilson-Organisation Ltd. I
 1.0.16 - Goods-In: tidy Product column link layout (front-end name link + Edit link beneath).
 1.0.17 - Goods-In: product row modal no longer scrolls page to top; preserves scroll position when opening/closing.
 1.0.18 - Goods-In: add Forecast demand column (after Carton no.) to avoid opening modal.
+1.0.19 - Goods-In: persist columns + filters per sheet id (no cross-sheet leakage).
