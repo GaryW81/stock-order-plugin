@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.39
+ * File version: 1.1.40
+ * - Goods-In modal now shows Forecast Demand instead of buffer stock.
  * - Align Add now input by overlaying Total label in received cell.
  * - Auto-select row on Add now entry + correction modal guidance text.
  * - Add per-line correction modal/action for safe stock decreases.
@@ -33,8 +34,8 @@
  * - 1.1.13 - UI: fix Goods-In modal header button icon vertical alignment (desktop).
  * - 1.1.12 - UI: refine Goods-In notes buttons (pill style + full-width row).
  * - 1.1.11 - UI: compress Goods-In modal notes into single button row (desktop), stacked on mobile.
- * - 1.1.10 - UI: show internal notes + current/buffer stock in Goods-In modal.
- * - 1.1.09 - UI: show internal notes + current/buffer stock in Goods-In modal.
+ * - 1.1.10 - UI: show internal notes + current stock and Forecast Demand in Goods-In modal.
+ * - 1.1.09 - UI: show internal notes + current stock and Forecast Demand in Goods-In modal.
  * - 1.1.08 - UI: add internal product notes column.
  * - 1.1.07 - Use per-sheet removed flag for Goods-In lines.
  * - 1.1.06 - UI: 3-stage labels (In Progress/Ordered/Completed) + GI started indicator.
@@ -373,13 +374,13 @@ function sop_goodsin_format_supplier_skus_compact_html( $raw, $product_name = ''
 }
 
 /**
- * Get buffer target units for a product using the forecast engine.
+ * Get forecast demand units for a product using the forecast engine.
  *
  * @param int $product_id  Product ID.
  * @param int $supplier_id Supplier ID.
- * @return float|null Buffer target units or null if unavailable.
+ * @return float|null Forecast demand units or null if unavailable.
  */
-function sop_goodsin_get_buffer_target_units( $product_id, $supplier_id ) {
+function sop_goodsin_get_forecast_demand_units( $product_id, $supplier_id ) {
     $product_id  = (int) $product_id;
     $supplier_id = (int) $supplier_id;
     if ( $product_id <= 0 || $supplier_id <= 0 ) {
@@ -401,12 +402,12 @@ function sop_goodsin_get_buffer_target_units( $product_id, $supplier_id ) {
         return null;
     }
 
-    if ( isset( $row['buffer_target_units'] ) ) {
-        return (float) $row['buffer_target_units'];
+    if ( isset( $row['forecast_demand'] ) ) {
+        return (float) $row['forecast_demand'];
     }
 
-    if ( isset( $row['buffer_days'] ) && isset( $row['demand_per_day'] ) ) {
-        return (float) $row['buffer_days'] * (float) $row['demand_per_day'];
+    if ( isset( $row['demand_per_day'] ) && isset( $row['forecast_days'] ) ) {
+        return (float) $row['demand_per_day'] * (float) $row['forecast_days'];
     }
 
     return null;
@@ -1069,11 +1070,11 @@ function sop_render_goods_in_page() {
                 if ( null === $stock_qty ) {
                     $stock_qty = '';
                 }
-                $buffer_target_units = '';
+                $forecast_demand_units = '';
                 if ( $pid > 0 && $supplier_id > 0 ) {
-                    $buffer_target = sop_goodsin_get_buffer_target_units( $pid, $supplier_id );
-                    if ( null !== $buffer_target ) {
-                        $buffer_target_units = (string) $buffer_target;
+                    $forecast_demand = sop_goodsin_get_forecast_demand_units( $pid, $supplier_id );
+                    if ( null !== $forecast_demand ) {
+                        $forecast_demand_units = (string) $forecast_demand;
                     }
                 }
                                 ?>
@@ -1084,7 +1085,7 @@ function sop_render_goods_in_page() {
                                     data-location="<?php echo esc_attr( $location ); ?>"
                                     data-carton="<?php echo esc_attr( $carton ); ?>"
                                     data-stock-qty="<?php echo esc_attr( $stock_qty ); ?>"
-                                    data-buffer-target="<?php echo esc_attr( $buffer_target_units ); ?>"
+                                    data-forecast-demand="<?php echo esc_attr( $forecast_demand_units ); ?>"
                                     data-ordered="<?php echo esc_attr( $ordered ); ?>"
                                     data-edit-url="<?php echo esc_url( $product_link ); ?>"
                                     data-image-url="<?php echo esc_url( $image_url ); ?>"
@@ -3129,7 +3130,7 @@ function sop_render_goods_in_page() {
                     <div id="sop-product-modal-carton" class="sop-goodsin-product-modal__carton"></div>
                     <div id="sop-product-modal-location" class="sop-goodsin-product-modal__location"></div>
                     <div id="sop-product-modal-stock" class="sop-goodsin-product-modal__stock is-hidden"></div>
-                    <div id="sop-product-modal-buffer-stock" class="sop-goodsin-product-modal__stock sop-goodsin-product-modal__stock--buffer is-hidden"></div>
+                    <div id="sop-product-modal-forecast-demand" class="sop-goodsin-product-modal__stock sop-goodsin-product-modal__stock--forecast is-hidden"></div>
                     <a id="sop-product-modal-edit" class="sop-goodsin-product-modal__edit" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit product', 'sop' ); ?></a>
                 </div>
 			</div>
@@ -3299,7 +3300,7 @@ function sop_render_goods_in_page() {
             var $productModalLocation = $('#sop-product-modal-location');
             var $productModalCarton = $('#sop-product-modal-carton');
             var $productModalStock = $('#sop-product-modal-stock');
-            var $productModalBufferStock = $('#sop-product-modal-buffer-stock');
+            var $productModalForecastDemand = $('#sop-product-modal-forecast-demand');
             var $productModalEdit = $('#sop-product-modal-edit');
             var $productModalImage = $('#sop-product-modal-image');
             var $productModalQtyOrdered = $('#sop-product-modal-qty-ordered');
@@ -4907,12 +4908,12 @@ function sop_render_goods_in_page() {
                 var productNotesText = ($tr.find('td[data-column="product_notes"] .sop-notes-preview').text() || '').toString().trim();
                 var internalNotesText = ($tr.find('td[data-column="internal_product_notes"] .sop-notes-preview').text() || '').toString().trim();
                 var orderNotes = ($tr.find('td[data-column="order_notes"] .sop-goodsin-notes-text').text() || '').toString().trim();
-                var bufferRaw = $tr.attr('data-buffer-target');
-                var bufferTarget = null;
-                if ( typeof bufferRaw !== 'undefined' && bufferRaw !== '' ) {
-                    bufferTarget = parseFloat( bufferRaw );
-                    if ( isNaN( bufferTarget ) ) {
-                        bufferTarget = null;
+                var forecastRaw = $tr.attr('data-forecast-demand');
+                var forecastDemand = null;
+                if ( typeof forecastRaw !== 'undefined' && forecastRaw !== '' ) {
+                    forecastDemand = parseFloat( forecastRaw );
+                    if ( isNaN( forecastDemand ) ) {
+                        forecastDemand = null;
                     }
                 }
 
@@ -4942,7 +4943,7 @@ function sop_render_goods_in_page() {
                     internal_notes_text: internalNotesText,
                     product_notes_html: productNotesHtml,
                     internal_notes_html: internalNotesHtml,
-                    buffer_target: bufferTarget,
+                    forecast_demand: forecastDemand,
                     order_notes_text: orderNotes
                 };
             }
@@ -4968,12 +4969,12 @@ function sop_render_goods_in_page() {
                     }
                 }
                 var stockText = '<?php echo esc_js( __( 'Current stock:', 'sop' ) ); ?> ' + stockLabel;
-                var bufferText = '';
-                if ( data.buffer_target !== null && data.buffer_target !== '' && typeof data.buffer_target !== 'undefined' ) {
-                    var parsedBuffer = parseFloat( data.buffer_target );
-                    if ( ! isNaN( parsedBuffer ) ) {
-                        var bufferDisplay = Math.abs( parsedBuffer - Math.round( parsedBuffer ) ) < 0.01 ? Math.round( parsedBuffer ) : parsedBuffer.toFixed( 1 );
-                        bufferText = '<?php echo esc_js( __( 'Buffer stock:', 'sop' ) ); ?> ' + bufferDisplay;
+                var forecastText = '';
+                if ( data.forecast_demand !== null && data.forecast_demand !== '' && typeof data.forecast_demand !== 'undefined' ) {
+                    var parsedForecast = parseFloat( data.forecast_demand );
+                    if ( ! isNaN( parsedForecast ) ) {
+                        var forecastDisplay = Math.abs( parsedForecast - Math.round( parsedForecast ) ) < 0.01 ? Math.round( parsedForecast ) : parsedForecast.toFixed( 1 );
+                        forecastText = '<?php echo esc_js( __( 'Forecast Demand:', 'sop' ) ); ?> ' + forecastDisplay;
                     }
                 }
                 var qtyOrderedText = '<?php echo esc_js( __( 'Qty Ordered:', 'sop' ) ); ?> ' + ( Math.round( data.qty_ordered ) || 0 );
@@ -4986,10 +4987,10 @@ function sop_render_goods_in_page() {
                 $productModalCarton.text( cartonText );
                 $productModalLocation.text( locationText );
                 $productModalStock.text( stockText ).removeClass('is-hidden');
-                if ( bufferText ) {
-                    $productModalBufferStock.text( bufferText ).removeClass('is-hidden');
+                if ( forecastText ) {
+                    $productModalForecastDemand.text( forecastText ).removeClass('is-hidden');
                 } else {
-                    $productModalBufferStock.text( '' ).addClass('is-hidden');
+                    $productModalForecastDemand.text( '' ).addClass('is-hidden');
                 }
                 $productModalQtyOrdered.text( qtyOrderedText );
                 $productModalQtyValue.val( qtyReceivedText > 0 ? qtyReceivedText : '' );
@@ -5271,7 +5272,7 @@ function sop_render_goods_in_page() {
                 $productModalLocation.text('');
                 $productModalCarton.text('');
                 $productModalStock.text('').addClass('is-hidden');
-                $productModalBufferStock.text('').addClass('is-hidden');
+                $productModalForecastDemand.text('').addClass('is-hidden');
                 $productModalQtyOrdered.text('');
                 $productModalQtyValue.val('');
                 $productModalAdded.text('');

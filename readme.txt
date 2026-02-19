@@ -1,6 +1,6 @@
 === Stock Order ===
 Contributors: Wilson Organisation Ltd
-Version: 1.0.13
+Version: 1.0.14
 Requires at least: 5.9
 Tested up to: 6.6
 Requires PHP: 8.1
@@ -35,3 +35,4 @@ Stock Order is an internal WooCommerce admin tool for Wilson-Organisation Ltd. I
 1.0.11 - Goods-In: add per-line correction (safe decrease) with confirmation modal; keep bulk apply increase-only.
 1.0.12 - Goods-In: auto-select rows on Add now entry; clarify correction modal usage.
 1.0.13 - Goods-In: align Add now input with other qty fields (Total label no longer shifts layout).
+1.0.14 - Goods-In modal now shows Forecast Demand instead of Buffer stock (Forecast Debug metric).
