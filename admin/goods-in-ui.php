@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.46
+ * File version: 1.1.47
+ * - Goods-In: move current stock above Ordered qty for consistent layout.
  * - Goods-In: show current stock under Ordered qty (table), update after apply/correct.
  * - Persist Goods-In columns + filters per sheet id (no cross-sheet leakage).
  * - Goods-In: add Forecast demand column after Carton no.
@@ -1191,10 +1192,10 @@ function sop_render_goods_in_page() {
                         </div>
                     </td>
                     <td data-column="ordered">
-                        <?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?>
                         <div class="sop-goodsin-current-stock">
                             <?php echo esc_html( sprintf( __( 'Stock: %s', 'sop' ), $current_stock_display ) ); ?>
                         </div>
+                        <div class="sop-goodsin-ordered-qty"><?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?></div>
                         <span class="sop-goodsin-stockdone" aria-hidden="true"></span>
                         <span class="sop-goodsin-skip-badge" aria-hidden="true"></span>
                     </td>
@@ -1682,12 +1683,14 @@ function sop_render_goods_in_page() {
             white-space: nowrap;
         }
         .sop-goodsin-table td[data-column="ordered"] .sop-goodsin-current-stock {
-            margin-top: 2px;
             font-size: 11px;
             line-height: 1.2;
             opacity: 0.7;
-            color: #555;
+            margin-bottom: 2px;
             white-space: nowrap;
+        }
+        .sop-goodsin-table td[data-column="ordered"] .sop-goodsin-ordered-qty {
+            font-weight: 500;
         }
         .sop-goodsin-carton-text {
             white-space: normal;
