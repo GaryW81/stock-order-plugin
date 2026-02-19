@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.40
+ * File version: 1.1.41
+ * - Product name now links to front-end page with separate admin Edit link.
  * - Goods-In modal now shows Forecast Demand instead of buffer stock.
  * - Align Add now input by overlaying Total label in received cell.
  * - Auto-select row on Add now entry + correction modal guidance text.
@@ -1032,7 +1033,9 @@ function sop_render_goods_in_page() {
                         $image_url  = $placeholder;
                     }
                 }
-                $product_link = $pid > 0 ? get_edit_post_link( $pid, '' ) : '';
+                $product_front_link = $pid > 0 ? get_permalink( $pid ) : '';
+                $product_edit_link  = $pid > 0 ? get_edit_post_link( $pid, '' ) : '';
+                $can_edit_product   = ( $pid > 0 ) ? current_user_can( 'edit_post', $pid ) : false;
                 $carton = isset( $line['carton_number'] ) ? (string) $line['carton_number'] : '';
                 if ( isset( $line['carton_no'] ) && '' !== (string) $line['carton_no'] ) {
                     $carton = (string) $line['carton_no'];
@@ -1087,7 +1090,7 @@ function sop_render_goods_in_page() {
                                     data-stock-qty="<?php echo esc_attr( $stock_qty ); ?>"
                                     data-forecast-demand="<?php echo esc_attr( $forecast_demand_units ); ?>"
                                     data-ordered="<?php echo esc_attr( $ordered ); ?>"
-                                    data-edit-url="<?php echo esc_url( $product_link ); ?>"
+                                    data-edit-url="<?php echo esc_url( $product_edit_link ); ?>"
                                     data-image-url="<?php echo esc_url( $image_url ); ?>"
                     data-has-product-notes="<?php echo $product_notes ? '1' : '0'; ?>"
                     data-has-order-notes="<?php echo $order_notes ? '1' : '0'; ?>"
@@ -1138,12 +1141,17 @@ function sop_render_goods_in_page() {
                     <td class="sop-goodsin-col-product" data-column="product" title="<?php echo esc_attr( wp_strip_all_tags( $name ) ); ?>">
                         <div class="sop-goodsin-product-wrap">
                             <?php
-                            if ( $product_link ) {
-                                echo '<a class="sop-goodsin-product-link" href="' . esc_url( $product_link ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $name ) . '</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                            if ( $product_front_link ) {
+                                echo '<a class="sop-goodsin-product-link sop-goodsin-product-front-link" href="' . esc_url( $product_front_link ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $name ) . '</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                             } else {
                                 echo '<span class="sop-goodsin-product-link">' . esc_html( $name ) . '</span>';
                             }
                             ?>
+                            <?php if ( $can_edit_product && $product_edit_link ) : ?>
+                                <div class="sop-goodsin-product-edit-link">
+                                    <a href="<?php echo esc_url( $product_edit_link ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit', 'sop' ); ?></a>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </td>
                     <td data-column="ordered">
@@ -2985,6 +2993,14 @@ function sop_render_goods_in_page() {
             line-height: 1.2;
             max-height: 4.8em;
             text-align: left;
+        }
+        .sop-goodsin-table td.sop-goodsin-col-product .sop-goodsin-product-edit-link {
+            margin-top: 2px;
+            line-height: 1.2;
+        }
+        .sop-goodsin-table td.sop-goodsin-col-product .sop-goodsin-product-edit-link a {
+            font-size: 11px;
+            opacity: 0.85;
         }
         .sop-goodsin-col-narrow {
             white-space: nowrap;
