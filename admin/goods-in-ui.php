@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.45
+ * File version: 1.1.46
+ * - Goods-In: show current stock under Ordered qty (table), update after apply/correct.
  * - Persist Goods-In columns + filters per sheet id (no cross-sheet leakage).
  * - Goods-In: add Forecast demand column after Carton no.
  * - Preserve page scroll position when opening/closing Goods-In product modal.
@@ -1083,6 +1084,18 @@ function sop_render_goods_in_page() {
                 if ( null === $stock_qty ) {
                     $stock_qty = '';
                 }
+                $current_stock_qty = null;
+                if ( $pid > 0 ) {
+                    $manage_stock = (string) get_post_meta( $pid, '_manage_stock', true );
+                    if ( 'yes' === strtolower( $manage_stock ) ) {
+                        $stock_raw         = get_post_meta( $pid, '_stock', true );
+                        $current_stock_qty = ( '' === (string) $stock_raw ) ? 0 : (int) floor( (float) $stock_raw );
+                    }
+                }
+                $current_stock_display = '&mdash;';
+                if ( null !== $current_stock_qty ) {
+                    $current_stock_display = number_format_i18n( $current_stock_qty, 0 );
+                }
                 $forecast_demand_units = '';
                 if ( $pid > 0 && $supplier_id > 0 ) {
                     $forecast_demand = sop_goodsin_get_forecast_demand_units( $pid, $supplier_id );
@@ -1107,6 +1120,7 @@ function sop_render_goods_in_page() {
                                     data-location="<?php echo esc_attr( $location ); ?>"
                                     data-carton="<?php echo esc_attr( $carton ); ?>"
                                     data-stock-qty="<?php echo esc_attr( $stock_qty ); ?>"
+                                    data-current-stock="<?php echo ( null !== $current_stock_qty ) ? esc_attr( $current_stock_qty ) : ''; ?>"
                                     data-forecast-demand="<?php echo esc_attr( $forecast_demand_units ); ?>"
                                     data-ordered="<?php echo esc_attr( $ordered ); ?>"
                                     data-edit-url="<?php echo esc_url( $product_edit_link ); ?>"
@@ -1178,6 +1192,9 @@ function sop_render_goods_in_page() {
                     </td>
                     <td data-column="ordered">
                         <?php echo esc_html( number_format_i18n( $ordered, 0 ) ); ?>
+                        <div class="sop-goodsin-current-stock">
+                            <?php echo esc_html( sprintf( __( 'Stock: %s', 'sop' ), $current_stock_display ) ); ?>
+                        </div>
                         <span class="sop-goodsin-stockdone" aria-hidden="true"></span>
                         <span class="sop-goodsin-skip-badge" aria-hidden="true"></span>
                     </td>
@@ -1662,6 +1679,14 @@ function sop_render_goods_in_page() {
             text-align: right;
         }
         .sop-goodsin-table th[data-column="forecast_demand"] {
+            white-space: nowrap;
+        }
+        .sop-goodsin-table td[data-column="ordered"] .sop-goodsin-current-stock {
+            margin-top: 2px;
+            font-size: 11px;
+            line-height: 1.2;
+            opacity: 0.7;
+            color: #555;
             white-space: nowrap;
         }
         .sop-goodsin-carton-text {
@@ -3347,6 +3372,7 @@ function sop_render_goods_in_page() {
             var $correctConfirmCheck = $('#sop-goodsin-correct-confirm-check');
             var $correctConfirmButton = $('#sop-goodsin-correct-confirm');
             var $correctMessage = $('#sop-goodsin-correct-message');
+            var stockLabelPrefix = '<?php echo esc_js( __( 'Stock:', 'sop' ) ); ?> ';
             var $skusModal = $('#sop-skus-modal');
             var $skusModalContent = $('#sop-skus-modal .sop-skus-modal__content');
             var $skusModalContextName = $('#sop-skus-modal .sop-skus-modal__context-name');
@@ -3947,6 +3973,27 @@ function sop_render_goods_in_page() {
                 $tr.find('.sop-goodsin-received-total-value').text( Math.round( total ).toLocaleString() );
             }
 
+            function sopGoodsinAdjustCurrentStock($tr, delta) {
+                if ( ! $tr || ! $tr.length ) {
+                    return;
+                }
+                var currentRaw = ($tr.attr('data-current-stock') || '').toString();
+                if ( currentRaw === '' ) {
+                    return;
+                }
+                var currentValue = parseInt(currentRaw, 10);
+                if ( isNaN(currentValue) ) {
+                    return;
+                }
+                var nextValue = currentValue + delta;
+                if ( nextValue < 0 ) {
+                    nextValue = 0;
+                }
+                $tr.attr('data-current-stock', String(nextValue));
+                $tr.attr('data-stock-qty', String(nextValue));
+                $tr.find('.sop-goodsin-current-stock').text(stockLabelPrefix + nextValue.toLocaleString());
+            }
+
             function buildPayload(actionType) {
                 var lines = [];
                 $('#sop-goodsin-lines tbody tr').each(function(){
@@ -4228,6 +4275,12 @@ function sop_render_goods_in_page() {
                             if (status === 'applied' && typeof line.received_qty !== 'undefined') {
                                 sopGoodsinSetRowReceivedTotal($row, line.received_qty);
                             }
+                            if (status === 'applied') {
+                                var appliedQtyInt = parseInt(appliedQty, 10) || 0;
+                                if ( appliedQtyInt > 0 ) {
+                                    sopGoodsinAdjustCurrentStock($row, appliedQtyInt);
+                                }
+                            }
                             $row.find('.sop-goodsin-add-now').val('');
                             $row.data('sort-received', 0);
                             if (isComplete) {
@@ -4392,6 +4445,10 @@ function sop_render_goods_in_page() {
                             }
                             if ( ! isNaN(receivedTotal) ) {
                                 sopGoodsinSetRowReceivedTotal($row, receivedTotal);
+                            }
+                            var adjustedQty = parseInt(result.applied_qty, 10) || 0;
+                            if ( adjustedQty > 0 && result.applied_direction === 'decrease' ) {
+                                sopGoodsinAdjustCurrentStock($row, -adjustedQty);
                             }
                             $row.find('.sop-goodsin-add-now').val('');
                             $row.data('sort-received', 0);
