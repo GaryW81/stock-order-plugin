@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.42
+ * File version: 1.1.43
+ * - Preserve page scroll position when opening/closing Goods-In product modal.
  * - Tidy Product column link layout (front-end name + Edit link beneath).
  * - Product name now links to front-end page with separate admin Edit link.
  * - Goods-In modal now shows Forecast Demand instead of buffer stock.
@@ -1644,6 +1645,11 @@ function sop_render_goods_in_page() {
         body.sop-goodsin-modal-open {
             overflow: hidden !important;
             height: 100%;
+        }
+        body.sop-goodsin-modal-scroll-lock {
+            position: fixed;
+            width: 100%;
+            overflow: hidden;
         }
         /* Notes columns */
         .sop-goodsin-table th[data-column="product_notes"],
@@ -3358,8 +3364,26 @@ function sop_render_goods_in_page() {
             var sopScanActive = false;
             var sopScanLock = false;
             var sopGoodsinCorrectionState = null;
+            var sopGoodsinProductModalScrollY = 0;
             if ( typeof window.__sop_goodsin_scan_from_product_modal === 'undefined' ) {
                 window.__sop_goodsin_scan_from_product_modal = false;
+            }
+
+            function sopGoodsinCaptureScroll() {
+                sopGoodsinProductModalScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+            }
+
+            function sopGoodsinLockScroll() {
+                sopGoodsinCaptureScroll();
+                document.body.classList.add('sop-goodsin-modal-scroll-lock');
+                document.body.style.top = '-' + sopGoodsinProductModalScrollY + 'px';
+            }
+
+            function sopGoodsinUnlockScrollAndRestore() {
+                var restoreY = sopGoodsinProductModalScrollY || 0;
+                document.body.classList.remove('sop-goodsin-modal-scroll-lock');
+                document.body.style.top = '';
+                window.scrollTo(0, restoreY);
             }
 
             sopGoodsinSyncAdminbarHeightVar();
@@ -5289,6 +5313,7 @@ function sop_render_goods_in_page() {
                 if ( ! $productModal.length ) {
                     return;
                 }
+                var wasOpen = $productModal.hasClass('is-open');
                 closeInfoModal();
                 activeProductRow = null;
                 window.sopGoodsinModalCurrentRow = null;
@@ -5296,6 +5321,9 @@ function sop_render_goods_in_page() {
                 $productModal.removeClass('is-open').attr('aria-hidden', 'true');
                 document.documentElement.classList.remove('sop-goodsin-modal-open');
                 document.body.classList.remove('sop-goodsin-modal-open');
+                if ( wasOpen ) {
+                    sopGoodsinUnlockScrollAndRestore();
+                }
                 $productModal.removeAttr('data-sop-current-sku');
                 $productModal.removeData('currentRowEl');
                 $productModal.removeData('currentLineId');
@@ -5322,6 +5350,7 @@ function sop_render_goods_in_page() {
                 if ( ! $row.length || ! $productModal.length ) {
                     return;
                 }
+                sopGoodsinLockScroll();
                 document.documentElement.classList.add('sop-goodsin-modal-open');
                 document.body.classList.add('sop-goodsin-modal-open');
                 sopGoodsinSyncVisualViewportVar();
@@ -5337,6 +5366,13 @@ function sop_render_goods_in_page() {
                 sopGoodsinBindProductModalActions();
                 sopGoodsinRenderProductModal( sopGoodsinGetRowModalData( $row ) );
                 $productModal.addClass('is-open').attr('aria-hidden', 'false');
+                if ( $productModalQtyValue.length ) {
+                    try {
+                        $productModalQtyValue.get(0).focus({ preventScroll: true });
+                    } catch (err) {
+                        $productModalQtyValue.get(0).focus();
+                    }
+                }
             }
 
             function sopGoodsinOpenProductModalForSku(sku) {
@@ -5407,6 +5443,7 @@ function sop_render_goods_in_page() {
 
             $(document).on('click', '[data-sop-prod-close="1"]', function(e){
                 e.preventDefault();
+                e.stopPropagation();
                 sopGoodsInCloseProductModal();
             });
 
@@ -5434,6 +5471,7 @@ function sop_render_goods_in_page() {
                 var $tr = $cell.closest('tr');
                 if ( $tr.length ) {
                     e.preventDefault();
+                    e.stopPropagation();
                     sopGoodsInOpenProductModal( $tr );
                 }
             });
