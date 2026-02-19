@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.43
+ * File version: 1.1.44
+ * - Goods-In: add Forecast demand column after Carton no.
  * - Preserve page scroll position when opening/closing Goods-In product modal.
  * - Tidy Product column link layout (front-end name + Edit link beneath).
  * - Product name now links to front-end page with separate admin Edit link.
@@ -745,6 +746,11 @@ function sop_render_goods_in_page() {
                 'visible' => true,
             ),
             array(
+                'key'     => 'forecast_demand',
+                'label'   => __( 'Forecast demand', 'sop' ),
+                'visible' => true,
+            ),
+            array(
                 'key'     => 'product_notes',
                 'label'   => __( 'Product notes', 'sop' ),
                 'visible' => true,
@@ -955,6 +961,7 @@ function sop_render_goods_in_page() {
                 <th class="sop-goodsin-sort sop-goodsin-col-narrow" data-sort-key="reject" data-sort-type="number" data-column="reject"><?php esc_html_e( 'Reject', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="reason" data-sort-type="text" data-column="reason"><?php esc_html_e( 'Reason', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="carton" data-sort-type="text" data-column="carton"><?php esc_html_e( 'Carton no.', 'sop' ); ?></th>
+                <th class="sop-goodsin-sort" data-sort-key="forecast_demand" data-sort-type="number" data-column="forecast_demand"><?php esc_html_e( 'Forecast demand', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="product_notes" data-sort-type="text" data-column="product_notes"><?php esc_html_e( 'Product notes', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="internal_product_notes" data-sort-type="text" data-column="internal_product_notes"><?php esc_html_e( 'Internal notes', 'sop' ); ?></th>
                 <th class="sop-goodsin-sort" data-sort-key="order_notes" data-sort-type="text" data-column="order_notes"><?php esc_html_e( 'Order notes', 'sop' ); ?></th>
@@ -1082,6 +1089,15 @@ function sop_render_goods_in_page() {
                         $forecast_demand_units = (string) $forecast_demand;
                     }
                 }
+                $forecast_demand_display = '&mdash;';
+                if ( '' !== $forecast_demand_units && is_numeric( $forecast_demand_units ) ) {
+                    $forecast_demand_value = (float) $forecast_demand_units;
+                    if ( abs( $forecast_demand_value - round( $forecast_demand_value ) ) < 0.0001 ) {
+                        $forecast_demand_display = number_format_i18n( round( $forecast_demand_value ), 0 );
+                    } else {
+                        $forecast_demand_display = number_format_i18n( $forecast_demand_value, 1 );
+                    }
+                }
                                 ?>
                                 <tr data-line-id="<?php echo esc_attr( $line_id ); ?>" data-product-id="<?php echo esc_attr( $pid ); ?>" data-sop-row="1"
                                     class="<?php echo $is_complete ? 'sop-goodsin-line-complete' : ''; ?>"
@@ -1107,6 +1123,7 @@ function sop_render_goods_in_page() {
                     data-sort-reject="<?php echo esc_attr( $reject ); ?>"
                     data-sort-reason="<?php echo esc_attr( mb_strtolower( $reason ) ); ?>"
                     data-sort-carton="<?php echo esc_attr( mb_strtolower( $carton ) ); ?>"
+                    data-sort-forecast_demand="<?php echo esc_attr( '' !== $forecast_demand_units && is_numeric( $forecast_demand_units ) ? (float) $forecast_demand_units : 0 ); ?>"
                     data-sort-product_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $product_notes ) ) ); ?>"
                     data-sort-internal_product_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $internal_notes ) ) ); ?>"
                     data-sort-order_notes="<?php echo esc_attr( mb_strtolower( wp_strip_all_tags( $order_notes ) ) ); ?>"
@@ -1208,6 +1225,7 @@ function sop_render_goods_in_page() {
                     <td class="sop-goodsin-carton sop-goodsin-cell-truncate" data-column="carton" data-carton-sort="<?php echo esc_attr( $carton_sort_key ); ?>" title="<?php echo esc_attr( $carton ); ?>">
                         <div class="sop-goodsin-carton-text"><?php echo wp_kses_post( $carton_display ); ?></div>
                     </td>
+                    <td data-column="forecast_demand"><?php echo esc_html( $forecast_demand_display ); ?></td>
                     <td class="sop-goodsin-text-col" data-column="product_notes">
                         <div class="sop-goodsin-notes-wrap">
                             <div class="sop-notes-preview" data-sop-notes-title="<?php esc_attr_e( 'Product notes', 'sop' ); ?>">
@@ -1635,6 +1653,15 @@ function sop_render_goods_in_page() {
         .sop-goodsin-table td[data-column="carton"] {
             width: 120px;
             min-width: 120px;
+        }
+        .sop-goodsin-table th[data-column="forecast_demand"],
+        .sop-goodsin-table td[data-column="forecast_demand"] {
+            width: 110px;
+            min-width: 110px;
+            text-align: right;
+        }
+        .sop-goodsin-table th[data-column="forecast_demand"] {
+            white-space: nowrap;
         }
         .sop-goodsin-carton-text {
             white-space: normal;
