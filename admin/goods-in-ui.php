@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.41
+ * File version: 1.1.42
+ * - Tidy Product column link layout (front-end name + Edit link beneath).
  * - Product name now links to front-end page with separate admin Edit link.
  * - Goods-In modal now shows Forecast Demand instead of buffer stock.
  * - Align Add now input by overlaying Total label in received cell.
@@ -1140,18 +1141,20 @@ function sop_render_goods_in_page() {
                     <?php endif; ?>
                     <td class="sop-goodsin-col-product" data-column="product" title="<?php echo esc_attr( wp_strip_all_tags( $name ) ); ?>">
                         <div class="sop-goodsin-product-wrap">
-                            <?php
-                            if ( $product_front_link ) {
-                                echo '<a class="sop-goodsin-product-link sop-goodsin-product-front-link" href="' . esc_url( $product_front_link ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $name ) . '</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                            } else {
-                                echo '<span class="sop-goodsin-product-link">' . esc_html( $name ) . '</span>';
-                            }
-                            ?>
-                            <?php if ( $can_edit_product && $product_edit_link ) : ?>
-                                <div class="sop-goodsin-product-edit-link">
-                                    <a href="<?php echo esc_url( $product_edit_link ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit', 'sop' ); ?></a>
-                                </div>
-                            <?php endif; ?>
+                            <div class="sop-goodsin-product-links">
+                                <?php
+                                if ( $product_front_link ) {
+                                    echo '<a class="sop-goodsin-product-link sop-goodsin-product-front-link" href="' . esc_url( $product_front_link ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $name ) . '</a>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                } else {
+                                    echo '<span class="sop-goodsin-product-link">' . esc_html( $name ) . '</span>';
+                                }
+                                ?>
+                                <?php if ( $can_edit_product && $product_edit_link ) : ?>
+                                    <div class="sop-goodsin-product-edit-link">
+                                        <a href="<?php echo esc_url( $product_edit_link ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Edit', 'sop' ); ?></a>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </td>
                     <td data-column="ordered">
@@ -2625,7 +2628,6 @@ function sop_render_goods_in_page() {
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .sop-goodsin-table td.sop-goodsin-col-product a,
         .sop-goodsin-table td.sop-goodsin-col-product .sop-goodsin-product-link {
             display: -webkit-box;
             -webkit-box-orient: vertical;
@@ -2981,7 +2983,6 @@ function sop_render_goods_in_page() {
             white-space: normal !important;
             overflow: hidden;
         }
-        .sop-goodsin-table td.sop-goodsin-col-product a,
         .sop-goodsin-table td.sop-goodsin-col-product .sop-goodsin-product-link {
             display: -webkit-box;
             -webkit-box-orient: vertical;
@@ -2994,13 +2995,28 @@ function sop_render_goods_in_page() {
             max-height: 4.8em;
             text-align: left;
         }
-        .sop-goodsin-table td.sop-goodsin-col-product .sop-goodsin-product-edit-link {
-            margin-top: 2px;
-            line-height: 1.2;
+        .sop-goodsin-table td[data-column="product"] .sop-goodsin-product-links {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+            min-width: 0;
         }
-        .sop-goodsin-table td.sop-goodsin-col-product .sop-goodsin-product-edit-link a {
+        .sop-goodsin-table td[data-column="product"] .sop-goodsin-product-front-link {
+            display: block;
+        }
+        .sop-goodsin-table td[data-column="product"] .sop-goodsin-product-edit-link {
+            display: inline-block;
             font-size: 11px;
-            opacity: 0.85;
+            line-height: 1.2;
+            opacity: 0.8;
+            white-space: nowrap;
+        }
+        .sop-goodsin-table td[data-column="product"] .sop-goodsin-product-edit-link a {
+            text-decoration: none;
+        }
+        .sop-goodsin-table td[data-column="product"] .sop-goodsin-product-edit-link a:hover {
+            text-decoration: underline;
         }
         .sop-goodsin-col-narrow {
             white-space: nowrap;
