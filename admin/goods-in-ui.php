@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.47
+ * File version: 1.1.48
+ * - Goods-In: overlay Stock label in Ordered cell so ordered qty alignment stays fixed.
  * - Goods-In: move current stock above Ordered qty for consistent layout.
  * - Goods-In: show current stock under Ordered qty (table), update after apply/correct.
  * - Persist Goods-In columns + filters per sheet id (no cross-sheet leakage).
@@ -1682,14 +1683,25 @@ function sop_render_goods_in_page() {
         .sop-goodsin-table th[data-column="forecast_demand"] {
             white-space: nowrap;
         }
+        .sop-goodsin-table td[data-column="ordered"] {
+            position: relative;
+        }
         .sop-goodsin-table td[data-column="ordered"] .sop-goodsin-current-stock {
+            position: absolute;
+            top: 6px;
+            left: 10px;
+            right: 10px;
+            margin: 0;
             font-size: 11px;
             line-height: 1.2;
             opacity: 0.7;
-            margin-bottom: 2px;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            pointer-events: none;
         }
         .sop-goodsin-table td[data-column="ordered"] .sop-goodsin-ordered-qty {
+            display: block;
             font-weight: 500;
         }
         .sop-goodsin-carton-text {

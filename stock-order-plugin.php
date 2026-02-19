@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Stock Order
  * Description: Internal tool for suppliers, forecasting, purchase orders, container planning, goods-in, and labels/barcodes.
- * Version: 1.0.21
+ * Version: 1.0.22
  * Author: Wilson Organisation Ltd
  * Text Domain: sop
  * Domain Path: /languages
@@ -14,7 +14,8 @@
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.35
+ * File version: 1.0.36
+ * - Release 1.0.22: Goods-In Ordered cell stock label now overlays without shifting qty baseline.
  * - Release 1.0.21: Goods-In stock label moved above Ordered qty.
  * - Release 1.0.20: Goods-In show live current stock under Ordered qty.
  * - Release 1.0.19: Goods-In per-sheet columns + filter persistence.
@@ -54,7 +55,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '1.0.21' );
+    define( 'SOP_PLUGIN_VERSION', '1.0.22' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
