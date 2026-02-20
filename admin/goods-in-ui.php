@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.48
+ * File version: 1.1.49
+ * - Goods-In: SKU copy button + prevent SKU clicks opening modal.
  * - Goods-In: overlay Stock label in Ordered cell so ordered qty alignment stays fixed.
  * - Goods-In: move current stock above Ordered qty for consistent layout.
  * - Goods-In: show current stock under Ordered qty (table), update after apply/correct.
@@ -1154,7 +1155,19 @@ function sop_render_goods_in_page() {
                     <?php endif; ?>
                     <td class="sop-goodsin-col-image" data-column="image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
                     <td class="sop-goodsin-col-location column-location" data-column="location"><?php echo esc_html( $location ); ?></td>
-                    <td class="sop-goodsin-col-sku" data-column="sku"><?php echo esc_html( $sku . $missing_pid_warning ); ?></td>
+                    <td class="sop-goodsin-col-sku" data-column="sku">
+                        <div class="sop-goodsin-sku-wrap sop-goodsin-no-modal">
+                            <span class="sop-goodsin-sku-text"><?php echo esc_html( $sku . $missing_pid_warning ); ?></span>
+                            <button type="button"
+                                class="button-link sop-goodsin-copy-sku"
+                                data-sku="<?php echo esc_attr( $sku ); ?>"
+                                aria-label="<?php esc_attr_e( 'Copy SKU', 'sop' ); ?>"
+                                title="<?php esc_attr_e( 'Copy SKU', 'sop' ); ?>">
+                                <span class="dashicons dashicons-admin-page" aria-hidden="true"></span>
+                            </button>
+                            <span class="sop-goodsin-copy-sku-status" aria-live="polite"></span>
+                        </div>
+                    </td>
                     <?php if ( $show_supplier_skus_column ) : ?>
                         <?php
                         $supplier_skus_lines = array();
@@ -2994,6 +3007,34 @@ function sop_render_goods_in_page() {
             padding-left: 10px !important;
             padding-right: 14px !important;
         }
+        .sop-goodsin-table .sop-goodsin-sku-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
+        .sop-goodsin-table .sop-goodsin-sku-text {
+            display: inline-block;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .sop-goodsin-table .sop-goodsin-copy-sku {
+            flex: 0 0 auto;
+            text-decoration: none;
+            opacity: 0.75;
+        }
+        .sop-goodsin-table .sop-goodsin-copy-sku:hover {
+            opacity: 1;
+        }
+        .sop-goodsin-table .sop-goodsin-copy-sku-status {
+            flex: 0 0 auto;
+            font-size: 11px;
+            opacity: 0.7;
+            margin-left: 2px;
+            white-space: nowrap;
+        }
         .sop-goodsin-table th.sop-goodsin-col-product,
         .sop-goodsin-table td.sop-goodsin-col-product {
             width: 264px;
@@ -3472,6 +3513,19 @@ function sop_render_goods_in_page() {
             function sopGoodsinParseNumber(val) {
                 var n = parseFloat( (val || '').toString().replace(/,/g, '') );
                 return isNaN(n) ? 0 : n;
+            }
+
+            function fallbackCopy(text, onSuccess) {
+                try {
+                    var $ta = $('<textarea readonly></textarea>').css({ position: 'absolute', left: '-9999px', top: '0' }).val(text);
+                    $('body').append($ta);
+                    $ta[0].select();
+                    var ok = document.execCommand('copy');
+                    $ta.remove();
+                    if ( ok && typeof onSuccess === 'function' ) {
+                        onSuccess();
+                    }
+                } catch (e) {}
             }
 
             function sopGoodsinNormalizeQuery(str) {
@@ -5633,8 +5687,40 @@ function sop_render_goods_in_page() {
                 sopGoodsinProductModalNavigate(1);
             });
 
+            $('#sop-goodsin-lines').on('click', '.sop-goodsin-copy-sku', function(e){
+                e.preventDefault();
+                e.stopPropagation();
+
+                var $btn = $(this);
+                var sku = ($btn.data('sku') || '').toString().trim();
+                if ( ! sku ) {
+                    return;
+                }
+
+                function showCopied() {
+                    var $wrap = $btn.closest('.sop-goodsin-sku-wrap');
+                    var $status = $wrap.find('.sop-goodsin-copy-sku-status');
+                    $status.text('Copied');
+                    window.setTimeout(function(){
+                        $status.text('');
+                    }, 900);
+                }
+
+                if ( navigator.clipboard && navigator.clipboard.writeText ) {
+                    navigator.clipboard.writeText(sku).then(showCopied).catch(function(){
+                        fallbackCopy(sku, showCopied);
+                    });
+                    return;
+                }
+
+                fallbackCopy(sku, showCopied);
+            });
+
             $('#sop-goodsin-lines').on('click', 'td[data-column="sku"], td[data-column="product"], td[data-column="image"]', function(e){
                 var $cell = $(this);
+                if ( $(e.target).closest('.sop-goodsin-no-modal').length ) {
+                    return;
+                }
                 if ( $cell.is('td[data-column="product"]') && $(e.target).is('a') ) {
                     return;
                 }
