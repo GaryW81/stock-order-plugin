@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.49
+ * File version: 1.1.50
+ * - Goods-In: SKU/Location click-to-copy; remove SKU icon (restore full SKU visibility).
  * - Goods-In: SKU copy button + prevent SKU clicks opening modal.
  * - Goods-In: overlay Stock label in Ordered cell so ordered qty alignment stays fixed.
  * - Goods-In: move current stock above Ordered qty for consistent layout.
@@ -1154,19 +1155,11 @@ function sop_render_goods_in_page() {
                         </td>
                     <?php endif; ?>
                     <td class="sop-goodsin-col-image" data-column="image"><div class="sop-goodsin-img-wrap"><?php echo $image_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></div></td>
-                    <td class="sop-goodsin-col-location column-location" data-column="location"><?php echo esc_html( $location ); ?></td>
+                    <td class="sop-goodsin-col-location column-location" data-column="location">
+                        <span class="sop-goodsin-copyable sop-goodsin-no-modal" data-copy="<?php echo esc_attr( $location ); ?>" title="<?php esc_attr_e( 'Click to copy location', 'sop' ); ?>"><?php echo esc_html( $location ); ?></span>
+                    </td>
                     <td class="sop-goodsin-col-sku" data-column="sku">
-                        <div class="sop-goodsin-sku-wrap sop-goodsin-no-modal">
-                            <span class="sop-goodsin-sku-text"><?php echo esc_html( $sku . $missing_pid_warning ); ?></span>
-                            <button type="button"
-                                class="button-link sop-goodsin-copy-sku"
-                                data-sku="<?php echo esc_attr( $sku ); ?>"
-                                aria-label="<?php esc_attr_e( 'Copy SKU', 'sop' ); ?>"
-                                title="<?php esc_attr_e( 'Copy SKU', 'sop' ); ?>">
-                                <span class="dashicons dashicons-admin-page" aria-hidden="true"></span>
-                            </button>
-                            <span class="sop-goodsin-copy-sku-status" aria-live="polite"></span>
-                        </div>
+                        <span class="sop-goodsin-copyable sop-goodsin-no-modal" data-copy="<?php echo esc_attr( $sku ); ?>" title="<?php esc_attr_e( 'Click to copy SKU', 'sop' ); ?>"><?php echo esc_html( $sku . $missing_pid_warning ); ?></span>
                     </td>
                     <?php if ( $show_supplier_skus_column ) : ?>
                         <?php
@@ -3007,33 +3000,16 @@ function sop_render_goods_in_page() {
             padding-left: 10px !important;
             padding-right: 14px !important;
         }
-        .sop-goodsin-table .sop-goodsin-sku-wrap {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            min-width: 0;
+        .sop-goodsin-table .sop-goodsin-copyable {
+            cursor: pointer;
         }
-        .sop-goodsin-table .sop-goodsin-sku-text {
-            display: inline-block;
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+        .sop-goodsin-table .sop-goodsin-copyable:hover {
+            text-decoration: underline;
         }
-        .sop-goodsin-table .sop-goodsin-copy-sku {
-            flex: 0 0 auto;
-            text-decoration: none;
-            opacity: 0.75;
-        }
-        .sop-goodsin-table .sop-goodsin-copy-sku:hover {
-            opacity: 1;
-        }
-        .sop-goodsin-table .sop-goodsin-copy-sku-status {
-            flex: 0 0 auto;
-            font-size: 11px;
-            opacity: 0.7;
-            margin-left: 2px;
-            white-space: nowrap;
+        .sop-goodsin-table .sop-goodsin-copyable.sop-goodsin-copied {
+            background: rgba(0, 0, 0, 0.06);
+            border-radius: 3px;
+            padding: 0 2px;
         }
         .sop-goodsin-table th.sop-goodsin-col-product,
         .sop-goodsin-table td.sop-goodsin-col-product {
@@ -5687,33 +5663,39 @@ function sop_render_goods_in_page() {
                 sopGoodsinProductModalNavigate(1);
             });
 
-            $('#sop-goodsin-lines').on('click', '.sop-goodsin-copy-sku', function(e){
+            $('#sop-goodsin-lines').on('click', '.sop-goodsin-copyable', function(e){
                 e.preventDefault();
                 e.stopPropagation();
 
-                var $btn = $(this);
-                var sku = ($btn.data('sku') || '').toString().trim();
-                if ( ! sku ) {
+                var sel = '';
+                try {
+                    sel = window.getSelection ? window.getSelection().toString() : '';
+                } catch (ex) {}
+                if ( sel && sel.trim() !== '' ) {
                     return;
                 }
 
-                function showCopied() {
-                    var $wrap = $btn.closest('.sop-goodsin-sku-wrap');
-                    var $status = $wrap.find('.sop-goodsin-copy-sku-status');
-                    $status.text('Copied');
+                var $el = $(this);
+                var text = ($el.data('copy') || $el.text() || '').toString().trim();
+                if ( ! text ) {
+                    return;
+                }
+
+                function flashCopied() {
+                    $el.addClass('sop-goodsin-copied');
                     window.setTimeout(function(){
-                        $status.text('');
-                    }, 900);
+                        $el.removeClass('sop-goodsin-copied');
+                    }, 600);
                 }
 
                 if ( navigator.clipboard && navigator.clipboard.writeText ) {
-                    navigator.clipboard.writeText(sku).then(showCopied).catch(function(){
-                        fallbackCopy(sku, showCopied);
+                    navigator.clipboard.writeText(text).then(flashCopied).catch(function(){
+                        fallbackCopy(text, flashCopied);
                     });
                     return;
                 }
 
-                fallbackCopy(sku, showCopied);
+                fallbackCopy(text, flashCopied);
             });
 
             $('#sop-goodsin-lines').on('click', 'td[data-column="sku"], td[data-column="product"], td[data-column="image"]', function(e){
