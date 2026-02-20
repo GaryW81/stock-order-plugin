@@ -1,6 +1,6 @@
 === Stock Order ===
 Contributors: Wilson Organisation Ltd
-Version: 1.0.24
+Version: 1.0.25
 Requires at least: 5.9
 Tested up to: 6.6
 Requires PHP: 8.1
@@ -46,3 +46,4 @@ Stock Order is an internal WooCommerce admin tool for Wilson-Organisation Ltd. I
 1.0.22 - Goods-In: overlay Stock label in Ordered cell so ordered qty alignment stays fixed.
 1.0.23 - Goods-In: add SKU copy button + prevent SKU clicks opening product modal.
 1.0.24 - Goods-In: SKU + Location click-to-copy (removed SKU icon; restored full SKU visibility).
+1.0.25 - Admin menu: always show Goods In submenu (including folded hover flyout).

@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.50
+ * File version: 1.1.51
+ * - Menu: Goods In submenu registration moved to bootstrap for global/folded flyout visibility.
  * - Goods-In: SKU/Location click-to-copy; remove SKU icon (restore full SKU visibility).
  * - Goods-In: SKU copy button + prevent SKU clicks opening modal.
  * - Goods-In: overlay Stock label in Ordered cell so ordered qty alignment stays fixed.
@@ -155,18 +156,6 @@
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
-}
-
-add_action( 'admin_menu', 'sop_goodsin_register_menu', 99 );
-function sop_goodsin_register_menu() {
-    add_submenu_page(
-        'sop_stock_order_dashboard',
-        __( 'Goods In', 'sop' ),
-        __( 'Goods In', 'sop' ),
-        function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce',
-        'sop-goods-in',
-        'sop_render_goods_in_page'
-    );
 }
 
 /**

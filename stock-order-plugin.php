@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Stock Order
  * Description: Internal tool for suppliers, forecasting, purchase orders, container planning, goods-in, and labels/barcodes.
- * Version: 1.0.24
+ * Version: 1.0.25
  * Author: Wilson Organisation Ltd
  * Text Domain: sop
  * Domain Path: /languages
@@ -14,7 +14,8 @@
 /**
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
- * File version: 1.0.38
+ * File version: 1.0.39
+ * - Release 1.0.25: always register Goods In submenu in global Stock Order menu.
  * - Release 1.0.24: Goods-In SKU/Location click-to-copy; remove SKU icon UI.
  * - Release 1.0.23: Goods-In SKU copy button and SKU no-modal interaction zone.
  * - Release 1.0.22: Goods-In Ordered cell stock label now overlays without shifting qty baseline.
@@ -57,7 +58,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '1.0.24' );
+    define( 'SOP_PLUGIN_VERSION', '1.0.25' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {
@@ -363,6 +364,15 @@ if ( ! function_exists( 'sop_admin_menu_register_group_links' ) ) {
             sop_get_admin_capability(),
             'sop_stock_order_suppliers',
             'sop_admin_tabs_render_suppliers_redirect'
+        );
+
+        add_submenu_page(
+            $parent_slug,
+            __( 'Goods In', 'sop' ),
+            __( 'Goods In', 'sop' ),
+            sop_get_admin_capability(),
+            'sop-goods-in',
+            'sop_render_goods_in_page'
         );
     }
 }
