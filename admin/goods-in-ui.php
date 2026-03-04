@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.53
+ * File version: 1.1.54
+ * - Release 1.0.27: Issues report export button visibility/formatting polish.
  * - Release 1.0.27: Goods-In issues report shows note line breaks + adds XLSX export button + image column.
  * - Menu: Goods In submenu registration moved to bootstrap for global/folded flyout visibility.
  * - Goods-In: SKU/Location click-to-copy; remove SKU icon (restore full SKU visibility).

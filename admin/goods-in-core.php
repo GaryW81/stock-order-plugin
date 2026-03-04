@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.35
+ * File version: 1.0.36
+ * - Release 1.0.27: Issues export status gate aligned to completed sheets + normalized friendly filename.
  * - Release 1.0.27: Goods-In issues XLSX export allowed for Completed sheets + improved filename.
  * - Add per-line correction AJAX endpoint for safe stock decreases.
  * - Block stock decreases during Goods-In apply handlers.
@@ -1431,7 +1432,7 @@ function sop_handle_export_goodsin_issues_xlsx() {
 
     $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
     if ( ! in_array( $status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
-        wp_die( esc_html__( 'Goods-In is not completed yet.', 'sop' ) );
+        wp_die( esc_html__( 'Goods-In sheet is not completed yet.', 'sop' ) );
     }
 
     $lines = sop_get_preorder_sheet_lines( $sheet_id, true );
@@ -1600,22 +1601,29 @@ function sop_handle_export_goodsin_issues_xlsx() {
         );
     }
 
-    $order_number = 0;
-    if ( isset( $sheet['order_number_owner'] ) ) {
-        $order_number = (int) $sheet['order_number_owner'];
+    $order_number_raw = '';
+    if ( isset( $sheet['order_number_owner'] ) && '' !== (string) $sheet['order_number_owner'] ) {
+        $order_number_raw = (string) $sheet['order_number_owner'];
     }
-    if ( $order_number <= 0 && isset( $sheet['order_number'] ) ) {
-        $order_number = (int) $sheet['order_number'];
+    if ( '' === $order_number_raw && isset( $sheet['order_number'] ) && '' !== (string) $sheet['order_number'] ) {
+        $order_number_raw = (string) $sheet['order_number'];
     }
-    if ( $order_number <= 0 && isset( $sheet['order'] ) ) {
-        $order_number = (int) $sheet['order'];
+    if ( '' === $order_number_raw && isset( $sheet['order'] ) && '' !== (string) $sheet['order'] ) {
+        $order_number_raw = (string) $sheet['order'];
     }
-    if ( $order_number <= 0 ) {
-        $order_number = (int) $sheet_id;
+    if ( '' === $order_number_raw && isset( $sheet['order_number_label'] ) && '' !== (string) $sheet['order_number_label'] ) {
+        $order_number_raw = (string) $sheet['order_number_label'];
+    }
+    if ( '' === $order_number_raw ) {
+        $order_number_raw = (string) (int) $sheet_id;
+    }
+    $order_number = preg_replace( '/\D+/', '', $order_number_raw );
+    if ( '' === $order_number ) {
+        $order_number = (string) (int) $sheet_id;
     }
 
     $date_str = current_time( 'Y-m-d' );
-    $filename = '#' . $order_number . ' Goods-In Report ' . $date_str . '.xlsx';
+    $filename = sprintf( '#%s Goods-In Report %s.xlsx', $order_number, $date_str );
     $filename = trim( str_replace( array( "\r", "\n" ), '', $filename ) );
 
     if ( function_exists( 'sop_export_send_file_and_exit' ) ) {
