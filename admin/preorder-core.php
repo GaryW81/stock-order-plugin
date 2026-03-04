@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.77
+ * File version: 11.78
+ * - 11.78 - Release 1.0.31: reset-all Qty now requires modal confirm flag and returns clear failure reasons.
  * - 11.77 - Release 1.0.30: add confirmed bulk reset of all draft sheet Qty values to 0.
  * - 11.76 - Use capability helper for Stock Order UI access.
  * - 11.75 - Sanitize product/internal notes using SOP notes allowlist.
@@ -892,9 +893,10 @@ function sop_handle_preorder_reset_qty_all() {
 
     check_admin_referer( 'sop_preorder_reset_qty_all', 'sop_preorder_reset_qty_nonce' );
 
-    $sheet_id        = isset( $_POST['sheet_id'] ) ? absint( wp_unslash( $_POST['sheet_id'] ) ) : 0;
-    $confirm_reset   = isset( $_POST['sop_preorder_reset_confirm'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_preorder_reset_confirm'] ) ) : '';
-    $redirect_status = '0';
+    $sheet_id          = isset( $_POST['sheet_id'] ) ? absint( wp_unslash( $_POST['sheet_id'] ) ) : 0;
+    $confirm_is_valid  = isset( $_POST['sop_preorder_reset_confirm'] ) && '1' === sanitize_text_field( wp_unslash( $_POST['sop_preorder_reset_confirm'] ) );
+    $redirect_status   = '0';
+    $redirect_error    = '';
 
     $redirect_base = admin_url( 'admin.php?page=sop-preorder-sheet' );
     if ( $sheet_id > 0 ) {
@@ -904,10 +906,17 @@ function sop_handle_preorder_reset_qty_all() {
     if ( is_string( $referer ) && '' !== $referer ) {
         $redirect_base = $referer;
     }
-    $redirect_base = remove_query_arg( 'sop_reset_qty', $redirect_base );
+    $redirect_base = remove_query_arg( array( 'sop_reset_qty', 'sop_reset_qty_error' ), $redirect_base );
 
-    if ( $sheet_id <= 0 || '1' !== $confirm_reset ) {
-        wp_safe_redirect( add_query_arg( 'sop_reset_qty', $redirect_status, $redirect_base ) );
+    if ( $sheet_id <= 0 || ! $confirm_is_valid ) {
+        if ( ! $confirm_is_valid ) {
+            $redirect_error = 'confirm_required';
+        }
+        $redirect_args = array( 'sop_reset_qty' => $redirect_status );
+        if ( '' !== $redirect_error ) {
+            $redirect_args['sop_reset_qty_error'] = $redirect_error;
+        }
+        wp_safe_redirect( add_query_arg( $redirect_args, $redirect_base ) );
         exit;
     }
 

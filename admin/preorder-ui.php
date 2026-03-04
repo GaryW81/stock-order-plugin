@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.11 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.12 *
+ * - V13.12 - Release 1.0.31: reset-all Qty now uses custom modal confirmation (no checkbox/browser alert).
  * - V13.11 - Release 1.0.30: add confirmed bulk reset action to set all Qty values to 0 on editable sheets.
  * - V13.10 - Use capability helper for Stock Order UI access.
  * - V13.09 - UI: set Container select width to 150px.
@@ -1282,6 +1283,7 @@ function sop_preorder_render_admin_page() {
         $sop_sheet_id          = isset( $_GET['sop_sheet_id'] ) ? absint( $_GET['sop_sheet_id'] ) : 0;
         $sop_preorder_readonly = isset( $_GET['sop_preorder_readonly'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_preorder_readonly'] ) ) : '';
         $sop_reset_qty         = isset( $_GET['sop_reset_qty'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_reset_qty'] ) ) : '';
+        $sop_reset_qty_error   = isset( $_GET['sop_reset_qty_error'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_reset_qty_error'] ) ) : '';
 
         if ( '1' === $sop_saved ) {
             $message = $sop_sheet_id
@@ -1310,9 +1312,13 @@ function sop_preorder_render_admin_page() {
                 esc_html__( 'All quantities reset to 0.', 'sop' )
             );
         } elseif ( '0' === $sop_reset_qty ) {
+            $reset_error_message = __( 'Reset failed.', 'sop' );
+            if ( 'confirm_required' === $sop_reset_qty_error ) {
+                $reset_error_message = __( 'Reset failed: confirmation was not completed.', 'sop' );
+            }
             printf(
                 '<div class="notice notice-error"><p>%s</p></div>',
-                esc_html__( 'Reset failed.', 'sop' )
+                esc_html( $reset_error_message )
             );
         }
         ?>
@@ -1568,12 +1574,9 @@ function sop_preorder_render_admin_page() {
                                     <form class="sop-preorder-reset-qty-form" id="sop-preorder-reset-qty-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                                         <input type="hidden" name="action" value="sop_preorder_reset_qty_all" />
                                         <input type="hidden" name="sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+                                        <input type="hidden" name="sop_preorder_reset_confirm" id="sop-preorder-reset-confirm-input" value="0" />
                                         <?php wp_nonce_field( 'sop_preorder_reset_qty_all', 'sop_preorder_reset_qty_nonce' ); ?>
-                                        <label for="sop-preorder-reset-confirm" class="sop-preorder-reset-qty-confirm">
-                                            <input type="checkbox" name="sop_preorder_reset_confirm" id="sop-preorder-reset-confirm" value="1" />
-                                            <?php esc_html_e( 'Are you sure?', 'sop' ); ?>
-                                        </label>
-                                        <button type="submit" class="button button-secondary" id="sop-preorder-reset-qty-button">
+                                        <button type="button" class="button button-secondary" id="sop-preorder-reset-qty-button">
                                             <?php esc_html_e( 'Reset all Qty to 0', 'sop' ); ?>
                                         </button>
                                     </form>
@@ -2197,6 +2200,17 @@ function sop_preorder_render_admin_page() {
                     <div class="sop-notes-preview-modal-body"></div>
                 </div>
             </div>
+            <?php if ( ! $sop_sheet_is_readonly && $current_sheet_id > 0 ) : ?>
+                <div id="sop-preorder-reset-modal-overlay" aria-hidden="true"></div>
+                <div id="sop-preorder-reset-modal" role="dialog" aria-modal="true" aria-labelledby="sop-preorder-reset-modal-title" aria-hidden="true">
+                    <h3 id="sop-preorder-reset-modal-title"><?php esc_html_e( 'Reset all quantities to 0?', 'sop' ); ?></h3>
+                    <p><?php esc_html_e( 'Reset all quantities to 0? This cannot be undone.', 'sop' ); ?></p>
+                    <div class="sop-preorder-reset-modal-actions">
+                        <button type="button" class="button button-secondary" id="sop-preorder-reset-modal-cancel"><?php esc_html_e( 'Cancel', 'sop' ); ?></button>
+                        <button type="button" class="button button-primary" id="sop-preorder-reset-modal-confirm"><?php esc_html_e( 'Yes, reset', 'sop' ); ?></button>
+                    </div>
+                </div>
+            <?php endif; ?>
 
             <div class="sop-preorder-actions">
                 <?php if ( ! $sop_sheet_is_locked ) : ?>
@@ -2818,14 +2832,6 @@ function sop_preorder_render_admin_page() {
             flex-wrap: wrap;
             gap: 6px;
             margin: 0;
-        }
-
-        .sop-preorder-reset-qty-confirm {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            margin: 0;
-            white-space: nowrap;
         }
 
         .sop-preorder-toolbar-row--search {
@@ -4077,6 +4083,37 @@ function sop_preorder_render_admin_page() {
             overflow: auto;
             white-space: normal;
         }
+
+        #sop-preorder-reset-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba( 0, 0, 0, 0.45 );
+            z-index: 99990;
+            display: none;
+        }
+
+        #sop-preorder-reset-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate( -50%, -50% );
+            z-index: 99991;
+            background: #fff;
+            border-radius: 8px;
+            max-width: 420px;
+            width: calc( 100% - 40px );
+            padding: 18px;
+            box-shadow: 0 10px 30px rgba( 0, 0, 0, 0.3 );
+            display: none;
+        }
+
+        #sop-preorder-reset-modal .sop-preorder-reset-modal-actions {
+            margin-top: 16px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
     </style>
 
     <script>
@@ -4124,7 +4161,12 @@ function sop_preorder_render_admin_page() {
             var sopPreorderIsReadOnly = <?php echo $sop_sheet_is_readonly ? 'true' : 'false'; ?>;
             var $saveUpdateButtons   = $( '#sop-update-sheet-top, #sop-update-sheet-bottom, .sop-preorder-save-sheet, .sop-preorder-update-sheet' );
             var $resetQtyForm        = $( '#sop-preorder-reset-qty-form' );
-            var $resetQtyConfirm     = $( '#sop-preorder-reset-confirm' );
+            var $resetQtyButton      = $( '#sop-preorder-reset-qty-button' );
+            var $resetQtyConfirmInput = $( '#sop-preorder-reset-confirm-input' );
+            var $resetModalOverlay   = $( '#sop-preorder-reset-modal-overlay' );
+            var $resetModal          = $( '#sop-preorder-reset-modal' );
+            var $resetModalCancel    = $( '#sop-preorder-reset-modal-cancel' );
+            var $resetModalConfirm   = $( '#sop-preorder-reset-modal-confirm' );
             var $tableWrapper        = $('.sop-preorder-table-wrapper');
             if ( ! $tableWrapper.length ) {
                 $tableWrapper = $('.sop-preorder-table-frame');
@@ -4279,13 +4321,43 @@ function sop_preorder_render_admin_page() {
             }
 
             if ( $resetQtyForm.length ) {
-                $resetQtyForm.on( 'submit', function( e ) {
-                    if ( ! $resetQtyConfirm.is( ':checked' ) ) {
-                        e.preventDefault();
-                        window.alert( "Tick 'Are you sure?' to reset all Qty to 0." );
-                        return false;
+                var sopPreorderCloseResetModal = function() {
+                    $resetModal.hide().attr( 'aria-hidden', 'true' );
+                    $resetModalOverlay.hide().attr( 'aria-hidden', 'true' );
+                };
+
+                var sopPreorderOpenResetModal = function() {
+                    if ( $resetQtyConfirmInput.length ) {
+                        $resetQtyConfirmInput.val( '0' );
                     }
-                    return true;
+                    $resetModalOverlay.show().attr( 'aria-hidden', 'false' );
+                    $resetModal.show().attr( 'aria-hidden', 'false' );
+                };
+
+                if ( $resetQtyButton.length ) {
+                    $resetQtyButton.on( 'click', function( e ) {
+                        e.preventDefault();
+                        sopPreorderOpenResetModal();
+                    } );
+                }
+
+                $resetModalCancel.on( 'click', function( e ) {
+                    e.preventDefault();
+                    sopPreorderCloseResetModal();
+                } );
+
+                $resetModalOverlay.on( 'click', function() {
+                    sopPreorderCloseResetModal();
+                } );
+
+                $resetModalConfirm.on( 'click', function( e ) {
+                    e.preventDefault();
+                    if ( $resetQtyConfirmInput.length ) {
+                        $resetQtyConfirmInput.val( '1' );
+                    }
+                    sopPreorderCloseResetModal();
+                    sopPreorderIsSubmittingSheet = true;
+                    $resetQtyForm.trigger( 'submit' );
                 } );
             }
 
