@@ -1,5 +1,6 @@
 <?php
-/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.10 *
+/*** Stock Order Plugin - Phase 4.1 - Pre-Order Sheet UI (admin only) V13.11 *
+ * - V13.11 - Release 1.0.30: add confirmed bulk reset action to set all Qty values to 0 on editable sheets.
  * - V13.10 - Use capability helper for Stock Order UI access.
  * - V13.09 - UI: set Container select width to 150px.
  * - V13.08 - UI: fix Container select to fixed width (fits longest option).
@@ -1277,9 +1278,10 @@ function sop_preorder_render_admin_page() {
             ?>
         </h1>
         <?php
-        $sop_saved            = isset( $_GET['sop_saved'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_saved'] ) ) : '';
-        $sop_sheet_id         = isset( $_GET['sop_sheet_id'] ) ? absint( $_GET['sop_sheet_id'] ) : 0;
+        $sop_saved             = isset( $_GET['sop_saved'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_saved'] ) ) : '';
+        $sop_sheet_id          = isset( $_GET['sop_sheet_id'] ) ? absint( $_GET['sop_sheet_id'] ) : 0;
         $sop_preorder_readonly = isset( $_GET['sop_preorder_readonly'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_preorder_readonly'] ) ) : '';
+        $sop_reset_qty         = isset( $_GET['sop_reset_qty'] ) ? sanitize_text_field( wp_unslash( $_GET['sop_reset_qty'] ) ) : '';
 
         if ( '1' === $sop_saved ) {
             $message = $sop_sheet_id
@@ -1300,6 +1302,17 @@ function sop_preorder_render_admin_page() {
             printf(
                 '<div class="notice notice-error"><p>%s</p></div>',
                 esc_html( sprintf( __( 'This sheet is %s and is read-only. Unlock to edit.', 'sop' ), $current_stage_label ) )
+            );
+        }
+        if ( '1' === $sop_reset_qty ) {
+            printf(
+                '<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+                esc_html__( 'All quantities reset to 0.', 'sop' )
+            );
+        } elseif ( '0' === $sop_reset_qty ) {
+            printf(
+                '<div class="notice notice-error"><p>%s</p></div>',
+                esc_html__( 'Reset failed.', 'sop' )
             );
         }
         ?>
@@ -1551,6 +1564,20 @@ function sop_preorder_render_admin_page() {
                             <div class="sop-preorder-bottom-middle sop-preorder-toolbar-row sop-preorder-toolbar-row--actions">
                                 <button type="button" class="button" id="sop-apply-soq-to-qty" <?php echo $sop_disabled_attr; ?>><?php esc_html_e( 'Apply SOQ to Qty', 'sop' ); ?></button>
                                 <button type="button" class="button" id="sop-preorder-remove-selected" <?php echo $sop_disabled_attr; ?>><?php esc_html_e( 'Remove selected', 'sop' ); ?></button>
+                                <?php if ( ! $sop_sheet_is_readonly && $current_sheet_id > 0 ) : ?>
+                                    <form class="sop-preorder-reset-qty-form" id="sop-preorder-reset-qty-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                                        <input type="hidden" name="action" value="sop_preorder_reset_qty_all" />
+                                        <input type="hidden" name="sheet_id" value="<?php echo esc_attr( $current_sheet_id ); ?>" />
+                                        <?php wp_nonce_field( 'sop_preorder_reset_qty_all', 'sop_preorder_reset_qty_nonce' ); ?>
+                                        <label for="sop-preorder-reset-confirm" class="sop-preorder-reset-qty-confirm">
+                                            <input type="checkbox" name="sop_preorder_reset_confirm" id="sop-preorder-reset-confirm" value="1" />
+                                            <?php esc_html_e( 'Are you sure?', 'sop' ); ?>
+                                        </label>
+                                        <button type="submit" class="button button-secondary" id="sop-preorder-reset-qty-button">
+                                            <?php esc_html_e( 'Reset all Qty to 0', 'sop' ); ?>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
                                 <label for="sop-preorder-show-removed" class="sop-preorder-show-removed">
                                     <input type="checkbox" id="sop-preorder-show-removed" <?php echo $sop_disabled_attr; ?> />
                                     <?php esc_html_e( 'Show removed rows', 'sop' ); ?>
@@ -2783,6 +2810,22 @@ function sop_preorder_render_admin_page() {
 
         .sop-preorder-toolbar-row--actions {
             flex: 0 1 auto;
+        }
+
+        .sop-preorder-reset-qty-form {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 0;
+        }
+
+        .sop-preorder-reset-qty-confirm {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin: 0;
+            white-space: nowrap;
         }
 
         .sop-preorder-toolbar-row--search {
@@ -4080,6 +4123,8 @@ function sop_preorder_render_admin_page() {
             var sopPreorderIsSubmittingSheet = false;
             var sopPreorderIsReadOnly = <?php echo $sop_sheet_is_readonly ? 'true' : 'false'; ?>;
             var $saveUpdateButtons   = $( '#sop-update-sheet-top, #sop-update-sheet-bottom, .sop-preorder-save-sheet, .sop-preorder-update-sheet' );
+            var $resetQtyForm        = $( '#sop-preorder-reset-qty-form' );
+            var $resetQtyConfirm     = $( '#sop-preorder-reset-confirm' );
             var $tableWrapper        = $('.sop-preorder-table-wrapper');
             if ( ! $tableWrapper.length ) {
                 $tableWrapper = $('.sop-preorder-table-frame');
@@ -4230,6 +4275,17 @@ function sop_preorder_render_admin_page() {
                 $saveUpdateButtons.on( 'click', function() {
                     sopPreorderIsSubmittingSheet = true;
                     hasUnsavedChanges = false;
+                } );
+            }
+
+            if ( $resetQtyForm.length ) {
+                $resetQtyForm.on( 'submit', function( e ) {
+                    if ( ! $resetQtyConfirm.is( ':checked' ) ) {
+                        e.preventDefault();
+                        window.alert( "Tick 'Are you sure?' to reset all Qty to 0." );
+                        return false;
+                    }
+                    return true;
                 } );
             }
 

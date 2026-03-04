@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 4.1 - Pre-Order Sheet Core (admin only)
- * File version: 11.76
+ * File version: 11.77
+ * - 11.77 - Release 1.0.30: add confirmed bulk reset of all draft sheet Qty values to 0.
  * - 11.76 - Use capability helper for Stock Order UI access.
  * - 11.75 - Sanitize product/internal notes using SOP notes allowlist.
  * - 11.74 - Add additional CBM planning field to preorder_planning + carry through filter/save redirects.
@@ -795,6 +796,7 @@ function sop_preorder_get_sheets_all( array $statuses ) {
 add_action( 'admin_post_sop_preorder_filter', 'sop_handle_preorder_filter' );
 add_action( 'admin_post_sop_preorder_lock_sheet', 'sop_preorder_handle_lock_sheet' );
 add_action( 'admin_post_sop_preorder_unlock_sheet', 'sop_preorder_handle_unlock_sheet' );
+add_action( 'admin_post_sop_preorder_reset_qty_all', 'sop_handle_preorder_reset_qty_all' );
 function sop_handle_preorder_filter() {
     if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
         wp_die( esc_html__( 'You do not have permission to update preorder filters.', 'sop' ) );
@@ -875,6 +877,85 @@ function sop_handle_preorder_filter() {
 
     $redirect = add_query_arg( $redirect_args, admin_url( 'admin.php' ) );
     wp_safe_redirect( $redirect );
+    exit;
+}
+
+/**
+ * Reset all editable sheet quantities to zero for non-removed lines.
+ *
+ * @return void
+ */
+function sop_handle_preorder_reset_qty_all() {
+    if ( ! current_user_can( function_exists( 'sop_get_admin_capability' ) ? sop_get_admin_capability() : 'manage_woocommerce' ) ) {
+        wp_die( esc_html__( 'You do not have permission to reset preorder quantities.', 'sop' ) );
+    }
+
+    check_admin_referer( 'sop_preorder_reset_qty_all', 'sop_preorder_reset_qty_nonce' );
+
+    $sheet_id        = isset( $_POST['sheet_id'] ) ? absint( wp_unslash( $_POST['sheet_id'] ) ) : 0;
+    $confirm_reset   = isset( $_POST['sop_preorder_reset_confirm'] ) ? sanitize_text_field( wp_unslash( $_POST['sop_preorder_reset_confirm'] ) ) : '';
+    $redirect_status = '0';
+
+    $redirect_base = admin_url( 'admin.php?page=sop-preorder-sheet' );
+    if ( $sheet_id > 0 ) {
+        $redirect_base = add_query_arg( 'sop_sheet_id', $sheet_id, $redirect_base );
+    }
+    $referer = wp_get_referer();
+    if ( is_string( $referer ) && '' !== $referer ) {
+        $redirect_base = $referer;
+    }
+    $redirect_base = remove_query_arg( 'sop_reset_qty', $redirect_base );
+
+    if ( $sheet_id <= 0 || '1' !== $confirm_reset ) {
+        wp_safe_redirect( add_query_arg( 'sop_reset_qty', $redirect_status, $redirect_base ) );
+        exit;
+    }
+
+    if ( ! function_exists( 'sop_get_preorder_sheet' ) ) {
+        wp_safe_redirect( add_query_arg( 'sop_reset_qty', $redirect_status, $redirect_base ) );
+        exit;
+    }
+
+    $sheet = sop_get_preorder_sheet( $sheet_id );
+    if ( ! is_array( $sheet ) ) {
+        wp_safe_redirect( add_query_arg( 'sop_reset_qty', $redirect_status, $redirect_base ) );
+        exit;
+    }
+
+    $sheet_status = isset( $sheet['status'] ) ? strtolower( trim( (string) $sheet['status'] ) ) : '';
+    $is_editable  = ( '' === $sheet_status || 'draft' === $sheet_status || 'in_progress' === $sheet_status );
+    if ( function_exists( 'sop_get_preorder_sheet_stage_info' ) ) {
+        $stage_info  = sop_get_preorder_sheet_stage_info( $sheet_status );
+        $is_editable = ( ! empty( $stage_info['is_editable'] ) && in_array( $sheet_status, array( '', 'draft', 'in_progress' ), true ) );
+    }
+
+    if ( ! $is_editable ) {
+        wp_safe_redirect( add_query_arg( 'sop_reset_qty', $redirect_status, $redirect_base ) );
+        exit;
+    }
+
+    global $wpdb;
+    $table_lines = function_exists( 'sop_get_preorder_sheet_lines_table_name' ) ? sop_get_preorder_sheet_lines_table_name() : ( $wpdb->prefix . 'sop_preorder_sheet_lines' );
+    if ( '' === $table_lines ) {
+        wp_safe_redirect( add_query_arg( 'sop_reset_qty', $redirect_status, $redirect_base ) );
+        exit;
+    }
+
+    $updated = $wpdb->query(
+        $wpdb->prepare(
+            "UPDATE {$table_lines}
+             SET qty_owner = 0
+             WHERE sheet_id = %d
+               AND ( is_removed_owner = 0 OR is_removed_owner IS NULL )",
+            $sheet_id
+        )
+    ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+
+    if ( false !== $updated ) {
+        $redirect_status = '1';
+    }
+
+    wp_safe_redirect( add_query_arg( 'sop_reset_qty', $redirect_status, $redirect_base ) );
     exit;
 }
 
