@@ -1,8 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.34
- * - Fix: Goods-In issues XLSX export allowed for Completed sheets + improved filename.
+ * File version: 1.0.35
+ * - Release 1.0.27: Goods-In issues XLSX export allowed for Completed sheets + improved filename.
  * - Add per-line correction AJAX endpoint for safe stock decreases.
  * - Block stock decreases during Goods-In apply handlers.
  * - Require confirmation flag before completing Goods-In.
