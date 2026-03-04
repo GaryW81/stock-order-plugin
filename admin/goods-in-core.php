@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.36
+ * File version: 1.0.37
+ * - Release 1.0.27: Issues export includes notes/reason-only lines (summary + XLSX rows).
  * - Release 1.0.27: Issues export status gate aligned to completed sheets + normalized friendly filename.
  * - Release 1.0.27: Goods-In issues XLSX export allowed for Completed sheets + improved filename.
  * - Add per-line correction AJAX endpoint for safe stock decreases.
@@ -402,7 +403,22 @@ function sop_goodsin_get_issues_summary_for_sheet( array $sheet, array $lines_ma
     foreach ( $lines_map as $line ) {
         $missing = sop_goodsin_get_number_from_line( $line, array( 'goods_in_missing_qty_owner', 'goods_in_missing_qty' ) );
         $reject  = sop_goodsin_get_number_from_line( $line, array( 'goods_in_reject_qty_owner', 'goods_in_reject_qty' ) );
-        if ( $missing <= 0 && $reject <= 0 ) {
+        $reason_text = '';
+        if ( isset( $line['goods_in_reject_reason_owner'] ) ) {
+            $reason_text = (string) $line['goods_in_reject_reason_owner'];
+        } elseif ( isset( $line['goods_in_reject_reason'] ) ) {
+            $reason_text = (string) $line['goods_in_reject_reason'];
+        } elseif ( isset( $line['reject_reason'] ) ) {
+            $reason_text = (string) $line['reject_reason'];
+        }
+        $notes_text = '';
+        if ( isset( $line['goods_in_notes_owner'] ) ) {
+            $notes_text = (string) $line['goods_in_notes_owner'];
+        } elseif ( isset( $line['goods_in_notes'] ) ) {
+            $notes_text = (string) $line['goods_in_notes'];
+        }
+        $has_text_issue = ( '' !== trim( $reason_text ) || '' !== trim( wp_strip_all_tags( $notes_text ) ) );
+        if ( $missing <= 0 && $reject <= 0 && ! $has_text_issue ) {
             continue;
         }
 
@@ -1459,7 +1475,22 @@ function sop_handle_export_goodsin_issues_xlsx() {
     foreach ( $lines as $line ) {
         $missing = sop_goodsin_get_number_from_line( $line, array( 'goods_in_missing_qty_owner', 'goods_in_missing_qty' ) );
         $reject  = sop_goodsin_get_number_from_line( $line, array( 'goods_in_reject_qty_owner', 'goods_in_reject_qty' ) );
-        if ( $missing <= 0 && $reject <= 0 ) {
+        $reason_text = '';
+        if ( isset( $line['goods_in_reject_reason_owner'] ) ) {
+            $reason_text = (string) $line['goods_in_reject_reason_owner'];
+        } elseif ( isset( $line['goods_in_reject_reason'] ) ) {
+            $reason_text = (string) $line['goods_in_reject_reason'];
+        } elseif ( isset( $line['reject_reason'] ) ) {
+            $reason_text = (string) $line['reject_reason'];
+        }
+        $notes_text = '';
+        if ( isset( $line['goods_in_notes_owner'] ) ) {
+            $notes_text = (string) $line['goods_in_notes_owner'];
+        } elseif ( isset( $line['goods_in_notes'] ) ) {
+            $notes_text = (string) $line['goods_in_notes'];
+        }
+        $has_text_issue = ( '' !== trim( $reason_text ) || '' !== trim( wp_strip_all_tags( $notes_text ) ) );
+        if ( $missing <= 0 && $reject <= 0 && ! $has_text_issue ) {
             continue;
         }
 
@@ -1580,7 +1611,7 @@ function sop_handle_export_goodsin_issues_xlsx() {
     }
 
     if ( empty( $issue_lines ) ) {
-        wp_die( esc_html__( 'No missing/rejected lines to export.', 'sop' ) );
+        wp_die( esc_html__( 'No issue lines to export.', 'sop' ) );
     }
 
     if ( ! class_exists( 'SOP_Preorder_XLSX_Exporter' ) ) {

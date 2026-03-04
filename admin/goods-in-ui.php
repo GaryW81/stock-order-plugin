@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.54
+ * File version: 1.1.55
+ * - Release 1.0.27: Issues report export button also shown for notes/reason-only issue lines.
  * - Release 1.0.27: Issues report export button visibility/formatting polish.
  * - Release 1.0.27: Goods-In issues report shows note line breaks + adds XLSX export button + image column.
  * - Menu: Goods In submenu registration moved to bootstrap for global/folded flyout visibility.
@@ -652,9 +653,24 @@ function sop_render_goods_in_page() {
     foreach ( $lines as $line_check ) {
         $miss = isset( $line_check['goods_in_missing_qty_owner'] ) ? (float) $line_check['goods_in_missing_qty_owner'] : ( isset( $line_check['goods_in_missing_qty'] ) ? (float) $line_check['goods_in_missing_qty'] : ( isset( $line_check['missing_qty'] ) ? (float) $line_check['missing_qty'] : 0.0 ) );
         $rej  = isset( $line_check['goods_in_reject_qty_owner'] ) ? (float) $line_check['goods_in_reject_qty_owner'] : ( isset( $line_check['goods_in_reject_qty'] ) ? (float) $line_check['goods_in_reject_qty'] : ( isset( $line_check['reject_qty'] ) ? (float) $line_check['reject_qty'] : 0.0 ) );
+        $reason_text = '';
+        if ( isset( $line_check['goods_in_reject_reason_owner'] ) ) {
+            $reason_text = (string) $line_check['goods_in_reject_reason_owner'];
+        } elseif ( isset( $line_check['goods_in_reject_reason'] ) ) {
+            $reason_text = (string) $line_check['goods_in_reject_reason'];
+        } elseif ( isset( $line_check['reject_reason'] ) ) {
+            $reason_text = (string) $line_check['reject_reason'];
+        }
+        $notes_text = '';
+        if ( isset( $line_check['goods_in_notes_owner'] ) ) {
+            $notes_text = (string) $line_check['goods_in_notes_owner'];
+        } elseif ( isset( $line_check['goods_in_notes'] ) ) {
+            $notes_text = (string) $line_check['goods_in_notes'];
+        }
+        $has_text_issue = ( '' !== trim( $reason_text ) || '' !== trim( wp_strip_all_tags( $notes_text ) ) );
         $rec  = isset( $line_check['goods_in_received_qty_owner'] ) ? (float) $line_check['goods_in_received_qty_owner'] : ( isset( $line_check['goods_in_received_qty'] ) ? (float) $line_check['goods_in_received_qty'] : ( isset( $line_check['received_qty'] ) ? (float) $line_check['received_qty'] : 0.0 ) );
         $stocked = isset( $line_check['goods_in_stock_added_qty'] ) ? (float) $line_check['goods_in_stock_added_qty'] : 0.0;
-        if ( $miss > 0 || $rej > 0 ) {
+        if ( $miss > 0 || $rej > 0 || $has_text_issue ) {
             $has_issue_lines = true;
         }
         if ( $rec > 0 || $miss > 0 || $rej > 0 || $stocked > 0 ) {
@@ -1415,13 +1431,14 @@ function sop_render_goods_in_page() {
                     $missing = isset( $line['goods_in_missing_qty'] ) ? (float) $line['goods_in_missing_qty'] : 0.0;
                     $reject  = isset( $line['goods_in_reject_qty'] ) ? (float) $line['goods_in_reject_qty'] : 0.0;
                     $notes   = isset( $line['goods_in_notes'] ) ? (string) $line['goods_in_notes'] : '';
-                    if ( $missing <= 0 && $reject <= 0 && '' === trim( $notes ) ) {
+                    $reason = isset( $line['goods_in_reject_reason'] ) ? (string) $line['goods_in_reject_reason'] : '';
+                    $has_text_issue = ( '' !== trim( $reason ) || '' !== trim( wp_strip_all_tags( $notes ) ) );
+                    if ( $missing <= 0 && $reject <= 0 && ! $has_text_issue ) {
                         continue;
                     }
                     $issue_rows++;
                     $sku   = isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '';
                     $name  = isset( $line['product_name'] ) ? (string) $line['product_name'] : '';
-                    $reason = isset( $line['goods_in_reject_reason'] ) ? (string) $line['goods_in_reject_reason'] : '';
                     $issue_product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
                     if ( $issue_product_id <= 0 && function_exists( 'wc_get_product_id_by_sku' ) ) {
                         $sku_for_pid = '';
