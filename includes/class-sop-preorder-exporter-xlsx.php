@@ -1,7 +1,7 @@
 <?php
 /**
  * Stock Order Plugin - Preorder XLSX Exporter (embedded images)
- * File version: 1.1.09
+ * File version: 1.1.10
  *
  * Build a real XLSX with embedded images (no external URLs) for pre-order sheets.
  * - Column widths + wrap text + 1.6cm images + preserve SKU spaces.
@@ -38,6 +38,7 @@
  * - Add Goods-In Issues XLSX export (missing/reject lines only).
  * - Align Goods-In Issues export to preorder columns + locked FX credit columns.
  * - Update image sizing (78px in 80px cell), row height, and Goods-In issues columns/widths.
+ * - 1.1.10 - Release 1.0.29: remove Internal notes from supplier Order Sheet + formula Credit total (USD) in Goods-In Issues.
  * - 1.1.09 - XLSX: force full recalculation on open so formula cells populate automatically.
  * - 1.1.08 - XLSX: Supplier Summary mirrors Order Summary template and preserves FX formulas (no hard-coded RMB cells).
  * - 1.1.07 - Notes: preserve arbitrary note colours in XLSX export.
@@ -418,7 +419,6 @@ class SOP_Preorder_XLSX_Exporter {
         }
         $columns[] = 'Total (' . $supplier_currency . ')';
         $columns[] = 'Product notes';
-        $columns[] = 'Internal notes';
         $columns[] = 'Order notes';
         $columns[] = 'Carton no.';
         $columns[] = 'cm3 per unit';
@@ -681,11 +681,6 @@ class SOP_Preorder_XLSX_Exporter {
         $unit_cost     = $costs['unit_cost_supplier'];
         $unit_cost_rmb = $costs['unit_cost_rmb'];
         $product_notes = isset( $line['product_notes'] ) ? $line['product_notes'] : ( isset( $line['product_notes_owner'] ) ? $line['product_notes_owner'] : ( isset( $line['notes'] ) ? $line['notes'] : '' ) );
-        $internal_notes = '';
-        if ( $product_id > 0 ) {
-            $internal_notes = get_post_meta( $product_id, '_sop_internal_product_notes', true );
-        }
-        $internal_notes = is_string( $internal_notes ) ? $internal_notes : '';
         $order_notes   = isset( $line['order_notes'] ) ? $line['order_notes'] : ( isset( $line['order_notes_owner'] ) ? $line['order_notes_owner'] : '' );
         $carton_number = isset( $line['carton_no'] ) ? $line['carton_no'] : '';
         $cm3_per_unit  = self::get_line_float( $line, array( 'cbm_per_unit', 'cm3_per_unit', 'cubic_cm' ), 0.0 );
@@ -732,7 +727,6 @@ class SOP_Preorder_XLSX_Exporter {
         }
         $row_cells[] = self::format_number_cell( $line_total_supplier, 2 );
         $row_cells[] = self::sop_notes_build_cell_value( $product_notes );
-        $row_cells[] = self::sop_notes_build_cell_value( $internal_notes );
         $row_cells[] = $order_notes;
         $row_cells[] = $carton_number;
         $row_cells[] = self::format_number_cell( $cm3_per_unit, 4 );
@@ -757,7 +751,6 @@ class SOP_Preorder_XLSX_Exporter {
         }
         $row_styles[] = 8; // Total (supplier currency) 2dp.
         $row_styles[] = 6; // Product notes left.
-        $row_styles[] = 6; // Internal notes left.
         $row_styles[] = 6; // Order notes left.
         $row_styles[] = 6; // Carton left.
         $row_styles[] = 7; // cm3 right.
@@ -872,6 +865,10 @@ class SOP_Preorder_XLSX_Exporter {
             $issue_columns[] = 'FX used (RMB/USD)';
         }
         $columns = array_merge( $columns, $issue_columns );
+        $column_index = array();
+        foreach ( $columns as $col_idx => $label ) {
+            $column_index[ $label ] = $col_idx;
+        }
 
         $sheet_rows_xml = '';
         $sheet_rows_xml .= self::build_row_xml( 1, array_map( 'esc_html', $columns ), true, array(), $row_index - 2 );
@@ -971,10 +968,27 @@ class SOP_Preorder_XLSX_Exporter {
             $row_cells[]  = self::format_number_cell( $credit_total, 4 );
             $row_styles[] = 7;
             if ( $show_usd_column ) {
-                $row_cells[]  = self::format_number_cell( $credit_total_usd, 4 );
-                $row_styles[] = 7;
-                $row_cells[]  = ( $sheet_fx_for_usd > 0 ) ? number_format( (float) $sheet_fx_for_usd, 3, '.', '' ) : '';
-                $row_styles[] = 7;
+                $fx_cell_value = ( $sheet_fx_for_usd > 0 ) ? number_format( (float) $sheet_fx_for_usd, 3, '.', '' ) : '';
+                $row_cells[]   = ''; // Credit total (USD) formula set below.
+                $row_styles[]  = 7;
+                $row_cells[]   = $fx_cell_value;
+                $row_styles[]  = 7;
+
+                if ( isset( $column_index[ 'Credit total (USD)' ], $column_index[ 'FX used (RMB/USD)' ] ) ) {
+                    $credit_supplier_label = 'Credit total (' . $supplier_currency . ')';
+                    if ( isset( $column_index[ $credit_supplier_label ] ) ) {
+                        $usd_idx      = (int) $column_index['Credit total (USD)'];
+                        $rmb_idx      = (int) $column_index[ $credit_supplier_label ];
+                        $fx_idx       = (int) $column_index['FX used (RMB/USD)'];
+                        $rmb_ref      = self::column_letter( $rmb_idx ) . $row_index;
+                        $fx_ref       = self::column_letter( $fx_idx ) . $row_index;
+                        $row_cells[ $usd_idx ] = array(
+                            'type'    => 'formula',
+                            'formula' => 'IF(' . $fx_ref . '>0,' . $rmb_ref . '/' . $fx_ref . ',"")',
+                            'value'   => self::format_number_cell( $credit_total_usd, 4 ),
+                        );
+                    }
+                }
             }
 
             $sheet_rows_xml .= self::build_row_xml( $row_index, $row_cells, false, $row_styles, 0, array( 2 ) );
@@ -1014,11 +1028,6 @@ class SOP_Preorder_XLSX_Exporter {
 
         // Totals row.
         if ( $row_index > 2 ) {
-            $column_index = array();
-            foreach ( $columns as $idx => $label ) {
-                $column_index[ $label ] = $idx;
-            }
-
             $totals_cells  = array_fill( 0, count( $columns ), '' );
             $totals_styles = array_fill( 0, count( $columns ), null );
 
@@ -2083,10 +2092,23 @@ class SOP_Preorder_XLSX_Exporter {
 
             $force_inline = in_array( (int) $col_index, (array) $force_inline_cols, true );
             $is_rich      = is_array( $cell_value ) && isset( $cell_value['type'] ) && 'rich' === $cell_value['type'];
+            $is_formula   = is_array( $cell_value ) && isset( $cell_value['type'] ) && 'formula' === $cell_value['type'];
 
             $is_text_style = in_array( $style_idx, array( 1, 3 ), true );
 
-            if ( ! $is_rich && ! $force_inline && ! $is_text_style && is_numeric( $cell_value ) ) {
+            if ( $is_formula ) {
+                $formula = isset( $cell_value['formula'] ) ? trim( (string) $cell_value['formula'] ) : '';
+                $value   = isset( $cell_value['value'] ) ? $cell_value['value'] : '';
+                if ( '' !== $formula ) {
+                    $xml .= '<c r="' . $col_letter . '" s="' . $style_idx . '"><f>' . self::esc_xml( $formula ) . '</f>';
+                    if ( '' !== $value && null !== $value && is_numeric( $value ) ) {
+                        $xml .= '<v>' . self::format_number_cell( $value, 4 ) . '</v>';
+                    }
+                    $xml .= '</c>';
+                } else {
+                    $xml .= '<c r="' . $col_letter . '" t="inlineStr" s="' . $style_idx . '"><is><t xml:space="preserve"></t></is></c>';
+                }
+            } elseif ( ! $is_rich && ! $force_inline && ! $is_text_style && is_numeric( $cell_value ) ) {
                 $xml .= '<c r="' . $col_letter . '" s="' . $style_idx . '"><v>' . $cell_value . '</v></c>';
             } else {
                 $xml .= '<c r="' . $col_letter . '" t="inlineStr" s="' . $style_idx . '">';
@@ -2502,12 +2524,10 @@ class SOP_Preorder_XLSX_Exporter {
             $xml         .= '<col min="' . (int) $usd_col . '" max="' . (int) $usd_col . '" width="14.17" customWidth="1"/>'; // Unit price (USD).
         }
         $xml             .= '<col min="' . (int) $total_col . '" max="' . (int) $total_col . '" width="14.17" customWidth="1"/>'; // Total (supplier).
-        $product_notes_col  = ( $show_usd_column ? 12 : 11 ) + ( $include_supplier_skus ? 1 : 0 );
-        $internal_notes_col = $product_notes_col + 1;
-        $order_notes_col    = $product_notes_col + 2;
-        $carton_col         = $product_notes_col + 3;
+        $product_notes_col  = (int) $total_col + 1;
+        $order_notes_col    = $product_notes_col + 1;
+        $carton_col         = $product_notes_col + 2;
         $xml .= '<col min="' . (int) $product_notes_col . '" max="' . (int) $product_notes_col . '" width="60" customWidth="1"/>'; // Product notes.
-        $xml .= '<col min="' . (int) $internal_notes_col . '" max="' . (int) $internal_notes_col . '" width="60" customWidth="1"/>'; // Internal notes.
         $xml .= '<col min="' . (int) $order_notes_col . '" max="' . (int) $order_notes_col . '" width="60" customWidth="1"/>'; // Order notes.
         $xml .= '<col min="' . (int) $carton_col . '" max="' . (int) $carton_col . '" width="20.70" customWidth="1"/>'; // Carton no. (190px).
         $cm3_col = $carton_col + 1;
