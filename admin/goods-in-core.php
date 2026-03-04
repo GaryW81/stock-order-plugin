@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Core (admin only)
- * File version: 1.0.33
+ * File version: 1.0.34
+ * - Fix: Goods-In issues XLSX export allowed for Completed sheets + improved filename.
  * - Add per-line correction AJAX endpoint for safe stock decreases.
  * - Block stock decreases during Goods-In apply handlers.
  * - Require confirmation flag before completing Goods-In.
@@ -1429,7 +1430,7 @@ function sop_handle_export_goodsin_issues_xlsx() {
     }
 
     $status = isset( $sheet['status'] ) ? (string) $sheet['status'] : '';
-    if ( 'received' !== $status ) {
+    if ( ! in_array( $status, array( 'received', 'completed', 'complete', 'closed' ), true ) ) {
         wp_die( esc_html__( 'Goods-In is not completed yet.', 'sop' ) );
     }
 
@@ -1599,17 +1600,23 @@ function sop_handle_export_goodsin_issues_xlsx() {
         );
     }
 
-    $supplier_slug = 'supplier';
-    if ( function_exists( 'sop_supplier_get_by_id' ) && isset( $sheet['supplier_id'] ) ) {
-        $s = sop_supplier_get_by_id( (int) $sheet['supplier_id'] );
-        if ( is_object( $s ) && isset( $s->slug ) ) {
-            $supplier_slug = sanitize_title( $s->slug );
-        } elseif ( is_array( $s ) && isset( $s['slug'] ) ) {
-            $supplier_slug = sanitize_title( $s['slug'] );
-        }
+    $order_number = 0;
+    if ( isset( $sheet['order_number_owner'] ) ) {
+        $order_number = (int) $sheet['order_number_owner'];
+    }
+    if ( $order_number <= 0 && isset( $sheet['order_number'] ) ) {
+        $order_number = (int) $sheet['order_number'];
+    }
+    if ( $order_number <= 0 && isset( $sheet['order'] ) ) {
+        $order_number = (int) $sheet['order'];
+    }
+    if ( $order_number <= 0 ) {
+        $order_number = (int) $sheet_id;
     }
 
-    $filename = sprintf( 'goods-in-issues-%s-%d.xlsx', $supplier_slug, (int) $sheet_id );
+    $date_str = current_time( 'Y-m-d' );
+    $filename = '#' . $order_number . ' Goods-In Report ' . $date_str . '.xlsx';
+    $filename = trim( str_replace( array( "\r", "\n" ), '', $filename ) );
 
     if ( function_exists( 'sop_export_send_file_and_exit' ) ) {
         sop_export_send_file_and_exit(

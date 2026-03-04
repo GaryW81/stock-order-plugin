@@ -1,7 +1,8 @@
 <?php
 /**
  * Stock Order Plugin - Phase 5 (Goods-In v1) - Admin UI
- * File version: 1.1.51
+ * File version: 1.1.52
+ * - Fix: Goods-In issues report shows note line breaks + adds XLSX export button + image column.
  * - Menu: Goods In submenu registration moved to bootstrap for global/folded flyout visibility.
  * - Goods-In: SKU/Location click-to-copy; remove SKU icon (restore full SKU visibility).
  * - Goods-In: SKU copy button + prevent SKU clicks opening modal.
@@ -1390,13 +1391,14 @@ function sop_render_goods_in_page() {
                 <h3><?php esc_html_e( 'Goods-In Report (Issues)', 'sop' ); ?></h3>
                 <?php if ( $issue_export_url ) : ?>
                     <a class="button button-secondary" href="<?php echo esc_url( $issue_export_url ); ?>">
-                        <?php esc_html_e( 'Download Issues XLSX', 'sop' ); ?>
+                        <?php esc_html_e( 'Export XLSX', 'sop' ); ?>
                     </a>
                 <?php endif; ?>
             </div>
             <table class="widefat striped">
                 <thead>
                 <tr>
+                    <th><?php esc_html_e( 'Image', 'sop' ); ?></th>
                     <th><?php esc_html_e( 'SKU', 'sop' ); ?></th>
                     <th><?php esc_html_e( 'Product', 'sop' ); ?></th>
                     <th><?php esc_html_e( 'Missing', 'sop' ); ?></th>
@@ -1419,17 +1421,45 @@ function sop_render_goods_in_page() {
                     $sku   = isset( $line['sku_owner'] ) ? (string) $line['sku_owner'] : '';
                     $name  = isset( $line['product_name'] ) ? (string) $line['product_name'] : '';
                     $reason = isset( $line['goods_in_reject_reason'] ) ? (string) $line['goods_in_reject_reason'] : '';
+                    $issue_product_id = isset( $line['product_id'] ) ? (int) $line['product_id'] : 0;
+                    if ( $issue_product_id <= 0 && function_exists( 'wc_get_product_id_by_sku' ) ) {
+                        $sku_for_pid = '';
+                        if ( '' !== $sku ) {
+                            $sku_for_pid = $sku;
+                        } elseif ( isset( $line['sku'] ) ) {
+                            $sku_for_pid = (string) $line['sku'];
+                        }
+                        if ( '' === $sku_for_pid && isset( $line['sku_owner'] ) ) {
+                            $sku_for_pid = (string) $line['sku_owner'];
+                        }
+                        if ( '' !== $sku_for_pid ) {
+                            $issue_product_id = (int) wc_get_product_id_by_sku( $sku_for_pid );
+                        }
+                    }
+                    $thumb_html = '&mdash;';
+                    if ( $issue_product_id > 0 ) {
+                        $thumb_id = get_post_thumbnail_id( $issue_product_id );
+                        if ( $thumb_id ) {
+                            $thumb_html = wp_get_attachment_image(
+                                $thumb_id,
+                                array( 60, 60 ),
+                                false,
+                                array( 'class' => 'sop-goodsin-report-thumb-img' )
+                            );
+                        }
+                    }
                     echo '<tr>';
+                    echo '<td class="sop-goodsin-report-thumb">' . $thumb_html . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     echo '<td>' . esc_html( $sku ) . '</td>';
                     echo '<td>' . esc_html( $name ) . '</td>';
                     echo '<td>' . esc_html( number_format_i18n( $missing, 0 ) ) . '</td>';
                     echo '<td>' . esc_html( number_format_i18n( $reject, 0 ) ) . '</td>';
                     echo '<td>' . esc_html( $reason ) . '</td>';
-                    echo '<td>' . esc_html( $notes ) . '</td>';
+                    echo '<td class="sop-goodsin-report-notes"><div class="sop-goodsin-report-notes__text">' . esc_html( $notes ) . '</div></td>';
                     echo '</tr>';
                 }
                 if ( 0 === $issue_rows ) {
-                    echo '<tr><td colspan="6">' . esc_html__( 'No issues recorded.', 'sop' ) . '</td></tr>';
+                    echo '<tr><td colspan="7">' . esc_html__( 'No issues recorded.', 'sop' ) . '</td></tr>';
                 }
                 ?>
                 </tbody>
@@ -2652,6 +2682,16 @@ function sop_render_goods_in_page() {
             justify-content: space-between;
             gap: 12px;
             flex-wrap: wrap;
+        }
+        .sop-goodsin-report-thumb-img {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+            display: block;
+        }
+        .sop-goodsin-report-notes__text {
+            white-space: pre-wrap;
+            word-break: break-word;
         }
         .sop-goodsin-table td input[type="text"],
         .sop-goodsin-table td input[type="number"],
