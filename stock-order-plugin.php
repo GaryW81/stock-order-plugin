@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Stock Order
  * Description: Internal tool for suppliers, forecasting, purchase orders, container planning, goods-in, and labels/barcodes.
- * Version: 1.0.31
+ * Version: 1.0.32
  * Author: Wilson Organisation Ltd
  * Text Domain: sop
  * Domain Path: /languages
@@ -15,6 +15,7 @@
  * Stock Order Plugin - Core Bootstrap & Lifecycle Hooks
  *
  * File version: 1.0.43
+ * - Release 1.0.32: Fix WooCommerce product edit SOP meta persistence with guarded product-save fallback.
  * - Release 1.0.31: Pre-Order reset Qty uses custom confirm modal (no browser alert/checkbox).
  * - Release 1.0.30: Pre-Order sheet bulk tool to reset all manual Qty to 0 (with confirmation).
  * - Release 1.0.29: Fix Goods-In Issues XLSX USD credit calc + remove Internal notes from supplier Order Sheet export.
@@ -62,7 +63,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! defined( 'SOP_PLUGIN_VERSION' ) ) {
-    define( 'SOP_PLUGIN_VERSION', '1.0.31' );
+    define( 'SOP_PLUGIN_VERSION', '1.0.32' );
 }
 
 if ( ! defined( 'SOP_PLUGIN_DIR' ) ) {

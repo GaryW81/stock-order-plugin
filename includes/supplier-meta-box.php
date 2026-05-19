@@ -2,7 +2,8 @@
 /**
  * Stock Order Plugin - Phase 2
  * Product Stock Order meta box (supplier + SOP fields).
- * File version: 1.0.35
+ * File version: 1.0.36
+ * - Release 1.0.32: Fix SOP product meta persistence via shared save helper and guarded admin editpost fallback.
  * - Fix corrupted No supplier label encoding.\r\n * - Restore native TinyMCE colour palette for SOP notes editors.
  * - UI: ensure red toggle loads and toolbar order is bold/red/strike.
  * - UI: enforce strikethrough tag for SOP notes editor and keep red toggle.
@@ -353,44 +354,68 @@ function sop_render_product_supplier_metabox( $post ) {
 }
 
 /**
- * Save product supplier and SOP meta when the product is saved.
+ * Persist product supplier and SOP meta from the product edit POST payload.
  *
  * @param int $post_id Post ID.
+ * @return bool True when persistence has run or this product was already processed.
  */
-function sop_save_product_supplier_meta( $post_id ) {
+function sop_persist_product_supplier_meta( $post_id ) {
+    static $processed = array();
 
-    // Only run on product post type.
+    $post_id = (int) $post_id;
+
+    if ( $post_id <= 0 ) {
+        return false;
+    }
+
+    if ( isset( $processed[ $post_id ] ) ) {
+        return true;
+    }
+
     if ( get_post_type( $post_id ) !== 'product' ) {
-        return;
+        return false;
     }
 
-    // Autosave / revisions: bail.
     if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-        return;
+        return false;
     }
 
-    // Check nonce.
+    if ( function_exists( 'wp_is_post_autosave' ) && wp_is_post_autosave( $post_id ) ) {
+        return false;
+    }
+
+    if ( function_exists( 'wp_is_post_revision' ) && wp_is_post_revision( $post_id ) ) {
+        return false;
+    }
+
+    if ( ! current_user_can( 'edit_post', $post_id ) ) {
+        return false;
+    }
+
     if (
         ! isset( $_POST['sop_product_supplier_nonce'] )
-        || ! wp_verify_nonce( $_POST['sop_product_supplier_nonce'], 'sop_save_product_supplier_' . $post_id )
+        || ! wp_verify_nonce( wp_unslash( $_POST['sop_product_supplier_nonce'] ), 'sop_save_product_supplier_' . $post_id )
     ) {
-        return;
+        return false;
     }
 
-    // Permission check.
-    if ( ! current_user_can( 'edit_product', $post_id ) && ! current_user_can( 'edit_post', $post_id ) ) {
-        return;
+    $processed[ $post_id ] = true;
+
+    $supplier_post_key = null;
+    if ( isset( $_POST['_sop_supplier_id'] ) ) {
+        $supplier_post_key = '_sop_supplier_id';
+    } elseif ( isset( $_POST['sop_supplier_id'] ) ) {
+        $supplier_post_key = 'sop_supplier_id';
     }
 
-    // Read supplier ID from POST.
-    $supplier_id = isset( $_POST['_sop_supplier_id'] ) ? (int) $_POST['_sop_supplier_id'] : 0;
+    if ( null !== $supplier_post_key ) {
+        $supplier_id = (int) wp_unslash( $_POST[ $supplier_post_key ] );
 
-    // Normalise: 0 or positive int only.
-    if ( $supplier_id > 0 ) {
-        update_post_meta( $post_id, '_sop_supplier_id', $supplier_id );
-    } else {
-        // 0 / empty = "no supplier" - delete meta to keep DB clean.
-        delete_post_meta( $post_id, '_sop_supplier_id' );
+        if ( $supplier_id > 0 ) {
+            update_post_meta( $post_id, '_sop_supplier_id', $supplier_id );
+        } else {
+            delete_post_meta( $post_id, '_sop_supplier_id' );
+        }
     }
 
     // Location: write to SOP bin location (primary) and mirror to _product_location.
@@ -402,6 +427,13 @@ function sop_save_product_supplier_meta( $post_id ) {
         } else {
             delete_post_meta( $post_id, '_sop_bin_location' );
             delete_post_meta( $post_id, '_product_location' );
+        }
+    } elseif ( isset( $_POST['_product_location'] ) ) {
+        $location = trim( wp_unslash( (string) $_POST['_product_location'] ) );
+        if ( '' !== $location ) {
+            update_post_meta( $post_id, '_sop_bin_location', $location );
+        } else {
+            delete_post_meta( $post_id, '_sop_bin_location' );
         }
     }
 
@@ -486,8 +518,95 @@ function sop_save_product_supplier_meta( $post_id ) {
             update_post_meta( $post_id, '_sop_supplier_skus', $skus_raw );
         }
     }
+
+    return true;
 }
-add_action( 'save_post', 'sop_save_product_supplier_meta', 20 );
+
+/**
+ * Save product supplier and SOP meta when product-specific save hooks fire.
+ *
+ * @param int          $post_id Post ID.
+ * @param WP_Post|int $post    Optional post object or product ID passed by save hooks.
+ * @param bool|null   $update  Optional update flag.
+ * @return void
+ */
+function sop_save_product_supplier_meta( $post_id, $post = null, $update = null ) {
+    $post_id = (int) $post_id;
+
+    if ( $post_id <= 0 ) {
+        return;
+    }
+
+    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+        return;
+    }
+
+    if ( function_exists( 'wp_is_post_autosave' ) && wp_is_post_autosave( $post_id ) ) {
+        return;
+    }
+
+    if ( function_exists( 'wp_is_post_revision' ) && wp_is_post_revision( $post_id ) ) {
+        return;
+    }
+
+    sop_persist_product_supplier_meta( $post_id );
+}
+add_action( 'save_post', 'sop_save_product_supplier_meta', 20, 3 );
+add_action( 'save_post_product', 'sop_save_product_supplier_meta', 20, 3 );
+add_action( 'woocommerce_process_product_meta', 'sop_save_product_supplier_meta', 20, 1 );
+
+/**
+ * Guarded fallback for product edit POST requests where normal save hooks miss SOP meta.
+ *
+ * @return void
+ */
+function sop_handle_product_supplier_meta_admin_editpost_fallback() {
+    if ( ! is_admin() ) {
+        return;
+    }
+
+    if ( defined( 'DOING_AJAX' ) && DOING_AJAX ) {
+        return;
+    }
+
+    $request_method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( (string) wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) : '';
+    if ( 'POST' !== $request_method ) {
+        return;
+    }
+
+    $pagenow = isset( $GLOBALS['pagenow'] ) ? (string) $GLOBALS['pagenow'] : '';
+    if ( 'post.php' !== $pagenow ) {
+        return;
+    }
+
+    $action = isset( $_POST['action'] ) ? sanitize_key( wp_unslash( $_POST['action'] ) ) : '';
+    if ( 'editpost' !== $action ) {
+        return;
+    }
+
+    if ( ! isset( $_POST['post_ID'] ) ) {
+        return;
+    }
+
+    $post_id = (int) wp_unslash( $_POST['post_ID'] );
+    if ( $post_id <= 0 || get_post_type( $post_id ) !== 'product' ) {
+        return;
+    }
+
+    if ( ! current_user_can( 'edit_post', $post_id ) ) {
+        return;
+    }
+
+    if (
+        ! isset( $_POST['sop_product_supplier_nonce'] )
+        || ! wp_verify_nonce( wp_unslash( $_POST['sop_product_supplier_nonce'] ), 'sop_save_product_supplier_' . $post_id )
+    ) {
+        return;
+    }
+
+    sop_persist_product_supplier_meta( $post_id );
+}
+add_action( 'admin_init', 'sop_handle_product_supplier_meta_admin_editpost_fallback', 9999 );
 
 /**
  * Helper: Get the assigned Stock Order supplier ID for a product.
